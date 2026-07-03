@@ -1,3 +1,5 @@
+> **Archived note:** This file is kept for historical design context and may not reflect the current Hook codebase. 当前实现请以仓库根目录 `README.md`、`PROJECT_OVERVIEW.md`、`TECHNICAL_ARCHITECTURE.md` 为准.
+
 # Hook Context Menu Redevelopment Design
 
 **Date:** 2026-07-03

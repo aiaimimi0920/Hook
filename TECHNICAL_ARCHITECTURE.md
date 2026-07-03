@@ -1,102 +1,139 @@
 # Hook Technical Architecture
 
 ## 1. Overview
-Hook is a desktop-based visual workflow automation tool ("ArtNexus") built on **Tauri v2**. It enables users to create, connect, and execute "ArtNodes" (functional units) on an infinite canvas. It features advanced capabilities like screen capture, OCR, and CLI tool integration, all orchestrated through a local Rust backend.
 
-## 2. Technology Stack
+Hook is a Windows-first desktop capture and sticker-editing application built on **Tauri v2**. It combines:
 
-### Frontend
-- **Framework**: [SolidJS](https://www.solidjs.com/) (Reactive, high-performance)
-- **Styling**: TailwindCSS + Manual CSS Variables (Theming/Glassmorphism)
-- **State Management**: SolidJS `createStore` (Deep reactivity)
-- **Build Tool**: Vite (Vinxi)
+- an overlay-style screenshot experience,
+- a canvas-style node/sticker workspace,
+- local desktop integrations such as clipboard, global shortcuts, native dialogs, and local capability bridges.
 
-### Backend
-- **Core**: Rust (Tauri v2)
-- **IPC**: Tauri Command System + WebSocket (Port 19820)
-- **Key Crates**:
-  - `tauri`: Window & System integration
-  - `tokio`: Async runtime
-  - `screenshots`: Cross-platform screen capture
-  - `image`: Image processing
-  - `rapidocr`: OCR functionality
+The codebase is split between a SolidJS frontend under `src/` and a Rust/Tauri backend under `src-tauri/`.
 
-## 3. Core Architecture
+## 2. Runtime Model
 
-### 3.1 Backend Services (`src-tauri/src`)
-The Rust backend is modularized into specialized services:
+Hook runs as a single desktop application and can present the main window in three modes:
 
-- **`mock_artloom.rs`**: The brain of the operation.
-  - Manages the `Workflow` state (Nodes, Links).
-  - Handles execution flow (`propagate_signal`, `execute_node`).
-  - Simulates the "ArtLoom" protocol for node discovery.
-- **`cli_engine.rs`**: Specialized executor for CLI-based ArtNodes.
-  - Wraps external binaries.
-  - Handles `stdin`/`stdout` streaming and parameter substitution.
-- **`ocr_service.rs`**: On-demand OCR processing.
-  - Uses `RapidOCR` model.
-  - Processing pipeline: Abstract -> Screenshot -> OCR -> Text.
-- **`capture.rs` / `screenshot.rs`**: Native screen capture handling.
+- **overlay**: transparent always-on-top surface for capture and pinning
+- **canvas**: focused editing workspace
+- **tray**: background-resident state with tray re-entry
 
-### 3.2 Frontend Architecture (`src`)
-The frontend is a Single Page Application (SPA) driven by a central canvas.
+Startup defaults are injected by the launcher (`start-hook.bat` -> `start-hook.vbs`) and interpreted again in Rust via the boot-profile helpers in `src-tauri/src/lib.rs`.
 
-- **`App.tsx`**: The main controller (Monolithic State Manager).
-  - Manages `units` (ArtNodes), `links`, and `selection`.
-  - Handles global events (Keyboard shortcuts, Drag & Drop).
-  - Syncs state with Backend via Tauri Commands (`sync_workflow`).
-- **`UnitView.tsx`**: The visual representation of a node.
-  - **Portal-based UI**: Actions menus and overlapping elements use `<Portal>` to escape clipping.
-  - **Ports**: Visual anchors for linking.
-  - **Parameters**: Dynamic form generation based on ArtNode specs.
-- **`artloom_client.ts`**: API Layer.
-  - Abstracts WebSocket/IPC communication with the backend.
+## 3. Frontend Architecture (`src/`)
 
-### 3.3 Data Flow
-1.  **User Action**: User adds a node (Shift Key) or connects ports.
-2.  **Frontend State**: `App.tsx` updates local store (`setUnits`, `setLinks`).
-3.  **Sync**: `createEffect` triggers `update_backend_rects` or `sync_workflow`.
-4.  **Execution**: Backend processes the graph, executes logic (CLI/OCR), and pushes results back via Events (`trigger-capture`, `ocr-result`).
+### 3.1 Main composition
 
-## 4. Key Features & Implementation Details
+- **`app.tsx`**: top-level controller for desktop event wiring, session restore, shortcut handling, capture-mode orchestration, and unit/sticker interactions
+- **`store/graphStore.ts`**: graph data, units, links, groups, persistence-facing mutations
+- **`store/uiStore.ts`**: UI-only state, sticker tool settings, selection, long-capture UI state, local persistence helpers
 
-- **Shift Trigger System**:
-  - Refined Event Listener in `App.tsx` (`handleGlobalKeyDown`).
-  - Single-source-of-truth for "Add Node" panel visibility.
-  - Uses `Portal` for z-index management.
-- **Glassmorphism UI**:
-  - Custom CSS system (`app.css`) with manual polyfills for transparency and blur effects.
-  - "Premium" aesthetic with dark transparencies and lavender accents.
-- **CLI Integration**:
-  - Safe execution wrapper preventing zombie processes via Rust's `Command` API.
+### 3.2 Service layer
 
-## 5. Project Structure
+- **`services/api.ts`**: typed boundary for all frontend-to-Tauri commands and browser-preview fallbacks
+- **`services/syncService.ts`**: workflow/session synchronization and backend rect updates
+- **`services/client.ts`**: ArtLoom-style handshake / dispatch / delivery bridge used by the desktop workflow path
+- **`services/shaderCache.ts`**: shader prefetch and browser/desktop fallback handling
+- **`services/sticker*.ts`**: focused sticker-editing domain logic, including geometry, export, rasterization, annotations, effects, history, and context-menu behavior
 
-```
-Hook/
-├── src/                  # Frontend Source
-│   ├── app.tsx           # Main Canvas & State Logic
-│   ├── app.css           # Global Styles & Polyfills
-│   ├── components/       # UI Components
-│   │   └── UnitView.tsx  # Node Visual Component
-│   ├── services/         # API & Logic Services
-│   └── lib/              # Utilities
-├── src-tauri/            # Backend Source
-│   ├── src/
-│   │   ├── lib.rs        # Tauri Entry Point
-│   │   ├── mock_artloom.rs # Workflow Engine
-│   │   └── ...           # Service modules
-│   └── tauri.conf.json   # App Configuration
-└── ...
-```
+### 3.3 UI structure
 
-## 6. Stability & Optimization Status
+Major UI is intentionally split into focused components rather than a single visual monolith:
 
-### Stability
-- **Verified**: The Shift Key trigger, Panel visibility, and Text colors have been rigorously debugged and fixed.
-- **Robustness**: Event listeners now use strict cleanup (`onCleanup`) to prevent memory leaks or duplicate triggers.
-- **Error Handling**: Solid Store updates are now guarded against `undefined` states.
+- canvas/link rendering
+- unit rendering and parameter panels
+- sticker annotation layer
+- top-strip property and tool controls
+- context menus, history panels, group bars, and selection overlays
 
-### Areas for Future Improvement
-- **Refactoring `App.tsx`**: Currently ~2900 lines. Breaking this into `Canvas.tsx`, `SelectionManager.tsx`, and `LinkLayer.tsx` would improve maintainability.
-- **CSS Standardization**: Migrating fully to standard Tailwind config instead of `app.css` polyfills would reduce confusion.
+The current visual baseline is the Hook terminal-style yellow/green theme, not the older rounded lavender/glass variant.
+
+## 4. Backend Architecture (`src-tauri/src/`)
+
+### 4.1 Command surface
+
+`src-tauri/src/lib.rs` is the Tauri entry surface. It:
+
+- registers desktop commands,
+- owns boot/runtime state,
+- manages shortcut registration,
+- coordinates capture-mode transitions,
+- initializes tray, single-instance guard, and long-capture session state.
+
+### 4.2 Key backend modules
+
+- **`capture.rs` / `screenshot.rs`**: region capture and low-level screenshot handling
+- **`long_capture.rs`**: long screenshot analysis, overlap detection, frame stitching
+- **`mock_artloom.rs`**: workflow-oriented backend integration surface and ArtLoom-style command handling
+- **`cli_engine.rs`**: CLI-oriented execution helper
+- **`loom_connector.rs`**: local Loom capability invocation
+- **`talk_connector.rs`**: local Talk voice capture invocation
+- **`tea_client.rs`**: local Tea ticket creation bridge
+- **`voice/`**: voice session, audio, insertion, hotkey, and provider logic
+- **`single_instance.rs`**: mutex-based single-instance protection
+- **`mouse_monitor.rs`**: overlay hit-testing / click-through coordination
+- **`process_utils.rs`**: child-process handling helpers
+
+### 4.3 Platform bias
+
+The current implementation is Windows-focused. That bias is visible in:
+
+- Win32 dialog placement
+- shared-memory image reads
+- global shortcut handling
+- clipboard/file-list integration
+- desktop capture stack
+
+## 5. Data Boundaries
+
+### 5.1 Core graph model
+
+The core editable model is:
+
+- **units**
+- **links**
+- **sticker groups**
+- **recycle bin / reference library**
+
+### 5.2 Persisted local state
+
+Hook persists several categories of local state:
+
+- session graph data
+- history data
+- sticker tool settings
+- runtime logs
+- clipboard cache files
+
+Most user-writable data is stored under the local app-data area, with temporary clipboard artifacts allowed under app-local or temp cache paths declared in `tauri.conf.json`.
+
+## 6. Build and Release Flow
+
+### 6.1 Frontend build
+
+Frontend output is produced by:
+
+- `npm run build`
+- `scripts/build-static.cmd`
+- `scripts/clean-tauri-dist.mjs`
+
+The final static frontend payload is emitted to:
+
+- `.output/public`
+
+### 6.2 Desktop build
+
+The local desktop exe flow is:
+
+1. `scripts/build-local-hook-exe.ps1`
+2. `npm run tauri build -- --no-bundle`
+3. copy `src-tauri/target/release/hook.exe`
+4. write final artifact to `..\release\Hook\hook.exe`
+
+This repository now targets the **minimal exe output only**.
+
+## 7. Current Maintenance Notes
+
+- Root docs (`README.md`, `PROJECT_OVERVIEW.md`, `TECHNICAL_ARCHITECTURE.md`) describe the current repo shape.
+- `docs/superpowers/plans` and `docs/migration` are historical records, not the primary source for current operator workflow.
+- The current architecture intentionally prefers smaller service files for sticker editing and local capability surfaces, while `app.tsx` and `src-tauri/src/lib.rs` still remain the heaviest integration points.
