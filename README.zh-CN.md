@@ -40,8 +40,20 @@ Hook 不只是一个“截完图就结束”的工具。它把下面几件事组
 - 桌面视觉批注工具
 - 本地 AI / 工作流前端
 
+## 产品预览
+
+<p align="center">
+  <img src="docs/assets/hook-home-demo.gif" alt="Hook animated demo" width="100%" />
+</p>
+
+<p align="center">
+  <img src="docs/assets/hook-home-overview-cropped.png" alt="Hook workspace overview" width="49%" />
+  <img src="docs/assets/hook-home-context-menu-cropped.png" alt="Hook context menu preview" width="49%" />
+</p>
+
 ## 目录
 
+- [产品预览](#产品预览)
 - [为什么是 Hook](#为什么是-hook)
 - [核心能力](#核心能力)
 - [桌面模式](#桌面模式)

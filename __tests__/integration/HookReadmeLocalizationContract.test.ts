@@ -5,6 +5,9 @@ import { resolve } from "node:path";
 const readmeEnPath = resolve(process.cwd(), "README.md");
 const readmeZhPath = resolve(process.cwd(), "README.zh-CN.md");
 const heroPath = resolve(process.cwd(), "docs/assets/github-home-hero.svg");
+const gifPath = resolve(process.cwd(), "docs/assets/hook-home-demo.gif");
+const overviewPath = resolve(process.cwd(), "docs/assets/hook-home-overview-cropped.png");
+const contextMenuPath = resolve(process.cwd(), "docs/assets/hook-home-context-menu-cropped.png");
 const readmeEn = readFileSync(readmeEnPath, "utf8");
 const readmeZh = readFileSync(readmeZhPath, "utf8");
 
@@ -20,5 +23,17 @@ describe("Hook GitHub homepage localization contract", () => {
         expect(existsSync(heroPath)).toBe(true);
         expect(readmeEn).toContain("docs/assets/github-home-hero.svg");
         expect(readmeZh).toContain("docs/assets/github-home-hero.svg");
+    });
+
+    it("references the shared product preview GIF and screenshots in both language versions", () => {
+        expect(existsSync(gifPath)).toBe(true);
+        expect(existsSync(overviewPath)).toBe(true);
+        expect(existsSync(contextMenuPath)).toBe(true);
+        expect(readmeEn).toContain("docs/assets/hook-home-demo.gif");
+        expect(readmeZh).toContain("docs/assets/hook-home-demo.gif");
+        expect(readmeEn).toContain("docs/assets/hook-home-overview-cropped.png");
+        expect(readmeZh).toContain("docs/assets/hook-home-overview-cropped.png");
+        expect(readmeEn).toContain("docs/assets/hook-home-context-menu-cropped.png");
+        expect(readmeZh).toContain("docs/assets/hook-home-context-menu-cropped.png");
     });
 });

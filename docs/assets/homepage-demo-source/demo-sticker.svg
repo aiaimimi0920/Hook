@@ -1,0 +1,20 @@
+<svg width="1280" height="800" viewBox="0 0 1280 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="40" x2="1160" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#18351A"/>
+      <stop offset="1" stop-color="#10140F"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="800" rx="48" fill="url(#bg)"/>
+  <rect x="48" y="48" width="1184" height="704" rx="36" fill="#0F130A" fill-opacity="0.18" stroke="#8AF66B" stroke-opacity="0.35" stroke-width="3"/>
+  <text x="92" y="148" fill="#F7FCEB" font-size="66" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Sticker Editing</text>
+  <text x="92" y="204" fill="#E8F1D0" font-size="28" font-family="Segoe UI, Arial, sans-serif">Annotate, recycle, and organize floating references.</text>
+  <rect x="92" y="246" width="210" height="44" rx="22" fill="#90F97A" fill-opacity="0.22" stroke="#90F97A"/>
+  <text x="197" y="275" text-anchor="middle" fill="#F9FFD0" font-size="22" font-family="Segoe UI, Arial, sans-serif" font-weight="600">Sticker</text>
+  <rect x="92" y="334" width="470" height="280" rx="28" fill="#0F130A" fill-opacity="0.35" stroke="#8AF66B" stroke-width="3"/>
+  <rect x="132" y="374" width="210" height="132" rx="18" fill="#EFFF9F" fill-opacity="0.18" stroke="#EFFF9F" stroke-opacity="0.45"/>
+  <rect x="364" y="394" width="154" height="92" rx="18" fill="#84F97A" fill-opacity="0.2" stroke="#84F97A"/>
+  <circle cx="890" cy="430" r="72" fill="#EFFF9F" fill-opacity="0.18" stroke="#EFFF9F" stroke-width="3"/>
+  <path d="M760 562C820 498 900 498 962 562" stroke="#B8FF7C" stroke-width="10" stroke-linecap="round"/>
+  <text x="776" y="332" fill="#D3DDB9" font-size="28" font-family="Segoe UI, Arial, sans-serif">Text · arrows · shapes · brush · highlighter</text>
+</svg>

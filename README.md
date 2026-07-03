@@ -35,8 +35,20 @@ Hook is built for people who want more than a simple screenshot button. It combi
 
 It is a good fit for lightweight screenshot workbenches, visual planning boards, desktop AI frontends, and workflow-oriented capture tools.
 
+## Preview
+
+<p align="center">
+  <img src="docs/assets/hook-home-demo.gif" alt="Hook animated demo" width="100%" />
+</p>
+
+<p align="center">
+  <img src="docs/assets/hook-home-overview-cropped.png" alt="Hook workspace overview" width="49%" />
+  <img src="docs/assets/hook-home-context-menu-cropped.png" alt="Hook context menu preview" width="49%" />
+</p>
+
 ## Contents
 
+- [Preview](#preview)
 - [Why Hook](#why-hook)
 - [Highlights](#highlights)
 - [Desktop modes](#desktop-modes)

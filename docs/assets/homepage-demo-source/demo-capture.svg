@@ -1,0 +1,20 @@
+<svg width="1280" height="800" viewBox="0 0 1280 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="60" y1="20" x2="1220" y2="780" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3C3215"/>
+      <stop offset="1" stop-color="#12160E"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="800" rx="48" fill="url(#bg)"/>
+  <rect x="48" y="48" width="1184" height="704" rx="36" fill="#0F130A" fill-opacity="0.18" stroke="#E8FF86" stroke-opacity="0.35" stroke-width="3"/>
+  <text x="92" y="148" fill="#F7FCEB" font-size="66" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Quick Capture</text>
+  <text x="92" y="204" fill="#E8F1D0" font-size="28" font-family="Segoe UI, Arial, sans-serif">Region capture, long capture, and pinned visual notes.</text>
+  <rect x="92" y="246" width="210" height="44" rx="22" fill="#F7F36B" fill-opacity="0.22" stroke="#F7F36B"/>
+  <text x="197" y="275" text-anchor="middle" fill="#F9FFD0" font-size="22" font-family="Segoe UI, Arial, sans-serif" font-weight="600">Capture</text>
+  <rect x="92" y="340" width="420" height="252" rx="26" fill="#F9F7A5" fill-opacity="0.18" stroke="#F7F36B" stroke-width="3"/>
+  <rect x="136" y="382" width="334" height="168" rx="18" fill="#0A0B08" fill-opacity="0.55" stroke="#D8F76D" stroke-opacity="0.4"/>
+  <path d="M610 370L1120 370" stroke="#EAFF99" stroke-opacity="0.4" stroke-width="4" stroke-dasharray="10 12"/>
+  <rect x="640" y="420" width="408" height="100" rx="22" fill="#11150C" stroke="#BFF861" stroke-opacity="0.5"/>
+  <text x="680" y="478" fill="#F7FCEB" font-size="36" font-family="Segoe UI, Arial, sans-serif" font-weight="600">Ctrl + 1  Area capture</text>
+  <text x="680" y="574" fill="#D3DDB9" font-size="24" font-family="Segoe UI, Arial, sans-serif">Pin, crop, annotate, and export from the same workspace.</text>
+</svg>
