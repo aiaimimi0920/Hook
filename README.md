@@ -1,76 +1,119 @@
 # Hook
 
-> Open-source Windows desktop capture, sticker editing, and node-based visual workflow workspace built with **Tauri v2 + SolidJS**.
+<p align="center">
+  <img src="docs/assets/github-home-hero.svg" alt="Hook GitHub hero" width="100%" />
+</p>
 
-Maintained by **yamiyu**.
+<p align="center">
+  <a href="README.md"><strong>English</strong></a>
+  ·
+  <a href="README.zh-CN.md"><strong>简体中文</strong></a>
+</p>
 
-Hook 是一个面向 Windows 的开源桌面工具，聚焦三类能力：
+<p align="center">
+  Open-source Windows-first desktop capture, sticker editing, and visual workflow workspace.
+</p>
 
-- **截图与长截图**
-- **贴图、标注与视觉整理**
-- **节点式工作流画布与本地桌面能力桥接**
+<p align="center">
+  Maintained by <strong>yamiyu</strong>.
+</p>
 
-它适合用作轻量截图工作台、贴图白板、视觉批注工具，以及本地 AI / 工作流桌面前端。
+<p align="center">
+  <a href="https://github.com/aiaimimi0920/Hook/actions/workflows/build-hook-exe.yml"><img src="https://github.com/aiaimimi0920/Hook/actions/workflows/build-hook-exe.yml/badge.svg" alt="Build Hook EXE" /></a>
+  <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows" />
+  <img src="https://img.shields.io/badge/Tauri-v2-24C8DB" alt="Tauri v2" />
+  <img src="https://img.shields.io/badge/SolidJS-TypeScript-2C4F7C" alt="SolidJS TypeScript" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-F4EA2A" alt="MIT License" /></a>
+</p>
 
-## Current Status
+Hook is built for people who want more than a simple screenshot button. It combines:
 
-- **Platform focus**: Windows first
-- **Desktop shell**: Tauri v2
-- **Frontend**: SolidJS + TypeScript
-- **Backend**: Rust
-- **Build**: Vinxi / Vite
-- **Repository state**: active development, current root docs describe the live codebase
+- fast region capture and long capture,
+- sticker-based visual organization and annotation,
+- a desktop canvas for node-style workflow interactions,
+- local capability bridges for Talk / Loom / Tea style integrations.
 
-## Open-source identity and local compatibility
+It is a good fit for lightweight screenshot workbenches, visual planning boards, desktop AI frontends, and workflow-oriented capture tools.
 
-- The public Tauri bundle identifier now uses the yamiyu company namespace `com.yamiyu.hook`.
-- Hook keeps the visible product/runtime naming as `Hook` / `hook.exe`.
-- Local clipboard cache remains under `LOCALAPPDATA/Hook/...`.
-- Session/history/tool-settings persistence includes legacy fallbacks so existing installs that previously wrote under `io.github.aiaimimi0920.hook` or `com.vmjcv.hook` do not lose their local data after the public-identity cleanup.
-- The public repository URL remains the live GitHub location even though the product/developer brand is now unified as `yamiyu`.
+## Contents
 
-## Core Features
+- [Why Hook](#why-hook)
+- [Highlights](#highlights)
+- [Desktop modes](#desktop-modes)
+- [Download and try](#download-and-try)
+- [Quick start](#quick-start)
+- [Build a local EXE](#build-a-local-exe)
+- [Documentation](#documentation)
+- [Open-source identity and compatibility](#open-source-identity-and-compatibility)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
 
-- Region capture and long capture
-- Overlay / canvas / tray runtime modes
-- Sticker editing, crop, borders, opacity, color copy
-- Text, numbering, shapes, highlighter, brush, and annotation layers
-- Recycle bin and reference list
-- Node graph, links, parameter panels, and workflow sync
-- Local capability bridges for Talk / Loom / Tea
-- Native clipboard, file dialogs, global shortcuts, and desktop launch helpers
+## Why Hook
 
-## Repository Layout
+Hook focuses on the gap between a screenshot utility and a heavier design tool:
 
-```text
-Hook/
-├── src/                        # SolidJS frontend
-│   ├── app.tsx                 # Main frontend controller
-│   ├── components/             # UI components
-│   ├── hooks/                  # Interaction hooks
-│   ├── services/               # Typed API, sync, sticker logic
-│   ├── store/                  # Graph/UI state
-│   └── types/                  # TypeScript types
-├── src-tauri/                  # Rust / Tauri backend
-│   ├── src/                    # Capture, long_capture, voice, connectors
-│   ├── crates/                 # Hook-owned capture crates
-│   └── tauri.conf.json
-├── scripts/                    # Local development and build scripts
-├── __tests__/                  # Vitest contracts and unit tests
-├── .github/workflows/          # GitHub Actions
-└── docs/                       # Archived plans, specs, migration records
-```
+- capture first, then keep working on top of the captured material,
+- pin images and notes into a reusable desktop workspace,
+- organize references and recycled assets without leaving the app,
+- connect desktop visuals to local workflow nodes and capability bridges.
 
-## Requirements
+## Highlights
+
+- **Capture and long capture**
+  - region capture
+  - vertical/horizontal long capture session flow
+  - file-backed capture payloads for desktop performance
+- **Sticker and annotation workspace**
+  - crop, borders, opacity, raster effects, color copy
+  - text, numbering, shapes, brush, highlighter
+  - recycle bin and reference library
+- **Desktop workflow canvas**
+  - node graph, links, grouped parameters, sync hooks
+  - editing-oriented top strip and context menus
+  - local desktop launch helpers and single-instance handling
+- **Local integrations**
+  - Talk voice capture bridge
+  - Loom planning / capability bridge
+  - Tea intake bridge
+
+## Desktop modes
+
+| Mode | Role |
+| --- | --- |
+| Overlay | Transparent always-on-top capture and pinning surface |
+| Canvas | Focused editing and workflow workspace |
+| Tray | Background-resident mode with tray re-entry |
+
+## Download and try
+
+### Option A: GitHub Actions artifact
+
+The repository builds a Windows EXE automatically through GitHub Actions:
+
+- Workflow: <https://github.com/aiaimimi0920/Hook/actions/workflows/build-hook-exe.yml>
+- Artifact name: `hook-windows-x64`
+
+This is currently the most direct way to try the latest repository build.
+
+### Option B: Releases
+
+If versioned releases are published later, check:
+
+- <https://github.com/aiaimimi0920/Hook/releases>
+
+### Current package shape
+
+The current public package target is the **minimal EXE payload only**.
+
+## Quick start
 
 Recommended local environment:
 
-- **Windows**
-- **Node.js 20+**
-- **npm**
-- **Rust stable toolchain**
-
-## Quick Start
+- Windows
+- Node.js 20+
+- npm
+- Rust stable toolchain
 
 Install dependencies:
 
@@ -84,15 +127,68 @@ Run the desktop development shell:
 npm run dev:tauri
 ```
 
-Notes:
+Useful notes:
 
-- `npm run dev:tauri` is the primary desktop development entrypoint.
-- `npm run dev` can still be used for frontend-only development, but it is not a full desktop runtime path.
-- `npm run build && npm run serve:static` is suitable for static browser preview only.
+- `npm run dev:tauri` is the main desktop development entrypoint.
+- `npm run dev` is suitable for frontend-only work.
+- `npm run build && npm run serve:static` is suitable for static browser preview.
 
-## Testing and Verification
+## Build a local EXE
 
-Useful commands:
+Recommended local build command:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-hook-exe.ps1 -Force
+```
+
+Default output:
+
+```text
+..\release\Hook\hook.exe
+```
+
+Compatibility wrappers are still kept:
+
+- `build-hook-release.bat`
+- `package-hook-release.ps1`
+
+They delegate to the Hook-local build flow.
+
+## Documentation
+
+### Current docs
+
+Read these first for the live codebase:
+
+- `README.md`
+- `README.zh-CN.md`
+- `PROJECT_OVERVIEW.md`
+- `TECHNICAL_ARCHITECTURE.md`
+
+### Archived docs
+
+Historical migration, plan, and spec records live under:
+
+- `docs/migration/*`
+- `docs/superpowers/plans/*`
+- `docs/superpowers/specs/*`
+
+If archived docs conflict with current code, prefer the root docs above.
+
+## Open-source identity and compatibility
+
+- The public Tauri bundle identifier uses the yamiyu namespace: `com.yamiyu.hook`.
+- Hook keeps the visible runtime naming as `Hook` / `hook.exe`.
+- Local clipboard cache remains under `LOCALAPPDATA/Hook/...`.
+- Session, history, and tool settings include legacy fallbacks for older installs that previously wrote under:
+  - `io.github.aiaimimi0920.hook`
+  - `com.vmjcv.hook`
+- The public repository URL remains the live GitHub location:
+  - <https://github.com/aiaimimi0920/Hook>
+
+## Development
+
+Useful verification commands:
 
 ```bash
 npm run typecheck
@@ -107,73 +203,14 @@ npm run verify:local
 3. `npm run build`
 4. `build-hook-release.bat`
 
-## Build a Local EXE
+## Contributing
 
-Recommended local build command:
+Issues, build feedback, and focused improvement proposals are welcome:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-hook-exe.ps1 -Force
-```
+- Issues: <https://github.com/aiaimimi0920/Hook/issues>
+- Actions: <https://github.com/aiaimimi0920/Hook/actions>
 
-Default output:
-
-```text
-..\release\Hook\hook.exe
-```
-
-Compatibility wrappers are also kept:
-
-- `build-hook-release.bat`
-- `package-hook-release.ps1`
-
-They ultimately delegate to the Hook-local build script.
-
-## Launching a Built EXE
-
-Desktop launch helpers:
-
-- `start-hook.bat`
-- `start-hook.vbs`
-- `stop-hook.bat`
-- `launch-config.cmd`
-
-Typical roles:
-
-- `start-hook.bat`: visible entrypoint
-- `start-hook.vbs`: hidden-window launcher for `hook.exe`
-- `stop-hook.bat`: stop an existing Hook process
-
-## GitHub Actions
-
-This repository includes its own Windows EXE workflow:
-
-- `.github/workflows/build-hook-exe.yml`
-
-It builds and uploads:
-
-- `release/Hook/hook.exe`
-
-The current release target is the **minimal EXE payload only**.
-
-## Documentation Map
-
-### Current docs
-
-These files describe the **current** codebase and should be treated as the primary source of truth:
-
-- `README.md`
-- `PROJECT_OVERVIEW.md`
-- `TECHNICAL_ARCHITECTURE.md`
-
-### Archived docs
-
-These locations are historical records and may not reflect the current code:
-
-- `docs/migration/*`
-- `docs/superpowers/plans/*`
-- `docs/superpowers/specs/*`
-
-If a historical document conflicts with the current implementation, prefer the root docs above.
+When contributing, prefer current root docs over archived historical planning material.
 
 ## License
 

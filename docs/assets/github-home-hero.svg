@@ -1,0 +1,59 @@
+<svg width="1200" height="420" viewBox="0 0 1200 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="90" y1="40" x2="1110" y2="380" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#11120C"/>
+      <stop offset="1" stop-color="#1B2114"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="170" y1="90" x2="380" y2="300" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F6FF66"/>
+      <stop offset="1" stop-color="#83F77B"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#202615"/>
+      <stop offset="1" stop-color="#171C10"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="1200" height="420" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect x="20" y="20" width="1160" height="380" rx="28" fill="url(#bg)" stroke="#2D3720" stroke-width="2" filter="url(#shadow)"/>
+
+  <rect x="72" y="80" width="240" height="240" rx="40" fill="#0F130A" stroke="#343E25" stroke-width="2"/>
+  <rect x="96" y="104" width="192" height="192" rx="32" fill="url(#accent)"/>
+  <circle cx="192" cy="156" r="20" fill="#0F130A"/>
+  <rect x="168" y="182" width="48" height="66" rx="16" fill="#0F130A"/>
+  <rect x="140" y="256" width="104" height="14" rx="7" fill="#0F130A"/>
+
+  <text x="360" y="128" fill="#F7FCE8" font-size="58" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Hook</text>
+  <text x="360" y="176" fill="#B9C6A6" font-size="24" font-family="Segoe UI, Arial, sans-serif">
+    Capture, annotate, organize, and connect your desktop workflow.
+  </text>
+  <text x="360" y="214" fill="#D9F76C" font-size="18" font-family="Segoe UI, Arial, sans-serif" font-weight="600">
+    Windows-first · Tauri v2 · SolidJS · yamiyu
+  </text>
+
+  <rect x="360" y="248" width="126" height="42" rx="21" fill="#1F2B13" stroke="#BCE55B"/>
+  <text x="423" y="275" text-anchor="middle" fill="#F4FFB3" font-size="18" font-family="Segoe UI, Arial, sans-serif" font-weight="600">Capture</text>
+
+  <rect x="500" y="248" width="126" height="42" rx="21" fill="#1F2B13" stroke="#BCE55B"/>
+  <text x="563" y="275" text-anchor="middle" fill="#F4FFB3" font-size="18" font-family="Segoe UI, Arial, sans-serif" font-weight="600">Sticker</text>
+
+  <rect x="640" y="248" width="146" height="42" rx="21" fill="#1F2B13" stroke="#BCE55B"/>
+  <text x="713" y="275" text-anchor="middle" fill="#F4FFB3" font-size="18" font-family="Segoe UI, Arial, sans-serif" font-weight="600">Workflow</text>
+
+  <rect x="800" y="248" width="126" height="42" rx="21" fill="#1F2B13" stroke="#BCE55B"/>
+  <text x="863" y="275" text-anchor="middle" fill="#F4FFB3" font-size="18" font-family="Segoe UI, Arial, sans-serif" font-weight="600">Desktop</text>
+
+  <rect x="878" y="88" width="238" height="84" rx="22" fill="url(#card)" stroke="#344024"/>
+  <text x="904" y="122" fill="#F4FFB3" font-size="22" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Overlay</text>
+  <text x="904" y="148" fill="#C0C9B2" font-size="16" font-family="Segoe UI, Arial, sans-serif">fast capture and pinning surface</text>
+
+  <rect x="878" y="186" width="238" height="84" rx="22" fill="url(#card)" stroke="#344024"/>
+  <text x="904" y="220" fill="#F4FFB3" font-size="22" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Canvas</text>
+  <text x="904" y="246" fill="#C0C9B2" font-size="16" font-family="Segoe UI, Arial, sans-serif">editing, nodes, and visual organization</text>
+
+  <rect x="878" y="284" width="238" height="84" rx="22" fill="url(#card)" stroke="#344024"/>
+  <text x="904" y="318" fill="#F4FFB3" font-size="22" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Tray</text>
+  <text x="904" y="344" fill="#C0C9B2" font-size="16" font-family="Segoe UI, Arial, sans-serif">background-ready desktop utility</text>
+</svg>
