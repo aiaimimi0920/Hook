@@ -18,13 +18,11 @@ describe("Hook README localization contract", () => {
     it("keeps the minimal shared section structure in both languages", () => {
         expect(readmeEn).toContain("## Why Hook");
         expect(readmeEn).toContain("## Core capabilities");
-        expect(readmeEn).toContain("## Quick start");
         expect(readmeEn).toContain("## Contributing");
         expect(readmeEn).toContain("## License");
 
         expect(readmeZh).toContain("## 为什么是 Hook");
         expect(readmeZh).toContain("## 核心能力");
-        expect(readmeZh).toContain("## 快速开始");
         expect(readmeZh).toContain("## 参与贡献");
         expect(readmeZh).toContain("## 许可证");
     });

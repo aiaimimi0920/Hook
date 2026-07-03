@@ -28,7 +28,6 @@ Hook works well for quick capture and light editing.
 
 - [Why Hook](#why-hook)
 - [Core capabilities](#core-capabilities)
-- [Quick start](#quick-start)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -55,15 +54,6 @@ Hook focuses on the gap between a screenshot utility and a heavier design tool:
   - node graph, links, grouped parameters, sync entry points
   - editing-oriented top toolbar and context menu
   - local startup helpers and single-instance control
-
-## Quick start
-
-Minimal local development flow:
-
-```bash
-npm install
-npm run dev:tauri
-```
 
 ## Contributing
 
