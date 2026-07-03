@@ -8,6 +8,10 @@ const rustSource = readFileSync(resolve(process.cwd(), "src-tauri/src/lib.rs"), 
 const cargoToml = readFileSync(resolve(process.cwd(), "src-tauri/Cargo.toml"), "utf8");
 const buildSource = readFileSync(resolve(process.cwd(), "build-hook-release.bat"), "utf8");
 const packageSource = readFileSync(resolve(process.cwd(), "package-hook-release.ps1"), "utf8");
+const localBuildSource = readFileSync(
+    resolve(process.cwd(), "scripts/build-local-hook-exe.ps1"),
+    "utf8",
+);
 
 describe("Hook optimization guardrails", () => {
     it("keeps the image import path and the Rust image dependency intact", () => {
@@ -21,10 +25,12 @@ describe("Hook optimization guardrails", () => {
         expect(cargoToml).toContain('image = "0.25.9"');
     });
 
-    it("keeps release packaging on the canonical Hook release pipeline", () => {
+    it("keeps release packaging on the Hook-local build pipeline", () => {
         expect(buildSource).toContain("package-hook-release.ps1");
-        expect(packageSource).toContain('"Hook"');
-        expect(packageSource).toContain("build-release-exes.ps1");
+        expect(packageSource).toContain("scripts\\build-local-hook-exe.ps1");
+        expect(packageSource).not.toContain("build-release-exes.ps1");
+        expect(localBuildSource).toContain('"..\\release\\Hook"');
+        expect(localBuildSource).toContain("npm run tauri build -- --no-bundle");
         expect(rustSource).toContain("clipboard_cache");
     });
 });

@@ -27,7 +27,6 @@ const collectFiles = (root: string): string[] => {
 
 const currentProductFiles = () => {
   const hookRoot = process.cwd();
-  const repoRoot = resolve(hookRoot, "..");
   const files = [
     ...readdirSync(hookRoot)
       .filter((name) => name.endsWith(".md"))
@@ -38,9 +37,7 @@ const currentProductFiles = () => {
     "build-hook-release.bat",
     "package-hook-release.ps1",
     "start-hook.bat",
-    "start-hook-capture-test.bat",
     "stop-hook.bat",
-    "verify-hook-full.bat",
     "src-tauri/Cargo.toml",
     "src-tauri/Cargo.lock",
     "src-tauri/tauri.conf.json",
@@ -50,15 +47,6 @@ const currentProductFiles = () => {
   files.push(...collectFiles(resolve(hookRoot, "src-tauri", "src")));
   files.push(...collectFiles(resolve(hookRoot, "src-tauri", "tests")));
   files.push(...collectFiles(resolve(hookRoot, "scripts")));
-  files.push(
-    resolve(repoRoot, "scripts", "build-release-exes.ps1"),
-    resolve(repoRoot, "scripts", "smoke-release-local-apps.ps1"),
-    resolve(repoRoot, "scripts", "smoke-hook-tea-tauri-ui-real.ps1"),
-    resolve(repoRoot, "scripts", "tests", "test-build-release-exes-contract.ps1"),
-    resolve(repoRoot, "scripts", "tests", "test-smoke-release-local-apps-contract.ps1"),
-    resolve(repoRoot, "scripts", "tests", "test-verify-release-contract.ps1"),
-    resolve(repoRoot, "docs", "architecture", "neuro-release-artifact-standard.md"),
-  );
 
   return files.filter((path, index, all) => existsSync(path) && all.indexOf(path) === index);
 };
@@ -83,7 +71,7 @@ describe("Hook product naming contract", () => {
     const offenders = currentProductFiles()
       .map((path) => {
         const content = readFileSync(path, "utf8");
-        return forbidden.test(content) ? relative(resolve(hookRoot, ".."), path) : null;
+        return forbidden.test(content) ? relative(hookRoot, path) : null;
       })
       .filter((path): path is string => Boolean(path));
 

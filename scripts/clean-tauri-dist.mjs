@@ -38,8 +38,6 @@ export const cleanTauriDist = (publicDir = resolve(".output", "public")) => {
     }
   });
 
-  removeFile(root, resolve(root, "vite.svg"), removedFiles);
-
   return { removedFiles, removedDirectories };
 };
 

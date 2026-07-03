@@ -36,6 +36,7 @@ import {
     type HistoryState,
     type ScreenshotHistoryEntry,
 } from "../services/historyModel";
+import { api } from "../services/api";
 import { applyStickerToolSettingsPatch, normalizeStickerToolSettings } from "../services/toolSettings";
 
 // Global Selection State
@@ -207,9 +208,8 @@ export interface ClipboardData {
 }
 export const [clipboard, setClipboard] = createSignal<ClipboardData | null>(null);
 
-// Persist the current history store to disk. Uses a lazy import of the api
-// module to avoid a static import cycle (api -> store -> api). Failures are
-// non-fatal: history is a convenience cache, not critical state.
+// Persist the current history store to disk. Failures are non-fatal: history
+// is a convenience cache, not critical state.
 let persistHistoryTimer: ReturnType<typeof setTimeout> | null = null;
 let persistToolSettingsTimer: ReturnType<typeof setTimeout> | null = null;
 const persistHistory = async () => {
@@ -217,7 +217,6 @@ const persistHistory = async () => {
     persistHistoryTimer = setTimeout(() => {
         void (async () => {
             try {
-                const { api } = await import("../services/api");
                 await api.saveHistory(
                     [...historyState.colors],
                     [...historyState.screenshots],
@@ -234,7 +233,6 @@ const persistToolSettings = async () => {
     persistToolSettingsTimer = setTimeout(() => {
         void (async () => {
             try {
-                const { api } = await import("../services/api");
                 await api.saveToolSettings({ ...stickerToolSettings });
             } catch (error) {
                 console.error("Failed to persist sticker tool settings", error);

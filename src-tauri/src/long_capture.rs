@@ -2353,7 +2353,6 @@ struct LongCaptureAggregateResult {
     axis: Option<LongCaptureAxis>,
     merged_frames: usize,
     skipped_frames: usize,
-    cross_axis_attempts_after_lock: usize,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -4076,7 +4075,6 @@ impl LongCaptureIncrementalStitcher {
             axis,
             merged_frames: self.merged_frames,
             skipped_frames: self.skipped_frames,
-            cross_axis_attempts_after_lock: 0,
         }
     }
 
@@ -4800,7 +4798,6 @@ mod tests {
         .expect("aggregate signature stitching should lock vertical axis");
 
         assert_eq!(result.axis, Some(LongCaptureAxis::Vertical));
-        assert_eq!(result.cross_axis_attempts_after_lock, 0);
     }
 
     #[test]

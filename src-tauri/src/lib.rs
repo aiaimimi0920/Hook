@@ -2355,6 +2355,7 @@ fn classify_long_capture_recording_fingerprint(
     }
 }
 
+#[cfg(test)]
 fn classify_long_capture_recording_frame(
     previous: Option<&image::RgbImage>,
     current: &image::RgbImage,
@@ -2900,6 +2901,7 @@ fn enter_long_capture_mode(window: &tauri::WebviewWindow) {
     }
 }
 
+#[cfg(test)]
 fn encode_rgb_image_as_capture_response(
     rgb_image: image::RgbImage,
 ) -> Result<CaptureResponse, String> {

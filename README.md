@@ -60,10 +60,17 @@ Hook is a node-based visual interface for ArtNexus, built with Tauri and SolidJS
    - shader/session 的 browser fallback 不再退化成 console error
 
    由于当前仓库位于 Windows UNC 路径下，Vitest 默认的 fork pool 在这台机器上不稳定；脚本已经固定改成 `threads + 单 worker`，避免测试卡死在子进程启动阶段。
-   如果当前终端对 `npm run test` 的 UNC 包装不稳定，也可以直接运行：
-   ```bat
-   scripts\\run-vitest.cmd run
+
+   如果要执行当前 Hook 本地完整校验链，可以直接运行：
+   ```bash
+   npm run verify:local
    ```
+
+   这个入口会按顺序执行：
+   - `npm run typecheck`
+   - `npm test`
+   - `npm run build`
+   - `build-hook-release.bat`
 
 6. 如果要做 DOM 级 reference 回归 smoke：
    ```powershell

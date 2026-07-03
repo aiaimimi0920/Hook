@@ -92,7 +92,7 @@ describe("Hook sticker text sizing contract", () => {
     it("drives a font dropdown from preset fonts plus installed system fonts", () => {
         expect(fontCatalogSource).toContain("COMMON_STICKER_FONT_FAMILIES");
         expect(fontCatalogSource).toContain("mergeStickerFontFamilies");
-        expect(appSource).toContain("api.getInstalledFonts()");
+        expect(appSource).toMatch(/api\s*\.\s*getInstalledFonts\(\)/);
         expect(appSource).toContain("setInstalledStickerFonts(fonts)");
         expect(propertyBarSource).toContain("availableFontFamilies");
         expect(propertyBarSource).toContain("value={stickerToolSettings.textFontFamily}");

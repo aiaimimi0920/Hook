@@ -12,7 +12,8 @@
     "tauri": "\"%npm_config_local_prefix%\\scripts\\run-tauri.cmd\"",
     "test": "cmd /d /s /c \"pushd %npm_config_local_prefix% && node_modules\\.bin\\vitest.cmd run --pool threads --maxWorkers 1 --no-file-parallelism\"",
     "test:watch": "cmd /d /s /c \"pushd %npm_config_local_prefix% && node_modules\\.bin\\vitest.cmd watch --pool threads --maxWorkers 1 --no-file-parallelism\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:local": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call npm run typecheck && call npm test && call npm run build && call build-hook-release.bat\""
   },
   "license": "MIT",
   "dependencies": {

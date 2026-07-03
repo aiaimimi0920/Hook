@@ -28,7 +28,6 @@ describe("Tauri dist cleanup contract", () => {
             writeFileSync(join(publicDir, "index.html.br"), "compressed");
             writeFileSync(join(publicDir, "tauri.svg"), "icon");
             writeFileSync(join(publicDir, "tauri.svg.gz"), "compressed");
-            writeFileSync(join(publicDir, "vite.svg"), "unused");
             writeFileSync(join(publicDir, "_build", ".vite", "manifest.json"), "{}");
             writeFileSync(join(publicDir, "_build", "assets", "app.js"), "app");
             writeFileSync(join(publicDir, "_build", "assets", "app.js.gz"), "compressed");
@@ -44,7 +43,6 @@ describe("Tauri dist cleanup contract", () => {
                 "index.html.br",
                 "index.html.gz",
                 "tauri.svg.gz",
-                "vite.svg",
             ].sort());
             expect(result.removedDirectories).toEqual([]);
 
@@ -53,7 +51,6 @@ describe("Tauri dist cleanup contract", () => {
             expect(existsSync(join(publicDir, "_build", "assets", "app.js"))).toBe(true);
             expect(existsSync(join(publicDir, "_build", ".vite", "manifest.json"))).toBe(true);
             expect(existsSync(join(publicDir, "_server", "assets", "app.css"))).toBe(true);
-            expect(existsSync(join(publicDir, "vite.svg"))).toBe(false);
         } finally {
             rmSync(root, { recursive: true, force: true });
         }
