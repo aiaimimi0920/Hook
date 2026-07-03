@@ -1,0 +1,10 @@
+node_modules
+dist
+.vinxi
+.output
+.runtime
+release
+*.log
+tmp-*
+src-tauri/target
+src-tauri/target-codex-verify

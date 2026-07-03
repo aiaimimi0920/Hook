@@ -1,0 +1,37 @@
+{
+  "name": "hook",
+  "version": "0.1.0",
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "dev": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call scripts\\run-vinxi.cmd dev --port 1420\"",
+    "build": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call scripts\\build-static.cmd\"",
+    "start": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call scripts\\run-vinxi.cmd start\"",
+    "serve:static": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call scripts\\serve-static.cmd --port 1420 --root .output/public\"",
+    "dev:tauri": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call scripts\\dev-tauri.cmd\"",
+    "tauri": "\"%npm_config_local_prefix%\\scripts\\run-tauri.cmd\"",
+    "test": "cmd /d /s /c \"pushd %npm_config_local_prefix% && node_modules\\.bin\\vitest.cmd run --pool threads --maxWorkers 1 --no-file-parallelism\"",
+    "test:watch": "cmd /d /s /c \"pushd %npm_config_local_prefix% && node_modules\\.bin\\vitest.cmd watch --pool threads --maxWorkers 1 --no-file-parallelism\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@solidjs/router": "^0.15.4",
+    "@solidjs/start": "^1.2.1",
+    "@tauri-apps/api": "2.11.0",
+    "solid-js": "^1.9.11",
+    "vinxi": "^0.5.11"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@tauri-apps/cli": "2.11.2",
+    "autoprefixer": "^10.4.23",
+    "playwright": "^1.59.1",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^6.0.3",
+    "vite": "^6.0.3",
+    "vite-plugin-solid": "^2.11.0",
+    "vitest": "^3.2.4"
+  }
+}

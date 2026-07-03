@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Hook icon - Transparent corner marks</title>
+  <desc id="desc">Transparent icon with only four capture corner marks.</desc>
+  <defs>
+    <filter id="greenGlow" x="-90%" y="-90%" width="280%" height="280%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.13  0 0 0 0 0.77  0 0 0 0 0.37  0 0 0 0.78 0"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="yellowGlow" x="-90%" y="-90%" width="280%" height="280%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 1  0 0 0 0 0.9  0 0 0 0 0  0 0 0 0.82 0"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M250 394V250h144" stroke="#22C55E" stroke-width="72" filter="url(#greenGlow)"/>
+    <path d="M774 394V250H630" stroke="#22C55E" stroke-width="72" filter="url(#greenGlow)"/>
+    <path d="M250 630v144h144" stroke="#22C55E" stroke-width="72" filter="url(#greenGlow)"/>
+    <path d="M774 630v144H630" stroke="#FFE600" stroke-width="72" filter="url(#yellowGlow)"/>
+  </g>
+</svg>
