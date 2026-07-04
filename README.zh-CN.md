@@ -66,3 +66,7 @@ Hook 关注的是截图工具和更重型设计工具之间的那段空白：
 ## 许可证
 
 MIT
+
+## 友情链接
+
+- [linux.do](https://linux.do/) 感谢 linux.do 社区的推广

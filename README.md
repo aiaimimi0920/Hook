@@ -66,3 +66,7 @@ Issues, build feedback, and focused improvement suggestions are welcome:
 ## License
 
 MIT
+
+## Friendly Links
+
+- [linux.do](https://linux.do/) Thanks to the promotion from the linux.do community
