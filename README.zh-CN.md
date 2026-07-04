@@ -60,6 +60,8 @@ Hook 关注的是截图工具和更重型设计工具之间的那段空白：
 欢迎提交 issue、构建反馈和聚焦型改进建议：
 
 - Issues：<https://github.com/aiaimimi0920/Hook/issues>
+- 本地校验：在打包或提交修改前先运行 `npm run verify:local`。
+- 公共包标识符：`com.yamiyu.hook`。为了兼容旧本地数据目录，Hook 仍会回退读取 `io.github.aiaimimi0920.hook` 和 `com.vmjcv.hook`。
 
 ## 许可证
 

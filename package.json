@@ -20,9 +20,9 @@
     "workflow"
   ],
   "scripts": {
-    "dev": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call scripts\\run-vinxi.cmd dev --port 1420\"",
+    "dev": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call node_modules\\.bin\\vite.cmd --port 1420 --strictPort\"",
     "build": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call scripts\\build-static.cmd\"",
-    "start": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call scripts\\run-vinxi.cmd start\"",
+    "start": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call scripts\\serve-static.cmd --port 1420 --root .output/public\"",
     "serve:static": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call scripts\\serve-static.cmd --port 1420 --root .output/public\"",
     "dev:tauri": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call scripts\\dev-tauri.cmd\"",
     "tauri": "\"%npm_config_local_prefix%\\scripts\\run-tauri.cmd\"",
@@ -33,22 +33,25 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@solidjs/router": "^0.15.4",
-    "@solidjs/start": "^1.2.1",
     "@tauri-apps/api": "2.11.0",
-    "solid-js": "^1.9.11",
-    "vinxi": "^0.5.11"
+    "solid-js": "^1.9.14"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.1.18",
-    "@tauri-apps/cli": "2.11.2",
-    "autoprefixer": "^10.4.23",
-    "playwright": "^1.59.1",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.18",
+    "@tailwindcss/postcss": "^4.3.2",
+    "@tauri-apps/cli": "2.11.4",
+    "autoprefixer": "^10.5.2",
+    "jsdom": "^29.1.1",
+    "playwright": "^1.61.1",
+    "postcss": "^8.5.16",
+    "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",
-    "vite": "^6.0.3",
-    "vite-plugin-solid": "^2.11.0",
-    "vitest": "^3.2.4"
+    "vite": "^6.4.3",
+    "vite-plugin-solid": "^2.11.12",
+    "vitest": "^3.2.6"
+  },
+  "overrides": {
+    "@babel/core": "7.29.7",
+    "picomatch": "4.0.5",
+    "rollup": "4.62.2"
   }
 }

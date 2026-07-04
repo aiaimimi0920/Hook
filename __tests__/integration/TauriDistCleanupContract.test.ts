@@ -11,11 +11,11 @@ const buildStaticScript = readFileSync(resolve(process.cwd(), "scripts", "build-
 describe("Tauri dist cleanup contract", () => {
     it("runs the static build through a cleanup step before Tauri embeds frontendDist", () => {
         expect(packageJson.scripts.build).toContain("scripts\\build-static.cmd");
-        expect(buildStaticScript).toContain("scripts\\run-vinxi.cmd build");
+        expect(buildStaticScript).toContain("node_modules\\.bin\\vite.cmd build");
         expect(buildStaticScript).toContain("scripts\\clean-tauri-dist.mjs");
     });
 
-    it("removes only inert generated compression/icon files and keeps Vinxi runtime manifests", async () => {
+    it("removes only inert generated compression/icon files and keeps frontend manifests", async () => {
         const root = mkdtempSync(join(tmpdir(), "hook-tauri-dist-"));
         try {
             const publicDir = join(root, ".output", "public");

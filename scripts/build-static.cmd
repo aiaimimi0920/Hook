@@ -4,7 +4,7 @@ setlocal
 pushd "%~dp0.."
 if errorlevel 1 exit /b %errorlevel%
 
-call scripts\run-vinxi.cmd build
+call node_modules\.bin\vite.cmd build
 if errorlevel 1 goto :fail
 
 node scripts\clean-tauri-dist.mjs

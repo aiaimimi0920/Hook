@@ -60,6 +60,8 @@ Hook focuses on the gap between a screenshot utility and a heavier design tool:
 Issues, build feedback, and focused improvement suggestions are welcome:
 
 - Issues: <https://github.com/aiaimimi0920/Hook/issues>
+- Local verification: run `npm run verify:local` before packaging or submitting changes.
+- Public bundle identifier: `com.yamiyu.hook`. Hook keeps compatibility fallbacks for older local data directories created under `io.github.aiaimimi0920.hook` and `com.vmjcv.hook`.
 
 ## License
 
