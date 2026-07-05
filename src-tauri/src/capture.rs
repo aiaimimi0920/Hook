@@ -1,6 +1,3 @@
-use base64::{engine::general_purpose, Engine as _};
-use image::ImageFormat;
-use std::io::Cursor;
 use tauri::Window;
 
 use crate::screenshot;
@@ -40,25 +37,11 @@ pub async fn capture_region(
         }
     };
 
-    // 2. Convert to PNG & Encode
     let width = rgb_image.width();
     let height = rgb_image.height();
-    let mut bytes: Vec<u8> = Vec::new();
-    let dynamic_image = image::DynamicImage::ImageRgb8(rgb_image);
-    dynamic_image
-        .write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png)
-        .map_err(|e| e.to_string())?;
-
-    let b64 = general_purpose::STANDARD.encode(&bytes);
     crate::append_runtime_log_line(&format!(
-        "capture_region success :: width={} height={}",
+        "capture_region success :: width={} height={} mode=file-backed",
         width, height
     ));
-    Ok(CaptureResponse {
-        base64: format!("data:image/png;base64,{}", b64),
-        width,
-        height,
-        file_path: None,
-        file_url: None,
-    })
+    crate::encode_rgb_image_as_file_capture_response(rgb_image)
 }

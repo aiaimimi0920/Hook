@@ -443,6 +443,27 @@ fn file_timestamp_component() -> String {
     unix_timestamp_millis().to_string()
 }
 
+fn sanitize_drag_filename_hint(hint: Option<&str>) -> String {
+    let sanitized: String = hint
+        .unwrap_or("hook")
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect();
+
+    let collapsed = sanitized.trim_matches('_');
+    if collapsed.is_empty() {
+        "hook".to_string()
+    } else {
+        collapsed.chars().take(48).collect()
+    }
+}
+
 const MAX_BASE64_IMAGE_ENCODED_BYTES: usize = 64 * 1024 * 1024;
 const MAX_IMAGE_PIXELS: u64 = 100_000_000;
 const CLIPBOARD_CACHE_MAX_AGE_SECS: u64 = 7 * 24 * 60 * 60;
@@ -560,6 +581,32 @@ fn ensure_clipboard_cache_dir() -> Result<PathBuf, String> {
         CLIPBOARD_CACHE_TARGET_BYTES,
     );
     Ok(cache_dir)
+}
+
+#[cfg(target_os = "windows")]
+fn stage_drag_out_file_copy(source_path: &Path) -> Result<PathBuf, String> {
+    let cache_dir = ensure_clipboard_cache_dir()?;
+    let staged_extension = source_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .filter(|extension| !extension.trim().is_empty())
+        .unwrap_or("png");
+    let staged_stem = sanitize_drag_filename_hint(source_path.file_stem().and_then(|stem| stem.to_str()));
+    let staged_path = cache_dir.join(format!(
+        "dragout_{}_{}.{}",
+        staged_stem,
+        file_timestamp_component(),
+        staged_extension
+    ));
+
+    fs::copy(source_path, &staged_path)
+        .map_err(|e| format!("Failed to stage drag file copy: {}", e))?;
+    append_runtime_log_line(&format!(
+        "native_drag_stage_created :: source={} staged={}",
+        cache_file_name_for_log(source_path),
+        cache_file_name_for_log(&staged_path)
+    ));
+    Ok(staged_path)
 }
 
 fn cache_file_name_for_log(path: &Path) -> String {
@@ -1047,6 +1094,107 @@ fn save_sticker_image_as(
     _dialog_center_y: f64,
 ) -> Result<Option<String>, String> {
     save_sticker_image(app, base64_image).map(Some)
+}
+
+#[cfg(target_os = "windows")]
+fn start_native_file_drag(
+    window: tauri::WebviewWindow,
+    file_path: PathBuf,
+    hit_map: &SharedHitMap,
+) -> Result<String, String> {
+    let path_string = file_path.to_string_lossy().to_string();
+    set_overlay_click_through_impl(&window, true);
+    append_runtime_log_line("native_drag_overlay_clickthrough :: true");
+    append_runtime_log_line(&format!(
+        "native_drag_start :: path={}",
+        cache_file_name_for_log(Path::new(&path_string))
+    ));
+    let drag_result = drag::start_drag(
+        &window,
+        drag::DragItem::Files(vec![file_path.clone()]),
+        drag::Image::File(file_path),
+        |result, cursor_position| {
+            append_runtime_log_line(&format!(
+                "native_drag_result :: result={:?} cursor_x={} cursor_y={}",
+                result, cursor_position.x, cursor_position.y
+            ));
+        },
+        drag::Options {
+            mode: drag::DragMode::Move,
+            ..Default::default()
+        },
+    )
+    .map_err(|error| format!("Failed to start native drag: {}", error));
+    refresh_overlay_interactivity_for_current_cursor(&window, hit_map);
+    append_runtime_log_line("native_drag_overlay_restored");
+    drag_result?;
+
+    Ok(path_string)
+}
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
+fn begin_sticker_native_file_drag(
+    window: tauri::WebviewWindow,
+    hit_map: tauri::State<'_, SharedHitMap>,
+    base64_image: String,
+    filename_hint: Option<String>,
+) -> Result<String, String> {
+    let image_data = decode_base64_image_data(&base64_image)?;
+    let cache_dir = ensure_clipboard_cache_dir()?;
+    let filename = format!(
+        "{}_{}.png",
+        sanitize_drag_filename_hint(filename_hint.as_deref()),
+        file_timestamp_component()
+    );
+    let file_path = cache_dir.join(filename);
+
+    let mut file =
+        File::create(&file_path).map_err(|e| format!("Failed to create drag file: {}", e))?;
+    file.write_all(&image_data)
+        .map_err(|e| format!("Failed to write drag file: {}", e))?;
+    drop(file);
+
+    let staged_drag_file = stage_drag_out_file_copy(&file_path)?;
+    start_native_file_drag(window, staged_drag_file, hit_map.inner())
+}
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
+fn begin_sticker_native_file_drag_from_path(
+    window: tauri::WebviewWindow,
+    hit_map: tauri::State<'_, SharedHitMap>,
+    path: String,
+) -> Result<String, String> {
+    let file_path = PathBuf::from(path);
+    let metadata =
+        fs::metadata(&file_path).map_err(|e| format!("Failed to stat drag source file: {}", e))?;
+    if !metadata.is_file() {
+        return Err("Drag source path is not a regular file".to_string());
+    }
+    let staged_drag_file = stage_drag_out_file_copy(&file_path)?;
+    start_native_file_drag(window, staged_drag_file, hit_map.inner())
+}
+
+#[cfg(not(target_os = "windows"))]
+#[tauri::command]
+fn begin_sticker_native_file_drag(
+    _window: tauri::WebviewWindow,
+    _hit_map: tauri::State<'_, SharedHitMap>,
+    _base64_image: String,
+    _filename_hint: Option<String>,
+) -> Result<String, String> {
+    Err("Native sticker file drag is only supported on Windows".to_string())
+}
+
+#[cfg(not(target_os = "windows"))]
+#[tauri::command]
+fn begin_sticker_native_file_drag_from_path(
+    _window: tauri::WebviewWindow,
+    _hit_map: tauri::State<'_, SharedHitMap>,
+    _path: String,
+) -> Result<String, String> {
+    Err("Native sticker file drag from path is only supported on Windows".to_string())
 }
 
 #[cfg(target_os = "windows")]
@@ -3023,7 +3171,7 @@ fn file_url_from_path(path: &Path) -> String {
     url
 }
 
-fn encode_rgb_image_as_file_capture_response(
+pub(crate) fn encode_rgb_image_as_file_capture_response(
     rgb_image: image::RgbImage,
 ) -> Result<CaptureResponse, String> {
     let started_at = Instant::now();
@@ -3817,12 +3965,14 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            capture::capture_region,
-            update_pin_rects,
-            set_mouse_monitor_active,
-            save_sticker_image,
-            save_sticker_image_as,
-            get_cursor_position,
+             capture::capture_region,
+             update_pin_rects,
+             set_mouse_monitor_active,
+             begin_sticker_native_file_drag,
+             begin_sticker_native_file_drag_from_path,
+             save_sticker_image,
+             save_sticker_image_as,
+             get_cursor_position,
             copy_to_clipboard,
             copy_node_image_to_clipboard,
             copy_sticker_image_to_smart_clipboard,
@@ -4564,6 +4714,41 @@ mod app_cli_tests {
             .to_rgb8();
         let _ = std::fs::remove_dir_all(&cache_dir);
         assert_eq!(decoded, image);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn stage_drag_out_file_copy_creates_disposable_copy_without_moving_original() {
+        let _env_guard = clipboard_cache_env_lock();
+        let env_name = "HOOK_CLIPBOARD_CACHE_DIR";
+        let root = std::env::temp_dir().join(format!(
+            "hook-stage-drag-file-copy-test-{}-{}",
+            std::process::id(),
+            file_timestamp_component()
+        ));
+        let cache_dir = root.join("cache");
+        let source_dir = root.join("source");
+        std::fs::create_dir_all(&cache_dir).expect("create cache dir");
+        std::fs::create_dir_all(&source_dir).expect("create source dir");
+        std::env::set_var(env_name, &cache_dir);
+
+        let source_path = source_dir.join("original sticker.png");
+        let source_bytes = vec![1u8, 2, 3, 4, 5, 6];
+        std::fs::write(&source_path, &source_bytes).expect("write source file");
+
+        let staged_path = stage_drag_out_file_copy(&source_path).expect("stage drag file copy");
+
+        std::env::remove_var(env_name);
+
+        assert!(source_path.exists(), "original sticker file should remain in place");
+        assert!(staged_path.exists(), "staged drag file should exist");
+        assert_ne!(staged_path, source_path, "staged path should differ from source path");
+        assert_eq!(
+            std::fs::read(&staged_path).expect("read staged file"),
+            source_bytes
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

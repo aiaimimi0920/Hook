@@ -192,6 +192,9 @@ export interface ClipboardData {
     rasterizedAnnotationLayerSrc?: string;
     annotationState?: StickerAnnotationState;
     imageEditState?: StickerImageEditState;
+    previewSrc?: string;
+    filePath?: string;
+    dragOutFilePath?: string;
     groupId?: string;
     captureMeta?: StickerCaptureMeta;
 

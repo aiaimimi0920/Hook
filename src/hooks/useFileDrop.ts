@@ -1,98 +1,118 @@
 import { onMount, onCleanup } from "solid-js";
-import { listen, UnlistenFn } from "@tauri-apps/api/event";
-import { api, isTauriRuntimeAvailable } from "../services/api";
-
 import { graphStore } from "../store/graphStore";
 import { syncService } from "../services/syncService";
 
+const SUPPORTED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".bmp"];
+
+const isSupportedImageFile = (file: File) => {
+    if (file.type.startsWith("image/")) {
+        return true;
+    }
+
+    const lowerName = file.name.toLowerCase();
+    return SUPPORTED_IMAGE_EXTENSIONS.some((extension) => lowerName.endsWith(extension));
+};
+
+const readFileAsDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(reader.error ?? new Error("Failed to read dropped file"));
+        reader.onload = () => {
+            if (typeof reader.result === "string") {
+                resolve(reader.result);
+                return;
+            }
+            reject(new Error("Dropped file did not produce a data URL"));
+        };
+        reader.readAsDataURL(file);
+    });
+
 export function useFileDrop() {
-    let unlisten: UnlistenFn | undefined;
+    onMount(() => {
+        const handleDragOver = (e: DragEvent) => {
+            const files = e.dataTransfer?.files;
+            if (!files || files.length === 0) {
+                return;
+            }
 
-    onMount(async () => {
-        if (!isTauriRuntimeAvailable()) {
-            console.log("Browser preview mode: file-drop listener disabled.");
-            return;
-        }
+            e.preventDefault();
+            if (e.dataTransfer) {
+                e.dataTransfer.dropEffect = "copy";
+            }
+        };
 
-        unlisten = await listen("tauri://drag-drop", async (event: any) => {
-            console.log("File Drop Event:", event);
-            const payload = event.payload;
-            if (!payload || !payload.paths || payload.paths.length === 0) return;
+        const handleDrop = async (e: DragEvent) => {
+            const files = e.dataTransfer?.files;
+            if (!files || files.length === 0) {
+                return;
+            }
 
-            const path = payload.paths[0];
-            const position = payload.position;
+            e.preventDefault();
 
-            // Basic Extension Check
-            const lower = path.toLowerCase();
-            if (!lower.endsWith(".png") && !lower.endsWith(".jpg") && !lower.endsWith(".jpeg") && !lower.endsWith(".webp") && !lower.endsWith(".bmp")) {
-                 console.log("Dropped file is not a supported image:", path);
-                 return;
+            const file = files[0];
+            if (!file || !isSupportedImageFile(file)) {
+                console.log("Dropped file is not a supported image:", file?.name);
+                return;
             }
 
             try {
-                // 1. Read Image
-                const base64Src = await api.readImageFromPath(path);
+                const base64Src = await readFileAsDataUrl(file);
+                const mx = e.clientX;
+                const my = e.clientY;
 
-
-                // 2. Determine Drop Position (Logical Pixels)
-                const dpr = window.devicePixelRatio || 1;
-                const mx = position.x / dpr;
-                const my = position.y / dpr;
-
-                // 3. Hit Test Existing Units (Top-most check)
                 const allUnits = graphStore.units;
-                let hitUnitId = null;
+                let hitUnitId: string | null = null;
 
                 for (let i = allUnits.length - 1; i >= 0; i--) {
                     const u = allUnits[i];
                     if (!u.data.minified &&
                         mx >= u.x && mx <= u.x + u.w &&
                         my >= u.y && my <= u.y + u.h) {
-
                         hitUnitId = u.id;
                         break;
                     }
                 }
 
                 if (hitUnitId) {
-                    // LOAD FILE INTO PARAMS (Override)
-                    // Update previewSrc to verify visual override immediately
                     graphStore.actions.updateUnitData(hitUnitId, {
-                        previewSrc: base64Src
+                        previewSrc: base64Src,
                     });
 
-                    // Trigger Sync
-                    setTimeout(() => {
-                        syncService.performWorkflowSync();
+                    window.setTimeout(() => {
+                        void syncService.performWorkflowSync();
                     }, 50);
-                } else {
-                    // Create New Sticker
-                    const newUnit = {
-                        id: crypto.randomUUID(),
-                        type: 'sticker' as const,
-
-                        x: mx - 100, // Center roughly
-                        y: my - 100,
-                        w: 200,
-                        h: 200,
-                        params: {},
-                        inputs: [],
-                        outputs: [],
-                        data: {
-                            src: base64Src,
-                            minified: false
-                        }
-                    };
-                    graphStore.actions.addUnit(newUnit);
-                    syncService.updateBackendRects();
+                    return;
                 }
-            } catch (e) {
-                console.error("File Drop Failed:", e);
-            }
-        });
-    });
 
-    onCleanup(() => {
-        if (unlisten) unlisten();
+                const newUnit = {
+                    id: crypto.randomUUID(),
+                    type: "sticker" as const,
+                    x: mx - 100,
+                    y: my - 100,
+                    w: 200,
+                    h: 200,
+                    params: {},
+                    inputs: [],
+                    outputs: [],
+                    data: {
+                        src: base64Src,
+                        minified: false,
+                    },
+                };
+
+                graphStore.actions.addUnit(newUnit);
+                void syncService.updateBackendRects();
+            } catch (error) {
+                console.error("File Drop Failed:", error);
+            }
+        };
+
+        window.addEventListener("dragover", handleDragOver);
+        window.addEventListener("drop", handleDrop);
+
+        onCleanup(() => {
+            window.removeEventListener("dragover", handleDragOver);
+            window.removeEventListener("drop", handleDrop);
+        });
     });
 }

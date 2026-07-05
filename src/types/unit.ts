@@ -60,6 +60,7 @@ export interface UnitData {
     rasterizedAnnotationLayerSrc?: string; // Transparent flattened annotation layer above src
     resultHandle?: string; // SHM Handle
     filePath?: string; // Local File Path (for Drag-Out optimization)
+    dragOutFilePath?: string; // Composite snapshot path used for fast Shift-drag export
     outputs?: Record<string, unknown>; // Port-value map for scalar/image outputs that can drive downstream params
 
     // Reference Sync

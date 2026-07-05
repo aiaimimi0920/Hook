@@ -94,6 +94,7 @@ windows = { version = "0.60.0", features = [
 
 [target.'cfg(target_os = "windows")'.dependencies]
 uiautomation = "0.24.0"
+drag = "2.1.1"
 
 [profile.release]
 codegen-units = 1

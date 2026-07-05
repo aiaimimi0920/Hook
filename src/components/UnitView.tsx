@@ -27,8 +27,9 @@ import { StickerTopStrip } from "./StickerTopStrip";
 import { DISABLED_PREFIX } from "../constants";
 import { isStickerSurfaceDoubleClickTarget } from "../services/stickerDoubleClick";
 import { resolveEffectiveNodeParams } from "../services/graphImageResolution";
-import { api } from "../services/api";
+import { api, isTauriRuntimeAvailable } from "../services/api";
 import { stickerContextMenuController } from "../services/stickerContextMenuController";
+import { renderStickerComposite } from "../services/stickerExport";
 
 // GLOBAL STATE: Persist scroll positions across re-renders
 const globalScrollRegistry: Record<string, number> = {};
@@ -68,6 +69,14 @@ interface Props {
 
 export const UnitView: Component<Props> = (props) => {
   let unitContainerRef: HTMLDivElement | undefined;
+  let nativeStickerDragStart:
+      | {
+            x: number;
+            y: number;
+            pointerId: number;
+        }
+      | null = null;
+  let nativeStickerDragInFlight = false;
   const logWheelEvent = (phase: string, detail: string) => {
       void api.debugLogEvent("sticker-wheel-trace", `layer=unit phase=${phase} unit=${props.unit.id} ${detail}`);
   };
@@ -326,6 +335,141 @@ export const UnitView: Component<Props> = (props) => {
           fileBackedFallbacksInFlight.delete(unit.id);
       }
   };
+
+  const detachPendingNativeDragListeners = () => {
+      if (typeof window === "undefined") return;
+      window.removeEventListener("pointermove", handlePendingNativeDragPointerMove, true);
+      window.removeEventListener("pointerup", handlePendingNativeDragEnd, true);
+      window.removeEventListener("pointercancel", handlePendingNativeDragEnd, true);
+  };
+
+  const clearPendingNativeStickerDrag = () => {
+      nativeStickerDragStart = null;
+      detachPendingNativeDragListeners();
+  };
+
+  const buildNativeStickerDragFilenameHint = () => {
+      let label = props.unit.type === "art" && props.capability?.label
+          ? props.capability.label
+          : "image";
+      label = label.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const suffix = props.unit.id.slice(-4);
+      return `${label || "image"}_${suffix}`;
+  };
+
+  const resolveExistingNativeDragFilePath = () => {
+      const unit = liveUnit();
+      if (unit.data.dragOutFilePath) {
+          return unit.data.dragOutFilePath;
+      }
+      if (!unit.data.filePath) return false;
+      if (unit.data.rasterizedAnnotationLayerSrc) return false;
+      if ((unit.data.annotationState?.elements?.length || 0) > 0) return false;
+
+      const imageEditState = unit.data.imageEditState;
+      if (!imageEditState) return unit.data.filePath;
+
+      if ((imageEditState.contentEraseStrokes?.length || 0) > 0) return false;
+      if (imageEditState.cropRect) return false;
+      if (imageEditState.flippedX || imageEditState.flippedY) return false;
+      if ((imageEditState.borderWidth || 0) > 0) return false;
+      if ((imageEditState.cornerRadius || 0) > 0) return false;
+      if (imageEditState.beautify?.enabled) return false;
+
+      return unit.data.filePath;
+  };
+
+  const beginNativeStickerDrag = async () => {
+      if (nativeStickerDragInFlight) return;
+
+      nativeStickerDragInFlight = true;
+      try {
+          const unit = liveUnit();
+          const existingDragPath = resolveExistingNativeDragFilePath();
+          const useExistingPath = typeof existingDragPath === "string" && existingDragPath.length > 0;
+          void api.debugLogEvent(
+              "sticker-native-drag-request",
+              `unit=${props.unit.id} pathFirst=${useExistingPath} hasFilePath=${!!unit.data.filePath} hasDragOutFilePath=${!!unit.data.dragOutFilePath}`,
+          );
+          const path = useExistingPath
+               ? await api.beginStickerNativeFileDragFromPath(existingDragPath as string)
+               : await (async () => {
+                   const exportBase64 = await renderStickerComposite(unit);
+                   return api.beginStickerNativeFileDrag(
+                       exportBase64,
+                       buildNativeStickerDragFilenameHint(),
+                   );
+               })();
+          if (!useExistingPath) {
+              graphStore.actions.updateUnitData(props.unit.id, {
+                  dragOutFilePath: path,
+              });
+          }
+          void api.debugLogEvent("sticker-native-drag-started", `unit=${props.unit.id} path=${path}`);
+      } catch (error) {
+          console.error("Native sticker drag failed", error);
+          void api.debugLogEvent(
+              "sticker-native-drag-failed",
+              `unit=${props.unit.id} error=${error instanceof Error ? error.message : String(error)}`,
+          );
+      } finally {
+          nativeStickerDragInFlight = false;
+          clearPendingNativeStickerDrag();
+      }
+  };
+
+  const handlePendingNativeDragPointerMove = (event: PointerEvent) => {
+      const start = nativeStickerDragStart;
+      if (!start || nativeStickerDragInFlight) return;
+      if (event.pointerId !== start.pointerId) return;
+
+      if (!event.shiftKey) {
+          clearPendingNativeStickerDrag();
+          return;
+      }
+
+      if (Math.hypot(event.clientX - start.x, event.clientY - start.y) < 6) {
+          return;
+      }
+
+      detachPendingNativeDragListeners();
+      void beginNativeStickerDrag();
+  };
+
+  const handlePendingNativeDragEnd = (event?: PointerEvent) => {
+      if (event && nativeStickerDragStart && event.pointerId !== nativeStickerDragStart.pointerId) {
+          return;
+      }
+      clearPendingNativeStickerDrag();
+  };
+
+  const handleNativeStickerPointerDownCapture = (event: PointerEvent) => {
+      if (props.unit.type !== "sticker" || !isTauriRuntimeAvailable() || !event.shiftKey) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void api.debugLogEvent(
+          "sticker-native-drag-capture",
+          `unit=${props.unit.id} x=${event.clientX} y=${event.clientY} pathFirst=${!!resolveExistingNativeDragFilePath()}`,
+      );
+
+      nativeStickerDragStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+      detachPendingNativeDragListeners();
+      window.addEventListener("pointermove", handlePendingNativeDragPointerMove, true);
+      window.addEventListener("pointerup", handlePendingNativeDragEnd, true);
+      window.addEventListener("pointercancel", handlePendingNativeDragEnd, true);
+  };
+
+  createEffect(() => {
+      if (props.unit.type !== "sticker") return;
+      unitContainerRef?.addEventListener("pointerdown", handleNativeStickerPointerDownCapture, true);
+      onCleanup(() => {
+          unitContainerRef?.removeEventListener("pointerdown", handleNativeStickerPointerDownCapture, true);
+      });
+  });
+
+  onCleanup(() => {
+      detachPendingNativeDragListeners();
+  });
 
   const getRenderedImageFrame = () => {
       const ocr = props.unit.data.ocrResult;
@@ -649,17 +793,20 @@ export const UnitView: Component<Props> = (props) => {
             <img
                 class="sticker-img"
                 // Drag-Out to Save (HTML5 Drag)
-                draggable={true}
+                draggable={!isTauriRuntimeAvailable()}
                 onDragStart={(e) => {
+                    if (isTauriRuntimeAvailable()) {
+                        e.preventDefault();
+                        return;
+                    }
+
                     // Only standard drag if Shift is held (Now: Shift = Drag Out)
                     if (!e.shiftKey) {
                         e.preventDefault();
                         return;
                     }
 
-                    console.log("DragStart initiated. Shift:", e.shiftKey);
                     e.dataTransfer!.effectAllowed = "all"; // Allow Copy, Move, Link (Fixes Alt key forbidden cursor?)
-                    e.dataTransfer!.effectAllowed = "all";
                     e.dataTransfer!.clearData(); // CRITICAL: Clear browser default (which causes 'download' name)
 
                     // Construct DownloadURL
@@ -686,6 +833,20 @@ export const UnitView: Component<Props> = (props) => {
                     const filename = `${label}_${suffix}_${count}.png`;
 
                     const src = props.unit.data.previewSrc || props.unit.data.src || "";
+                    const dragOutFilePath = props.unit.data.filePath;
+
+                    if (dragOutFilePath) {
+                         const normalizedFilePath = dragOutFilePath.replace(/\\/g, "/").startsWith("/")
+                             ? dragOutFilePath.replace(/\\/g, "/")
+                             : `/${dragOutFilePath.replace(/\\/g, "/")}`;
+                         const fileUrl = encodeURI(`file://${normalizedFilePath}`);
+                         const dlUrl = `image/png:${filename}:${fileUrl}`;
+
+                         e.dataTransfer!.setData("DownloadURL", dlUrl);
+                         e.dataTransfer!.setData("text/uri-list", fileUrl);
+                         e.dataTransfer!.setData("text/plain", dragOutFilePath);
+                         return;
+                    }
 
                     if (src.startsWith("data:")) {
                          const mime = src.split(";")[0].split(":")[1] || "image/png";
@@ -703,7 +864,6 @@ export const UnitView: Component<Props> = (props) => {
 
                              const dlUrl = `${mime}:${filename}:${blobUrl}`;
                              e.dataTransfer!.setData("DownloadURL", dlUrl);
-                             console.log("DragStart: Set DownloadURL", filename, blobUrl);
                          } catch (err) {
                              console.error("Failed to create blob for drag:", err);
                              // Fallback to original data URI
@@ -714,16 +874,7 @@ export const UnitView: Component<Props> = (props) => {
                          // Re-add text/uri-list for wide compatibility
                          e.dataTransfer!.setData("text/uri-list", src);
 
-                         // Create custom ghost image (scaled down)
-                         const img = new Image();
-                         img.src = src;
-                         // Hack: Need to append to body temporarily to use as drag image?
-                         // Standard behavior uses the dragged element.
-                         // Let's use the current target.
-                         // But we want it small?
-                         // For now, let's just use default. The most important fix is pointer-events.
-                         // But to ensure it works even if current target is huge, a canvas helper might be needed.
-                         // Let's rely on browser default for now, but ensure pointer-events: auto.
+                         return;
                     }
                 }}
                 src={baseImageSrc()}
@@ -768,7 +919,6 @@ export const UnitView: Component<Props> = (props) => {
                             "transform": getTransform()
                         };
                     }
-                    console.log(`[UnitView] Rendering Image (Fixed Size Mode) - Src Length: ${displaySrc().length}`);
                     return {
                         "width": "100%",
                         "height": "100%",

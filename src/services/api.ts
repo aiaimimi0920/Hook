@@ -757,6 +757,26 @@ export const api = {
     readImageFromPath: (path: string): Promise<string> =>
         safeInvoke("read_image_from_path", { path }),
 
+    beginStickerNativeFileDrag: (base64: string, filenameHint?: string): Promise<string> =>
+        safeInvoke(
+            "begin_sticker_native_file_drag",
+            { base64Image: base64, filenameHint },
+            () => {
+                throw new Error("Native sticker file drag requires the Tauri desktop runtime");
+            },
+            false,
+        ),
+
+    beginStickerNativeFileDragFromPath: (path: string): Promise<string> =>
+        safeInvoke(
+            "begin_sticker_native_file_drag_from_path",
+            { path },
+            () => {
+                throw new Error("Native sticker file drag from path requires the Tauri desktop runtime");
+            },
+            false,
+        ),
+
     saveStickerImage: (base64: string): Promise<string> =>
         safeInvoke("save_sticker_image", { base64Image: base64 }),
     saveStickerImageAs: (base64: string, dialogCenterX: number, dialogCenterY: number): Promise<string | null> =>

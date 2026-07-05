@@ -63,10 +63,24 @@ const updateUnit = (id: string, updates: Partial<Unit>) => {
 };
 
 const updateUnitData = (id: string, updates: Partial<Unit["data"]>) => {
+    const shouldInvalidateDragOutFilePath =
+        !Object.prototype.hasOwnProperty.call(updates, "dragOutFilePath") &&
+        (
+            Object.prototype.hasOwnProperty.call(updates, "src") ||
+            Object.prototype.hasOwnProperty.call(updates, "previewSrc") ||
+            Object.prototype.hasOwnProperty.call(updates, "filePath") ||
+            Object.prototype.hasOwnProperty.call(updates, "rasterizedAnnotationLayerSrc") ||
+            Object.prototype.hasOwnProperty.call(updates, "annotationState") ||
+            Object.prototype.hasOwnProperty.call(updates, "imageEditState")
+        );
+    const nextUpdates = shouldInvalidateDragOutFilePath
+        ? { ...updates, dragOutFilePath: undefined }
+        : updates;
+
     setUnits(
         (u) => u.id === id,
         "data",
-        (prev) => ({ ...prev, ...updates })
+        (prev) => ({ ...prev, ...nextUpdates })
     );
 };
 

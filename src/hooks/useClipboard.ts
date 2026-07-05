@@ -50,6 +50,9 @@ export function useClipboard() {
                     rasterizedAnnotationLayerSrc: s.data.rasterizedAnnotationLayerSrc,
                     annotationState: s.data.annotationState,
                     imageEditState: s.data.imageEditState,
+                    previewSrc: s.data.previewSrc,
+                    filePath: s.data.filePath,
+                    dragOutFilePath: s.data.dragOutFilePath || s.data.filePath,
                     groupId: s.data.groupId,
                     captureMeta: s.data.captureMeta,
 
@@ -79,6 +82,14 @@ export function useClipboard() {
                     const exportBase64 = await renderStickerComposite(unit);
                     if (s.data.src) {
                         const path = await api.copyStickerImageToSmartClipboard(exportBase64);
+                        setClipboard((current) =>
+                            current && current.originalId === s.id
+                                ? {
+                                      ...current,
+                                      dragOutFilePath: path,
+                                  }
+                                : current,
+                        );
                         logger.info(`Copied to smart system clipboard as image/file: ${path}`);
                     } else {
                         // If no image, fallback to JSON text for node data
@@ -278,6 +289,9 @@ export function useClipboard() {
                 rasterizedAnnotationLayerSrc: clip.rasterizedAnnotationLayerSrc,
                 annotationState: clip.annotationState,
                 imageEditState: clip.imageEditState,
+                previewSrc: clip.previewSrc,
+                filePath: clip.filePath,
+                dragOutFilePath: clip.dragOutFilePath,
                 groupId: clip.groupId,
                 captureMeta: clip.captureMeta,
             }
