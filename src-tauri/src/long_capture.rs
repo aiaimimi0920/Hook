@@ -253,10 +253,36 @@ fn current_cursor_position() -> Option<(i32, i32)> {
     }
 }
 
+// RAII guard that captures the physical cursor position on creation and restores
+// it on drop. The scroll helpers warp the cursor to a target point to deliver a
+// wheel/key event there; without a guard, a panic between the warp and the manual
+// restore would leave the user's cursor displaced. Drop runs on every exit path.
+#[cfg(target_os = "windows")]
+struct CursorRestoreGuard {
+    previous: Option<(i32, i32)>,
+}
+
+#[cfg(target_os = "windows")]
+impl CursorRestoreGuard {
+    fn warp_to(x: i32, y: i32) -> Self {
+        let previous = current_cursor_position();
+        let _ = unsafe { SetCursorPos(x, y) };
+        Self { previous }
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl Drop for CursorRestoreGuard {
+    fn drop(&mut self) {
+        if let Some((previous_x, previous_y)) = self.previous {
+            let _ = unsafe { SetCursorPos(previous_x, previous_y) };
+        }
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn scroll_vertical_at_point(x: i32, y: i32, delta: i32) {
-    let previous = current_cursor_position();
-    let _ = unsafe { SetCursorPos(x, y) };
+    let _cursor_guard = CursorRestoreGuard::warp_to(x, y);
     let used_messages = focus_window_at_point(x, y)
         .map(|target| send_message_scroll_fallback(target, x, y, delta))
         .unwrap_or(false);
@@ -267,15 +293,11 @@ fn scroll_vertical_at_point(x: i32, y: i32, delta: i32) {
     unsafe {
         mouse_event(MOUSEEVENTF_WHEEL, 0, 0, delta, 0);
     }
-    if let Some((previous_x, previous_y)) = previous {
-        let _ = unsafe { SetCursorPos(previous_x, previous_y) };
-    }
 }
 
 #[cfg(target_os = "windows")]
 fn page_down_at_point(x: i32, y: i32) {
-    let previous = current_cursor_position();
-    let _ = unsafe { SetCursorPos(x, y) };
+    let _cursor_guard = CursorRestoreGuard::warp_to(x, y);
     let target = focus_window_at_point(x, y);
     let used_messages = target
         .map(|target| send_message_scroll_fallback(target, x, y, -120))
@@ -288,9 +310,6 @@ fn page_down_at_point(x: i32, y: i32) {
         "long_capture page_down_fallback :: x={} y={} used_messages={}",
         x, y, used_messages
     ));
-    if let Some((previous_x, previous_y)) = previous {
-        let _ = unsafe { SetCursorPos(previous_x, previous_y) };
-    }
 }
 
 fn mean_row_distance(row_a: &[u8], row_b: &[u8]) -> f64 {
@@ -1289,16 +1308,23 @@ fn motion_weight(diff: u32) -> f64 {
     0.02 + 0.98 * (diff as f64 / 96.0).clamp(0.0, 1.0)
 }
 
-fn vertical_overlap_score(
+// Shared overlap-scoring core for both axes. `to_xy` maps a (scan-axis position,
+// cross-axis offset) pair to absolute (x, y) pixel coordinates, so the vertical
+// and horizontal scorers differ only in that mapping instead of duplicating the
+// whole weighted-sampling loop. `same_viewport_limit` is the previous image's
+// extent along the scan axis (height for vertical, width for horizontal).
+fn axis_overlap_score(
     previous: &RgbImage,
     current: &RgbImage,
-    prev_y: u32,
-    curr_y: u32,
+    prev_base: u32,
+    curr_base: u32,
     overlap_len: u32,
     cross_axis_weights: &[f64],
     cross_axis_offsets: &[u32],
+    same_viewport_limit: u32,
+    to_xy: impl Fn(u32, u32) -> (u32, u32),
 ) -> (f64, f64, f64, f64) {
-    let rows = sample_count(overlap_len);
+    let samples = sample_count(overlap_len);
     let mut matched = 0.0;
     let mut total = 0.0;
     let mut diff_total = 0.0;
@@ -1306,48 +1332,41 @@ fn vertical_overlap_score(
     let mut texture_count = 0.0f64;
     let mut content_total = 0.0;
 
-    for row_index in 0..rows {
-        let y_offset = sampled_offset(row_index, rows, overlap_len);
-        for &x in cross_axis_offsets {
-            let weight = cross_axis_weights.get(x as usize).copied().unwrap_or(1.0);
+    for sample_index in 0..samples {
+        let scan_offset = sampled_offset(sample_index, samples, overlap_len);
+        for &cross in cross_axis_offsets {
+            let weight = cross_axis_weights.get(cross as usize).copied().unwrap_or(1.0);
             if weight <= 0.0 {
                 continue;
             }
+            let (prev_x, prev_y) = to_xy(prev_base + scan_offset, cross);
+            let (curr_x, curr_y) = to_xy(curr_base + scan_offset, cross);
             let diff = pixel_diff_sum(
-                previous.get_pixel(x, prev_y + y_offset).0,
-                current.get_pixel(x, curr_y + y_offset).0,
+                previous.get_pixel(prev_x, prev_y).0,
+                current.get_pixel(curr_x, curr_y).0,
             );
-            let same_viewport_y = curr_y + y_offset;
-            let same_viewport_diff = if same_viewport_y < previous.height() {
+            let same_viewport_pos = curr_base + scan_offset;
+            let (sv_x, sv_y) = to_xy(same_viewport_pos, cross);
+            let same_viewport_diff = if same_viewport_pos < same_viewport_limit {
                 pixel_diff_sum(
-                    previous.get_pixel(x, same_viewport_y).0,
-                    current.get_pixel(x, same_viewport_y).0,
+                    previous.get_pixel(sv_x, sv_y).0,
+                    current.get_pixel(sv_x, sv_y).0,
                 )
             } else {
                 diff
             };
             let weight = weight
-                * pixel_texture_weight(
-                    previous,
-                    current,
-                    x,
-                    prev_y + y_offset,
-                    x,
-                    curr_y + y_offset,
-                )
+                * pixel_texture_weight(previous, current, prev_x, prev_y, curr_x, curr_y)
                 * motion_weight(same_viewport_diff);
-            texture_total += local_texture_strength(previous, x, prev_y + y_offset)
-                .max(local_texture_strength(current, x, curr_y + y_offset))
-                .max(color_content_strength(
-                    previous.get_pixel(x, prev_y + y_offset).0,
-                ))
-                .max(color_content_strength(
-                    current.get_pixel(x, curr_y + y_offset).0,
-                )) as f64
+            texture_total += local_texture_strength(previous, prev_x, prev_y)
+                .max(local_texture_strength(current, curr_x, curr_y))
+                .max(color_content_strength(previous.get_pixel(prev_x, prev_y).0))
+                .max(color_content_strength(current.get_pixel(curr_x, curr_y).0))
+                as f64
                 * weight;
             texture_count += weight;
-            if is_content_pixel(previous.get_pixel(x, prev_y + y_offset).0)
-                || is_content_pixel(current.get_pixel(x, curr_y + y_offset).0)
+            if is_content_pixel(previous.get_pixel(prev_x, prev_y).0)
+                || is_content_pixel(current.get_pixel(curr_x, curr_y).0)
             {
                 content_total += weight;
             }
@@ -1371,6 +1390,30 @@ fn vertical_overlap_score(
     )
 }
 
+fn vertical_overlap_score(
+    previous: &RgbImage,
+    current: &RgbImage,
+    prev_y: u32,
+    curr_y: u32,
+    overlap_len: u32,
+    cross_axis_weights: &[f64],
+    cross_axis_offsets: &[u32],
+) -> (f64, f64, f64, f64) {
+    // Vertical: scan axis is y, cross axis is x. same-viewport bound is height.
+    let same_viewport_limit = previous.height();
+    axis_overlap_score(
+        previous,
+        current,
+        prev_y,
+        curr_y,
+        overlap_len,
+        cross_axis_weights,
+        cross_axis_offsets,
+        same_viewport_limit,
+        |scan, cross| (cross, scan),
+    )
+}
+
 fn horizontal_overlap_score(
     previous: &RgbImage,
     current: &RgbImage,
@@ -1380,76 +1423,17 @@ fn horizontal_overlap_score(
     cross_axis_weights: &[f64],
     cross_axis_offsets: &[u32],
 ) -> (f64, f64, f64, f64) {
-    let columns = sample_count(overlap_len);
-    let mut matched = 0.0;
-    let mut total = 0.0;
-    let mut diff_total = 0.0;
-    let mut texture_total = 0.0;
-    let mut texture_count = 0.0f64;
-    let mut content_total = 0.0;
-
-    for column_index in 0..columns {
-        let x_offset = sampled_offset(column_index, columns, overlap_len);
-        for &y in cross_axis_offsets {
-            let weight = cross_axis_weights.get(y as usize).copied().unwrap_or(1.0);
-            if weight <= 0.0 {
-                continue;
-            }
-            let diff = pixel_diff_sum(
-                previous.get_pixel(prev_x + x_offset, y).0,
-                current.get_pixel(curr_x + x_offset, y).0,
-            );
-            let same_viewport_x = curr_x + x_offset;
-            let same_viewport_diff = if same_viewport_x < previous.width() {
-                pixel_diff_sum(
-                    previous.get_pixel(same_viewport_x, y).0,
-                    current.get_pixel(same_viewport_x, y).0,
-                )
-            } else {
-                diff
-            };
-            let weight = weight
-                * pixel_texture_weight(
-                    previous,
-                    current,
-                    prev_x + x_offset,
-                    y,
-                    curr_x + x_offset,
-                    y,
-                )
-                * motion_weight(same_viewport_diff);
-            texture_total += local_texture_strength(previous, prev_x + x_offset, y)
-                .max(local_texture_strength(current, curr_x + x_offset, y))
-                .max(color_content_strength(
-                    previous.get_pixel(prev_x + x_offset, y).0,
-                ))
-                .max(color_content_strength(
-                    current.get_pixel(curr_x + x_offset, y).0,
-                )) as f64
-                * weight;
-            texture_count += weight;
-            if is_content_pixel(previous.get_pixel(prev_x + x_offset, y).0)
-                || is_content_pixel(current.get_pixel(curr_x + x_offset, y).0)
-            {
-                content_total += weight;
-            }
-            if diff <= 30 {
-                matched += weight;
-            }
-            diff_total += diff as f64 * weight;
-            total += weight;
-        }
-    }
-
-    if total <= 0.0 {
-        return (0.0, 255.0, 0.0, 0.0);
-    }
-
-    (
-        matched / total,
-        diff_total / total,
-        texture_total / texture_count.max(1.0),
-        content_total / total,
+    // Horizontal: scan axis is x, cross axis is y. same-viewport bound is width.
+    axis_overlap_score(
+        previous,
+        current,
+        prev_x,
+        curr_x,
+        overlap_len,
+        cross_axis_weights,
+        cross_axis_offsets,
+        previous.width(),
+        |scan, cross| (scan, cross),
     )
 }
 

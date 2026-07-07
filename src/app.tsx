@@ -1,6 +1,8 @@
 import { onMount, onCleanup, createEffect, createSignal, Show, ErrorBoundary } from "solid-js";
 import { api, isTauriRuntimeAvailable, listenBrowserArtLoomMethod, type TeaTicketSummary, type VoiceSettingsSummary } from "./services/api";
 import { listen } from "@tauri-apps/api/event";
+import { installErrorDiagnostics } from "./services/errorDiagnostics";
+import { logger } from "./services/logger";
 
 import "./app.css";
 
@@ -679,7 +681,7 @@ export default function App() {
               }
           },
           onToggleCleanView: () => {
-              console.log("Toggle Clean View Mode");
+              logger.debug("Toggle Clean View Mode");
               setIsCleanView(!isCleanView());
           },
           onTransformSelect: () => {
@@ -706,7 +708,7 @@ export default function App() {
                // OCR Logic moved to centralized handler or here (it's small)
                const id = selectedStickerId();
                if (!id) return;
-               console.log("Triggering OCR explicitly...");
+               logger.debug("Triggering OCR explicitly...");
                await api.triggerOcrEvent();
 
           },
@@ -735,7 +737,7 @@ export default function App() {
 
   // Initialization
   onMount(async () => {
-      console.log("App Mounted - Initializing...");
+      logger.debug("App Mounted - Initializing...");
       const cleanups: Array<() => void> = [];
       const tauriRuntimeAvailable = tauriRuntime;
       let bootProfile: BootProfile | null = null;
@@ -743,66 +745,10 @@ export default function App() {
       let onWindowMouseMove: ((e: MouseEvent) => void) | null = null;
       let onWindowMouseUp: ((e: MouseEvent) => void) | null = null;
 
-      // Diagnostics for the intermittent content-eraser crash. The async
-      // debugLogEvent IPC never reaches Rust if the webview dies synchronously,
-      // so capture errors three ways that do NOT depend on IPC:
-      //   1. Persist to localStorage synchronously (survives a reload/crash).
-      //   2. Paint a visible overlay so the full message + stack can be read
-      //      and screenshotted directly on screen.
-      //   3. Best-effort async debugLogEvent (kept for when it does survive).
-      const persistDiagnostic = (kind: string, detail: string) => {
-          const entry = `[${new Date().toISOString()}] ${kind}\n${detail}`;
-          try {
-              const prev = window.localStorage.getItem("hook-last-error") ?? "";
-              window.localStorage.setItem("hook-last-error", `${entry}\n\n----\n${prev}`.slice(0, 16000));
-          } catch {
-              /* localStorage may be unavailable; ignore */
-          }
-          try {
-              let overlay = document.getElementById("hook-error-overlay");
-              if (!overlay) {
-                  overlay = document.createElement("div");
-                  overlay.id = "hook-error-overlay";
-                  overlay.setAttribute(
-                      "style",
-                      "position:fixed;left:8px;right:8px;bottom:8px;max-height:45vh;overflow:auto;z-index:2147483647;background:rgba(120,0,0,0.92);color:#fff;font:11px/1.4 monospace;white-space:pre-wrap;padding:10px 12px;border-radius:8px;pointer-events:auto;",
-                  );
-                  overlay.addEventListener("click", () => overlay?.remove());
-                  document.body.appendChild(overlay);
-              }
-              overlay.textContent = `${kind} (click to dismiss)\n\n${detail}`;
-          } catch {
-              /* DOM may be unavailable; ignore */
-          }
-          if (tauriRuntimeAvailable) {
-              void api.debugLogEvent(kind, detail);
-          }
-      };
-
-      const onUnhandledRejection = (event: PromiseRejectionEvent) => {
-          console.error("[Hook] Unhandled promise rejection (suppressed):", event.reason);
-          event.preventDefault();
-          const reason = event.reason;
-          const detail =
-              reason instanceof Error
-                  ? `${reason.message}\n${reason.stack ?? ""}`
-                  : String(reason);
-          persistDiagnostic("unhandled-rejection", detail);
-      };
-      window.addEventListener("unhandledrejection", onUnhandledRejection);
-      cleanups.push(() => window.removeEventListener("unhandledrejection", onUnhandledRejection));
-
-      const onWindowError = (event: ErrorEvent) => {
-          console.error("[Hook] Uncaught error:", event.error ?? event.message);
-          const err = event.error;
-          const detail =
-              err instanceof Error
-                  ? `${err.message}\n${err.stack ?? ""}`
-                  : `${event.message} @ ${event.filename}:${event.lineno}:${event.colno}`;
-          persistDiagnostic("uncaught-error", detail);
-      };
-      window.addEventListener("error", onWindowError);
-      cleanups.push(() => window.removeEventListener("error", onWindowError));
+      // Global error diagnostics (localStorage + on-screen overlay + best-effort
+      // IPC) live in a dedicated module so they survive a synchronous webview
+      // crash. installErrorDiagnostics returns a disposer for the listeners.
+      cleanups.push(installErrorDiagnostics(tauriRuntimeAvailable));
 
       if (tauriRuntimeAvailable) {
           void api.debugLogEvent("frontend-mounted");
@@ -861,7 +807,7 @@ export default function App() {
           // Register desktop listeners before handshake/session restore,
           // otherwise the first instantiate broadcast can arrive before the UI is listening.
           const unlistenOcr = await listen("trigger-ocr", async () => {
-              console.log("Backend Triggered OCR");
+              logger.debug("Backend Triggered OCR");
               const id = selectedStickerId();
               if (id) {
                   await performOcrAction(id);
@@ -869,13 +815,13 @@ export default function App() {
           });
 
           const unlistenCapture = await listen("trigger-capture", () => {
-              console.log("Backend Triggered Capture Mode");
+              logger.debug("Backend Triggered Capture Mode");
               void api.debugLogEvent("trigger-capture-listener");
               void beginCaptureSelection("region");
           });
 
           const unlistenLongCapture = await listen("trigger-long-capture", () => {
-              console.log("Backend Triggered Long Capture Mode");
+              logger.debug("Backend Triggered Long Capture Mode");
               void api.debugLogEvent("trigger-long-capture-listener");
               if (longCaptureSession()?.active) {
                   void finishAutoLongCaptureSession();
@@ -900,7 +846,7 @@ export default function App() {
           });
 
           const unlistenStickerToolbar = await listen("trigger-toggle-sticker-toolbar", () => {
-              console.log("Backend Triggered Sticker Toolbar Toggle");
+              logger.debug("Backend Triggered Sticker Toolbar Toggle");
               void api.debugLogEvent("trigger-toggle-sticker-toolbar-listener");
               toggleStickerToolbarVisibility();
           });
@@ -911,7 +857,7 @@ export default function App() {
           });
 
            const unlistenCreateTeaTicket = await listen("trigger-create-tea-ticket", () => {
-               console.log("Backend Triggered Tea Ticket Creation");
+               logger.debug("Backend Triggered Tea Ticket Creation");
                void api.debugLogEvent("trigger-create-tea-ticket-listener");
                void createTeaTicketFromCurrentHookState("tray");
            });
@@ -988,12 +934,12 @@ export default function App() {
           });
 
           const unlistenInstantiate = await listen("art/instantiate", async (event) => {
-              console.log("Received workflow instantiation payload");
+              logger.debug("Received workflow instantiation payload");
               await instantiateWorkflowSnapshot(normalizeWorkflowSnapshotPayload(event.payload));
           });
 
           const unlistenCapabilitiesUpdated = await listen("art/capabilities_updated", async () => {
-              console.log("Capabilities changed, refreshing handshake state");
+              logger.debug("Capabilities changed, refreshing handshake state");
               try {
                   await refreshCapabilities();
               } catch (e) {
@@ -1005,7 +951,7 @@ export default function App() {
               "art/loom_connection_state",
               async (event) => {
                   if (event.payload?.connected) {
-                      console.log("ArtLoom desktop bridge connected, refreshing capabilities");
+                      logger.debug("ArtLoom desktop bridge connected, refreshing capabilities");
                       try {
                           await refreshCapabilities();
                       } catch (e) {
@@ -1096,7 +1042,7 @@ export default function App() {
       }
 
       if (!tauriRuntimeAvailable) {
-          console.log("Running in browser preview mode; attaching browser IPC listeners.");
+          logger.debug("Running in browser preview mode; attaching browser IPC listeners.");
           const stopInstantiate = listenBrowserArtLoomMethod("art_hook/instantiate", (payload) => {
               instantiateWorkflowSnapshot(normalizeWorkflowSnapshotPayload(payload)).catch((error) => {
                   console.error("Browser instantiate handler failed:", error);
