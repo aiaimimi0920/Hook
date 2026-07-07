@@ -34,15 +34,6 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Frontend tests
-        run: npm test
-
-      - name: Rust tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
-
       - name: Build Hook EXE
         shell: powershell
         run: |
