@@ -18,6 +18,7 @@ impl Rect {
     }
 }
 
+#[allow(dead_code)]
 pub fn should_ignore_cursor_events(rects: &[Rect], x: f64, y: f64) -> bool {
     !rects.iter().any(|rect| rect.contains(x, y))
 }

@@ -162,8 +162,12 @@ export default function App() {
   useFileDrop();
 
   const STICKER_GLOBAL_DELETE_ARM_WINDOW_MS = 2500;
+  const OVERLAY_SYNTHETIC_CLICK_MAX_DISTANCE = 4;
   let lastStickerKeyboardDeleteArmAt = 0;
   let overlaySyntheticPointerTarget: EventTarget | null = null;
+  let overlaySyntheticPointerDownTarget: EventTarget | null = null;
+  let overlaySyntheticHoverTarget: EventTarget | null = null;
+  let overlaySyntheticPointerDownPoint: { x: number; y: number } | null = null;
   let overlaySyntheticPointerActive = false;
   let overlaySyntheticPrimaryButtonDown = false;
   let overlaySyntheticMoveRelayActive = false;
@@ -177,7 +181,7 @@ export default function App() {
       overlaySyntheticMoveRelayActive = false;
   };
   const dispatchSyntheticOverlayMouseEvent = (
-      type: "mousedown" | "mousemove" | "mouseup" | "wheel",
+      type: "mousedown" | "mousemove" | "mouseup" | "wheel" | "contextmenu",
       payload: OverlaySyntheticMousePayload,
   ) => {
       if (typeof document === "undefined") return;
@@ -185,26 +189,26 @@ export default function App() {
       const clientX = payload.x ?? payload.globalX ?? 0;
       const clientY = payload.y ?? payload.globalY ?? 0;
       const appMain = document.getElementById("app-main");
-      const resolveTarget = () =>
-          (document.elementFromPoint(clientX, clientY) as EventTarget | null) ??
-          appMain ??
-          window;
-
-      let target: EventTarget = resolveTarget();
-      if (type === "mousedown") {
-          resetOverlaySyntheticPointerState();
-          overlaySyntheticPointerTarget = target;
-          overlaySyntheticPointerActive = true;
-          overlaySyntheticPrimaryButtonDown = true;
-      } else if (
-          (type === "mousemove" || type === "mouseup") &&
-          overlaySyntheticPointerActive &&
-          overlaySyntheticPointerTarget
-      ) {
-          target = overlaySyntheticPointerTarget;
-      }
-
-      const baseInit = {
+      const isOverlayRootTarget = (target: EventTarget | null) =>
+          target === appMain ||
+          target === document.body ||
+          target === document.documentElement ||
+          target === window;
+      const resolveTarget = (allowFallback: boolean) => {
+          const rawTarget = document.elementFromPoint(clientX, clientY) as EventTarget | null;
+          if (!rawTarget || isOverlayRootTarget(rawTarget)) {
+              return allowFallback ? appMain ?? window : null;
+          }
+          if (rawTarget instanceof Element) {
+              const stickerInteractionRoot =
+                  rawTarget.closest?.("[data-sticker-interaction-root='true']") ?? null;
+              if (stickerInteractionRoot) {
+                  return stickerInteractionRoot;
+              }
+          }
+          return rawTarget;
+      };
+      const buildBaseInit = (button: number, buttons: number) => ({
           bubbles: true,
           cancelable: true,
           composed: true,
@@ -215,16 +219,135 @@ export default function App() {
           ctrlKey: !!payload.ctrlKey,
           altKey: !!payload.altKey,
           shiftKey: !!payload.shiftKey,
-          button: 0,
-          buttons:
-              type === "mouseup"
-                  ? 0
-                  : overlaySyntheticPrimaryButtonDown || type === "mousedown"
-                    ? 1
-                    : 0,
+          button,
+          buttons,
+      });
+      const dispatchHoverTransition = (
+          nextTarget: EventTarget | null,
+          pointerInit: PointerEventInit,
+          mouseInit: MouseEventInit,
+      ) => {
+          const previousTarget = overlaySyntheticHoverTarget;
+          if (previousTarget === nextTarget) {
+              return;
+          }
+
+          if (previousTarget) {
+              if (typeof PointerEvent !== "undefined") {
+                  previousTarget.dispatchEvent(
+                      new PointerEvent("pointerout", {
+                          ...pointerInit,
+                          relatedTarget: nextTarget,
+                      }),
+                  );
+                  previousTarget.dispatchEvent(
+                      new PointerEvent("pointerleave", {
+                          ...pointerInit,
+                          bubbles: false,
+                          relatedTarget: nextTarget,
+                      }),
+                  );
+              }
+              previousTarget.dispatchEvent(
+                  new MouseEvent("mouseout", {
+                      ...mouseInit,
+                      relatedTarget: nextTarget,
+                  }),
+              );
+              previousTarget.dispatchEvent(
+                  new MouseEvent("mouseleave", {
+                      ...mouseInit,
+                      bubbles: false,
+                      relatedTarget: nextTarget,
+                  }),
+              );
+          }
+
+          if (nextTarget) {
+              if (typeof PointerEvent !== "undefined") {
+                  nextTarget.dispatchEvent(
+                      new PointerEvent("pointerover", {
+                          ...pointerInit,
+                          relatedTarget: previousTarget,
+                      }),
+                  );
+                  nextTarget.dispatchEvent(
+                      new PointerEvent("pointerenter", {
+                          ...pointerInit,
+                          bubbles: false,
+                          relatedTarget: previousTarget,
+                      }),
+                  );
+              }
+              nextTarget.dispatchEvent(
+                  new MouseEvent("mouseover", {
+                      ...mouseInit,
+                      relatedTarget: previousTarget,
+                  }),
+              );
+              nextTarget.dispatchEvent(
+                  new MouseEvent("mouseenter", {
+                      ...mouseInit,
+                      bubbles: false,
+                      relatedTarget: previousTarget,
+                  }),
+              );
+          }
+
+          overlaySyntheticHoverTarget = nextTarget;
       };
 
-      if (type !== "wheel" && typeof PointerEvent !== "undefined") {
+      const baseInit =
+          type === "contextmenu"
+              ? buildBaseInit(2, 0)
+              : buildBaseInit(
+                    0,
+                    type === "mouseup"
+                        ? 0
+                        : overlaySyntheticPrimaryButtonDown || type === "mousedown"
+                          ? 1
+                          : 0,
+                );
+      const pointerInit: PointerEventInit = {
+          ...baseInit,
+          pointerId: 1,
+          pointerType: "mouse",
+          isPrimary: true,
+      };
+
+      let target: EventTarget | null =
+          type === "mousemove" && !overlaySyntheticPrimaryButtonDown
+              ? resolveTarget(false)
+              : resolveTarget(true);
+      if (type === "mousedown") {
+          resetOverlaySyntheticPointerState();
+          overlaySyntheticPointerTarget = target;
+          overlaySyntheticPointerDownTarget = target;
+          overlaySyntheticPointerDownPoint = { x: clientX, y: clientY };
+          overlaySyntheticPointerActive = true;
+          overlaySyntheticPrimaryButtonDown = true;
+      } else if (
+          (type === "mousemove" || type === "mouseup") &&
+          overlaySyntheticPointerActive &&
+          overlaySyntheticPointerTarget
+      ) {
+          target = overlaySyntheticPointerTarget;
+      }
+
+      if (!target) {
+          dispatchHoverTransition(null, pointerInit, baseInit);
+          return;
+      }
+
+      if (
+          type === "mousedown" ||
+          (type === "mousemove" && !overlaySyntheticPrimaryButtonDown) ||
+          type === "contextmenu"
+      ) {
+          dispatchHoverTransition(target, pointerInit, baseInit);
+      }
+
+      if (type !== "wheel" && type !== "contextmenu" && typeof PointerEvent !== "undefined") {
           target.dispatchEvent(
               new PointerEvent(
                   type === "mouseup"
@@ -232,12 +355,7 @@ export default function App() {
                       : type === "mousemove"
                         ? "pointermove"
                         : "pointerdown",
-                  {
-                      ...baseInit,
-                      pointerId: 1,
-                      pointerType: "mouse",
-                      isPrimary: true,
-                  },
+                  pointerInit,
               ),
           );
       }
@@ -249,11 +367,26 @@ export default function App() {
                   deltaY: payload.deltaY ?? 0,
               }),
           );
+      } else if (type === "contextmenu") {
+          target.dispatchEvent(new MouseEvent("contextmenu", baseInit));
       } else {
           target.dispatchEvent(new MouseEvent(type, baseInit));
       }
 
       if (type === "mouseup") {
+          if (
+              overlaySyntheticPointerDownTarget &&
+              overlaySyntheticPointerDownTarget === target &&
+              overlaySyntheticPointerDownPoint &&
+              Math.hypot(
+                  clientX - overlaySyntheticPointerDownPoint.x,
+                  clientY - overlaySyntheticPointerDownPoint.y,
+              ) <= OVERLAY_SYNTHETIC_CLICK_MAX_DISTANCE
+          ) {
+              target.dispatchEvent(new MouseEvent("click", buildBaseInit(0, 0)));
+          }
+          overlaySyntheticPointerDownTarget = null;
+          overlaySyntheticPointerDownPoint = null;
           resetOverlaySyntheticPointerState();
       }
   };
@@ -1140,6 +1273,13 @@ export default function App() {
               },
           );
 
+          const unlistenOverlayContextMenu = await listen<OverlaySyntheticMousePayload>(
+              "overlay/global_context_menu",
+              (event) => {
+                  dispatchSyntheticOverlayMouseEvent("contextmenu", event.payload);
+              },
+          );
+
           const unlistenInstantiate = await listen("art/instantiate", async (event) => {
               logger.debug("Received workflow instantiation payload");
               await instantiateWorkflowSnapshot(normalizeWorkflowSnapshotPayload(event.payload));
@@ -1208,6 +1348,7 @@ export default function App() {
               unlistenOverlayMouseMove,
               unlistenOverlayMouseUp,
               unlistenOverlayMouseWheel,
+              unlistenOverlayContextMenu,
               unlistenInstantiate,
               unlistenCapabilitiesUpdated,
               unlistenConnectionState,

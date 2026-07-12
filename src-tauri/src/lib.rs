@@ -19,7 +19,7 @@ use mock_artloom::MockArtLoom;
 use single_instance::{single_instance_name, try_acquire_single_instance};
 
 use base64::Engine as _;
-use mouse_monitor::{should_ignore_cursor_events, SharedHitMap};
+use mouse_monitor::SharedHitMap;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
 use std::fs;
@@ -43,6 +43,10 @@ use windows::core::{PCWSTR, PWSTR};
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 #[cfg(target_os = "windows")]
+use windows::Win32::Graphics::Gdi::{
+    CombineRgn, CreateRectRgn, DeleteObject, SetWindowRgn, RGN_OR,
+};
+#[cfg(target_os = "windows")]
 use windows::Win32::System::Memory::{
     MapViewOfFile, OpenFileMappingW, UnmapViewOfFile, FILE_MAP_READ, MEMORY_MAPPED_VIEW_ADDRESS,
 };
@@ -62,15 +66,18 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, CopyIcon, DispatchMessageW, GetCursorPos, GetMessageW, GetParent,
-    GetWindowLongPtrW, GetWindowRect, LoadCursorW, SetSystemCursor, SetWindowLongPtrW,
-    SetWindowPos, SetWindowsHookExW, SystemParametersInfoW, TranslateMessage, UnhookWindowsHookEx,
-    GWL_EXSTYLE, HCURSOR, HC_ACTION, HICON, IDC_CROSS, MSG, MSLLHOOKSTRUCT, OCR_CROSS, OCR_HAND,
-    OCR_IBEAM, OCR_NO, OCR_NORMAL, OCR_SIZEALL, OCR_SIZENESW, OCR_SIZENS, OCR_SIZENWSE, OCR_SIZEWE,
-    OCR_UP, SPI_SETCURSORS, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
-    SYSTEM_CURSOR_ID, WH_MOUSE_LL, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP,
-    WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NOTIFY, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_XBUTTONDOWN,
-    WM_XBUTTONUP, WS_EX_NOACTIVATE,
+    CallNextHookEx, CallWindowProcW, CopyIcon, CreateWindowExW, DefWindowProcW, DispatchMessageW,
+    GetCursorPos, GetMessageW, GetParent, GetWindowLongPtrW, GetWindowRect, LoadCursorW,
+    SetLayeredWindowAttributes, SetSystemCursor, SetWindowLongPtrW, SetWindowPos,
+    SetWindowsHookExW, ShowWindow, SystemParametersInfoW, TranslateMessage, UnhookWindowsHookEx,
+    GWLP_WNDPROC, GWL_EXSTYLE, HCURSOR, HC_ACTION, HICON, HWND_TOPMOST, IDC_CROSS, LWA_ALPHA,
+    MA_NOACTIVATE, MSG, MSLLHOOKSTRUCT, OCR_CROSS, OCR_HAND, OCR_IBEAM, OCR_NO, OCR_NORMAL,
+    OCR_SIZEALL, OCR_SIZENESW, OCR_SIZENS, OCR_SIZENWSE, OCR_SIZEWE, OCR_UP, SPI_SETCURSORS,
+    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW,
+    SW_HIDE, SW_SHOWNA, SYSTEM_CURSOR_ID, WH_MOUSE_LL, WM_LBUTTONDOWN, WM_LBUTTONUP,
+    WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEACTIVATE, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NOTIFY,
+    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDPROC, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
 };
 
 // =====================================
@@ -1049,6 +1056,7 @@ enum CaptureMouseHookEvent {
     OverlayMove { x: f64, y: f64 },
     OverlayUp { x: f64, y: f64 },
     OverlayWheel { x: f64, y: f64, delta_y: f64 },
+    OverlayContextMenu { x: f64, y: f64 },
 }
 
 #[cfg(target_os = "windows")]
@@ -1071,7 +1079,15 @@ static OVERLAY_MOUSE_HOOK_DRAG_ACTIVE: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
 static OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
+static OVERLAY_MOUSE_HOOK_HOVER_ACTIVE: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
 static OVERLAY_CLICK_THROUGH_ACTIVE: AtomicBool = AtomicBool::new(true);
+#[cfg(target_os = "windows")]
+static OVERLAY_MOUSE_ACTIVATE_WNDPROC_INSTALLED: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+static OVERLAY_MOUSE_ACTIVATE_WNDPROC_PREVIOUS: OnceLock<isize> = OnceLock::new();
+#[cfg(target_os = "windows")]
+static OVERLAY_INPUT_SHIELD_HWND: OnceLock<isize> = OnceLock::new();
 
 #[cfg(target_os = "windows")]
 fn queue_capture_mouse_hook_event(event: CaptureMouseHookEvent) {
@@ -1096,11 +1112,7 @@ fn should_route_overlay_mouse_events(x: f64, y: f64) -> bool {
     overlay_mouse_hit_map()
         .lock()
         .ok()
-        .map(|rects| {
-            rects
-                .iter()
-                .any(|rect| (rect.name == "MINI" || rect.name == "FULL") && rect.contains(x, y))
-        })
+        .map(|rects| rects.iter().any(|rect| rect.contains(x, y)))
         .unwrap_or(false)
 }
 
@@ -1123,8 +1135,8 @@ unsafe extern "system" fn capture_mouse_hook_proc(
     let y = mouse.pt.y as f64;
     let capture_active = CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst);
     let should_route_overlay_mouse = should_route_overlay_mouse_events(x, y);
-    let overlay_click_through = OVERLAY_CLICK_THROUGH_ACTIVE.load(Ordering::SeqCst);
-    if !capture_active && !should_route_overlay_mouse {
+    let overlay_hover_active = OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.load(Ordering::SeqCst);
+    if !capture_active && !should_route_overlay_mouse && !overlay_hover_active {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
 
@@ -1133,9 +1145,13 @@ unsafe extern "system" fn capture_mouse_hook_proc(
             if capture_active {
                 queue_capture_mouse_hook_event(CaptureMouseHookEvent::Move { x, y });
             }
-            if !capture_active && OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.load(Ordering::SeqCst) {
+            if !capture_active && should_route_overlay_mouse {
+                OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);
                 queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayMove { x, y });
-                return LRESULT(1);
+            }
+            if !capture_active && overlay_hover_active {
+                OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(false, Ordering::SeqCst);
+                queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayMove { x, y });
             }
         }
         WM_LBUTTONDOWN => {
@@ -1145,16 +1161,15 @@ unsafe extern "system" fn capture_mouse_hook_proc(
             }
             if should_route_overlay_mouse {
                 OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(true, Ordering::SeqCst);
-                OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE
-                    .store(overlay_click_through, Ordering::SeqCst);
+                OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(true, Ordering::SeqCst);
+                OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);
+                promote_overlay_input_shield_to_fullscreen();
                 append_runtime_log_line(&format!(
                     "overlay_drag_start :: synthetic={} x={} y={}",
-                    overlay_click_through, x, y
+                    true, x, y
                 ));
-                if overlay_click_through {
-                    queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown { x, y });
-                    return LRESULT(1);
-                }
+                queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown { x, y });
+                return LRESULT(1);
             }
         }
         WM_LBUTTONUP => {
@@ -1171,7 +1186,8 @@ unsafe extern "system" fn capture_mouse_hook_proc(
                     synthetic_drag_active, x, y
                 ));
             }
-            if synthetic_drag_active {
+            if drag_active || synthetic_drag_active || should_route_overlay_mouse {
+                OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(should_route_overlay_mouse, Ordering::SeqCst);
                 queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayUp { x, y });
                 return LRESULT(1);
             }
@@ -1188,12 +1204,23 @@ unsafe extern "system" fn capture_mouse_hook_proc(
                     y,
                     delta_y,
                 });
+                OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);
                 return LRESULT(1);
             }
         }
         WM_RBUTTONDOWN | WM_RBUTTONUP | WM_MBUTTONDOWN | WM_MBUTTONUP | WM_XBUTTONDOWN
         | WM_XBUTTONUP => {
             if capture_active {
+                return LRESULT(1);
+            }
+            if should_route_overlay_mouse {
+                OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);
+                if wparam.0 as u32 == WM_RBUTTONUP {
+                    queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayContextMenu {
+                        x,
+                        y,
+                    });
+                }
                 return LRESULT(1);
             }
         }
@@ -1251,6 +1278,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                         emit_capture_mouse_event(&emit_window, "capture/global_mouse_down", x, y);
                     }
                     CaptureMouseHookEvent::OverlayDown { x, y } => {
+                        sync_overlay_input_shield_from_runtime_state(&emit_window);
                         emit_capture_mouse_event(&emit_window, "overlay/global_mouse_down", x, y);
                     }
                     CaptureMouseHookEvent::OverlayMove { mut x, mut y } => {
@@ -1277,6 +1305,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                         emit_capture_mouse_event(&emit_window, "capture/global_mouse_up", x, y);
                     }
                     CaptureMouseHookEvent::OverlayUp { x, y } => {
+                        sync_overlay_input_shield_from_runtime_state(&emit_window);
                         emit_capture_mouse_event(&emit_window, "overlay/global_mouse_up", x, y);
                     }
                     CaptureMouseHookEvent::Wheel { x, y } => {
@@ -1290,6 +1319,9 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                             y,
                             delta_y,
                         );
+                    }
+                    CaptureMouseHookEvent::OverlayContextMenu { x, y } => {
+                        emit_capture_mouse_event(&emit_window, "overlay/global_context_menu", x, y);
                     }
                 }
             }
@@ -1345,26 +1377,16 @@ fn refresh_overlay_interactivity_for_current_cursor(
         None => return,
     };
 
-    let drag_active = OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst);
-    let should_ignore = match hit_map.rectangles.lock() {
-        Ok(rects) => {
-            if drag_active {
-                false
-            } else {
-                should_ignore_cursor_events(&rects, cursor_x, cursor_y)
-            }
-        }
-        Err(_) => return,
-    };
-
-    let _ = window.set_ignore_cursor_events(should_ignore);
-    OVERLAY_CLICK_THROUGH_ACTIVE.store(should_ignore, Ordering::SeqCst);
-    if !should_ignore {
-        apply_overlay_no_activate(window);
+    if hit_map.rectangles.lock().is_err() {
+        return;
     }
+
+    let _ = window.set_ignore_cursor_events(true);
+    OVERLAY_CLICK_THROUGH_ACTIVE.store(true, Ordering::SeqCst);
+    apply_overlay_no_activate(window);
     append_runtime_log_line(&format!(
         "refresh_overlay_interactivity :: cursor_x={} cursor_y={} should_ignore={}",
-        cursor_x, cursor_y, should_ignore
+        cursor_x, cursor_y, true
     ));
 }
 
@@ -1808,6 +1830,7 @@ fn update_pin_rects(
     state: tauri::State<SharedHitMap>,
     rects: Vec<mouse_monitor::Rect>,
 ) {
+    let active = state.active.lock().map(|guard| *guard).unwrap_or(false);
     if let Ok(mut rectangles) = state.rectangles.lock() {
         *rectangles = rects.clone();
     } else {
@@ -1815,10 +1838,11 @@ fn update_pin_rects(
         return;
     }
     if let Ok(mut overlay_rectangles) = overlay_mouse_hit_map().lock() {
-        *overlay_rectangles = rects;
+        *overlay_rectangles = rects.clone();
     }
 
     if let Some(window) = app.get_webview_window("main") {
+        sync_overlay_input_shield_region(&window, &rects, active);
         refresh_overlay_interactivity_for_current_cursor(&window, &state);
     }
 }
@@ -1845,6 +1869,12 @@ fn set_mouse_monitor_active(
     // caller in charge of hit-testing so capture mode can remain click-through
     // and avoid placing an interactive transparent WebView over video surfaces.
     if let Some(window) = app.get_webview_window("main") {
+        let rects = state
+            .rectangles
+            .lock()
+            .map(|guard| guard.clone())
+            .unwrap_or_default();
+        sync_overlay_input_shield_region(&window, &rects, active);
         if active {
             refresh_overlay_interactivity_for_current_cursor(&window, &state);
         }
@@ -2842,9 +2872,262 @@ fn clear_overlay_no_activate(window: &tauri::WebviewWindow) {
 #[cfg(not(target_os = "windows"))]
 fn clear_overlay_no_activate(_window: &tauri::WebviewWindow) {}
 
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn overlay_mouse_activate_wndproc(
+    hwnd: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    if message == WM_MOUSEACTIVATE {
+        return LRESULT(MA_NOACTIVATE as isize);
+    }
+
+    if let Some(previous) = OVERLAY_MOUSE_ACTIVATE_WNDPROC_PREVIOUS.get().copied() {
+        let previous_wndproc: WNDPROC = Some(std::mem::transmute(previous));
+        return unsafe { CallWindowProcW(previous_wndproc, hwnd, message, wparam, lparam) };
+    }
+
+    unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
+}
+
+#[cfg(target_os = "windows")]
+fn install_overlay_mouse_activate_no_activate(window: &tauri::WebviewWindow) {
+    if OVERLAY_MOUSE_ACTIVATE_WNDPROC_INSTALLED.load(Ordering::SeqCst) {
+        return;
+    }
+
+    let Ok(hwnd) = window.hwnd() else {
+        append_runtime_log_line("overlay_mouse_activate_install_hwnd_failed");
+        return;
+    };
+    let hwnd = HWND(hwnd.0);
+
+    let previous = unsafe {
+        SetWindowLongPtrW(
+            hwnd,
+            GWLP_WNDPROC,
+            overlay_mouse_activate_wndproc as *const () as usize as isize,
+        )
+    };
+    if previous == 0 {
+        append_runtime_log_line("overlay_mouse_activate_install_failed");
+        return;
+    }
+
+    let _ = OVERLAY_MOUSE_ACTIVATE_WNDPROC_PREVIOUS.set(previous);
+    OVERLAY_MOUSE_ACTIVATE_WNDPROC_INSTALLED.store(true, Ordering::SeqCst);
+    append_runtime_log_line("overlay_mouse_activate_install_success");
+}
+
+#[cfg(not(target_os = "windows"))]
+fn install_overlay_mouse_activate_no_activate(_window: &tauri::WebviewWindow) {}
+
+#[cfg(target_os = "windows")]
+fn overlay_input_shield_hwnd() -> Option<HWND> {
+    OVERLAY_INPUT_SHIELD_HWND
+        .get()
+        .copied()
+        .map(|value| HWND(value as *mut core::ffi::c_void))
+}
+
+#[cfg(target_os = "windows")]
+fn promote_overlay_input_shield_to_fullscreen() {
+    let Some(hwnd) = overlay_input_shield_hwnd() else {
+        return;
+    };
+
+    let mut rect = RECT::default();
+    if unsafe { GetWindowRect(hwnd, &mut rect) }.is_err() {
+        append_runtime_log_line("overlay_input_shield_drag_rect_failed");
+        return;
+    }
+
+    let width = (rect.right - rect.left).max(1);
+    let height = (rect.bottom - rect.top).max(1);
+    let full_region = unsafe { CreateRectRgn(0, 0, width, height) };
+    let _ = unsafe { SetWindowRgn(hwnd, Some(full_region), true) };
+    let _ = unsafe { ShowWindow(hwnd, SW_SHOWNA) };
+    append_runtime_log_line("overlay_input_shield_drag_fullscreen");
+}
+
+#[cfg(not(target_os = "windows"))]
+fn promote_overlay_input_shield_to_fullscreen() {}
+
+#[cfg(target_os = "windows")]
+fn ensure_overlay_input_shield_window(window: &tauri::WebviewWindow) -> Option<HWND> {
+    if let Some(hwnd) = overlay_input_shield_hwnd() {
+        return Some(hwnd);
+    }
+
+    let Ok(main_hwnd) = window.hwnd() else {
+        append_runtime_log_line("overlay_input_shield_hwnd_failed");
+        return None;
+    };
+    let main_hwnd = HWND(main_hwnd.0);
+    let mut main_rect = RECT::default();
+    if unsafe { GetWindowRect(main_hwnd, &mut main_rect) }.is_err() {
+        append_runtime_log_line("overlay_input_shield_main_rect_failed");
+        return None;
+    }
+
+    let class_name: Vec<u16> = "STATIC".encode_utf16().chain(std::iter::once(0)).collect();
+    let window_name: Vec<u16> = "HookOverlayInputShield"
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    let width = (main_rect.right - main_rect.left).max(1);
+    let height = (main_rect.bottom - main_rect.top).max(1);
+
+    let hwnd = unsafe {
+        CreateWindowExW(
+            WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+            PCWSTR(class_name.as_ptr()),
+            PCWSTR(window_name.as_ptr()),
+            WS_POPUP,
+            main_rect.left,
+            main_rect.top,
+            width,
+            height,
+            None,
+            None,
+            None,
+            None,
+        )
+    };
+    let Ok(hwnd) = hwnd else {
+        append_runtime_log_line("overlay_input_shield_create_failed");
+        return None;
+    };
+
+    let _ = unsafe { SetLayeredWindowAttributes(hwnd, Default::default(), 1, LWA_ALPHA) };
+    let _ = unsafe {
+        SetWindowPos(
+            hwnd,
+            Some(HWND_TOPMOST),
+            main_rect.left,
+            main_rect.top,
+            width,
+            height,
+            SWP_NOACTIVATE | SWP_SHOWWINDOW,
+        )
+    };
+    let _ = unsafe { ShowWindow(hwnd, SW_SHOWNA) };
+    let _ = OVERLAY_INPUT_SHIELD_HWND.set(hwnd.0 as isize);
+    append_runtime_log_line("overlay_input_shield_create_success");
+    Some(hwnd)
+}
+
+#[cfg(target_os = "windows")]
+fn sync_overlay_input_shield_region(
+    window: &tauri::WebviewWindow,
+    rects: &[mouse_monitor::Rect],
+    active: bool,
+) {
+    let Some(hwnd) = ensure_overlay_input_shield_window(window) else {
+        return;
+    };
+    let Ok(main_hwnd) = window.hwnd() else {
+        append_runtime_log_line("overlay_input_shield_main_hwnd_failed");
+        return;
+    };
+    let main_hwnd = HWND(main_hwnd.0);
+    let mut main_rect = RECT::default();
+    if unsafe { GetWindowRect(main_hwnd, &mut main_rect) }.is_err() {
+        append_runtime_log_line("overlay_input_shield_main_rect_failed");
+        return;
+    }
+
+    let width = (main_rect.right - main_rect.left).max(1);
+    let height = (main_rect.bottom - main_rect.top).max(1);
+    let capture_active = CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst);
+    let overlay_drag_active = OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst);
+    let _ = unsafe {
+        SetWindowPos(
+            hwnd,
+            Some(HWND_TOPMOST),
+            main_rect.left,
+            main_rect.top,
+            width,
+            height,
+            SWP_NOACTIVATE | SWP_SHOWWINDOW,
+        )
+    };
+
+    if capture_active || overlay_drag_active {
+        let full_region = unsafe { CreateRectRgn(0, 0, width, height) };
+        let _ = unsafe { SetWindowRgn(hwnd, Some(full_region), true) };
+        let _ = unsafe { ShowWindow(hwnd, SW_SHOWNA) };
+        append_runtime_log_line(if capture_active {
+            "overlay_input_shield_capture_fullscreen"
+        } else {
+            "overlay_input_shield_drag_fullscreen_synced"
+        });
+        return;
+    }
+
+    let visible_rects: Vec<&mouse_monitor::Rect> = if active {
+        rects
+            .iter()
+            .filter(|rect| rect.width > 0 && rect.height > 0)
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    let empty_region = unsafe { CreateRectRgn(0, 0, 0, 0) };
+    if visible_rects.is_empty() {
+        let _ = unsafe { SetWindowRgn(hwnd, Some(empty_region), true) };
+        let _ = unsafe { ShowWindow(hwnd, SW_HIDE) };
+        append_runtime_log_line("overlay_input_shield_hidden");
+        return;
+    }
+
+    let union_region = empty_region;
+    for rect in visible_rects {
+        let next_region =
+            unsafe { CreateRectRgn(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height) };
+        let _ = unsafe {
+            CombineRgn(
+                Some(union_region),
+                Some(union_region),
+                Some(next_region),
+                RGN_OR,
+            )
+        };
+        let _ = unsafe { DeleteObject(next_region.into()) };
+    }
+
+    let _ = unsafe { SetWindowRgn(hwnd, Some(union_region), true) };
+    let _ = unsafe { ShowWindow(hwnd, SW_SHOWNA) };
+    append_runtime_log_line("overlay_input_shield_region_synced");
+}
+
+#[cfg(not(target_os = "windows"))]
+fn sync_overlay_input_shield_region(
+    _window: &tauri::WebviewWindow,
+    _rects: &[mouse_monitor::Rect],
+    _active: bool,
+) {
+}
+
+#[cfg(target_os = "windows")]
+fn sync_overlay_input_shield_from_runtime_state(window: &tauri::WebviewWindow) {
+    let rects = overlay_mouse_hit_map()
+        .lock()
+        .map(|guard| guard.clone())
+        .unwrap_or_default();
+    let active = OVERLAY_MOUSE_HIT_MAP_ACTIVE.load(Ordering::SeqCst);
+    sync_overlay_input_shield_region(window, &rects, active);
+}
+
+#[cfg(not(target_os = "windows"))]
+fn sync_overlay_input_shield_from_runtime_state(_window: &tauri::WebviewWindow) {}
+
 fn setup_overlay_window(window: &tauri::WebviewWindow) {
     let _ = window.set_content_protected(false);
     apply_overlay_no_activate(window);
+    install_overlay_mouse_activate_no_activate(window);
     let _ = window.set_decorations(false);
     let _ = window.set_title("");
     let _ = window.set_skip_taskbar(true);
@@ -3567,11 +3850,26 @@ async fn wait_for_long_capture_stitch_worker(
 }
 
 #[tauri::command]
-fn set_capture_input_active(state: tauri::State<SharedCaptureInputState>, active: bool) {
+fn set_capture_input_active(
+    app: tauri::AppHandle,
+    state: tauri::State<SharedCaptureInputState>,
+    hit_map: tauri::State<SharedHitMap>,
+    active: bool,
+) {
     if let Ok(mut guard) = state.active.lock() {
         *guard = active;
         append_runtime_log_line(&format!("set_capture_input_active :: {}", active));
         set_capture_input_runtime_active(active);
+    }
+
+    if let Some(window) = app.get_webview_window("main") {
+        let rects = hit_map
+            .rectangles
+            .lock()
+            .map(|guard| guard.clone())
+            .unwrap_or_default();
+        let overlay_active = hit_map.active.lock().map(|guard| *guard).unwrap_or(false);
+        sync_overlay_input_shield_region(&window, &rects, overlay_active);
     }
 }
 
@@ -4863,8 +5161,7 @@ pub fn run() {
                                 }
                             }
                             rdev::EventType::MouseMove { x, y } => {
-                                let x = *x;
-                                let y = *y;
+                                let _ = (x, y);
                                 let capture_active = capture_input_state_clone
                                     .active
                                     .lock()
@@ -4881,27 +5178,13 @@ pub fn run() {
                                     .map(|guard| *guard)
                                     .unwrap_or(false);
                                 if active {
-                                    let drag_active =
-                                        OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst);
-                                    let should_ignore = hit_map_clone
-                                        .rectangles
-                                        .lock()
-                                        .map(|rects| {
-                                            if drag_active {
-                                                false
-                                            } else {
-                                                should_ignore_cursor_events(&rects, x, y)
-                                            }
-                                        })
-                                        .unwrap_or(false);
-
-                                    if should_ignore != input_state.is_ignoring_events {
-                                        // println!("State Change: Ignore Events = {} (Mouse: {},{})", should_ignore, x, y);
-                                        let _ = window.set_ignore_cursor_events(should_ignore);
-                                        if !should_ignore {
-                                            apply_overlay_no_activate(&window);
-                                        }
-                                        input_state.is_ignoring_events = should_ignore;
+                                    let rects_available =
+                                        hit_map_clone.rectangles.lock().map(|_| true).unwrap_or(false);
+                                    if rects_available && !input_state.is_ignoring_events {
+                                        let _ = window.set_ignore_cursor_events(true);
+                                        OVERLAY_CLICK_THROUGH_ACTIVE.store(true, Ordering::SeqCst);
+                                        apply_overlay_no_activate(&window);
+                                        input_state.is_ignoring_events = true;
                                     }
                                 } else {
                                     input_state.is_ignoring_events = false;

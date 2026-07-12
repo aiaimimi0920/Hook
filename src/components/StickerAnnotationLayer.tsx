@@ -2031,6 +2031,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
         <div
             ref={hostRef}
             class="absolute inset-0 z-[16]"
+            data-sticker-interaction-root="true"
             style={{
                 "pointer-events": interactionEnabled() ? "auto" : "none",
                 "overflow": cropClipped() ? "hidden" : "visible",

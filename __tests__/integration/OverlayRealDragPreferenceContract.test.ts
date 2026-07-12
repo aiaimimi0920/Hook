@@ -14,7 +14,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 };
 
 describe("overlay real drag preference contract", () => {
-  it("keeps ordinary sticker drags on real DOM mouse events once the overlay is already interactive, and only uses synthetic overlay drag replay while click-through is still active", () => {
+  it("keeps ordinary sticker drags on the synthetic overlay relay so the native full-screen window can stay click-through even while stickers are interactive", () => {
     const rustSource = readSource("src-tauri/src/lib.rs");
     const hookProcBlock = sourceBetween(
       rustSource,
@@ -44,12 +44,13 @@ describe("overlay real drag preference contract", () => {
 
     expect(rustSource).toContain("static OVERLAY_CLICK_THROUGH_ACTIVE: AtomicBool = AtomicBool::new(true);");
     expect(rustSource).toContain("static OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE: AtomicBool = AtomicBool::new(false);");
-    expect(rustSource).toContain("let overlay_click_through = OVERLAY_CLICK_THROUGH_ACTIVE.load(Ordering::SeqCst);");
     expect(downBlock).toContain("OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE");
-    expect(downBlock).toContain("if overlay_click_through {");
+    expect(downBlock).toContain("OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(true, Ordering::SeqCst);");
     expect(downBlock).toContain("CaptureMouseHookEvent::OverlayDown");
-    expect(moveBlock).toContain("OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.load(Ordering::SeqCst)");
-    expect(moveBlock).not.toContain("OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)");
+    expect(downBlock).toContain("return LRESULT(1);");
+    expect(moveBlock).toContain("if !capture_active && should_route_overlay_mouse {");
+    expect(moveBlock).toContain("CaptureMouseHookEvent::OverlayMove");
+    expect(moveBlock).toContain("OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);");
     expect(showOverlayBlock).toContain("OVERLAY_CLICK_THROUGH_ACTIVE.store(click_through, Ordering::SeqCst);");
     expect(clickThroughBlock).toContain("OVERLAY_CLICK_THROUGH_ACTIVE.store(click_through, Ordering::SeqCst);");
   });

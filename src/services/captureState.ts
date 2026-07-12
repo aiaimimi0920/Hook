@@ -259,6 +259,12 @@ export const shouldStartCanvasSelectionFromTarget = (target: EventTarget | null)
 
     const element = target as Partial<HTMLElement>;
     const tagName = typeof element.tagName === "string" ? element.tagName.toLowerCase() : "";
+    const insideStickerInteractionRoot =
+        typeof element.closest === "function" &&
+        !!element.closest("[data-sticker-interaction-root='true']");
+    if (insideStickerInteractionRoot) {
+        return false;
+    }
     return (
         tagName === "svg" ||
         element.id === "app-main" ||

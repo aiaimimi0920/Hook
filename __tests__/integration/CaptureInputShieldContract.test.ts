@@ -62,7 +62,7 @@ describe("capture input shield contract", () => {
     expect(captureMoveBranch).toContain("CaptureMouseHookEvent::Move");
     expect(captureMoveBranch).not.toContain("return LRESULT(1)");
     expect(moveBlock).toContain("CaptureMouseHookEvent::OverlayMove");
-    expect(moveBlock).toContain("return LRESULT(1)");
+    expect(moveBlock).not.toContain("return LRESULT(1)");
     expect(hookProcBlock).toContain("unsafe { CallNextHookEx(None, code, wparam, lparam) }");
     expect(hookProcBlock).toContain("CaptureMouseHookEvent::Down");
     expect(hookProcBlock).toContain("CaptureMouseHookEvent::Up");
@@ -159,9 +159,14 @@ describe("capture input shield contract", () => {
     expect(showCanvasBlock).toContain("clear_overlay_no_activate(window);");
   });
 
-  it("keeps sticker regions non-click-through so hover and other mouse interactions do not leak to the app underneath", () => {
+  it("keeps sticker hover synthetic while the overlay window stays click-through so hover/click do not leak or black out the app underneath", () => {
     const rustSource = readSource("src-tauri/src/lib.rs");
     const appSource = readSource("src/app.tsx");
+    const overlayRouteBlock = sourceBetween(
+      rustSource,
+      "fn should_route_overlay_mouse_events",
+      "unsafe extern \"system\" fn capture_mouse_hook_proc",
+    );
     const hookProcBlock = sourceBetween(
       rustSource,
       "unsafe extern \"system\" fn capture_mouse_hook_proc",
@@ -186,34 +191,74 @@ describe("capture input shield contract", () => {
     expect(rustSource).toContain("OverlayDown { x: f64, y: f64 }");
     expect(rustSource).toContain("OverlayMove { x: f64, y: f64 }");
     expect(rustSource).toContain("OverlayUp { x: f64, y: f64 }");
+    expect(rustSource).toContain("OverlayContextMenu { x: f64, y: f64 }");
     expect(rustSource).toContain("OVERLAY_MOUSE_HOOK_DRAG_ACTIVE");
+    expect(rustSource).toContain("OVERLAY_MOUSE_HOOK_HOVER_ACTIVE");
     expect(rustSource).toContain("OVERLAY_MOUSE_HIT_MAP");
     expect(rustSource).toContain("fn should_route_overlay_mouse_events");
-    expect(rustSource).toContain('rect.name == "MINI" || rect.name == "FULL"');
+    expect(overlayRouteBlock).toContain(".any(|rect| rect.contains(x, y))");
+    expect(overlayRouteBlock).not.toContain('rect.name == "MINI" || rect.name == "FULL"');
     expect(rustSource).toContain("queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown");
     expect(rustSource).toContain("queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayMove");
     expect(rustSource).toContain("queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayUp");
     expect(rustSource).toContain('emit_capture_mouse_event(&emit_window, "overlay/global_mouse_down"');
     expect(rustSource).toContain('emit_capture_mouse_event(&emit_window, "overlay/global_mouse_move"');
     expect(rustSource).toContain('emit_capture_mouse_event(&emit_window, "overlay/global_mouse_up"');
+    expect(rustSource).toContain('emit_capture_mouse_event(&emit_window, "overlay/global_context_menu"');
+    expect(moveBlock).toContain("if !capture_active && should_route_overlay_mouse {");
     expect(moveBlock).toContain("CaptureMouseHookEvent::OverlayMove");
-    expect(refreshBlock).not.toContain("should_route_overlay_mouse || should_ignore_cursor_events");
-    expect(refreshBlock).toContain("should_ignore_cursor_events(&rects, cursor_x, cursor_y)");
+    expect(moveBlock).toContain("OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);");
+    expect(refreshBlock).not.toContain("should_ignore_cursor_events(&rects, cursor_x, cursor_y)");
+    expect(refreshBlock).toContain("window.set_ignore_cursor_events(true)");
+    expect(refreshBlock).toContain("OVERLAY_CLICK_THROUGH_ACTIVE.store(true, Ordering::SeqCst);");
     expect(rdevMouseMoveBlock).not.toContain("should_route_overlay_mouse_events(x, y)");
     expect(rdevMouseMoveBlock).not.toContain("should_route_overlay_mouse ||");
-    expect(rdevMouseMoveBlock).toContain("should_ignore_cursor_events(&rects, x, y)");
+    expect(rdevMouseMoveBlock).toContain("window.set_ignore_cursor_events(true)");
 
     expect(appSource).toContain("const dispatchSyntheticOverlayMouseEvent =");
     expect(appSource).toContain("document.elementFromPoint");
     expect(appSource).toContain("new MouseEvent");
+    expect(appSource).toContain('"mouseenter"');
+    expect(appSource).toContain('"mouseleave"');
+    expect(appSource).toContain('"click"');
+    expect(appSource).toContain('"contextmenu"');
     expect(appSource).toContain('"overlay/global_mouse_down"');
     expect(appSource).toContain('"overlay/global_mouse_move"');
     expect(appSource).toContain('"overlay/global_mouse_up"');
     expect(appSource).toContain('"overlay/global_mouse_wheel"');
+    expect(appSource).toContain('"overlay/global_context_menu"');
   });
 
-  it("keeps the overlay non-click-through for the full duration of a sticker drag even after the cursor leaves the sticker's original rect", () => {
+  it("reuses the native shield as a full-screen capture blocker so Ctrl+1 drag-select never hovers the app underneath", () => {
     const rustSource = readSource("src-tauri/src/lib.rs");
+    const shieldBlock = sourceBetween(
+      rustSource,
+      "fn sync_overlay_input_shield_region(",
+      "#[cfg(not(target_os = \"windows\"))]\nfn sync_overlay_input_shield_region",
+    );
+    const captureToggleBlock = sourceBetween(
+      rustSource,
+      "fn set_capture_input_active(",
+      "fn show_canvas_window_impl",
+    );
+
+    expect(shieldBlock).toContain("CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst)");
+    expect(shieldBlock).toContain("CreateRectRgn(0, 0, width, height)");
+    expect(captureToggleBlock).toContain("sync_overlay_input_shield_region");
+  });
+
+  it("keeps a synthetic hover-exit handoff so leaving a sticker clears overlay hover state before native mouse input resumes underneath", () => {
+    const rustSource = readSource("src-tauri/src/lib.rs");
+    const hookProcBlock = sourceBetween(
+      rustSource,
+      "unsafe extern \"system\" fn capture_mouse_hook_proc",
+      "fn install_capture_mouse_hook_thread",
+    );
+    const moveBlock = sourceBetween(
+      hookProcBlock,
+      "WM_MOUSEMOVE => {",
+      "WM_LBUTTONDOWN => {",
+    );
     const refreshBlock = sourceBetween(
       rustSource,
       "fn refresh_overlay_interactivity_for_current_cursor",
@@ -225,9 +270,11 @@ describe("capture input shield contract", () => {
       "_ => {}",
     );
 
-    expect(refreshBlock).toContain("OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)");
-    expect(refreshBlock).toContain("false");
-    expect(rdevMouseMoveBlock).toContain("OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)");
-    expect(rdevMouseMoveBlock).toContain("false");
+    expect(rustSource).toContain("static OVERLAY_MOUSE_HOOK_HOVER_ACTIVE: AtomicBool = AtomicBool::new(false);");
+    expect(rustSource).toContain("let overlay_hover_active = OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.load(Ordering::SeqCst);");
+    expect(moveBlock).toContain("if !capture_active && overlay_hover_active {");
+    expect(moveBlock).toContain("OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(false, Ordering::SeqCst);");
+    expect(refreshBlock).toContain("window.set_ignore_cursor_events(true)");
+    expect(rdevMouseMoveBlock).toContain("OVERLAY_CLICK_THROUGH_ACTIVE.store(true, Ordering::SeqCst);");
   });
 });

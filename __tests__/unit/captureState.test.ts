@@ -149,6 +149,13 @@ describe("capture state helpers", () => {
             shouldStartCanvasSelectionFromTarget(elementTarget({ classes: ["bg-transparent"] })),
         ).toBe(true);
         expect(shouldStartCanvasSelectionFromTarget(elementTarget({ classes: ["bg-dimmer"] }))).toBe(true);
+        expect(
+            shouldStartCanvasSelectionFromTarget({
+                tagName: "svg",
+                closest: (selector: string) =>
+                    selector === "[data-sticker-interaction-root='true']" ? ({} as Element) : null,
+            } as unknown as EventTarget),
+        ).toBe(false);
         expect(shouldStartCanvasSelectionFromTarget(elementTarget({ classes: ["unit-container"] }))).toBe(false);
         expect(shouldStartCanvasSelectionFromTarget(null)).toBe(false);
     });
