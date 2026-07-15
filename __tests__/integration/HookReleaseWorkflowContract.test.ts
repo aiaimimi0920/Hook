@@ -51,15 +51,14 @@ describe("Hook release workflow contract", () => {
     const installerPackageScriptSource = readFileSync(installerPackageScriptPath, "utf8");
 
     expect(workflowSource).toContain("package-release-zip.ps1");
-    expect(workflowSource).toContain("package-uiaccess-installer-zip.ps1");
     expect(workflowSource).toContain("Resolve release tag");
     expect(workflowSource).toContain("uses: softprops/action-gh-release@v3");
     expect(workflowSource).toContain("working_directory: release/Hook");
     expect(workflowSource).toContain("files:");
     expect(workflowSource).toContain("hook-windows-x64-${{ env.HOOK_TAG }}.zip");
-    expect(workflowSource).toContain("hook-windows-uiaccess-installer-${{ env.HOOK_TAG }}.zip");
-    expect(workflowSource).toContain("HOOK_WINDOWS_UIACCESS_PFX_BASE64");
-    expect(workflowSource).toContain("HOOK_WINDOWS_UIACCESS_PFX_PASSWORD");
+    expect(workflowSource).not.toContain("hook-windows-uiaccess-installer-${{ env.HOOK_TAG }}.zip");
+    expect(workflowSource).not.toContain("HOOK_WINDOWS_UIACCESS_PFX_BASE64");
+    expect(workflowSource).not.toContain("HOOK_WINDOWS_UIACCESS_PFX_PASSWORD");
     expect(workflowSource).toContain("overwrite_files: true");
     expect(workflowSource).toContain("fail_on_unmatched_files: true");
     expect(workflowSource).not.toContain("gh release create");

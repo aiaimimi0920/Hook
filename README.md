@@ -59,16 +59,16 @@ Hook focuses on the gap between a screenshot utility and a heavier design tool:
 
 ## Release packages
 
-- **Installer (Recommended when provided on the release page)**
-  - best fit for long-running desktop use
-  - recommended when you need the most stable interaction under special Windows
-    foreground windows such as **Task Manager**
-  - uses the signed UIAccess-oriented installation path under `Program Files`
-- **Portable**
+- **Portable (Current recommended package)**
   - unzip and run
-  - good for quick trials and ordinary daily capture
-  - may still hit Windows foreground/elevation limits in some scenarios; if you
-    must stay portable there, try launching Hook as **administrator** as a fallback
+  - current public release package for quick trials and ordinary daily capture
+  - if you hit Windows foreground/elevation limits in scenarios involving
+    special windows such as **Task Manager**, try launching Hook as
+    **administrator** as the current workaround
+- **Installer (Planned for future signed releases)**
+  - Hook keeps the signed UIAccess-oriented installer path in development
+  - it will become a public release package again after the project has real
+    signing material wired into the release pipeline
 
 See [`UIACCESS_DISTRIBUTION.md`](UIACCESS_DISTRIBUTION.md) for the full explanation.
 

@@ -15,6 +15,7 @@ If you want to understand the current project, start with the repository root:
 
 For current release trust/governance docs, also read:
 
+- `docs/RELEASE_STRATEGY.md`
 - `docs/CODE_SIGNING_POLICY.md`
 - `docs/PRIVACY_POLICY.md`
 - `docs/MAINTAINER_SIGNING_GUIDE.md`
@@ -27,6 +28,7 @@ For current release trust/governance docs, also read:
 
 These files are current and are not archival-only:
 
+- `RELEASE_STRATEGY.md`
 - `CODE_SIGNING_POLICY.md`
 - `PRIVACY_POLICY.md`
 - `MAINTAINER_SIGNING_GUIDE.md`

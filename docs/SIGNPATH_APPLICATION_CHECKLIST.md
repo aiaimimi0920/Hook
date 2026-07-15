@@ -31,6 +31,7 @@ details.
 - Code signing policy: `docs/CODE_SIGNING_POLICY.md`
 - Privacy policy: `docs/PRIVACY_POLICY.md`
 - UIAccess distribution notes: `UIACCESS_DISTRIBUTION.md`
+- Release strategy: `docs/RELEASE_STRATEGY.md`
 - Maintainer signing guide: `docs/MAINTAINER_SIGNING_GUIDE.md`
 - Application answer draft: `docs/SIGNPATH_APPLICATION_DRAFT.md`
 
@@ -40,15 +41,18 @@ Hook currently distinguishes between two Windows release lanes:
 
 - **portable**
   - asset shape: `hook-windows-x64-Vx.x.x.zip`
+  - current public release package
   - for quick trial and ordinary daily screenshot use
 - **installer / UIAccess-oriented**
   - asset shape: `hook-windows-uiaccess-installer-Vx.x.x.zip`
+  - future signed public release package
   - for the signed trusted-location Windows path
 
 ### Public build/release model already documented
 
 - release versions are tagged as `Vx.x.x`
 - public builds are produced from GitHub Actions
+- the current public phase is portable-first
 - the installer/UIAccess lane is not treated as equivalent to an unsigned loose
   portable exe
 - install/uninstall guidance lives in `UIACCESS_DISTRIBUTION.md`

@@ -40,9 +40,10 @@ GitHub Actions is the public hosted build path for Hook releases.
 
 > Hook publishes a portable package for ordinary daily screenshot use and a
 > separate installer/UIAccess-oriented package for the trusted signed Windows
-> path. The repository does not describe those two packages as equivalent,
-> because the installer path depends on signing and trusted-location
-> requirements that the portable package does not guarantee.
+> path. The current public release phase is portable-first, and the repository
+> does not describe those two packages as equivalent, because the installer path
+> depends on signing and trusted-location requirements that the portable package
+> does not guarantee.
 
 ## Install and uninstall explanation
 

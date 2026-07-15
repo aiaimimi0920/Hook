@@ -9,6 +9,7 @@ const docsIndex = readFileSync(resolve(hookRoot, "docs/README.md"), "utf8");
 const codeSigningPolicyPath = resolve(hookRoot, "docs/CODE_SIGNING_POLICY.md");
 const privacyPolicyPath = resolve(hookRoot, "docs/PRIVACY_POLICY.md");
 const maintainerGuidePath = resolve(hookRoot, "docs/MAINTAINER_SIGNING_GUIDE.md");
+const releaseStrategyPath = resolve(hookRoot, "docs/RELEASE_STRATEGY.md");
 const signPathChecklistPath = resolve(hookRoot, "docs/SIGNPATH_APPLICATION_CHECKLIST.md");
 const signPathDraftPath = resolve(hookRoot, "docs/SIGNPATH_APPLICATION_DRAFT.md");
 const distributionNotesPath = resolve(hookRoot, "UIACCESS_DISTRIBUTION.md");
@@ -16,15 +17,17 @@ const distributionNotesPath = resolve(hookRoot, "UIACCESS_DISTRIBUTION.md");
 const codeSigningPolicy = readFileSync(codeSigningPolicyPath, "utf8");
 const privacyPolicy = readFileSync(privacyPolicyPath, "utf8");
 const maintainerGuide = readFileSync(maintainerGuidePath, "utf8");
+const releaseStrategy = readFileSync(releaseStrategyPath, "utf8");
 const signPathChecklist = readFileSync(signPathChecklistPath, "utf8");
 const signPathDraft = readFileSync(signPathDraftPath, "utf8");
 const distributionNotes = readFileSync(distributionNotesPath, "utf8");
 
 describe("Hook signing docs contract", () => {
-  it("ships public signing/privacy docs, a maintainer signing guide, a SignPath application checklist, and a submission draft", () => {
+  it("ships public signing/privacy docs, a maintainer signing guide, a release strategy doc, a SignPath application checklist, and a submission draft", () => {
     expect(existsSync(codeSigningPolicyPath)).toBe(true);
     expect(existsSync(privacyPolicyPath)).toBe(true);
     expect(existsSync(maintainerGuidePath)).toBe(true);
+    expect(existsSync(releaseStrategyPath)).toBe(true);
     expect(existsSync(signPathChecklistPath)).toBe(true);
     expect(existsSync(signPathDraftPath)).toBe(true);
   });
@@ -37,6 +40,7 @@ describe("Hook signing docs contract", () => {
     expect(docsIndex).toContain("CODE_SIGNING_POLICY.md");
     expect(docsIndex).toContain("PRIVACY_POLICY.md");
     expect(docsIndex).toContain("MAINTAINER_SIGNING_GUIDE.md");
+    expect(docsIndex).toContain("RELEASE_STRATEGY.md");
     expect(docsIndex).toContain("SIGNPATH_APPLICATION_CHECKLIST.md");
     expect(docsIndex).toContain("SIGNPATH_APPLICATION_DRAFT.md");
   });
@@ -63,8 +67,8 @@ describe("Hook signing docs contract", () => {
     expect(distributionNotes).toContain("Install and uninstall notes");
     expect(distributionNotes).toContain("Program Files\\yamiyu\\Hook");
     expect(maintainerGuide).toContain("SignPath");
-    expect(maintainerGuide).toContain("HOOK_WINDOWS_UIACCESS_PFX_BASE64");
-    expect(maintainerGuide).toContain("HOOK_WINDOWS_UIACCESS_PFX_PASSWORD");
+    expect(maintainerGuide).toContain("portable-first");
+    expect(maintainerGuide).toContain("RELEASE_STRATEGY.md");
     expect(maintainerGuide).toContain("SIGNPATH_APPLICATION_CHECKLIST.md");
     expect(maintainerGuide).toContain("SIGNPATH_APPLICATION_DRAFT.md");
   });
@@ -89,5 +93,14 @@ describe("Hook signing docs contract", () => {
     expect(signPathDraft).toContain("Program Files");
     expect(signPathDraft).toContain("GitHub Actions");
     expect(signPathDraft).toContain("Vx.x.x");
+  });
+
+  it("documents the current portable-first phase and the future signed-installer switch in a dedicated maintainer strategy doc", () => {
+    expect(releaseStrategy).toContain("portable-first");
+    expect(releaseStrategy).toContain("signed-installer");
+    expect(releaseStrategy).toContain("administrator");
+    expect(releaseStrategy).toContain("GitHub Actions");
+    expect(releaseStrategy).toContain("README.md");
+    expect(releaseStrategy).toContain("release-hook-tag.yml");
   });
 });

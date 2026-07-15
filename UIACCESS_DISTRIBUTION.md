@@ -1,13 +1,16 @@
 # Hook UIAccess Distribution Notes
 
-This document explains why Hook now distinguishes between a **portable** package
-and an **installer** package.
+This document explains both:
+
+- why Hook has a future **installer / UIAccess** path; and
+- why the project is currently in a **portable-first** public release phase.
 
 ## The short version
 
-- **Portable** is still the fastest way to try Hook.
-- **Installer** is the recommended package when you need the most stable desktop
-  interaction behavior on Windows.
+- **Portable** is the current public release package and the current recommended
+  package for users.
+- **Installer** is the future signed package path that Hook is still preparing,
+  but it is not the current public release package yet.
 
 The difference is not cosmetic. It comes from how Windows enforces **UIAccess**
  and foreground-window security rules.
@@ -43,9 +46,34 @@ Because of that:
 - an **installer** package is the correct path for users who want the best
   compatibility in scenarios like Task Manager foreground interaction.
 
+## Current phase: portable-first public releases
+
+Hook is currently shipping only the portable public release because the project
+does not yet have real public release signing material wired into the GitHub
+release path.
+
+That means the current user-facing recommendation is:
+
+- use the portable package;
+- if a special Windows foreground/elevation scenario causes interaction limits,
+  try launching Hook as **administrator** as the current workaround.
+
+This is a transition strategy, not the final ideal distribution model.
+
+## Future phase: signed installer public releases
+
+Hook still intends to publish a signed installer/UIAccess package again once a
+real signing provider path is ready for public release use.
+
+At that point:
+
+- the signed installer can return as a public release artifact;
+- the installer path can again become the recommended option for the most
+  reliable Windows interaction scenarios.
+
 ## User-facing guidance
 
-### Installer (recommended)
+### Installer (future signed phase)
 
 Choose the installer package when:
 
@@ -55,18 +83,21 @@ Choose the installer package when:
 - you want the binary installed into `Program Files`, which is part of the
   trusted-location requirement for UIAccess.
 
-### Portable
+This package path is being kept ready in-repo, but it is not the current public
+release package until signing is available.
+
+### Portable (current phase)
 
 Choose the portable package when:
 
-- you want a no-install trial;
-- you only need the ordinary screenshot/sticker workflow quickly;
+- you want the currently supported public release package;
+- you want a no-install trial or ordinary daily screenshot workflow quickly;
 - you accept that some Windows foreground/elevation combinations may still
-  limit interaction.
+  limit interaction and may require administrator launch as a workaround.
 
 If you must stay on the portable package and hit one of those Windows
 restrictions, a fallback is to try launching Hook as **administrator**. That is
-only a fallback, not the preferred long-term distribution model.
+the current phase workaround, not the preferred long-term distribution model.
 
 ## Install and uninstall notes
 
@@ -85,7 +116,8 @@ only a fallback, not the preferred long-term distribution model.
 
 ## Maintainer notes
 
-The repository now treats dual distribution as a first-class release concern:
+The repository keeps future dual distribution engineering in place, even though
+the current public phase is portable-first:
 
 - **portable zip** is the baseline public artifact;
 - **installer zip** is the signed UIAccess-oriented package;
@@ -96,7 +128,8 @@ The repository now treats dual distribution as a first-class release concern:
 
 ## GitHub Actions requirements
 
-Portable releases can be generated without signing.
+Portable releases can be generated without signing and are the only current
+public release artifacts.
 
 Installer/UIAccess releases require a real code-signing certificate in GitHub
 Actions. The current workflow contract expects these secrets:
@@ -104,6 +137,6 @@ Actions. The current workflow contract expects these secrets:
 - `HOOK_WINDOWS_UIACCESS_PFX_BASE64`
 - `HOOK_WINDOWS_UIACCESS_PFX_PASSWORD`
 
-Without those secrets, GitHub Actions should still produce the portable build,
-but the installer/UIAccess release lane must be skipped rather than pretending
-that an unsigned loose exe is equivalent.
+Until those secrets are actually available for public release use, the current
+public GitHub Actions release posture should stay portable-first rather than
+pretending an unsigned installer path is currently publishable.

@@ -19,9 +19,14 @@ The policy is about release integrity, approval, and signing workflow. It does
 not replace the end-user package notes in `README.md` or
 `UIACCESS_DISTRIBUTION.md`.
 
+The current public release phase is **portable-first**. That means the signed
+installer lane described in this policy is a future public release path until
+real signing material is available.
+
 ## Signed vs unsigned artifacts
 
-Hook may publish more than one Windows package on the same release page:
+Hook may publish more than one Windows package on the same release page across
+different release phases:
 
 - **Portable package**
   - intended for quick trial and ordinary daily use
@@ -106,7 +111,7 @@ the following:
 Signed releases should use a hosted signing service or other managed private-key
 storage. Private signing keys must not be committed to this repository.
 
-If GitHub Actions is used for signing:
+If GitHub Actions is used for signing in the future signed-installer phase:
 
 - signing credentials must be stored as repository or organization secrets;
 - signing secrets must only be available to the intended release workflow;
@@ -137,4 +142,3 @@ to be compromised, Hook maintainers will:
 Project contact and public issue intake:
 
 - GitHub Issues: `https://github.com/aiaimimi0920/Hook/issues`
-
