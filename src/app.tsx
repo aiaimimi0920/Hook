@@ -1325,7 +1325,8 @@ export default function App() {
               if (!isSelecting()) return;
               const captureEvent = toCaptureMouseEvent(event.payload);
               setMousePos({ x: captureEvent.clientX, y: captureEvent.clientY });
-              handleSelectionEnd();
+              handleSelectionMove(captureEvent);
+              handleSelectionEnd(captureEvent);
           });
 
           const unlistenOverlayMouseDown = await listen<OverlaySyntheticMousePayload>(
@@ -1563,7 +1564,7 @@ export default function App() {
 
   const handleGlobalMouseUp = (e: MouseEvent) => {
       handleDragEnd();
-      handleSelectionEnd(); // No args
+      handleSelectionEnd(e);
       resetOverlaySyntheticPointerState();
 
       setLinkingState(prev => ({ ...prev, isLinking: false }));

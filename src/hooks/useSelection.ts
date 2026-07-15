@@ -756,7 +756,11 @@ export function useSelection() {
         }
     };
 
-    const handleSelectionEnd = async () => {
+    const handleSelectionEnd = async (event?: Pick<MouseEvent, "clientX" | "clientY" | "shiftKey" | "ctrlKey">) => {
+        if (event && isSelecting() && startPos()) {
+            handleSelectionMove(event);
+        }
+
         if (isBoxSelecting()) {
             setIsBoxSelecting(false);
             setSelectionRect(null);
