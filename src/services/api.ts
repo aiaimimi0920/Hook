@@ -604,6 +604,9 @@ export const api = {
     setNativeStickerDragPreflight: (active: boolean): Promise<void> =>
         safeInvoke("set_native_drag_preflight_active", { active }, () => undefined, false),
 
+    setOverlayKeyboardCaptureActive: (active: boolean): Promise<void> =>
+        safeInvoke("set_overlay_keyboard_capture_active", { active }, () => undefined, false),
+
     focusOverlayWindow: (): Promise<void> =>
         safeInvoke("focus_overlay_window", undefined, () => undefined, false),
 

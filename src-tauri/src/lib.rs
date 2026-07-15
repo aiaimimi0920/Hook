@@ -72,7 +72,8 @@ use windows::Win32::UI::Controls::Dialogs::{
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, VK_CONTROL, VK_MENU, VK_SHIFT,
+    GetAsyncKeyState, VK_BACK, VK_CONTROL, VK_DELETE, VK_ESCAPE, VK_LSHIFT, VK_MENU, VK_RSHIFT,
+    VK_SHIFT,
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -84,9 +85,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
     MA_NOACTIVATE, MSG, MSLLHOOKSTRUCT, OCR_CROSS, OCR_HAND, OCR_IBEAM, OCR_NO, OCR_NORMAL,
     OCR_SIZEALL, OCR_SIZENESW, OCR_SIZENS, OCR_SIZENWSE, OCR_SIZEWE, OCR_UP, SPI_SETCURSORS,
     SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW,
-    SW_HIDE, SW_SHOWNA, SYSTEM_CURSOR_ID, WH_MOUSE_LL, WM_LBUTTONDOWN, WM_LBUTTONUP,
+    KBDLLHOOKSTRUCT, SW_HIDE, SW_SHOWNA, SYSTEM_CURSOR_ID, WH_KEYBOARD_LL, WH_MOUSE_LL,
+    WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP,
     WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEACTIVATE, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NOTIFY,
     WM_RBUTTONDOWN, WM_RBUTTONUP, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDPROC, WS_EX_LAYERED,
+    WM_SYSKEYDOWN, WM_SYSKEYUP,
     WS_EX_TRANSPARENT,
     WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
 };
@@ -1023,7 +1026,8 @@ fn current_modifier_snapshot() -> ModifierSnapshot {
     ModifierSnapshot {
         ctrl_pressed: unsafe { GetAsyncKeyState(VK_CONTROL.0 as i32) } < 0,
         alt_pressed: unsafe { GetAsyncKeyState(VK_MENU.0 as i32) } < 0,
-        shift_pressed: unsafe { GetAsyncKeyState(VK_SHIFT.0 as i32) } < 0,
+        shift_pressed: unsafe { GetAsyncKeyState(VK_SHIFT.0 as i32) } < 0
+            || OVERLAY_SHIFT_KEY_DOWN.load(Ordering::SeqCst),
     }
 }
 
@@ -1105,13 +1109,29 @@ enum CaptureMouseHookEvent {
 }
 
 #[cfg(target_os = "windows")]
+#[derive(Debug, Clone, Copy)]
+enum OverlayKeyboardHookEvent {
+    Escape,
+    Delete,
+    Copy,
+    Paste,
+}
+
+#[cfg(target_os = "windows")]
 const CAPTURE_MOUSE_EVENT_QUEUE_CAPACITY: usize = 2048;
 
 #[cfg(target_os = "windows")]
 static CAPTURE_MOUSE_EVENT_SENDER: OnceLock<mpsc::SyncSender<CaptureMouseHookEvent>> =
     OnceLock::new();
 #[cfg(target_os = "windows")]
+static OVERLAY_KEYBOARD_EVENT_SENDER: OnceLock<mpsc::SyncSender<OverlayKeyboardHookEvent>> =
+    OnceLock::new();
+#[cfg(target_os = "windows")]
 static CAPTURE_MOUSE_HOOK_ACTIVE: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+static OVERLAY_KEYBOARD_CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+static OVERLAY_SHIFT_KEY_DOWN: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
 static CAPTURE_SYSTEM_CURSOR_OVERRIDDEN: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
@@ -1143,6 +1163,13 @@ static OVERLAY_INPUT_SHIELD_HWND: OnceLock<isize> = OnceLock::new();
 #[cfg(target_os = "windows")]
 fn queue_capture_mouse_hook_event(event: CaptureMouseHookEvent) {
     if let Some(sender) = CAPTURE_MOUSE_EVENT_SENDER.get() {
+        let _ = sender.try_send(event);
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn queue_overlay_keyboard_hook_event(event: OverlayKeyboardHookEvent) {
+    if let Some(sender) = OVERLAY_KEYBOARD_EVENT_SENDER.get() {
         let _ = sender.try_send(event);
     }
 }
@@ -1626,6 +1653,162 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
 
 #[cfg(not(target_os = "windows"))]
 fn install_capture_mouse_hook_thread(_window: tauri::WebviewWindow) {}
+
+#[cfg(target_os = "windows")]
+const VK_KEY_C: u32 = b'C' as u32;
+#[cfg(target_os = "windows")]
+const VK_KEY_V: u32 = b'V' as u32;
+
+#[cfg(target_os = "windows")]
+fn update_overlay_modifier_key_state(vk_code: u32, pressed: bool) {
+    if vk_code == VK_SHIFT.0 as u32
+        || vk_code == VK_LSHIFT.0 as u32
+        || vk_code == VK_RSHIFT.0 as u32
+    {
+        OVERLAY_SHIFT_KEY_DOWN.store(pressed, Ordering::SeqCst);
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn overlay_keyboard_hook_event_for_keydown(
+    vk_code: u32,
+    modifiers: ModifierSnapshot,
+) -> Option<OverlayKeyboardHookEvent> {
+    if vk_code == VK_ESCAPE.0 as u32 {
+        return Some(OverlayKeyboardHookEvent::Escape);
+    }
+    if vk_code == VK_DELETE.0 as u32 || vk_code == VK_BACK.0 as u32 {
+        return Some(OverlayKeyboardHookEvent::Delete);
+    }
+    if modifiers.ctrl_pressed && vk_code == VK_KEY_C {
+        return Some(OverlayKeyboardHookEvent::Copy);
+    }
+    if modifiers.ctrl_pressed && vk_code == VK_KEY_V {
+        return Some(OverlayKeyboardHookEvent::Paste);
+    }
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn overlay_keyboard_hook_should_consume_keyup(
+    vk_code: u32,
+    modifiers: ModifierSnapshot,
+) -> bool {
+    vk_code == VK_ESCAPE.0 as u32
+        || vk_code == VK_DELETE.0 as u32
+        || vk_code == VK_BACK.0 as u32
+        || (modifiers.ctrl_pressed && (vk_code == VK_KEY_C || vk_code == VK_KEY_V))
+}
+
+#[cfg(target_os = "windows")]
+fn overlay_keyboard_capture_should_handle_current_cursor() -> bool {
+    if !OVERLAY_KEYBOARD_CAPTURE_ACTIVE.load(Ordering::SeqCst) {
+        return false;
+    }
+
+    let Some((x, y)) = current_cursor_position_physical() else {
+        return false;
+    };
+
+    should_route_overlay_mouse_events(x, y)
+}
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn overlay_keyboard_hook_proc(
+    code: i32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    if code != HC_ACTION as i32 {
+        return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+    }
+    if lparam.0 == 0 {
+        return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+    }
+
+    let keyboard = unsafe { *(lparam.0 as *const KBDLLHOOKSTRUCT) };
+    let vk_code = keyboard.vkCode;
+    match wparam.0 as u32 {
+        WM_KEYDOWN | WM_SYSKEYDOWN => {
+            update_overlay_modifier_key_state(vk_code, true);
+        }
+        WM_KEYUP | WM_SYSKEYUP => {
+            update_overlay_modifier_key_state(vk_code, false);
+        }
+        _ => {}
+    }
+
+    if !overlay_keyboard_capture_should_handle_current_cursor() {
+        return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+    }
+
+    let modifiers = current_modifier_snapshot();
+    match wparam.0 as u32 {
+        WM_KEYDOWN | WM_SYSKEYDOWN => {
+            if let Some(event) = overlay_keyboard_hook_event_for_keydown(vk_code, modifiers) {
+                queue_overlay_keyboard_hook_event(event);
+                return LRESULT(1);
+            }
+        }
+        WM_KEYUP | WM_SYSKEYUP => {
+            if overlay_keyboard_hook_should_consume_keyup(vk_code, modifiers) {
+                return LRESULT(1);
+            }
+        }
+        _ => {}
+    }
+
+    unsafe { CallNextHookEx(None, code, wparam, lparam) }
+}
+
+#[cfg(target_os = "windows")]
+fn install_overlay_keyboard_hook_thread(window: tauri::WebviewWindow) {
+    let (sender, receiver) = mpsc::sync_channel::<OverlayKeyboardHookEvent>(256);
+    if OVERLAY_KEYBOARD_EVENT_SENDER.set(sender).is_err() {
+        append_runtime_log_line("overlay_keyboard_hook_sender_already_initialized");
+        return;
+    }
+
+    let emit_window = window.clone();
+    let _ = std::thread::Builder::new()
+        .name("hook-overlay-keyboard-events".to_string())
+        .spawn(move || {
+            while let Ok(event) = receiver.recv() {
+                let event_name = match event {
+                    OverlayKeyboardHookEvent::Escape => "trigger-escape",
+                    OverlayKeyboardHookEvent::Delete => "trigger-delete",
+                    OverlayKeyboardHookEvent::Copy => "trigger-copy",
+                    OverlayKeyboardHookEvent::Paste => "trigger-paste",
+                };
+                append_runtime_log_line(&format!("overlay_keyboard_hook_emit :: {}", event_name));
+                let _ = emit_window.emit(event_name, ());
+            }
+        });
+
+    let _ = std::thread::Builder::new()
+        .name("hook-overlay-keyboard-hook".to_string())
+        .spawn(move || {
+            let hook = unsafe {
+                SetWindowsHookExW(WH_KEYBOARD_LL, Some(overlay_keyboard_hook_proc), None, 0)
+            };
+            let Ok(hook) = hook else {
+                append_runtime_log_line("overlay_keyboard_hook_install_failed");
+                return;
+            };
+
+            append_runtime_log_line("overlay_keyboard_hook_installed");
+            let mut msg = MSG::default();
+            while unsafe { GetMessageW(&mut msg, None, 0, 0) }.as_bool() {
+                let _ = unsafe { TranslateMessage(&msg) };
+                unsafe { DispatchMessageW(&msg) };
+            }
+            let _ = unsafe { UnhookWindowsHookEx(hook) };
+            append_runtime_log_line("overlay_keyboard_hook_thread_exited");
+        });
+}
+
+#[cfg(not(target_os = "windows"))]
+fn install_overlay_keyboard_hook_thread(_window: tauri::WebviewWindow) {}
 
 fn refresh_overlay_interactivity_for_current_cursor(
     window: &tauri::WebviewWindow,
@@ -5167,6 +5350,19 @@ fn set_native_drag_preflight_active(_active: bool) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(target_os = "windows")]
+#[tauri::command]
+fn set_overlay_keyboard_capture_active(active: bool) -> Result<(), String> {
+    OVERLAY_KEYBOARD_CAPTURE_ACTIVE.store(active, Ordering::SeqCst);
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+#[tauri::command]
+fn set_overlay_keyboard_capture_active(_active: bool) -> Result<(), String> {
+    Ok(())
+}
+
 #[tauri::command]
 fn focus_overlay_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
@@ -5648,6 +5844,7 @@ pub fn run() {
             show_overlay_host,
             set_overlay_click_through,
             set_native_drag_preflight_active,
+            set_overlay_keyboard_capture_active,
             focus_overlay_window,
             set_overlay_capture_exclusion,
             hide_to_tray,
@@ -5820,6 +6017,7 @@ pub fn run() {
                     boot_profile.art_loom_ws_url
                 ));
                 install_capture_mouse_hook_thread(window.clone());
+                install_overlay_keyboard_hook_thread(window.clone());
                 if boot_profile.initial_ui_mode == "tray" {
                     hide_to_tray_impl(&window);
                 } else if boot_profile.initial_ui_mode == "canvas" {
@@ -5889,6 +6087,12 @@ pub fn run() {
                                 }
                             }
                             rdev::EventType::KeyPress(rdev::Key::Escape) => {
+                                if overlay_keyboard_capture_should_handle_current_cursor() {
+                                    append_runtime_log_line(
+                                        "rdev_escape_skipped_overlay_keyboard_capture",
+                                    );
+                                    return;
+                                }
                                 if input_state.last_esc.elapsed()
                                     < std::time::Duration::from_millis(400)
                                 {
@@ -5903,6 +6107,12 @@ pub fn run() {
                             }
                             rdev::EventType::KeyPress(rdev::Key::Delete)
                             | rdev::EventType::KeyPress(rdev::Key::Backspace) => {
+                                if overlay_keyboard_capture_should_handle_current_cursor() {
+                                    append_runtime_log_line(
+                                        "rdev_delete_skipped_overlay_keyboard_capture",
+                                    );
+                                    return;
+                                }
                                 append_runtime_log_line("rdev_delete_triggered");
                                 let _ = window.emit("trigger-delete", ());
                             }

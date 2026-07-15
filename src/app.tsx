@@ -972,6 +972,11 @@ export default function App() {
       }
   };
 
+  createEffect(() => {
+      if (!tauriRuntime) return;
+      void api.setOverlayKeyboardCaptureActive(Boolean(selectedStickerId()) && !isSelecting());
+  });
+
   // Shortcuts
   useShortcuts({
       contextProvider: () => {
@@ -1212,6 +1217,18 @@ export default function App() {
               void openImageForEdit();
           });
 
+          const unlistenCopy = await listen("trigger-copy", () => {
+              void api.debugLogEvent("trigger-copy-listener");
+              if (!selectedStickerId()) return;
+              void handleCopy();
+          });
+
+          const unlistenPaste = await listen("trigger-paste", () => {
+              void api.debugLogEvent("trigger-paste-listener");
+              if (!selectedStickerId()) return;
+              void handlePaste();
+          });
+
            const unlistenCreateTeaTicket = await listen("trigger-create-tea-ticket", () => {
                logger.debug("Backend Triggered Tea Ticket Creation");
                void api.debugLogEvent("trigger-create-tea-ticket-listener");
@@ -1426,6 +1443,8 @@ export default function App() {
               unlistenLongCaptureWheel,
               unlistenStickerToolbar,
               unlistenOpenImage,
+              unlistenCopy,
+              unlistenPaste,
                unlistenCreateTeaTicket,
                unlistenVoiceHotkey,
                unlistenVoiceSession,

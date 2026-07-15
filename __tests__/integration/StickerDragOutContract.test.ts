@@ -260,6 +260,26 @@ describe("Hook sticker drag-out contract", () => {
     expect(rustSource).not.toContain("fn emit_capture_mouse_event(\n    window: &tauri::WebviewWindow,\n    event_name: &str,\n    global_x: f64,\n    global_y: f64,\n) {\n    let (ctrl_pressed, alt_pressed, shift_pressed) = current_modifier_state();");
   });
 
+  it("tracks Shift key state independently of focused-window keyboard delivery so selected sticker shortcut capture cannot break Shift drag-out", () => {
+    const modifierSnapshotSection = extractRustSection(
+      "fn current_modifier_snapshot() -> ModifierSnapshot",
+      "#[cfg(not(target_os = \"windows\"))]\nfn current_modifier_snapshot() -> ModifierSnapshot",
+    );
+    const keyboardHookProc = extractRustSection(
+      "unsafe extern \"system\" fn overlay_keyboard_hook_proc(",
+      "fn install_overlay_keyboard_hook_thread(window: tauri::WebviewWindow)",
+    );
+
+    expect(rustSource).toContain("static OVERLAY_SHIFT_KEY_DOWN: AtomicBool = AtomicBool::new(false);");
+    expect(rustSource).toContain("fn update_overlay_modifier_key_state(vk_code: u32, pressed: bool)");
+    expect(modifierSnapshotSection).toContain("OVERLAY_SHIFT_KEY_DOWN.load(Ordering::SeqCst)");
+    expect(keyboardHookProc).toContain("update_overlay_modifier_key_state(vk_code, true);");
+    expect(keyboardHookProc).toContain("update_overlay_modifier_key_state(vk_code, false);");
+    expect(keyboardHookProc.indexOf("update_overlay_modifier_key_state(vk_code, true);")).toBeLessThan(
+      keyboardHookProc.indexOf("if !overlay_keyboard_capture_should_handle_current_cursor()"),
+    );
+  });
+
   it("bypasses synthetic drag state before a Shift sticker body press hands off to native drag", () => {
     const hookProcSection = extractRustSection(
       "unsafe extern \"system\" fn capture_mouse_hook_proc(",
