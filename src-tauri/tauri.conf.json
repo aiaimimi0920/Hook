@@ -23,7 +23,7 @@
         "dragDropEnabled": false,
         "decorations": false,
         "transparent": true,
-        "alwaysOnTop": true,
+        "alwaysOnTop": false,
         "visible": false,
         "fullscreen": false
       }

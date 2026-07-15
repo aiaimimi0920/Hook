@@ -41,7 +41,7 @@ use uiautomation::types::Point as UiaPoint;
 
 // Import Windows specific modules for shared memory
 #[cfg(target_os = "windows")]
-use windows::core::{Interface, PCWSTR, PWSTR};
+use windows::core::{BOOL, Interface, PCWSTR, PWSTR};
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 #[cfg(target_os = "windows")]
@@ -78,10 +78,10 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CallWindowProcW, CopyIcon, CreateWindowExW, DefWindowProcW, DispatchMessageW,
-    GetAncestor, GetClassNameW, GetCursorPos, GetMessageW, GetParent, GetWindowLongPtrW,
+    EnumWindows, GetAncestor, GetClassNameW, GetCursorPos, GetMessageW, GetParent, GetWindowLongPtrW,
     GetWindowRect, LoadCursorW, SetLayeredWindowAttributes, SetSystemCursor, SetWindowLongPtrW, SetWindowPos,
     SetWindowsHookExW, ShowWindow, SystemParametersInfoW, TranslateMessage, UnhookWindowsHookEx,
-    WindowFromPoint, GA_ROOT, GWLP_WNDPROC, GWL_EXSTYLE, HCURSOR, HC_ACTION, HICON, HWND_TOPMOST, IDC_CROSS, LWA_ALPHA,
+    WindowFromPoint, GetWindowThreadProcessId, GA_ROOT, GWLP_WNDPROC, GWL_EXSTYLE, HCURSOR, HC_ACTION, HICON, HWND_TOPMOST, IDC_CROSS, IsWindowVisible, LWA_ALPHA,
     MA_NOACTIVATE, MSG, MSLLHOOKSTRUCT, OCR_CROSS, OCR_HAND, OCR_IBEAM, OCR_NO, OCR_NORMAL,
     OCR_SIZEALL, OCR_SIZENESW, OCR_SIZENS, OCR_SIZENWSE, OCR_SIZEWE, OCR_UP, SPI_SETCURSORS,
     SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW,
@@ -1159,6 +1159,29 @@ static OVERLAY_MOUSE_ACTIVATE_WNDPROC_INSTALLED: AtomicBool = AtomicBool::new(fa
 static OVERLAY_MOUSE_ACTIVATE_WNDPROC_PREVIOUS: OnceLock<isize> = OnceLock::new();
 #[cfg(target_os = "windows")]
 static OVERLAY_INPUT_SHIELD_HWND: OnceLock<isize> = OnceLock::new();
+#[cfg(target_os = "windows")]
+static OVERLAY_INPUT_SHIELD_WNDPROC_PREVIOUS: OnceLock<isize> = OnceLock::new();
+#[cfg(target_os = "windows")]
+static OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+static OVERLAY_MAIN_HWND: OnceLock<isize> = OnceLock::new();
+#[cfg(target_os = "windows")]
+static OVERLAY_TOPMOST_MAINTENANCE_STARTED: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+const OVERLAY_TOPMOST_MAINTENANCE_INTERVAL_MS: u64 = 250;
+#[cfg(target_os = "windows")]
+static OVERLAY_HWND_RETRY_THREAD_STARTED: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+const OVERLAY_HWND_RETRY_INTERVAL_MS: u64 = 250;
+#[cfg(target_os = "windows")]
+const OVERLAY_HWND_RETRY_ATTEMPTS: usize = 80;
+static UIACCESS_OVERLAY_STARTUP_STAGED: AtomicBool = AtomicBool::new(false);
+static UIACCESS_FRONTEND_MOUNTED: AtomicBool = AtomicBool::new(false);
+static UIACCESS_PENDING_OVERLAY_CLICK_THROUGH: AtomicBool = AtomicBool::new(true);
+
+fn uiaccess_build_enabled() -> bool {
+    cfg!(target_os = "windows") && option_env!("HOOK_WINDOWS_UIACCESS_BUILD").is_some()
+}
 
 #[cfg(target_os = "windows")]
 fn queue_capture_mouse_hook_event(event: CaptureMouseHookEvent) {
@@ -2414,6 +2437,7 @@ fn start_native_file_drag_on_ui_thread(
     OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(false, Ordering::SeqCst);
     OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(false, Ordering::SeqCst);
     OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(false, Ordering::SeqCst);
+    OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(false, Ordering::SeqCst);
     NATIVE_FILE_DRAG_ACTIVE.store(true, Ordering::SeqCst);
     hide_overlay_input_shield_window();
     let _ = window.set_ignore_cursor_events(true);
@@ -2741,6 +2765,8 @@ fn set_mouse_monitor_active(
     if !active {
         OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(false, Ordering::SeqCst);
         OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(false, Ordering::SeqCst);
+        OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(false, Ordering::SeqCst);
+        OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(false, Ordering::SeqCst);
     }
 
     // Capture selection is driven by the backend global input hook. Keep the
@@ -3707,11 +3733,10 @@ fn get_installed_fonts() -> Result<Vec<String>, String> {
 
 #[cfg(target_os = "windows")]
 fn set_overlay_no_activate_flag(window: &tauri::WebviewWindow, enabled: bool) {
-    let Ok(hwnd) = window.hwnd() else {
+    let Some(hwnd) = resolve_overlay_main_hwnd(window) else {
         append_runtime_log_line("overlay_no_activate_hwnd_failed");
         return;
     };
-    let hwnd = HWND(hwnd.0);
 
     unsafe {
         let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
@@ -3734,11 +3759,10 @@ fn set_overlay_no_activate_flag(window: &tauri::WebviewWindow, enabled: bool) {
 
 #[cfg(target_os = "windows")]
 fn set_overlay_transparent_style(window: &tauri::WebviewWindow, enabled: bool) {
-    let Ok(hwnd) = window.hwnd() else {
+    let Some(hwnd) = resolve_overlay_main_hwnd(window) else {
         append_runtime_log_line("overlay_transparent_hwnd_failed");
         return;
     };
-    let hwnd = HWND(hwnd.0);
 
     unsafe {
         let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
@@ -3805,11 +3829,10 @@ fn install_overlay_mouse_activate_no_activate(window: &tauri::WebviewWindow) {
         return;
     }
 
-    let Ok(hwnd) = window.hwnd() else {
+    let Some(hwnd) = resolve_overlay_main_hwnd(window) else {
         append_runtime_log_line("overlay_mouse_activate_install_hwnd_failed");
         return;
     };
-    let hwnd = HWND(hwnd.0);
 
     let previous = unsafe {
         SetWindowLongPtrW(
@@ -3837,6 +3860,45 @@ fn overlay_input_shield_hwnd() -> Option<HWND> {
         .get()
         .copied()
         .map(|value| HWND(value as *mut core::ffi::c_void))
+}
+
+#[cfg(target_os = "windows")]
+struct OverlayMainWindowSearchState {
+    target_pid: u32,
+    hwnd: Option<HWND>,
+}
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn find_overlay_main_window_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let state = &mut *(lparam.0 as *mut OverlayMainWindowSearchState);
+    let mut pid = 0;
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    if pid == state.target_pid && unsafe { IsWindowVisible(hwnd) }.as_bool() {
+        state.hwnd = Some(hwnd);
+        return BOOL(0);
+    }
+
+    BOOL(1)
+}
+
+#[cfg(target_os = "windows")]
+fn resolve_overlay_main_hwnd(window: &tauri::WebviewWindow) -> Option<HWND> {
+    if let Ok(hwnd) = window.hwnd() {
+        return Some(HWND(hwnd.0));
+    }
+
+    let mut state = OverlayMainWindowSearchState {
+        target_pid: std::process::id(),
+        hwnd: None,
+    };
+    let state_ptr = &mut state as *mut OverlayMainWindowSearchState;
+    let _ = unsafe {
+        EnumWindows(
+            Some(find_overlay_main_window_proc),
+            LPARAM(state_ptr as isize),
+        )
+    };
+    state.hwnd
 }
 
 #[cfg(target_os = "windows")]
@@ -3876,16 +3938,161 @@ fn promote_overlay_input_shield_to_fullscreen() {
 fn promote_overlay_input_shield_to_fullscreen() {}
 
 #[cfg(target_os = "windows")]
+fn route_overlay_input_shield_mouse_message(message: u32, wparam: WPARAM) -> Option<LRESULT> {
+    if NATIVE_FILE_DRAG_ACTIVE.load(Ordering::SeqCst) {
+        return None;
+    }
+
+    let (x, y) = current_cursor_position_physical()?;
+    let modifiers = current_modifier_snapshot();
+    let should_route_overlay_mouse = should_route_overlay_mouse_events(x, y);
+    let hook_hover_active = OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.load(Ordering::SeqCst);
+    let direct_drag_active = OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst);
+    let native_drag_preflight_active =
+        OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst);
+
+    match message {
+        WM_MOUSEMOVE => {
+            if direct_drag_active || native_drag_preflight_active {
+                queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayMove {
+                    x,
+                    y,
+                    modifiers,
+                    native_drag_preflight: native_drag_preflight_active,
+                });
+                return Some(LRESULT(1));
+            }
+
+            if should_route_overlay_mouse && !hook_hover_active {
+                queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayMove {
+                    x,
+                    y,
+                    modifiers,
+                    native_drag_preflight: false,
+                });
+                return Some(LRESULT(1));
+            }
+        }
+        WM_LBUTTONDOWN => {
+            if should_route_overlay_mouse {
+                let shift_sticker_native_drag_preflight =
+                    modifiers.shift_pressed && is_pointer_over_sticker_body_synthetic_rect(x, y);
+                if shift_sticker_native_drag_preflight {
+                    OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(false, Ordering::SeqCst);
+                    OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(true, Ordering::SeqCst);
+                    append_runtime_log_line(&format!(
+                        "overlay_input_shield_native_drag_preflight_start :: x={} y={}",
+                        x, y
+                    ));
+                    queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown {
+                        x,
+                        y,
+                        modifiers,
+                        native_drag_preflight: true,
+                    });
+                    return Some(LRESULT(1));
+                }
+
+                OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(true, Ordering::SeqCst);
+                OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(false, Ordering::SeqCst);
+                promote_overlay_input_shield_to_fullscreen();
+                append_runtime_log_line(&format!(
+                    "overlay_input_shield_drag_start :: x={} y={}",
+                    x, y
+                ));
+                queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown {
+                    x,
+                    y,
+                    modifiers,
+                    native_drag_preflight: false,
+                });
+                return Some(LRESULT(1));
+            }
+        }
+        WM_LBUTTONUP => {
+            let direct_drag_was_active =
+                OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.swap(false, Ordering::SeqCst);
+            let native_drag_preflight_was_active =
+                OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.swap(false, Ordering::SeqCst);
+            if direct_drag_was_active
+                || native_drag_preflight_was_active
+                || should_route_overlay_mouse
+            {
+                append_runtime_log_line(&format!(
+                    "overlay_input_shield_drag_end :: direct={} x={} y={}",
+                    direct_drag_was_active, x, y
+                ));
+                queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayUp {
+                    x,
+                    y,
+                    modifiers,
+                    native_drag_preflight: native_drag_preflight_was_active,
+                });
+                return Some(LRESULT(1));
+            }
+        }
+        WM_MOUSEWHEEL => {
+            if should_route_overlay_mouse && !hook_hover_active {
+                let delta_y = (((wparam.0 >> 16) & 0xffff) as i16) as f64;
+                queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayWheel {
+                    x,
+                    y,
+                    delta_y,
+                    modifiers,
+                });
+                return Some(LRESULT(1));
+            }
+        }
+        WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_MBUTTONUP | WM_XBUTTONDOWN | WM_XBUTTONUP => {
+            if should_route_overlay_mouse {
+                return Some(LRESULT(1));
+            }
+        }
+        WM_RBUTTONUP => {
+            if should_route_overlay_mouse {
+                queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayContextMenu {
+                    x,
+                    y,
+                    modifiers,
+                });
+                return Some(LRESULT(1));
+            }
+        }
+        _ => {}
+    }
+
+    None
+}
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn overlay_input_shield_wndproc(
+    hwnd: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    if let Some(result) = route_overlay_input_shield_mouse_message(message, wparam) {
+        return result;
+    }
+
+    if let Some(previous) = OVERLAY_INPUT_SHIELD_WNDPROC_PREVIOUS.get().copied() {
+        let previous_wndproc: WNDPROC = Some(std::mem::transmute(previous));
+        return unsafe { CallWindowProcW(previous_wndproc, hwnd, message, wparam, lparam) };
+    }
+
+    unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
+}
+
+#[cfg(target_os = "windows")]
 fn ensure_overlay_input_shield_window(window: &tauri::WebviewWindow) -> Option<HWND> {
     if let Some(hwnd) = overlay_input_shield_hwnd() {
         return Some(hwnd);
     }
 
-    let Ok(main_hwnd) = window.hwnd() else {
+    let Some(main_hwnd) = resolve_overlay_main_hwnd(window) else {
         append_runtime_log_line("overlay_input_shield_hwnd_failed");
         return None;
     };
-    let main_hwnd = HWND(main_hwnd.0);
     let mut main_rect = RECT::default();
     if unsafe { GetWindowRect(main_hwnd, &mut main_rect) }.is_err() {
         append_runtime_log_line("overlay_input_shield_main_rect_failed");
@@ -3921,6 +4128,20 @@ fn ensure_overlay_input_shield_window(window: &tauri::WebviewWindow) -> Option<H
         return None;
     };
 
+    let previous = unsafe {
+        SetWindowLongPtrW(
+            hwnd,
+            GWLP_WNDPROC,
+            overlay_input_shield_wndproc as *const () as usize as isize,
+        )
+    };
+    if previous == 0 {
+        append_runtime_log_line("overlay_input_shield_wndproc_install_failed");
+    } else {
+        let _ = OVERLAY_INPUT_SHIELD_WNDPROC_PREVIOUS.set(previous);
+        append_runtime_log_line("overlay_input_shield_wndproc_install_success");
+    }
+
     let _ = unsafe { SetLayeredWindowAttributes(hwnd, Default::default(), 1, LWA_ALPHA) };
     let _ = unsafe {
         SetWindowPos(
@@ -3948,11 +4169,10 @@ fn sync_overlay_input_shield_region(
     let Some(hwnd) = ensure_overlay_input_shield_window(window) else {
         return;
     };
-    let Ok(main_hwnd) = window.hwnd() else {
+    let Some(main_hwnd) = resolve_overlay_main_hwnd(window) else {
         append_runtime_log_line("overlay_input_shield_main_hwnd_failed");
         return;
     };
-    let main_hwnd = HWND(main_hwnd.0);
     let mut main_rect = RECT::default();
     if unsafe { GetWindowRect(main_hwnd, &mut main_rect) }.is_err() {
         append_runtime_log_line("overlay_input_shield_main_rect_failed");
@@ -3962,7 +4182,8 @@ fn sync_overlay_input_shield_region(
     let width = (main_rect.right - main_rect.left).max(1);
     let height = (main_rect.bottom - main_rect.top).max(1);
     let capture_active = CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst);
-    let overlay_drag_active = OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst);
+    let overlay_drag_active = OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)
+        || OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst);
     let _ = unsafe {
         SetWindowPos(
             hwnd,
@@ -4045,17 +4266,111 @@ fn sync_overlay_input_shield_from_runtime_state(window: &tauri::WebviewWindow) {
 #[cfg(not(target_os = "windows"))]
 fn sync_overlay_input_shield_from_runtime_state(_window: &tauri::WebviewWindow) {}
 
-fn setup_overlay_window(window: &tauri::WebviewWindow) {
-    let _ = window.set_content_protected(false);
-    apply_overlay_no_activate(window);
-    install_overlay_mouse_activate_no_activate(window);
-    let _ = window.set_decorations(false);
-    let _ = window.set_title("");
-    let _ = window.set_skip_taskbar(true);
-    let _ = window.set_always_on_top(true);
-    let _ = window.set_resizable(false);
-    let _ = window.set_shadow(false);
+#[cfg(target_os = "windows")]
+fn reassert_overlay_topmost_window(hwnd: HWND) {
+    if !unsafe { IsWindowVisible(hwnd) }.as_bool() {
+        return;
+    }
 
+    let _ = unsafe {
+        SetWindowPos(
+            hwnd,
+            Some(HWND_TOPMOST),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        )
+    };
+}
+
+#[cfg(target_os = "windows")]
+fn install_overlay_hwnd_retry_thread(window: &tauri::WebviewWindow) {
+    if OVERLAY_HWND_RETRY_THREAD_STARTED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+
+    let app_handle = window.app_handle().clone();
+    let _ = std::thread::Builder::new()
+        .name("hook-overlay-hwnd-retry".to_string())
+        .spawn(move || {
+            for _attempt in 0..OVERLAY_HWND_RETRY_ATTEMPTS {
+                let Some(window) = app_handle.get_webview_window("main") else {
+                    std::thread::sleep(Duration::from_millis(OVERLAY_HWND_RETRY_INTERVAL_MS));
+                    continue;
+                };
+
+                if let Some(hwnd) = resolve_overlay_main_hwnd(&window) {
+                    let _ = OVERLAY_MAIN_HWND.set(hwnd.0 as isize);
+                    apply_overlay_no_activate(&window);
+                    install_overlay_mouse_activate_no_activate(&window);
+                    set_overlay_transparent_style(
+                        &window,
+                        OVERLAY_CLICK_THROUGH_ACTIVE.load(Ordering::SeqCst),
+                    );
+                    install_overlay_topmost_maintenance_thread(&window);
+                    append_runtime_log_line("overlay_hwnd_retry_completed");
+                    return;
+                }
+
+                std::thread::sleep(Duration::from_millis(OVERLAY_HWND_RETRY_INTERVAL_MS));
+            }
+
+            append_runtime_log_line("overlay_hwnd_retry_exhausted");
+        });
+}
+
+#[cfg(not(target_os = "windows"))]
+fn install_overlay_hwnd_retry_thread(_window: &tauri::WebviewWindow) {}
+
+#[cfg(target_os = "windows")]
+fn install_overlay_topmost_maintenance_thread(window: &tauri::WebviewWindow) {
+    let Some(hwnd) = resolve_overlay_main_hwnd(window) else {
+        append_runtime_log_line("overlay_topmost_maintenance_hwnd_failed");
+        return;
+    };
+    let _ = OVERLAY_MAIN_HWND.set(hwnd.0 as isize);
+
+    if OVERLAY_TOPMOST_MAINTENANCE_STARTED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+
+    let _ = std::thread::Builder::new()
+        .name("hook-overlay-topmost-maintenance".to_string())
+        .spawn(move || loop {
+            std::thread::sleep(Duration::from_millis(
+                OVERLAY_TOPMOST_MAINTENANCE_INTERVAL_MS,
+            ));
+
+            let needs_topmost_maintenance =
+                OVERLAY_MOUSE_HIT_MAP_ACTIVE.load(Ordering::SeqCst)
+                    || CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst)
+                    || OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)
+                    || OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst);
+            if !needs_topmost_maintenance {
+                continue;
+            }
+
+            if let Some(main_hwnd) = OVERLAY_MAIN_HWND
+                .get()
+                .copied()
+                .map(|value| HWND(value as *mut core::ffi::c_void))
+            {
+                reassert_overlay_topmost_window(main_hwnd);
+            }
+            if let Some(shield_hwnd) = overlay_input_shield_hwnd() {
+                reassert_overlay_topmost_window(shield_hwnd);
+            }
+        });
+
+    append_runtime_log_line("overlay_topmost_maintenance_started");
+}
+
+#[cfg(not(target_os = "windows"))]
+fn install_overlay_topmost_maintenance_thread(_window: &tauri::WebviewWindow) {}
+
+fn apply_overlay_window_bounds(window: &tauri::WebviewWindow) {
     if let Ok(Some(monitor)) = window.current_monitor() {
         let size = monitor.size();
         let position = monitor.position();
@@ -4066,11 +4381,43 @@ fn setup_overlay_window(window: &tauri::WebviewWindow) {
     } else {
         let _ = window.set_fullscreen(true);
     }
+}
+
+fn setup_overlay_window(window: &tauri::WebviewWindow) {
+    install_overlay_hwnd_retry_thread(window);
+    let _ = window.set_content_protected(false);
+    apply_overlay_no_activate(window);
+    install_overlay_mouse_activate_no_activate(window);
+    let _ = window.set_decorations(false);
+    let _ = window.set_title("");
+    let _ = window.set_skip_taskbar(true);
+    let _ = window.set_always_on_top(true);
+    let _ = window.set_resizable(false);
+    let _ = window.set_shadow(false);
+    apply_overlay_window_bounds(window);
 
     if let Err(e) = window.show() {
         println!("Failed to show window: {}", e);
     }
     apply_overlay_no_activate(window);
+    install_overlay_mouse_activate_no_activate(window);
+    install_overlay_topmost_maintenance_thread(window);
+}
+
+fn stage_uiaccess_overlay_startup(window: &tauri::WebviewWindow, click_through: bool) {
+    UIACCESS_PENDING_OVERLAY_CLICK_THROUGH.store(click_through, Ordering::SeqCst);
+    UIACCESS_OVERLAY_STARTUP_STAGED.store(true, Ordering::SeqCst);
+    install_overlay_hwnd_retry_thread(window);
+    let _ = window.set_content_protected(false);
+    let _ = window.set_decorations(false);
+    let _ = window.set_title("");
+    let _ = window.set_skip_taskbar(true);
+    let _ = window.set_resizable(false);
+    let _ = window.set_shadow(false);
+    let _ = window.set_ignore_cursor_events(false);
+    OVERLAY_CLICK_THROUGH_ACTIVE.store(false, Ordering::SeqCst);
+    apply_overlay_window_bounds(window);
+    append_runtime_log_line("uiaccess_overlay_startup_staged");
 }
 
 #[derive(Clone)]
@@ -4821,10 +5168,17 @@ fn show_canvas_window_impl(window: &tauri::WebviewWindow) {
 }
 
 fn show_overlay_host_impl(window: &tauri::WebviewWindow, click_through: bool) {
+    if uiaccess_build_enabled() && !UIACCESS_FRONTEND_MOUNTED.load(Ordering::SeqCst) {
+        stage_uiaccess_overlay_startup(window, click_through);
+        return;
+    }
+
     setup_overlay_window(window);
     let _ = window.set_ignore_cursor_events(click_through);
     set_overlay_transparent_style(window, click_through);
     OVERLAY_CLICK_THROUGH_ACTIVE.store(click_through, Ordering::SeqCst);
+    UIACCESS_PENDING_OVERLAY_CLICK_THROUGH.store(click_through, Ordering::SeqCst);
+    UIACCESS_OVERLAY_STARTUP_STAGED.store(false, Ordering::SeqCst);
 }
 
 fn set_overlay_click_through_impl(window: &tauri::WebviewWindow, click_through: bool) {
@@ -5424,7 +5778,7 @@ fn trigger_long_capture_mode(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn append_runtime_log(event: String, detail: Option<String>) {
+fn append_runtime_log(app: tauri::AppHandle, event: String, detail: Option<String>) {
     let suffix = detail
         .as_deref()
         .map(str::trim)
@@ -5432,6 +5786,20 @@ fn append_runtime_log(event: String, detail: Option<String>) {
         .map(|value| format!(" :: {}", value))
         .unwrap_or_default();
     append_runtime_log_line(&format!("{}{}", event, suffix));
+
+    if uiaccess_build_enabled() && event == "frontend-mounted" {
+        UIACCESS_FRONTEND_MOUNTED.store(true, Ordering::SeqCst);
+        if UIACCESS_OVERLAY_STARTUP_STAGED.swap(false, Ordering::SeqCst) {
+            let pending_click_through =
+                UIACCESS_PENDING_OVERLAY_CLICK_THROUGH.load(Ordering::SeqCst);
+            append_runtime_log_line("uiaccess_overlay_startup_finalize_requested");
+            if let Some(window) = app.get_webview_window("main") {
+                show_overlay_host_impl(&window, pending_click_through);
+            } else {
+                append_runtime_log_line("uiaccess_overlay_startup_finalize_window_missing");
+            }
+        }
+    }
 }
 
 fn should_accept_tauri_shortcut_trigger(

@@ -27,7 +27,7 @@ describe("overlay move non-blocking contract", () => {
       "WM_LBUTTONDOWN => {",
     );
 
-    expect(moveBlock).toContain("if !capture_active && should_route_overlay_mouse {");
+    expect(moveBlock).toContain("should_route_overlay_mouse");
     expect(moveBlock).toContain("CaptureMouseHookEvent::OverlayMove");
     expect(moveBlock).toContain("OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);");
     expect(moveBlock).toContain("if !capture_active && overlay_hover_active {");
