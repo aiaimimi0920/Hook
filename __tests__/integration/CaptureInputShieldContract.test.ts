@@ -196,7 +196,9 @@ describe("capture input shield contract", () => {
     expect(rustSource).toContain("OverlayMove {");
     expect(rustSource).toContain("OverlayUp {");
     expect(rustSource).toContain("native_drag_preflight: bool");
-    expect(rustSource).toContain("OverlayContextMenu { x: f64, y: f64, modifiers: ModifierSnapshot }");
+    expect(rustSource).toMatch(
+      /OverlayContextMenu\s*\{\s*x: f64,\s*y: f64,\s*modifiers: ModifierSnapshot,\s*\}/,
+    );
     expect(rustSource).toContain("OVERLAY_MOUSE_HOOK_DRAG_ACTIVE");
     expect(rustSource).toContain("OVERLAY_MOUSE_HOOK_HOVER_ACTIVE");
     expect(rustSource).toContain("OVERLAY_MOUSE_HIT_MAP");

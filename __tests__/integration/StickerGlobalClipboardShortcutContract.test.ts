@@ -97,7 +97,9 @@ describe("sticker global clipboard shortcut contract", () => {
 
     expect(rustSource).toContain("static OVERLAY_KEYBOARD_CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);");
     expect(rustSource).toContain("enum OverlayKeyboardHookEvent");
-    expect(rustSource).toContain("fn set_overlay_keyboard_capture_active(active: bool) -> Result<(), String>");
+    expect(rustSource).toContain(
+      "fn set_overlay_keyboard_capture_active(_app: tauri::AppHandle, active: bool) -> Result<(), String>",
+    );
     expect(rustSource).toContain("set_overlay_keyboard_capture_active,");
 
     expect(keyboardHookProc).toContain("KBDLLHOOKSTRUCT");

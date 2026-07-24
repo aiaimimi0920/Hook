@@ -35,18 +35,22 @@ use tauri::{Emitter, LogicalSize, Manager, PhysicalPosition, Size, WindowEvent};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 // Windows Imports
 #[cfg(target_os = "windows")]
-use uiautomation::UIAutomation;
-#[cfg(target_os = "windows")]
 use uiautomation::types::Point as UiaPoint;
+#[cfg(target_os = "windows")]
+use uiautomation::UIAutomation;
 
 // Import Windows specific modules for shared memory
 #[cfg(target_os = "windows")]
-use windows::core::{BOOL, Interface, PCWSTR, PWSTR};
+use windows::core::{Interface, BOOL, PCWSTR, PWSTR};
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 #[cfg(target_os = "windows")]
 use windows::Win32::Graphics::Gdi::{
     CombineRgn, CreateRectRgn, DeleteObject, SetWindowRgn, RGN_OR,
+};
+#[cfg(target_os = "windows")]
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::System::Memory::{
@@ -57,13 +61,7 @@ use windows::Win32::System::Threading::{
     GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_BELOW_NORMAL,
 };
 #[cfg(target_os = "windows")]
-use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
-};
-#[cfg(target_os = "windows")]
-use windows::Win32::System::Variant::{
-    VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_I4,
-};
+use windows::Win32::System::Variant::{VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_I4};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Controls::Dialogs::{
     CommDlgExtendedError, GetOpenFileNameW, GetSaveFileNameW, CDN_INITDONE, OFN_ENABLEHOOK,
@@ -76,25 +74,24 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VK_SHIFT,
 };
 #[cfg(target_os = "windows")]
+use windows::Win32::UI::Shell::{IShellWindows, IWebBrowser2, ShellWindows};
+#[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CallWindowProcW, CopyIcon, CreateWindowExW, DefWindowProcW, DispatchMessageW,
-    EnumWindows, GetAncestor, GetClassNameW, GetCursorPos, GetMessageW, GetParent, GetWindowLongPtrW,
-    GetWindowRect, LoadCursorW, SetLayeredWindowAttributes, SetSystemCursor, SetWindowLongPtrW, SetWindowPos,
+    EnumWindows, GetAncestor, GetClassNameW, GetCursorPos, GetMessageW, GetParent,
+    GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, IsWindowVisible, LoadCursorW,
+    SetLayeredWindowAttributes, SetSystemCursor, SetWindowLongPtrW, SetWindowPos,
     SetWindowsHookExW, ShowWindow, SystemParametersInfoW, TranslateMessage, UnhookWindowsHookEx,
-    WindowFromPoint, GetWindowThreadProcessId, GA_ROOT, GWLP_WNDPROC, GWL_EXSTYLE, HCURSOR, HC_ACTION, HICON, HWND_TOPMOST, IDC_CROSS, IsWindowVisible, LWA_ALPHA,
-    MA_NOACTIVATE, MSG, MSLLHOOKSTRUCT, OCR_CROSS, OCR_HAND, OCR_IBEAM, OCR_NO, OCR_NORMAL,
-    OCR_SIZEALL, OCR_SIZENESW, OCR_SIZENS, OCR_SIZENWSE, OCR_SIZEWE, OCR_UP, SPI_SETCURSORS,
-    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW,
-    KBDLLHOOKSTRUCT, SW_HIDE, SW_SHOWNA, SYSTEM_CURSOR_ID, WH_KEYBOARD_LL, WH_MOUSE_LL,
-    WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP,
-    WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEACTIVATE, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NOTIFY,
-    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDPROC, WS_EX_LAYERED,
-    WM_SYSKEYDOWN, WM_SYSKEYUP,
-    WS_EX_TRANSPARENT,
-    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
+    WindowFromPoint, GA_ROOT, GWLP_WNDPROC, GWL_EXSTYLE, HCURSOR, HC_ACTION, HICON, HWND_TOPMOST,
+    IDC_CROSS, KBDLLHOOKSTRUCT, LWA_ALPHA, MA_NOACTIVATE, MSG, MSLLHOOKSTRUCT, OCR_CROSS, OCR_HAND,
+    OCR_IBEAM, OCR_NO, OCR_NORMAL, OCR_SIZEALL, OCR_SIZENESW, OCR_SIZENS, OCR_SIZENWSE, OCR_SIZEWE,
+    OCR_UP, SPI_SETCURSORS, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+    SWP_SHOWWINDOW, SW_HIDE, SW_SHOWNA, SYSTEM_CURSOR_ID, WH_KEYBOARD_LL, WH_MOUSE_LL, WM_KEYDOWN,
+    WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEACTIVATE,
+    WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NOTIFY, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SYSKEYDOWN,
+    WM_SYSKEYUP, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDPROC, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+    WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_POPUP,
 };
-#[cfg(target_os = "windows")]
-use windows::Win32::UI::Shell::{IWebBrowser2, IShellWindows, ShellWindows};
 
 // =====================================
 // New WinAPI helpers for Shared Memory
@@ -1082,10 +1079,26 @@ fn emit_overlay_wheel_event(
 #[cfg(target_os = "windows")]
 #[derive(Debug, Clone, Copy)]
 enum CaptureMouseHookEvent {
-    Move { x: f64, y: f64, modifiers: ModifierSnapshot },
-    Down { x: f64, y: f64, modifiers: ModifierSnapshot },
-    Up { x: f64, y: f64, modifiers: ModifierSnapshot },
-    Wheel { x: f64, y: f64, modifiers: ModifierSnapshot },
+    Move {
+        x: f64,
+        y: f64,
+        modifiers: ModifierSnapshot,
+    },
+    Down {
+        x: f64,
+        y: f64,
+        modifiers: ModifierSnapshot,
+    },
+    Up {
+        x: f64,
+        y: f64,
+        modifiers: ModifierSnapshot,
+    },
+    Wheel {
+        x: f64,
+        y: f64,
+        modifiers: ModifierSnapshot,
+    },
     OverlayDown {
         x: f64,
         y: f64,
@@ -1104,8 +1117,17 @@ enum CaptureMouseHookEvent {
         modifiers: ModifierSnapshot,
         native_drag_preflight: bool,
     },
-    OverlayWheel { x: f64, y: f64, delta_y: f64, modifiers: ModifierSnapshot },
-    OverlayContextMenu { x: f64, y: f64, modifiers: ModifierSnapshot },
+    OverlayWheel {
+        x: f64,
+        y: f64,
+        delta_y: f64,
+        modifiers: ModifierSnapshot,
+    },
+    OverlayContextMenu {
+        x: f64,
+        y: f64,
+        modifiers: ModifierSnapshot,
+    },
 }
 
 #[cfg(target_os = "windows")]
@@ -1352,8 +1374,7 @@ unsafe extern "system" fn capture_mouse_hook_proc(
                 if shift_sticker_native_drag_preflight {
                     OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(false, Ordering::SeqCst);
                     OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(false, Ordering::SeqCst);
-                    OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE
-                        .store(true, Ordering::SeqCst);
+                    OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(true, Ordering::SeqCst);
                     OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);
                     append_runtime_log_line(&format!(
                         "overlay_native_drag_preflight_start :: x={} y={}",
@@ -1713,10 +1734,7 @@ fn overlay_keyboard_hook_event_for_keydown(
 }
 
 #[cfg(target_os = "windows")]
-fn overlay_keyboard_hook_should_consume_keyup(
-    vk_code: u32,
-    modifiers: ModifierSnapshot,
-) -> bool {
+fn overlay_keyboard_hook_should_consume_keyup(vk_code: u32, modifiers: ModifierSnapshot) -> bool {
     vk_code == VK_ESCAPE.0 as u32
         || vk_code == VK_DELETE.0 as u32
         || vk_code == VK_BACK.0 as u32
@@ -2150,7 +2168,8 @@ fn explorer_folder_candidates_at_point(x: i32, y: i32) -> Vec<(PathBuf, i64, boo
     };
 
     let com_initialized = unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED).is_ok() };
-    let shell_windows = unsafe { CoCreateInstance::<_, IShellWindows>(&ShellWindows, None, CLSCTX_ALL) };
+    let shell_windows =
+        unsafe { CoCreateInstance::<_, IShellWindows>(&ShellWindows, None, CLSCTX_ALL) };
     let Ok(shell_windows) = shell_windows else {
         if com_initialized {
             unsafe { CoUninitialize() };
@@ -2188,7 +2207,11 @@ fn explorer_folder_candidates_at_point(x: i32, y: i32) -> Vec<(PathBuf, i64, boo
             continue;
         }
         let area = i64::from(rect.right - rect.left) * i64::from(rect.bottom - rect.top);
-        candidates.push((folder_path, area, !point_root.0.is_null() && point_root == hwnd));
+        candidates.push((
+            folder_path,
+            area,
+            !point_root.0.is_null() && point_root == hwnd,
+        ));
     }
 
     if com_initialized {
@@ -2361,7 +2384,10 @@ fn write_drag_export_bytes(
     file.write_all(image_data)
         .map_err(|e| format!("Failed to write drag export file: {}", e))?;
     let path_string = target_path.to_string_lossy().to_string();
-    append_runtime_log_line(&format!("sticker_drag_export_saved :: path={}", path_string));
+    append_runtime_log_line(&format!(
+        "sticker_drag_export_saved :: path={}",
+        path_string
+    ));
     Ok(path_string)
 }
 
@@ -2400,7 +2426,10 @@ fn save_sticker_drag_export_from_path(
 ) -> Result<String, String> {
     let source_path = PathBuf::from(&path);
     if !source_path.is_file() {
-        return Err(format!("Sticker drag export source is not a file: {}", path));
+        return Err(format!(
+            "Sticker drag export source is not a file: {}",
+            path
+        ));
     }
     let target_dir = resolve_drag_export_target_dir(global_x, global_y)?;
     let filename = drag_export_filename(filename_hint.as_deref(), Some(&source_path));
@@ -2503,15 +2532,19 @@ fn start_native_file_drag(
         MAIN_UI_THREAD_ID.get()
     ));
 
-    let (drag_completion_sender, drag_completion_receiver) = mpsc::sync_channel::<Result<(), String>>(1);
+    let (drag_completion_sender, drag_completion_receiver) =
+        mpsc::sync_channel::<Result<(), String>>(1);
     let window_for_main = window.clone();
     let file_path_for_main = file_path.clone();
     let hit_map_for_main = hit_map.clone();
 
     window
         .run_on_main_thread(move || {
-            let result =
-                start_native_file_drag_on_ui_thread(window_for_main, file_path_for_main, hit_map_for_main);
+            let result = start_native_file_drag_on_ui_thread(
+                window_for_main,
+                file_path_for_main,
+                hit_map_for_main,
+            );
             let _ = drag_completion_sender.send(result);
         })
         .map_err(|error| format!("Failed to dispatch native drag to main thread: {}", error))?;
@@ -4213,9 +4246,7 @@ fn sync_overlay_input_shield_region(
     let shield_rects: Vec<&mouse_monitor::Rect> = if active {
         rects
             .iter()
-            .filter(|rect| {
-                rect.width > 0 && rect.height > 0 && is_synthetic_overlay_rect(rect)
-            })
+            .filter(|rect| rect.width > 0 && rect.height > 0 && is_synthetic_overlay_rect(rect))
             .collect()
     } else {
         Vec::new()
@@ -4345,11 +4376,10 @@ fn install_overlay_topmost_maintenance_thread(window: &tauri::WebviewWindow) {
                 OVERLAY_TOPMOST_MAINTENANCE_INTERVAL_MS,
             ));
 
-            let needs_topmost_maintenance =
-                OVERLAY_MOUSE_HIT_MAP_ACTIVE.load(Ordering::SeqCst)
-                    || CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst)
-                    || OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)
-                    || OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst);
+            let needs_topmost_maintenance = OVERLAY_MOUSE_HIT_MAP_ACTIVE.load(Ordering::SeqCst)
+                || CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst)
+                || OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)
+                || OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst);
             if !needs_topmost_maintenance {
                 continue;
             }
@@ -5722,7 +5752,10 @@ fn set_overlay_keyboard_capture_active(_app: tauri::AppHandle, active: bool) -> 
 
 #[cfg(not(target_os = "windows"))]
 #[tauri::command]
-fn set_overlay_keyboard_capture_active(_app: tauri::AppHandle, _active: bool) -> Result<(), String> {
+fn set_overlay_keyboard_capture_active(
+    _app: tauri::AppHandle,
+    _active: bool,
+) -> Result<(), String> {
     Ok(())
 }
 

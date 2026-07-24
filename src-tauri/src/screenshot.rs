@@ -1029,8 +1029,12 @@ mod tests {
         let _lock = wgc_fast_path_mode_env_lock();
         std::env::remove_var("HOOK_WGC_FAST_PATH_MODE");
 
-        assert!(!should_use_persistent_wgc(CaptureWorkloadProfile::StandardRegion));
-        assert!(!should_use_persistent_wgc(CaptureWorkloadProfile::LongCapture));
+        assert!(!should_use_persistent_wgc(
+            CaptureWorkloadProfile::StandardRegion
+        ));
+        assert!(!should_use_persistent_wgc(
+            CaptureWorkloadProfile::LongCapture
+        ));
     }
 
     #[test]
@@ -1039,8 +1043,12 @@ mod tests {
         let _lock = wgc_fast_path_mode_env_lock();
         std::env::set_var("HOOK_WGC_FAST_PATH_MODE", "persistent");
 
-        assert!(should_use_persistent_wgc(CaptureWorkloadProfile::StandardRegion));
-        assert!(should_use_persistent_wgc(CaptureWorkloadProfile::LongCapture));
+        assert!(should_use_persistent_wgc(
+            CaptureWorkloadProfile::StandardRegion
+        ));
+        assert!(should_use_persistent_wgc(
+            CaptureWorkloadProfile::LongCapture
+        ));
 
         std::env::remove_var("HOOK_WGC_FAST_PATH_MODE");
     }
@@ -1051,8 +1059,12 @@ mod tests {
         let _lock = wgc_fast_path_mode_env_lock();
         std::env::set_var("HOOK_WGC_FAST_PATH_MODE", "transient");
 
-        assert!(!should_use_persistent_wgc(CaptureWorkloadProfile::StandardRegion));
-        assert!(!should_use_persistent_wgc(CaptureWorkloadProfile::LongCapture));
+        assert!(!should_use_persistent_wgc(
+            CaptureWorkloadProfile::StandardRegion
+        ));
+        assert!(!should_use_persistent_wgc(
+            CaptureWorkloadProfile::LongCapture
+        ));
 
         std::env::remove_var("HOOK_WGC_FAST_PATH_MODE");
     }

@@ -130,7 +130,10 @@ pub async fn capture_region(
 
     match tokio::time::timeout(REGION_CAPTURE_TIMEOUT, handle).await {
         Ok(join_result) => join_result.map_err(|error| {
-            crate::append_runtime_log_line(&format!("capture_region worker_join_failure :: {}", error));
+            crate::append_runtime_log_line(&format!(
+                "capture_region worker_join_failure :: {}",
+                error
+            ));
             error.to_string()
         })?,
         Err(_) => {
