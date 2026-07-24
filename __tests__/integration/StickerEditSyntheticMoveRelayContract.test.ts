@@ -50,7 +50,7 @@ describe("sticker edit synthetic move relay contract", () => {
     expect(topStripSource).toContain("draggingStickerId");
     expect(topStripSource).toContain("const draggingThisSticker = createMemo(() => draggingStickerId() === props.unitId);");
     expect(syncEffectBlock).toContain("if (draggingThisSticker()) return;");
-    expect(syncEffectBlock).toContain("addOrUpdateRect(buildStripInteractiveRect(stripRef, props.unitId));");
+    expect(syncEffectBlock).toContain("addOrUpdateRect(buildStripInteractiveRect(stripRef, currentUnitId));");
     expect(syncEffectBlock).toContain("void syncService.updateBackendRects();");
   });
 });

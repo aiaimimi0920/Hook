@@ -66,7 +66,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                     }}
                 >
                     <div class="hook-actions-shell__title">
-                        <span class="hook-actions-shell__dot"></span>
+                        <span class="hook-actions-shell__dot" />
                         <span class="font-bold text-xs uppercase tracking-widest whitespace-nowrap">Add Art Node</span>
                     </div>
                 </div>

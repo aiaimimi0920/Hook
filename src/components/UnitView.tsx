@@ -32,9 +32,6 @@ import { api, isTauriRuntimeAvailable } from "../services/api";
 import { stickerContextMenuController } from "../services/stickerContextMenuController";
 import { renderStickerComposite } from "../services/stickerExport";
 
-// GLOBAL STATE: Persist scroll positions across re-renders
-const globalScrollRegistry: Record<string, number> = {};
-
 interface Props {
   unit: Unit;
   params: Record<string, any>; // Direct Store reference for reactivity
@@ -97,17 +94,6 @@ export const UnitView: Component<Props> = (props) => {
       void api.debugLogEvent("sticker-wheel-trace", `layer=unit phase=${phase} unit=${props.unit.id} ${detail}`);
   };
 
-
-
-  // Check disabled state using the reactive getParams() getter
-  const isParamDisabled = (paramId: string) => props.params[paramId] === DISABLED_PREFIX;
-
-  // Get the actual value (for display), returning default if disabled
-
-
-
-
-  // Clear dragging state when params update from backend
 
 
   const isArt = () => props.unit.type === 'art';
@@ -245,16 +231,6 @@ export const UnitView: Component<Props> = (props) => {
       return [{ name: "input_image", label: "Input", type: "image" }];
   };
 
-  // Synthetic Params for Image Units (Source Mode logic)
-  const derivedParams = () => {
-      // Art Units use their defined params
-      if (isArt()) return props.capability?.params || [];
-
-      // Image Units: Params are now rendered INLINE with Inputs for cleaner UI
-      // So we return empty here to avoid duplication in the Param List
-      return [];
-  };
-
   const getOutputs = () => {
       // Stickers NOW support Output (Pass-through)
       if (!isArt()) {
@@ -264,34 +240,6 @@ export const UnitView: Component<Props> = (props) => {
       // All nodes output Image by default currently
       return [{ name: "output_image", label: "Image", type: "image" }];
   };
-
-  // === VISIBILITY HELPERS ===
-  // If portVisibility is undefined, assume visible.
-  // If defined, check key. If key missing, assume visible (opt-out list) OR hidden (opt-in)?
-  // User says: "specify... so that large screenshot has only 1 input".
-  // This sounds like defaults might be "Show everything", but user wants to hide some.
-  const isPortVisible = (portName: string) => {
-      // 1. User Override (Highest Priority)
-      const userVis = props.unit.data.portVisibility?.[portName];
-      if (typeof userVis === 'boolean') return userVis;
-
-      // 2. Backend Default (Medium Priority)
-      // Check inputs
-      const inputDef = props.capability?.inputs?.find(p => p.name === portName);
-      if (inputDef && inputDef.defaultVisible !== undefined) return inputDef.defaultVisible;
-
-      // Check outputs
-      const outputDef = props.capability?.outputs?.find(p => p.name === portName);
-      if (outputDef && outputDef.defaultVisible !== undefined) return outputDef.defaultVisible;
-
-      // 3. Global Default (Fallback) -> TRUE (Show all by default)
-      return true;
-  };
-
-  const getVisibleInputs = () => getInputs().filter(p => isPortVisible(p.name));
-  const getVisibleOutputs = () => getOutputs().filter(p => isPortVisible(p.name));
-
-
 
   // Helper to determine Source Image (Screen vs Manual Override)
   // Priority:
@@ -639,32 +587,6 @@ export const UnitView: Component<Props> = (props) => {
       };
   };
 
-  const getPortColor = (type: string, isHover: boolean) => {
-      // Type-based colors (Tailwind classes or CSS variables?)
-      // We need to return a class string for the background color.
-      // Default: Zinc (Gray)
-
-      const t = type.toLowerCase();
-
-      // Color Mapping
-      // Image -> Green (Emerald)
-      // File -> Blue
-      // Text/String -> Yellow/Amber
-      // Number/Int/Float -> Violet/Purple
-      // Boolean -> Red/Rose
-      // Model/Latents -> Pink/Fuchsia
-
-      if (t.includes('image') || t === 'mask') return isHover ? "bg-emerald-400" : "bg-emerald-600";
-      if (t.includes('file')) return isHover ? "bg-blue-400" : "bg-blue-600";
-      if (t === 'string' || t === 'text') return isHover ? "bg-amber-400" : "bg-amber-600";
-      if (t === 'number' || t === 'int' || t === 'float') return isHover ? "bg-violet-400" : "bg-violet-600";
-      if (t === 'boolean' || t === 'bool') return isHover ? "bg-rose-400" : "bg-rose-600";
-      if (t === 'model' || t === 'latents' || t === 'vae') return isHover ? "bg-fuchsia-400" : "bg-fuchsia-600";
-
-      // Default
-      return isHover ? "bg-zinc-400" : "bg-zinc-600";
-  };
-
   // NEW: Helper to register Panel Port Offsets for stable linking
   const registerPanelPort = (el: HTMLElement, portName: string) => {
       const update = () => {
@@ -697,9 +619,6 @@ export const UnitView: Component<Props> = (props) => {
     // FIX: Re-calculate Panel Port Offsets when Unit Resizes (Fit Frame / Drag)
     createEffect(() => {
         // Dependencies
-        const w = props.unit.w;
-        const h = props.unit.h;
-
         // We need to wait for DOM Reflow, similar to registerPanelPort logic
         if (unitContainerRef) {
             requestAnimationFrame(() => {

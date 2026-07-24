@@ -26,11 +26,11 @@ export const ColorControl: Component<ColorControlProps> = (props) => {
         </span>
         <div
           class="relative w-6 h-6 rounded-full overflow-hidden border border-white-20 transition-colors group cursor-pointer"
-          onContextMenu={props.onContextMenu}
+          onContextMenu={(event) => props.onContextMenu(event)}
         >
           <Show when={!props.value}>
             <div class="absolute inset-0 flex items-center justify-center bg-zinc-800">
-              <div class="w-full h-0.5 bg-red-500/60 rotate-45 absolute"></div>
+              <div class="absolute h-0.5 w-full rotate-45 bg-red-500/60" />
             </div>
           </Show>
           <input

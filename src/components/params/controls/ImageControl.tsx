@@ -54,7 +54,7 @@ export const ImageControl: Component<ImageControlProps> = (props) => {
                    e.preventDefault();
                    props.onLinkDrop?.();
                }}
-               onContextMenu={props.onContextMenu}
+               onContextMenu={(event) => props.onContextMenu(event)}
                onMouseEnter={() => { if (isLinked()) props.onLinkHover?.(props.value || null); }}
                onMouseLeave={() => props.onLinkHover?.(null)}
              >
@@ -72,7 +72,7 @@ export const ImageControl: Component<ImageControlProps> = (props) => {
           classList={{ "pointer-events-none opacity-50": props.isDisabled }}
           onMouseEnter={() => props.onPreview?.(true)}
           onMouseLeave={() => props.onPreview?.(false)}
-          onContextMenu={props.onContextMenu}
+          onContextMenu={(event) => props.onContextMenu(event)}
         >
             <input
               type="file"
@@ -97,7 +97,7 @@ export const ImageControl: Component<ImageControlProps> = (props) => {
                 <span class="truncate text-[10px]">{props.value ? "Selected" : "Choose File"}</span>
                 </>
             }>
-                <div class="w-4 h-4 bg-cover bg-center mr-0.5 border border-white/20 shrink-0" style={{ "background-image": `url(${props.value})` }}></div>
+                <div class="mr-0.5 h-4 w-4 shrink-0 border border-white/20 bg-cover bg-center" style={{ "background-image": `url(${props.value})` }} />
                 <span class="truncate text-[9px]">Img</span>
             </Show>
         </label>

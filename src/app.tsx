@@ -1,4 +1,4 @@
-import { onMount, onCleanup, createEffect, createSignal, Show, ErrorBoundary } from "solid-js";
+import { onMount, onCleanup, createEffect, createSignal, Show, ErrorBoundary, untrack } from "solid-js";
 import { api, isTauriRuntimeAvailable, listenBrowserArtLoomMethod, type TeaTicketSummary, type VoiceSettingsSummary } from "./services/api";
 import { listen } from "@tauri-apps/api/event";
 import { installErrorDiagnostics } from "./services/errorDiagnostics";
@@ -134,10 +134,10 @@ export default function App() {
   let portsLayerRef: HTMLDivElement | undefined;
   let activeBootProfile: BootProfile | null = null;
   const tauriRuntime = isTauriRuntimeAvailable();
-  const [, setVoiceStatus] = createSignal<VoiceStatus>("idle");
-  const [, setLastVoiceHotkey] = createSignal<VoiceHotkeyPayload | null>(null);
+  const [_voiceStatus, setVoiceStatus] = createSignal<VoiceStatus>("idle");
+  const [_lastVoiceHotkey, setLastVoiceHotkey] = createSignal<VoiceHotkeyPayload | null>(null);
   const [lastVoiceSession, setLastVoiceSession] = createSignal<VoiceSessionPayload | null>(null);
-  const [, setVoiceSettings] = createSignal<VoiceSettingsSummary | null>(null);
+  const [_voiceSettings, setVoiceSettings] = createSignal<VoiceSettingsSummary | null>(null);
   const [lastTeaTicket, setLastTeaTicket] = createSignal<TeaTicketSummary | null>(null);
   const [lastTeaTicketError, setLastTeaTicketError] = createSignal<string | null>(null);
 
@@ -1219,9 +1219,11 @@ export default function App() {
           });
 
            const unlistenCreateTeaTicket = await listen("trigger-create-tea-ticket", () => {
-               logger.debug("Backend Triggered Tea Ticket Creation");
-               void api.debugLogEvent("trigger-create-tea-ticket-listener");
-               void createTeaTicketFromCurrentHookState("tray");
+               untrack(() => {
+                   logger.debug("Backend Triggered Tea Ticket Creation");
+                   void api.debugLogEvent("trigger-create-tea-ticket-listener");
+                   void createTeaTicketFromCurrentHookState("tray");
+               });
            });
 
            const unlistenVoiceHotkey = await listen<VoiceHotkeyPayload>("voice-hotkey-event", (event) => {
@@ -1682,10 +1684,6 @@ export default function App() {
 
       // 2. Upstream Resolution (Pass-Through)
       // Check connected inputs BEFORE falling back to 'src' (Original Screenshot)
-      // Fix potential undefined artId access with optional chaining and fallback
-      const capability = u.type === "art" ? graphStore.capabilities.find((item) => item.id === u.artId) : undefined;
-      const inputs = u.inputs || (u.type === 'art' ? capability?.inputs || [] : []) || [{ name: 'image' }];
-
       // Try to find a connected input that provides an image
       // Priority: 'image', 'input_image', or just the first connected one
       const link = graphStore.links.find(l =>
@@ -1778,7 +1776,7 @@ export default function App() {
             }}
         />
 
-        <div id="ports-layer" ref={portsLayerRef!} class="absolute inset-0 z-[5] pointer-events-none overflow-visible"></div>
+        <div id="ports-layer" ref={portsLayerRef!} class="absolute inset-0 z-[5] pointer-events-none overflow-visible" />
 
         <CanvasUnits
             onStartDrag={onStartDragUnit}

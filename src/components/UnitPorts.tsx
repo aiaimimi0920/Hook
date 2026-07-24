@@ -121,8 +121,7 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
                                         logger.debug("UnitView: Input Port MouseUp -> onLinkDrop", port.name);
                                         props.onLinkDrop(port.name);
                                     }}
-                                >
-                                </div>
+                                />
                             )}
                         </For>
                     </div>
@@ -160,8 +159,7 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
                                         logger.debug("Link Start from Output", port.name);
                                         props.onLinkStart(port.name, e.clientX, e.clientY);
                                     }}
-                                >
-                                </div>
+                                />
                             )}
                         </For>
                     </div>

@@ -1,6 +1,6 @@
 import { unwrap } from "solid-js/store";
 import { api } from "../services/api";
-import { Unit, Link, UnitData } from "../types/unit";
+import { Unit, Link } from "../types/unit";
 import { mousePos, selectedStickerId, selectedStickerAnnotationId, setSelectedStickerId, clipboard, setClipboard, ClipboardData, uiActions } from "../store/uiStore";
 import { logger } from "../services/logger";
 import { graphStore } from "../store/graphStore";
@@ -146,7 +146,7 @@ export function useClipboard() {
                          pasteNodes(data, [], mp); // Pass MP explicitly
                          return;
                     }
-                } catch (e) {
+                } catch {
                     // Not JSON
                 }
             }
@@ -220,7 +220,7 @@ export function useClipboard() {
         // Logic: If mouse is inside the original source rect, we assume the user wants to "duplicate on top".
         // In this case, we use the `nextCascade` position instead of mouse position.
         const inside = isMouseInsideOriginal(clip, mp.x, mp.y);
-        let isCascade = inside;
+        const isCascade = inside;
 
         if (isCascade) {
             newX = clip.nextCascadeX;
@@ -257,10 +257,10 @@ export function useClipboard() {
         }
 
         // Apply Crop Offset if applicable (Legacy behavior for cropped stickers)
-        let finalX = newX;
-        let finalY = newY;
-        let finalW = clip.w;
-        let finalH = clip.h;
+        const finalX = newX;
+        const finalY = newY;
+        const finalW = clip.w;
+        const finalH = clip.h;
 
         if (clip.savedRect && clip.cropOffset) {
              // Legacy adjustment removed to prioritize exact mouse positioning

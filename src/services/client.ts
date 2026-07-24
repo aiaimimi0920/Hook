@@ -2,7 +2,7 @@ import { api } from "./api";
 
 import { listen } from "@tauri-apps/api/event";
 import { logger } from "./logger";
-import { HandshakeRequest, HandshakeResponse, TransportMode, PropChange, ArtDelivery } from "./protocol";
+import { HandshakeRequest, HandshakeResponse, TransportMode, ArtDelivery } from "./protocol";
 
 export class ArtLoomClient {
     private sessionId: string | null = null;

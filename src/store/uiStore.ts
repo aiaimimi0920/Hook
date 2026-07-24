@@ -24,7 +24,6 @@ import type {
     StickerCanvasTool,
     StickerCreateTool,
     StickerToolSettings,
-    StickerToolMode,
     StickerTransformMode,
 } from "../types/stickerEditing";
 import type { CaptureRect, LongCaptureAxis, LongCaptureDirection } from "../services/captureState";
@@ -37,7 +36,7 @@ import {
     type ScreenshotHistoryEntry,
 } from "../services/historyModel";
 import { api } from "../services/api";
-import { applyStickerToolSettingsPatch, normalizeStickerToolSettings } from "../services/toolSettings";
+import { applyStickerToolSettingsPatch } from "../services/toolSettings";
 
 // Global Selection State
 export const [selectedStickerId, setSelectedStickerId] = createSignal<string | null>(null);

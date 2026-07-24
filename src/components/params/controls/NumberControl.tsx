@@ -81,7 +81,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
     <label
       class="text-[#EEF1FF]/80 font-medium text-[11px] truncate cursor-context-menu"
       style={{ "min-width": "70px", "max-width": "104px" }}
-      onContextMenu={props.onContextMenu}
+      onContextMenu={(event) => props.onContextMenu(event)}
     >
       {props.label}
     </label>
@@ -131,7 +131,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
             setDraftValue(formatNumber(currentValue()));
           }
         }}
-        onContextMenu={props.onContextMenu}
+        onContextMenu={(event) => props.onContextMenu(event)}
       />
       <button
         type="button"
@@ -177,7 +177,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
               class="w-full min-w-0 accent-violet-400 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
               onInput={(event) => handleSliderInput(event.currentTarget.value, false)}
               onChange={(event) => handleSliderInput(event.currentTarget.value, true)}
-              onContextMenu={props.onContextMenu}
+              onContextMenu={(event) => props.onContextMenu(event)}
             />
           </div>
         </div>

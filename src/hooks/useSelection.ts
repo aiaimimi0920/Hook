@@ -707,7 +707,7 @@ export function useSelection() {
                         } else {
                             setPreciseRect(null);
                         }
-                    } catch (err) {
+                    } catch {
                         // ignore
                     } finally {
                         isPreciseRequestPending = false;

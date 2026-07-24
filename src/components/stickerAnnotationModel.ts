@@ -111,7 +111,6 @@ export const resolveScaleGizmoAxisAtPoint = (
     center: StickerPoint,
     options: TransformGizmoOptions = {},
 ): TransformAxisMode | null => {
-    const axisLength = options.axisLength ?? DEFAULT_TRANSFORM_GIZMO_AXIS_LENGTH;
     const hitPadding = options.hitPadding ?? DEFAULT_TRANSFORM_GIZMO_HIT_PADDING;
     const handleRects = getScaleGizmoHandleRects(center, options);
 

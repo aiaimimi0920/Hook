@@ -1,4 +1,4 @@
-import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup, type Accessor } from "solid-js";
+import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup, untrack, type Accessor } from "solid-js";
 import { listen } from "@tauri-apps/api/event";
 import { Dynamic, Portal } from "solid-js/web";
 
@@ -586,49 +586,70 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
     let liveRasterizedAnnotationEraseBaseLayerSrc: string | null = null;
     let liveRasterizedAnnotationEraseHistoryCaptured = false;
 
+    const runLiveRasterizedAnnotationErase = async (
+        batch: StickerPoint[],
+        generation: number,
+        snapshot: {
+            layerSrc: string | null;
+            baseLayerSrc: string | null;
+            historyCaptured: boolean;
+            width: number;
+            height: number;
+            eraserSize: number;
+        },
+    ) => {
+        if (!snapshot.layerSrc || !snapshot.baseLayerSrc) {
+            return;
+        }
+
+        if (!snapshot.historyCaptured) {
+            rememberCurrentState(true);
+            liveRasterizedAnnotationEraseHistoryCaptured = true;
+        }
+
+        const nextLayerSrc = await eraseRasterizedAnnotationLayer({
+            rasterizedAnnotationLayerSrc: snapshot.layerSrc,
+            size: { w: snapshot.width, h: snapshot.height },
+            points: batch,
+            width: snapshot.eraserSize,
+        });
+        if (
+            !rasterizedEraseQueue.isCurrent(generation) ||
+            !liveRasterizedAnnotationEraseBaseLayerSrc
+        ) {
+            return;
+        }
+
+        const previewSrc = await composeRasterizedStickerPreview(
+            liveRasterizedAnnotationEraseBaseLayerSrc,
+            nextLayerSrc,
+            { w: snapshot.width, h: snapshot.height },
+        );
+        if (!rasterizedEraseQueue.isCurrent(generation)) {
+            return;
+        }
+
+        liveRasterizedAnnotationEraseLayerSrc = nextLayerSrc;
+        patchUnitDataLocally({
+            rasterizedAnnotationLayerSrc: nextLayerSrc,
+            previewSrc,
+            resultHandle: undefined,
+            filePath: undefined,
+        });
+    };
+
     const applyLiveRasterizedAnnotationErase = (points: StickerPoint[]) =>
-        rasterizedEraseQueue.apply(points, async (batch, generation) => {
-            if (
-                !liveRasterizedAnnotationEraseLayerSrc ||
-                !liveRasterizedAnnotationEraseBaseLayerSrc
-            ) {
-                return;
-            }
-
-            if (!liveRasterizedAnnotationEraseHistoryCaptured) {
-                rememberCurrentState(true);
-                liveRasterizedAnnotationEraseHistoryCaptured = true;
-            }
-
-            const nextLayerSrc = await eraseRasterizedAnnotationLayer({
-                rasterizedAnnotationLayerSrc: liveRasterizedAnnotationEraseLayerSrc,
-                size: { w: props.width, h: props.height },
-                points: batch,
-                width: stickerToolSettings.contentEraserSize,
-            });
-            if (
-                !rasterizedEraseQueue.isCurrent(generation) ||
-                !liveRasterizedAnnotationEraseBaseLayerSrc
-            ) {
-                return;
-            }
-
-            const previewSrc = await composeRasterizedStickerPreview(
-                liveRasterizedAnnotationEraseBaseLayerSrc,
-                nextLayerSrc,
-                { w: props.width, h: props.height },
-            );
-            if (!rasterizedEraseQueue.isCurrent(generation)) {
-                return;
-            }
-
-            liveRasterizedAnnotationEraseLayerSrc = nextLayerSrc;
-            patchUnitDataLocally({
-                rasterizedAnnotationLayerSrc: nextLayerSrc,
-                previewSrc,
-                resultHandle: undefined,
-                filePath: undefined,
-            });
+        // eslint-disable-next-line solid/reactivity -- LiveEraseQueue invokes this imperatively per erase batch.
+        rasterizedEraseQueue.apply(points, (batch, generation) => {
+            const snapshot = untrack(() => ({
+                layerSrc: liveRasterizedAnnotationEraseLayerSrc,
+                baseLayerSrc: liveRasterizedAnnotationEraseBaseLayerSrc,
+                historyCaptured: liveRasterizedAnnotationEraseHistoryCaptured,
+                width: props.width,
+                height: props.height,
+                eraserSize: stickerToolSettings.contentEraserSize,
+            }));
+            return runLiveRasterizedAnnotationErase(batch, generation, snapshot);
         });
 
     const beginLiveRasterizedAnnotationErase = (point: StickerPoint) => {
@@ -731,42 +752,65 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
     let liveContentEraseRasterizedAnnotationLayerSrc: string | null = null;
     let liveContentEraseHistoryCaptured = false;
 
+    const runLiveContentErase = async (
+        batch: StickerPoint[],
+        generation: number,
+        snapshot: {
+            baseLayerSrc: string | null;
+            rasterizedAnnotationLayerSrc: string | null;
+            historyCaptured: boolean;
+            width: number;
+            height: number;
+            eraserSize: number;
+        },
+    ) => {
+        if (!snapshot.baseLayerSrc) return;
+
+        if (!snapshot.historyCaptured) {
+            rememberCurrentState(true);
+            liveContentEraseHistoryCaptured = true;
+        }
+
+        const next = await applyLiveContentEraseToStickerLayers({
+            baseLayerSrc: snapshot.baseLayerSrc,
+            rasterizedAnnotationLayerSrc: snapshot.rasterizedAnnotationLayerSrc ?? undefined,
+            size: { w: snapshot.width, h: snapshot.height },
+            stroke: {
+                points: batch,
+                width: snapshot.eraserSize,
+                color: "#000000",
+                opacity: 1,
+            },
+        });
+        if (!contentEraseQueue.isCurrent(generation)) {
+            return;
+        }
+
+        liveContentEraseBaseLayerSrc = next.baseLayerSrc;
+        liveContentEraseRasterizedAnnotationLayerSrc =
+            next.rasterizedAnnotationLayerSrc ?? null;
+        patchUnitDataLocally({
+            src: next.baseLayerSrc,
+            previewSrc: next.previewSrc,
+            resultHandle: undefined,
+            filePath: undefined,
+            rasterizedAnnotationLayerSrc: next.rasterizedAnnotationLayerSrc,
+            imageEditState: createEmptyImageEditState(),
+        });
+    };
+
     const applyLiveContentErase = (points: StickerPoint[]) =>
-        contentEraseQueue.apply(points, async (batch, generation) => {
-            if (!liveContentEraseBaseLayerSrc) return;
-
-            if (!liveContentEraseHistoryCaptured) {
-                rememberCurrentState(true);
-                liveContentEraseHistoryCaptured = true;
-            }
-
-            const next = await applyLiveContentEraseToStickerLayers({
+        // eslint-disable-next-line solid/reactivity -- LiveEraseQueue invokes this imperatively per erase batch.
+        contentEraseQueue.apply(points, (batch, generation) => {
+            const snapshot = untrack(() => ({
                 baseLayerSrc: liveContentEraseBaseLayerSrc,
-                rasterizedAnnotationLayerSrc:
-                    liveContentEraseRasterizedAnnotationLayerSrc ?? undefined,
-                size: { w: props.width, h: props.height },
-                stroke: {
-                    points: batch,
-                    width: stickerToolSettings.contentEraserSize,
-                    color: "#000000",
-                    opacity: 1,
-                },
-            });
-            if (!contentEraseQueue.isCurrent(generation)) {
-                return;
-            }
-
-            liveContentEraseBaseLayerSrc = next.baseLayerSrc;
-            liveContentEraseRasterizedAnnotationLayerSrc =
-                next.rasterizedAnnotationLayerSrc ?? null;
-            patchUnitDataLocally({
-                src: next.baseLayerSrc,
-                previewSrc: next.previewSrc,
-                resultHandle: undefined,
-                filePath: undefined,
-                rasterizedAnnotationLayerSrc: next.rasterizedAnnotationLayerSrc,
-                imageEditState: createEmptyImageEditState(),
-            });
+                rasterizedAnnotationLayerSrc: liveContentEraseRasterizedAnnotationLayerSrc,
+                historyCaptured: liveContentEraseHistoryCaptured,
+                width: props.width,
+                height: props.height,
+                eraserSize: stickerToolSettings.contentEraserSize,
+            }));
+            return runLiveContentErase(batch, generation, snapshot);
         });
 
     const beginLiveContentErase = async (point: StickerPoint) => {

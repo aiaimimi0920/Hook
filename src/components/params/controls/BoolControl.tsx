@@ -35,7 +35,7 @@ export const BoolControl: Component<BoolControlProps> = (props) => {
                 : 'bg-transparent border-white-30 group-hover-border-white-50'
             }`}
             onClick={() => !props.isDisabled && props.onChange(!props.value)}
-            onContextMenu={props.onContextMenu}
+            onContextMenu={(event) => props.onContextMenu(event)}
           >
             <Show when={props.value}>
               <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">

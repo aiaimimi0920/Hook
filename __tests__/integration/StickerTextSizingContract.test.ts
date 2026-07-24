@@ -6,7 +6,6 @@ const topStripSource = readFileSync(resolve(process.cwd(), "src/components/Stick
 const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStripPropertyBar.tsx"), "utf8");
 const toolbarModelSource = readFileSync(resolve(process.cwd(), "src/components/stickerToolbarModel.ts"), "utf8");
 const toolbarContractSource = `${topStripSource}\n${propertyBarSource}\n${toolbarModelSource}`;
-const appSource = readFileSync(resolve(process.cwd(), "src/app.tsx"), "utf8");
 const annotationLayerSource = readFileSync(resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"), "utf8");
 const exportSource = readFileSync(resolve(process.cwd(), "src/services/stickerExport.ts"), "utf8");
 const typeSource = readFileSync(resolve(process.cwd(), "src/types/stickerEditing.ts"), "utf8");
@@ -92,8 +91,8 @@ describe("Hook sticker text sizing contract", () => {
     it("drives a font dropdown from preset fonts plus installed system fonts", () => {
         expect(fontCatalogSource).toContain("COMMON_STICKER_FONT_FAMILIES");
         expect(fontCatalogSource).toContain("mergeStickerFontFamilies");
-        expect(appSource).toMatch(/api\s*\.\s*getInstalledFonts\(\)/);
-        expect(appSource).toContain("setInstalledStickerFonts(fonts)");
+        expect(propertyBarSource).toMatch(/api\s*\.\s*getInstalledFonts\(\)/);
+        expect(propertyBarSource).toContain("setInstalledStickerFonts(fonts)");
         expect(propertyBarSource).toContain("availableFontFamilies");
         expect(propertyBarSource).toContain("value={stickerToolSettings.textFontFamily}");
         expect(propertyBarSource).toContain("value={stickerToolSettings.serialFontFamily}");

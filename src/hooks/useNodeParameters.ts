@@ -80,7 +80,7 @@ export function useNodeParameters() {
                 case EXEC_notifyDownstream:
                     graphStore.setUnitExecConfig(unitId, "propagation", "notifyDownstream", value);
                     break;
-                case EXEC_manualTrigger:
+                case EXEC_manualTrigger: {
                     // Manual trigger
                     console.log(`[Execution] Manual trigger for unit ${unitId}`);
 
@@ -118,7 +118,8 @@ export function useNodeParameters() {
 
                     // For now, just trigger processing like before
                     graphStore.setUnitParams(unitId, (prev) => ({ ...(prev || {}), ["force_update"]: value }));
-                    break;
+                     break;
+                }
             }
 
             // 2. MIRROR TO UNIT DATA & PERSIST

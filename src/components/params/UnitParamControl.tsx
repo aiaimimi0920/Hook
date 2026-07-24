@@ -141,9 +141,9 @@ export const UnitParamControl: Component<UnitParamControlProps> = (props) => {
                 value={String(props.value ?? getDefault() ?? "")}
                 widget={props.param.widget as "file" | "image_link"}
                 isDisabled={props.isDisabled}
-                onChange={(val, filename) => {
-                     props.onChange(props.param.id, val);
-                }}
+                onChange={(val, _filename) => {
+                      props.onChange(props.param.id, val);
+                 }}
                 onLinkStart={(x, y) => props.onLinkStart?.(props.param.id, x, y)}
                 onLinkDrop={() => props.onLinkDrop?.(props.param.id)}
                 onLinkMove={(e) => props.onLinkMove?.(props.param.id, e)}

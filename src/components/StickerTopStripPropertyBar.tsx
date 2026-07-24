@@ -99,14 +99,6 @@ const FillColorIcon: Component<MiniIconProps> = (props) => (
     </svg>
 );
 
-const ConstraintIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="10" height="10" rx="1.4" />
-        <path d="M5.5 8h5" />
-        <path d="M8 5.5v5" />
-    </svg>
-);
-
 const SquareConstraintGlyphIcon: Component<MiniIconProps> = (props) => (
     <svg class={props.class} viewBox="0 0 16 16" fill="none">
         <text
@@ -281,7 +273,7 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
     const [selectedTextSizeDraft, setSelectedTextSizeDraft] = createSignal<string | null>(null);
     const [selectedSerialRadiusDraft, setSelectedSerialRadiusDraft] = createSignal<string | null>(null);
     const [openDropdownMenu, setOpenDropdownMenu] = createSignal<OpenMiniDropdownMenu | null>(null);
-    const dropdownRectId = `sticker-top-strip-property-dropdown-${props.unitId}`;
+    const dropdownRectId = () => `sticker-top-strip-property-dropdown-${props.unitId}`;
     let openDropdownMenuRef: HTMLDivElement | undefined;
     let dropdownRectSyncRafIds: number[] = [];
 
@@ -304,14 +296,6 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
         () =>
             props.tool === "shape-rect" ||
             props.tool === "shape-round-rect" ||
-            props.tool === "shape-triangle" ||
-            props.tool === "shape-polygon",
-    );
-    const supportsFillColor = createMemo(
-        () =>
-            props.tool === "shape-rect" ||
-            props.tool === "shape-round-rect" ||
-            props.tool === "shape-ellipse" ||
             props.tool === "shape-triangle" ||
             props.tool === "shape-polygon",
     );
@@ -481,9 +465,11 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
         if (!currentUnit) return;
         if (!pushCurrentStickerHistory()) return;
         const clamped = Math.min(1, Math.max(0, next));
-        currentUnit.data.minified
-            ? graphStore.actions.updateUnitData(props.unitId, { opacityMini: clamped })
-            : graphStore.actions.updateUnitData(props.unitId, { opacityNormal: clamped });
+        if (currentUnit.data.minified) {
+            graphStore.actions.updateUnitData(props.unitId, { opacityMini: clamped });
+        } else {
+            graphStore.actions.updateUnitData(props.unitId, { opacityNormal: clamped });
+        }
         void syncService.performWorkflowSync();
     };
 
@@ -799,11 +785,15 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
         });
     };
 
-    const syncOpenDropdownRect = () => {
-        if (!openDropdownMenu() || !openDropdownMenuRef) return false;
-        const bounds = openDropdownMenuRef.getBoundingClientRect();
+    const syncOpenDropdownRect = (
+        menu: OpenMiniDropdownMenu | null,
+        rectId: string,
+        dropdownElement: HTMLDivElement | undefined,
+    ) => {
+        if (!menu || !dropdownElement) return false;
+        const bounds = dropdownElement.getBoundingClientRect();
         addOrUpdateRect({
-            id: dropdownRectId,
+            id: rectId,
             x: bounds.left,
             y: bounds.top,
             width: bounds.width,
@@ -821,14 +811,16 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
         dropdownRectSyncRafIds = [];
     };
 
-    const scheduleDropdownRectSync = () => {
+    const scheduleDropdownRectSync = (menu: OpenMiniDropdownMenu | null) => {
         if (typeof window === "undefined") return;
         cancelDropdownRectSync();
+        const rectId = dropdownRectId();
+        const dropdownElement = openDropdownMenuRef;
 
         const scheduleFrame = (remainingFrames: number) => {
             const rafId = window.requestAnimationFrame(() => {
                 dropdownRectSyncRafIds = dropdownRectSyncRafIds.filter((item) => item !== rafId);
-                if (!syncOpenDropdownRect() && remainingFrames > 0) {
+                if (!syncOpenDropdownRect(menu, rectId, dropdownElement) && remainingFrames > 0) {
                     scheduleFrame(remainingFrames - 1);
                 }
             });
@@ -842,14 +834,14 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
         const menu = openDropdownMenu();
         if (typeof window === "undefined" || !menu) return;
 
-        scheduleDropdownRectSync();
-        const handleResize = () => scheduleDropdownRectSync();
+        scheduleDropdownRectSync(menu);
+        const handleResize = () => scheduleDropdownRectSync(menu);
         window.addEventListener("resize", handleResize);
 
         onCleanup(() => {
             cancelDropdownRectSync();
             window.removeEventListener("resize", handleResize);
-            removeRect(dropdownRectId);
+            removeRect(dropdownRectId());
             void syncService.updateBackendRects();
         });
     });
@@ -1050,7 +1042,7 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
                 "border-white/10 bg-black/35 text-white/75 hover:border-white/25 hover:bg-white/10": !fieldProps.enabled,
             }}
             title={fieldProps.title}
-            onClick={fieldProps.onToggle}
+            onClick={() => fieldProps.onToggle()}
         >
             <fieldProps.Icon class="h-3.5 w-3.5" />
         </button>
@@ -1085,7 +1077,7 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
                 "border-white/10 bg-black/35 text-white/75 hover:border-white/25 hover:bg-white/10": !fieldProps.enabled,
             }}
             title={fieldProps.title}
-            onClick={fieldProps.onToggle}
+            onClick={() => fieldProps.onToggle()}
         >
             <fieldProps.Icon class="h-3.5 w-3.5 shrink-0" />
             <span
@@ -1550,7 +1542,7 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
                         <div
                             ref={(element) => {
                                 openDropdownMenuRef = element;
-                                syncOpenDropdownRect();
+                                syncOpenDropdownRect(menu(), dropdownRectId(), element);
                             }}
                             data-top-strip-menu="true"
                             data-top-strip-property-popup="true"

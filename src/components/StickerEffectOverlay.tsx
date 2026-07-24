@@ -1,4 +1,4 @@
-import { Show, type Component } from "solid-js";
+import { Match, Show, Switch, createMemo, type Component } from "solid-js";
 
 import { BLUR_EFFECT_OVERLAY_FILL, buildMosaicTextureDataUrl } from "../services/stickerEffects";
 import type { StickerPoint } from "../types/stickerEditing";
@@ -125,91 +125,96 @@ const EffectStrokeBrush: Component<{
     idSeed: string;
     draft?: boolean;
 }> = (props) => {
-    if (props.effectType === "mosaic") {
-        const patternId = `${props.idSeed}-mosaic-pattern`;
-        // The "strength" slider sets the cell size. Build the full non-repeating
-        // mosaic-grid texture once for this stroke; it never samples the image, so
-        // there is zero risk of leaking content.
-        const cell = Math.max(2, Math.round(props.strength || 12));
-        const textureSrc = buildMosaicTextureDataUrl(props.imageW, props.imageH, cell);
-        return (
-            <g opacity={props.draft ? 0.95 : 1}>
-                <Show
-                    when={textureSrc}
-                    fallback={
-                        <path
-                            d={props.pathData()}
-                            stroke="#808a96"
-                            stroke-width={props.brushWidth}
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            fill="none"
-                        />
-                    }
-                >
-                    {(src) => (
-                        <>
-                            <MosaicGridDefs
-                                patternId={patternId}
-                                textureSrc={src()}
-                                imageW={props.imageW}
-                                imageH={props.imageH}
-                            />
+    const isMosaic = createMemo(() => props.effectType === "mosaic");
+    const opacity = createMemo(() => (props.draft ? 0.95 : 1));
+    const mosaicPatternId = createMemo(() => `${props.idSeed}-mosaic-pattern`);
+    const blurFilterId = createMemo(() => `${props.idSeed}-blur-filter`);
+    const blurPatternId = createMemo(() => `${props.idSeed}-blur-pattern`);
+    // The "strength" slider sets the cell size. Build the full non-repeating
+    // mosaic-grid texture once for this stroke; it never samples the image, so
+    // there is zero risk of leaking content.
+    const mosaicTextureSrc = createMemo(() =>
+        buildMosaicTextureDataUrl(props.imageW, props.imageH, Math.max(2, Math.round(props.strength || 12))),
+    );
+    const blurRadius = createMemo(() => Math.max(0.1, props.strength || 8));
+
+    return (
+        <Switch>
+            <Match when={isMosaic()}>
+                <g opacity={opacity()}>
+                    <Show
+                        when={mosaicTextureSrc()}
+                        fallback={
                             <path
                                 d={props.pathData()}
-                                stroke={`url(#${patternId})`}
+                                stroke="#808a96"
                                 stroke-width={props.brushWidth}
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
                                 fill="none"
                             />
-                        </>
-                    )}
-                </Show>
-            </g>
-        );
-    }
-
-    const filterId = `${props.idSeed}-blur-filter`;
-    const patternId = `${props.idSeed}-blur-pattern`;
-    const blurRadius = Math.max(0.1, props.strength || 8);
-    return (
-        <g opacity={props.draft ? 0.95 : 1}>
-            <Show
-                when={props.imageSrc}
-                fallback={
-                    <path
-                        d={props.pathData()}
-                        stroke={BLUR_EFFECT_OVERLAY_FILL}
-                        stroke-width={props.brushWidth}
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        fill="none"
-                    />
-                }
-            >
-                {(src) => (
-                    <>
-                        <BlurPatternDefs
-                            filterId={filterId}
-                            patternId={patternId}
-                            blurRadius={blurRadius}
-                            imageSrc={src()}
-                            imageW={props.imageW}
-                            imageH={props.imageH}
-                        />
-                        <path
-                            d={props.pathData()}
-                            stroke={`url(#${patternId})`}
-                            stroke-width={props.brushWidth}
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            fill="none"
-                        />
-                    </>
-                )}
-            </Show>
-        </g>
+                        }
+                    >
+                        {(src) => (
+                            <>
+                                <MosaicGridDefs
+                                    patternId={mosaicPatternId()}
+                                    textureSrc={src()}
+                                    imageW={props.imageW}
+                                    imageH={props.imageH}
+                                />
+                                <path
+                                    d={props.pathData()}
+                                    stroke={`url(#${mosaicPatternId()})`}
+                                    stroke-width={props.brushWidth}
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    fill="none"
+                                />
+                            </>
+                        )}
+                    </Show>
+                </g>
+            </Match>
+            <Match when={true}>
+                <g opacity={opacity()}>
+                    <Show
+                        when={props.imageSrc}
+                        fallback={
+                            <path
+                                d={props.pathData()}
+                                stroke={BLUR_EFFECT_OVERLAY_FILL}
+                                stroke-width={props.brushWidth}
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                fill="none"
+                            />
+                        }
+                    >
+                        {(src) => (
+                            <>
+                                <BlurPatternDefs
+                                    filterId={blurFilterId()}
+                                    patternId={blurPatternId()}
+                                    blurRadius={blurRadius()}
+                                    imageSrc={src()}
+                                    imageW={props.imageW}
+                                    imageH={props.imageH}
+                                />
+                                <path
+                                    d={props.pathData()}
+                                    stroke={`url(#${blurPatternId()})`}
+                                    stroke-width={props.brushWidth}
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    fill="none"
+                                />
+                            </>
+                        )}
+                    </Show>
+                </g>
+            </Match>
+        </Switch>
     );
 };
 

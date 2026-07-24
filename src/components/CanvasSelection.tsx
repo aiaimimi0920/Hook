@@ -42,8 +42,7 @@ export const CanvasSelection: Component = () => {
                             "border-color": "#FFFF00",
                             "background-color": "rgba(255, 255, 0, 0.3)"
                         }}
-                    >
-                    </div>
+                    />
                 </Show>
             </Show>
         </div>

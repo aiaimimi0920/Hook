@@ -395,7 +395,7 @@ export interface ShapeBox {
     h: number;
 }
 
-export interface AnnotationBounds extends ShapeBox {}
+export type AnnotationBounds = ShapeBox;
 
 export interface AnnotationScale {
     x: number;

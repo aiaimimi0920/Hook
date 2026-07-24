@@ -27,10 +27,10 @@ describe("top strip property dropdown contract", () => {
   it("keeps the property dropdown protected after the portal ref mounts and keeps wheel input inside the font list", () => {
     const propertyBarSource = readSource("src/components/StickerTopStripPropertyBar.tsx");
 
-    expect(propertyBarSource).toContain("const syncOpenDropdownRect = () =>");
+    expect(propertyBarSource).toContain("const syncOpenDropdownRect = (");
     expect(propertyBarSource).toContain("ref={(element) => {");
     expect(propertyBarSource).toContain("openDropdownMenuRef = element;");
-    expect(propertyBarSource).toContain("syncOpenDropdownRect();");
+    expect(propertyBarSource).toContain("syncOpenDropdownRect(menu(), dropdownRectId(), element);");
     expect(propertyBarSource).toContain("scheduleDropdownRectSync");
     expect(propertyBarSource).toContain("pointer-events-auto fixed z-[1305]");
     expect(propertyBarSource).toContain("onWheel={(event) => event.stopPropagation()}");
@@ -41,10 +41,10 @@ describe("top strip property dropdown contract", () => {
     const topStripSource = readSource("src/components/StickerTopStrip.tsx");
 
     expect(topStripSource).toContain('name: "STICKER_TOP_STRIP_MENU"');
-    expect(topStripSource).toContain("const syncOpenToolbarMenuRect = () =>");
+    expect(topStripSource).toContain("const syncOpenToolbarMenuRect = (");
     expect(topStripSource).toContain('querySelector<HTMLElement>("[data-top-strip-menu=\'true\']")');
-    expect(topStripSource).toContain("const scheduleOpenToolbarMenuRectSync = () =>");
-    expect(topStripSource).toContain("removeRect(openMenuRectId);");
+    expect(topStripSource).toContain("const scheduleOpenToolbarMenuRectSync = (");
+    expect(topStripSource).toContain("removeRect(openMenuRectId());");
     expect(topStripSource).toContain("hook-toolbar-menu pointer-events-auto");
     expect(topStripSource).toContain("onWheel={(event) => event.stopPropagation()}");
     expect(topStripSource).toContain("onPointerMove={(event) => event.stopPropagation()}");

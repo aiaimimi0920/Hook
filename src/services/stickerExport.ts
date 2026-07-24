@@ -398,7 +398,6 @@ export const renderStickerCompositeWithAnnotations = async (
 
     const image = await loadImage(baseSrc);
     const cropRect = unit.data.imageEditState?.cropRect;
-    const sourceSize = unit.data.imageEditState?.sourceSize || { w: image.width, h: image.height };
     const renderWidth = Math.max(1, Math.round(unit.w));
     const renderHeight = Math.max(1, Math.round(unit.h));
 

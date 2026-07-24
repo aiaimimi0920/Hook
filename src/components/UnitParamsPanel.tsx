@@ -76,7 +76,6 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
   };
 
   // --- Helpers ---
-  const isParamDisabled = (paramId: string) => props.params[paramId] === DISABLED_PREFIX;
   const isParamLinked = (paramId: string) => !!props.connectedLinks?.some((link) => link.toPortId === paramId);
   const effectiveParams = createMemo(() =>
       resolveEffectiveNodeParams({
@@ -403,7 +402,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
         {/* Background */}
         <div
             class="hook-terminal-shell hook-terminal-shell--strong absolute inset-0 z-[-5] pointer-events-none"
-        ></div>
+        />
 
         <UnitActionsMenu
             unitId={props.unit.id}
@@ -429,7 +428,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                         return (
                             <div class="flex items-center gap-3 w-full h-6 relative group" style={isDisabled() ? { opacity: 0.5 } : {}}>
                                 <Show when={isDisabled()}>
-                                    <div class="absolute top-1/2 left-0 right-0 h-[2px] bg-red-500 z-[60] pointer-events-none"></div>
+                                    <div class="absolute top-1/2 left-0 right-0 h-[2px] bg-red-500 z-[60] pointer-events-none" />
                                 </Show>
                                 <div
                                     class="absolute w-6 h-6 rounded-full border border-white/50 shadow-sm cursor-pointer hover:scale-110 transition-transform z-[50]"
@@ -441,7 +440,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                                     onMouseDown={(e) => { e.stopPropagation(); if (props.onLinkMove) props.onLinkMove(input.name, e); }}
                                     onMouseUp={(e) => { e.stopPropagation(); props.onLinkDrop(input.name); }}
                                     onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); toggleParamDisabled(input.name); }}
-                                ></div>
+                                />
                                 <span class="font-bold text-[11px] truncate relative z-10 drop-shadow-md cursor-context-menu"
                                     style={{ color: '#FFFFFF', "max-width": "120px" }}
                                     title={`${input.label || input.name} (Right-click to disable)`}
@@ -483,7 +482,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                         );
                     }}
                  </For>
-                 <div class="h-px bg-white/5 my-1"></div>
+                  <div class="h-px bg-white/5 my-1" />
              </div>
         </Show>
 
@@ -495,7 +494,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                          const isDisabled = () => props.params[output.name] === DISABLED_PREFIX;
                          return (
                              <div class="flex items-center justify-end gap-3 w-full h-6 relative group" style={isDisabled() ? { opacity: 0.5 } : {}}>
-                                 <Show when={isDisabled()}><div class="absolute top-1/2 left-0 right-0 h-[2px] bg-red-500 z-[60] pointer-events-none"></div></Show>
+                                 <Show when={isDisabled()}><div class="absolute top-1/2 left-0 right-0 h-[2px] bg-red-500 z-[60] pointer-events-none" /></Show>
                                  <div class="absolute w-6 h-6 rounded-full border border-white/50 shadow-sm cursor-cell hover:scale-110 transition-transform z-[50]"
                                      style={{ "background-color": "#10b981", right: "-27px" }}
                                      data-port-type="output"
@@ -504,7 +503,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                                      ref={(el) => registerPanelPort(el, output.name)}
                                      onMouseDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); props.onLinkStart(output.name, e.clientX, e.clientY); }}
                                      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); toggleParamDisabled(output.name); }}
-                                 ></div>
+                                  />
                                  <button class={`w-4 h-4 flex items-center justify-center rounded hover:bg-white/10 transition-colors mr-1 ${isPortVisible(output.name) ? "text-white/50" : "text-white/20"}`}
                                      onClick={(e) => { e.stopPropagation(); togglePortVisibility(output.name); }}>
                                      <Show when={isPortVisible(output.name)} fallback={<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>}>
@@ -519,7 +518,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                          );
                      }}
                  </For>
-                 <div class="h-px bg-white/5 my-1"></div>
+                  <div class="h-px bg-white/5 my-1" />
              </div>
         </Show>
 
@@ -610,7 +609,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
              </div>
 
              <Show when={props.unit.type === 'sticker'}>
-                 <div class="h-px w-full bg-white/10 my-2"></div>
+                  <div class="h-px w-full bg-white/10 my-2" />
                  <label class="flex items-center justify-between gap-2 cursor-pointer select-none group">
                      <span class="text-[11px] leading-4" style={{ color: "var(--text-secondary)", opacity: "0.9" }}>接受上级贴图编辑传导</span>
                      <input
@@ -629,7 +628,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                  </Show>
              </Show>
 
-             <div class="h-px w-full bg-white/10 my-2"></div>
+              <div class="h-px w-full bg-white/10 my-2" />
 
              <button
                  class={`hook-terminal-btn w-full flex items-center justify-center gap-2 h-7 text-[11px] font-medium transition-all ${displaySrc() ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}
@@ -675,7 +674,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
              >
                  <div class="flex items-center justify-between mb-2">
                      <span class="text-xs font-bold text-white/90 uppercase tracking-wider">Edit Text</span>
-                     <button class="text-white/40 hover:text-white transition-colors" onClick={() => setEditingTextId(null)}><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                      <button class="text-white/40 hover:text-white transition-colors" onClick={() => setEditingTextId(null)}><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
                  </div>
                  <textarea class="hook-terminal-input w-full h-[150px] p-3 text-[11px] leading-relaxed resize-y min-h-[100px] scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent font-mono mb-3"
                      value={tempText()} onInput={(e) => setTempText(e.currentTarget.value)} placeholder="Enter text..." autofocus

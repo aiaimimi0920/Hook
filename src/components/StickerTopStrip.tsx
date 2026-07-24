@@ -419,17 +419,21 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
     const [currentHistoryAction, setCurrentHistoryAction] = createSignal<HistoryActionMode>("undo");
     const [currentRasterizeScope, setCurrentRasterizeScope] = createSignal<StickerRasterizeScope>("selected");
     let stripRef: HTMLDivElement | undefined;
-    const openMenuRectId = `sticker-top-strip-menu-${props.unitId}`;
+    const openMenuRectId = () => `sticker-top-strip-menu-${props.unitId}`;
     let openMenuRectSyncRafIds: number[] = [];
 
-    const syncOpenToolbarMenuRect = () => {
-        if (!openMenu() || !stripRef) return false;
-        const menuElement = stripRef.querySelector<HTMLElement>("[data-top-strip-menu='true']");
+    const syncOpenToolbarMenuRect = (
+        menu: TopStripOpenMenu,
+        menuRectId: string,
+        stripElement: HTMLDivElement | undefined,
+    ) => {
+        if (!menu || !stripElement) return false;
+        const menuElement = stripElement.querySelector<HTMLElement>("[data-top-strip-menu='true']");
         if (!menuElement) return false;
 
         const bounds = menuElement.getBoundingClientRect();
         addOrUpdateRect({
-            id: openMenuRectId,
+            id: menuRectId,
             x: bounds.left,
             y: bounds.top,
             width: bounds.width,
@@ -447,14 +451,16 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
         openMenuRectSyncRafIds = [];
     };
 
-    const scheduleOpenToolbarMenuRectSync = () => {
+    const scheduleOpenToolbarMenuRectSync = (menu: TopStripOpenMenu) => {
         if (typeof window === "undefined") return;
         cancelOpenToolbarMenuRectSync();
+        const stripElement = stripRef;
+        const menuRectId = openMenuRectId();
 
         const scheduleFrame = (remainingFrames: number) => {
             const rafId = window.requestAnimationFrame(() => {
                 openMenuRectSyncRafIds = openMenuRectSyncRafIds.filter((item) => item !== rafId);
-                if (!syncOpenToolbarMenuRect() && remainingFrames > 0) {
+                if (!syncOpenToolbarMenuRect(menu, menuRectId, stripElement) && remainingFrames > 0) {
                     scheduleFrame(remainingFrames - 1);
                 }
             });
@@ -502,21 +508,22 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
 
     createEffect(() => {
         if (typeof window === "undefined") return;
+        const menu = openMenu();
 
-        if (!openMenu()) {
-            removeRect(openMenuRectId);
+        if (!menu) {
+            removeRect(openMenuRectId());
             void syncService.updateBackendRects();
             return;
         }
 
-        scheduleOpenToolbarMenuRectSync();
-        const handleResize = () => scheduleOpenToolbarMenuRectSync();
+        scheduleOpenToolbarMenuRectSync(menu);
+        const handleResize = () => scheduleOpenToolbarMenuRectSync(menu);
         window.addEventListener("resize", handleResize);
 
         onCleanup(() => {
             cancelOpenToolbarMenuRectSync();
             window.removeEventListener("resize", handleResize);
-            removeRect(openMenuRectId);
+            removeRect(openMenuRectId());
             void syncService.updateBackendRects();
         });
     });
@@ -705,10 +712,11 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
         layout();
         openMenu();
         if (draggingThisSticker()) return;
+        const currentUnitId = props.unitId;
 
         const rafId = window.requestAnimationFrame(() => {
             if (!stripRef) return;
-            addOrUpdateRect(buildStripInteractiveRect(stripRef, props.unitId));
+            addOrUpdateRect(buildStripInteractiveRect(stripRef, currentUnitId));
             void syncService.updateBackendRects();
         });
 
@@ -717,7 +725,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
 
     onCleanup(() => {
         removeRect(`sticker-top-strip-${props.unitId}`);
-        removeRect(openMenuRectId);
+        removeRect(openMenuRectId());
         void syncService.updateBackendRects();
     });
 

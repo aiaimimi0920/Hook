@@ -492,7 +492,7 @@ const saveBrowserPreviewSession = (
             BROWSER_SESSION_STORAGE_KEY,
             JSON.stringify({ stickers, links, groups, recycleBin, referenceLibrary }),
         );
-    } catch (error) {
+    } catch {
         try {
             const compact = compactBrowserPreviewSession(
                 stickers,

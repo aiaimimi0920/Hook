@@ -23,11 +23,11 @@ export const UnitActionsMenu: Component<UnitActionsMenuProps> = (props) => {
             style={{ flex: 3 }}
         >
                 {/* Border Separator (Absolute Right) */}
-                <div class="absolute right-0 top-3 bottom-3 w-[1px] bg-white/5"></div>
+                <div class="absolute right-0 top-3 bottom-3 w-[1px] bg-white/5" />
 
                 {/* Content with Margin */}
             <div class="hook-actions-shell__title ml-3 max-w-[calc(100%-24px)]">
-                <span class="hook-actions-shell__dot"></span>
+                <span class="hook-actions-shell__dot" />
                 <span
                     class="font-bold text-[10px] uppercase tracking-widest text-shadow-sm whitespace-nowrap truncate"
                     style={{ color: "inherit" }}
@@ -53,7 +53,7 @@ export const UnitActionsMenu: Component<UnitActionsMenuProps> = (props) => {
                 onDblClick={(e) => e.stopPropagation()}
                 title="单次触发执行"
             >
-                <div class="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div class="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
 
                 {/* Small Play Icon */}
                 <svg class="w-3 h-3 fill-current shrink-0" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -77,7 +77,7 @@ export const UnitActionsMenu: Component<UnitActionsMenuProps> = (props) => {
                 onDblClick={(e) => e.stopPropagation()}
                 title="展开设置"
             >
-                <div class="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <div class="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                 {/* Right Arrow Icon */}
                 <svg
                     class="w-4 h-4 transition-transform group-hover:text-white"
