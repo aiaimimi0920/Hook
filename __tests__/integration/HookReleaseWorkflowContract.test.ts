@@ -36,10 +36,10 @@ describe("Hook release workflow contract", () => {
     // Toolchain is pinned to an exact version (not the floating @stable) so
     // release builds stay reproducible.
     expect(workflowSource).toContain("uses: dtolnay/rust-toolchain@1.95.0");
-    // Release packaging intentionally stays build-only; the previous verify
-    // gate was removed because the test suite is not yet CI-stable enough to
-    // block user-downloadable exe publishing.
-    expect(workflowSource).not.toContain("needs: verify");
+    expect(workflowSource).toContain("run: npm run typecheck");
+    expect(workflowSource).toContain("run: npm test");
+    expect(workflowSource).toContain("run: cargo fmt --check");
+    expect(workflowSource).toContain("run: cargo test");
   });
 
   it("publishes both the portable zip and the signed UIAccess installer zip when release signing is configured", () => {
@@ -53,6 +53,9 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource).toContain("package-release-zip.ps1");
     expect(workflowSource).toContain("Resolve release tag");
     expect(workflowSource).toContain("uses: softprops/action-gh-release@v3");
+    expect(workflowSource.indexOf("run: npm run typecheck")).toBeLessThan(
+      workflowSource.indexOf("Build portable Hook EXE"),
+    );
     expect(workflowSource).toContain("working_directory: release/Hook");
     expect(workflowSource).toContain("files:");
     expect(workflowSource).toContain("hook-windows-x64-${{ env.HOOK_TAG }}.zip");

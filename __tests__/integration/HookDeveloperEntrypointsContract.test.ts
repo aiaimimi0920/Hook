@@ -21,12 +21,20 @@ describe("Hook developer entrypoints contract", () => {
 
     expect(verifyScript).toContain("npm run typecheck");
     expect(verifyScript).toContain("npm test");
+    expect(verifyScript).toContain("cargo fmt --check");
+    expect(verifyScript).toContain("cargo test");
     expect(verifyScript).toContain("npm run build");
     expect(verifyScript).toContain("build-hook-release.bat");
     expect(verifyScript.indexOf("npm run typecheck")).toBeLessThan(
       verifyScript.indexOf("npm test"),
     );
     expect(verifyScript.indexOf("npm test")).toBeLessThan(
+      verifyScript.indexOf("cargo fmt --check"),
+    );
+    expect(verifyScript.indexOf("cargo fmt --check")).toBeLessThan(
+      verifyScript.indexOf("cargo test"),
+    );
+    expect(verifyScript.indexOf("cargo test")).toBeLessThan(
       verifyScript.indexOf("npm run build"),
     );
     expect(verifyScript.indexOf("npm run build")).toBeLessThan(

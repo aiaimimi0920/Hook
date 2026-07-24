@@ -26,4 +26,17 @@ describe("Hook workflow compatibility contract", () => {
         expect(workflowSource).toContain("- main");
         expect(workflowSource).not.toContain("tags:");
     });
+
+    it("runs type, frontend, and Rust verification before packaging the portable build", () => {
+        expect(workflowSource).toContain("run: npm run typecheck");
+        expect(workflowSource).toContain("run: npm test");
+        expect(workflowSource).toContain("run: cargo fmt --check");
+        expect(workflowSource).toContain("run: cargo test");
+        expect(workflowSource.indexOf("run: npm run typecheck")).toBeLessThan(
+            workflowSource.indexOf("Build portable Hook EXE"),
+        );
+        expect(workflowSource.indexOf("run: cargo test")).toBeLessThan(
+            workflowSource.indexOf("Build portable Hook EXE"),
+        );
+    });
 });

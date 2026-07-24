@@ -35,6 +35,20 @@ jobs:
       - name: Install npm dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Rust format check
+        working-directory: src-tauri
+        run: cargo fmt --check
+
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test
+
       - name: Build portable Hook EXE
         shell: powershell
         run: |

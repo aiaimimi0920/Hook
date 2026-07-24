@@ -13,9 +13,9 @@
 ### Task 1: Lock the regression contract before more code changes
 
 **Files:**
-- Modify: `C:/Users/Public/nas_home/AI/GameEditor/Neuro/Hook/__tests__/integration/HookMemoryBaselineContract.test.ts`
-- Modify: `C:/Users/Public/nas_home/AI/GameEditor/Neuro/Hook/__tests__/services/imageSource.test.ts`
-- Test: `C:/Users/Public/nas_home/AI/GameEditor/Neuro/Hook/node_modules/.bin/vitest.cmd`
+- Modify: `<hook-repo-root>/__tests__/integration/HookMemoryBaselineContract.test.ts`
+- Modify: `<hook-repo-root>/__tests__/services/imageSource.test.ts`
+- Test: `<hook-repo-root>/node_modules/.bin/vitest.cmd`
 
 - [ ] **Step 1: Extend the failing contract tests**
 
@@ -51,8 +51,8 @@ Expected:
 ### Task 2: Keep session-restored file-backed stickers in path form on the Rust side
 
 **Files:**
-- Modify: `C:/Users/Public/nas_home/AI/GameEditor/Neuro/Hook/src-tauri/src/lib.rs`
-- Test: `C:/Users/Public/nas_home/AI/GameEditor/Neuro/Hook/src-tauri/src/lib.rs`
+- Modify: `<hook-repo-root>/src-tauri/src/lib.rs`
+- Test: `<hook-repo-root>/src-tauri/src/lib.rs`
 
 - [ ] **Step 1: Keep the Rust-side restore helper focused on validation, not re-encoding**
 
@@ -109,12 +109,12 @@ Expected:
 ### Task 3: Normalize local file-backed image sources only at frontend display-time
 
 **Files:**
-- Create: `C:/Users/Public/nas_home/AI/GameEditor/Neuro/Hook/src/services/imageSource.ts`
-- Modify: `C:/Users/Public/nas_home/AI/GameEditor/Neuro/Hook/src/app.tsx`
-- Modify: `C:/Users/Public/nas_home/AI/GameEditor/Neuro/Hook/src/services/stickerCanvas.ts`
-- Modify: `C:/Users/Public/nas_home/AI/GameEditor/Neuro/Hook/src/components/UnitView.tsx`
-- Modify: `C:/Users/Public/nas_home/AI/GameEditor/Neuro/Hook/src/components/UnitParamsPanel.tsx`
-- Modify: `C:/Users/Public/nas_home/AI/GameEditor/Neuro/Hook/src/components/StickerSnapshotListPanel.tsx`
+- Create: `<hook-repo-root>/src/services/imageSource.ts`
+- Modify: `<hook-repo-root>/src/app.tsx`
+- Modify: `<hook-repo-root>/src/services/stickerCanvas.ts`
+- Modify: `<hook-repo-root>/src/components/UnitView.tsx`
+- Modify: `<hook-repo-root>/src/components/UnitParamsPanel.tsx`
+- Modify: `<hook-repo-root>/src/components/StickerSnapshotListPanel.tsx`
 
 - [ ] **Step 1: Keep the image source normalizer small and display-only**
 
