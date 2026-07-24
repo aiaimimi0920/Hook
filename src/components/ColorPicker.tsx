@@ -1,4 +1,4 @@
-import { Component, createSignal, createEffect, onMount, onCleanup, For, Show } from "solid-js";
+import { Component, createSignal, createEffect, onMount, onCleanup, For, Show, untrack } from "solid-js";
 
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import { syncService } from "../services/syncService";
@@ -117,18 +117,15 @@ interface ColorPickerPropsExtended extends ColorPickerProps {
 }
 
 export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
-    const initial = hexToRgb(props.value);
-    const initialHsv = rgbToHsv(initial.r, initial.g, initial.b);
-
-    const [hue, setHue] = createSignal(initialHsv.h);
-    const [saturation, setSaturation] = createSignal(initialHsv.s);
-    const [value, setValue] = createSignal(initialHsv.v);
-    const [alpha, setAlpha] = createSignal(initial.a);
+    const [hue, setHue] = createSignal(0);
+    const [saturation, setSaturation] = createSignal(0);
+    const [value, setValue] = createSignal(0);
+    const [alpha, setAlpha] = createSignal(1);
     const [selectedPaletteColor, setSelectedPaletteColor] = createSignal<string | null>(null);
     // Draft text for the editable hex field. Decoupled from the color state so the
     // user can type partial/intermediate values (e.g. while entering an 8-digit
     // alpha hex) without the field snapping back to a fallback color.
-    const [hexDraft, setHexDraft] = createSignal(props.value);
+    const [hexDraft, setHexDraft] = createSignal("");
     const [hexEditing, setHexEditing] = createSignal(false);
 
     let svPickerRef: HTMLDivElement | undefined;
@@ -159,9 +156,20 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
         setAlpha(parsed.a);
     };
 
+    const syncFromExternalValue = (nextValue: string) => {
+        loadColor(nextValue);
+        if (!untrack(hexEditing)) {
+            setHexDraft(nextValue);
+        }
+    };
+
     // Keep the hex field in sync with the color state when the change originates
     // from elsewhere (sliders, SV picker, palette), but never while the user is
     // actively typing in the field.
+    createEffect(() => {
+        syncFromExternalValue(props.value);
+    });
+
     createEffect(() => {
         const color = currentColor();
         if (!hexEditing()) {
@@ -365,7 +373,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
     return (
         <div
             class="fixed inset-0 z-[10001]"
-            onClick={props.onClose}
+            onClick={() => props.onClose()}
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
         >
@@ -381,7 +389,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                     <span class="text-sm font-semibold text-white">颜色选择器</span>
                     <button
                         class="text-white/60 hover:text-white"
-                        onClick={props.onClose}
+                        onClick={() => props.onClose()}
                     >
                         ✕
                     </button>

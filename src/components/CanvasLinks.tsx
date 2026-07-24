@@ -13,6 +13,30 @@ import {
 import { portOffsets } from "../services/uiRegistry";
 import { calculatePortY } from "../utils/graphUtils";
 
+type LinkRenderPath = {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    dashed: boolean;
+    color: string;
+};
+
+type OverlayLinkHighlight = {
+    source: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+    };
+    target: {
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+    };
+};
+
 export const CanvasLinks: Component = () => {
     // Computations
     const renderPaths = createMemo(() => {
@@ -30,7 +54,7 @@ export const CanvasLinks: Component = () => {
 
              if (!sFrom || !sTo) return [];
 
-             const paths: any[] = [];
+             const paths: LinkRenderPath[] = [];
 
              // TRANSIENT DRAG STATE OVERRIDE
              const currFrom = (dPositions && dPositions[sFrom.id])
@@ -104,6 +128,74 @@ export const CanvasLinks: Component = () => {
         });
     });
 
+    const selectedOverlayLinks = createMemo<OverlayLinkHighlight[]>(() => {
+        if (isCleanView()) {
+            return [];
+        }
+
+        const id = selectedStickerId();
+        if (!id) {
+            return [];
+        }
+
+        const source = graphStore.units.find((unit) => unit.id === id);
+        if (!source) {
+            return [];
+        }
+
+        const params = graphStore.unitParams[id] ?? {};
+        return Object.values(params)
+            .filter((value): value is string => typeof value === "string" && value.length > 0 && !value.startsWith("data:"))
+            .map((targetId) => graphStore.units.find((unit) => unit.id === targetId))
+            .filter((target): target is NonNullable<typeof target> => !!target)
+            .map((target) => ({
+                source: {
+                    x: source.x,
+                    y: source.y,
+                    w: source.w,
+                    h: source.h,
+                },
+                target: {
+                    x: target.x,
+                    y: target.y,
+                    w: target.w,
+                    h: target.h,
+                },
+            }));
+    });
+
+    const hoverPreviewLink = createMemo<OverlayLinkHighlight | null>(() => {
+        if (isCleanView()) {
+            return null;
+        }
+
+        const { sourceUnitId, targetUnitId } = hoveringLink();
+        if (!sourceUnitId || !targetUnitId) {
+            return null;
+        }
+
+        const source = graphStore.units.find((unit) => unit.id === sourceUnitId);
+        const target = graphStore.units.find((unit) => unit.id === targetUnitId);
+        if (!source || !target) {
+            return null;
+        }
+
+        return {
+            source: {
+                x: source.x,
+                y: source.y,
+                w: source.w,
+                h: source.h,
+            },
+            target: {
+                x: target.x,
+                y: target.y,
+                w: target.w,
+                h: target.h,
+            },
+        };
+    });
+
     return (
       <svg
         class="absolute inset-0 pointer-events-none z-[60] overflow-visible"
@@ -144,95 +236,61 @@ export const CanvasLinks: Component = () => {
 
         {/* SELECTED UNIT LINKS OVERLAY */}
         {/* Only show in Normal View to avoid clutter in Clean View */}
-        <Show when={selectedStickerId() && !isCleanView()}>
-             {(() => {
-                 const id = selectedStickerId();
-                 if (!id) return null;
-                 const u = graphStore.units.find(s => s.id === id);
-                 const params = graphStore.unitParams[id] ?? {};
-                 const links: { targetId: string }[] = [];
-
-                 Object.values(params).forEach(val => {
-                     if (typeof val === 'string' && val.length > 0 && !val.startsWith("data:")) {
-                         if (graphStore.units.some(s => s.id === val)) {
-                             links.push({ targetId: val });
-                         }
-                     }
-                 });
-
-                 return (
-                     <For each={links}>
-                         {(link) => {
-                             const sFrom = u;
-                             const sTo = graphStore.units.find(s => s.id === link.targetId);
-
-                             if (!sFrom || !sTo) return null;
-
-                             return (
-                                 <>
-                                     <line
-                                         x1={sFrom.x + sFrom.w / 2}
-                                         y1={sFrom.y + sFrom.h / 2}
-                                         x2={sTo.x + sTo.w / 2}
-                                         y2={sTo.y + sTo.h / 2}
-                                         stroke="#FEF08A"
-                                         stroke-width="1.5"
-                                         stroke-dasharray="4,4"
-                                         opacity="0.5"
-                                     />
-                                     <rect
-                                         x={sTo.x - 2}
-                                         y={sTo.y - 2}
-                                         width={sTo.w + 4}
-                                         height={sTo.h + 4}
-                                         fill="none"
-                                         stroke="#FEF08A"
-                                         stroke-width="1.5"
-                                         stroke-dasharray="4,4"
-                                         rx="6"
-                                         opacity="0.5"
-                                     />
-                                 </>
-                             );
-                         }}
-                     </For>
-                 );
-             })()}
-        </Show>
+        <For each={selectedOverlayLinks()}>
+            {(link) => (
+                <>
+                    <line
+                        x1={link.source.x + link.source.w / 2}
+                        y1={link.source.y + link.source.h / 2}
+                        x2={link.target.x + link.target.w / 2}
+                        y2={link.target.y + link.target.h / 2}
+                        stroke="#FEF08A"
+                        stroke-width="1.5"
+                        stroke-dasharray="4,4"
+                        opacity="0.5"
+                    />
+                    <rect
+                        x={link.target.x - 2}
+                        y={link.target.y - 2}
+                        width={link.target.w + 4}
+                        height={link.target.h + 4}
+                        fill="none"
+                        stroke="#FEF08A"
+                        stroke-width="1.5"
+                        stroke-dasharray="4,4"
+                        rx="6"
+                        opacity="0.5"
+                    />
+                </>
+            )}
+        </For>
 
         {/* HOVERING LINK PREVIEW */}
-        <Show when={hoveringLink().sourceUnitId && hoveringLink().targetUnitId && !isCleanView()}>
-            {(() => {
-                const sFrom = graphStore.units.find(u => u.id === hoveringLink().sourceUnitId);
-                const sTo = graphStore.units.find(u => u.id === hoveringLink().targetUnitId);
-                if (sFrom && sTo) {
-                    return (
-                        <>
-                             <path
-                                d={`M ${sFrom.x + sFrom.w / 2} ${sFrom.y + sFrom.h / 2} C ${sFrom.x + sFrom.w / 2 + 50} ${sFrom.y + sFrom.h / 2}, ${sTo.x + sTo.w / 2 - 50} ${sTo.y + sTo.h / 2}, ${sTo.x + sTo.w / 2} ${sTo.y + sTo.h / 2}`}
-                                fill="none"
-                                stroke="#FACC15"
-                                stroke-width="2"
-                                stroke-dasharray="8,4"
-                                class="animate-pulse"
-                            />
-                            <rect
-                                x={sTo.x - 4}
-                                y={sTo.y - 4}
-                                width={sTo.w + 8}
-                                height={sTo.h + 8}
-                                fill="none"
-                                stroke="#FACC15"
-                                stroke-width="2"
-                                stroke-dasharray="8,4"
-                                rx="8"
-                                class="animate-pulse"
-                            />
-                        </>
-                    );
-                }
-                return null;
-            })()}
+        <Show when={hoverPreviewLink()}>
+            {(link) => (
+                <>
+                     <path
+                        d={`M ${link().source.x + link().source.w / 2} ${link().source.y + link().source.h / 2} C ${link().source.x + link().source.w / 2 + 50} ${link().source.y + link().source.h / 2}, ${link().target.x + link().target.w / 2 - 50} ${link().target.y + link().target.h / 2}, ${link().target.x + link().target.w / 2} ${link().target.y + link().target.h / 2}`}
+                        fill="none"
+                        stroke="#FACC15"
+                        stroke-width="2"
+                        stroke-dasharray="8,4"
+                        class="animate-pulse"
+                    />
+                    <rect
+                        x={link().target.x - 4}
+                        y={link().target.y - 4}
+                        width={link().target.w + 8}
+                        height={link().target.h + 8}
+                        fill="none"
+                        stroke="#FACC15"
+                        stroke-width="2"
+                        stroke-dasharray="8,4"
+                        rx="8"
+                        class="animate-pulse"
+                    />
+                </>
+            )}
         </Show>
       </svg>
     );
