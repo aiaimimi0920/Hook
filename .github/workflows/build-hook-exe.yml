@@ -24,6 +24,8 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          components: rustfmt
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
@@ -42,12 +44,10 @@ jobs:
         run: npm test
 
       - name: Rust format check
-        working-directory: src-tauri
-        run: cargo fmt --check
+        run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
 
       - name: Rust tests
-        working-directory: src-tauri
-        run: cargo test
+        run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Build portable Hook EXE
         shell: powershell

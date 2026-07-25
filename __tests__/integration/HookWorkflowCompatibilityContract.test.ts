@@ -28,6 +28,7 @@ describe("Hook workflow compatibility contract", () => {
     });
 
     it("runs type, frontend, and Rust verification before packaging the portable build", () => {
+        expect(workflowSource).toContain("components: rustfmt");
         expect(workflowSource).toContain("run: npm run typecheck");
         expect(workflowSource).toContain("run: npm test");
         expect(workflowSource).toContain("run: cargo fmt --check");
