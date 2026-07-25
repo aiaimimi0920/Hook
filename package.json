@@ -1,6 +1,6 @@
 {
   "name": "hook",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Windows-first Tauri desktop capture, sticker editing, and visual workflow workspace.",
   "type": "module",
   "author": "yamiyu",

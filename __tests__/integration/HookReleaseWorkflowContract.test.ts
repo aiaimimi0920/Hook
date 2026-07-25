@@ -38,8 +38,8 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource).toContain("uses: dtolnay/rust-toolchain@1.95.0");
     expect(workflowSource).toContain("run: npm run typecheck");
     expect(workflowSource).toContain("run: npm test");
-    expect(workflowSource).toContain("run: cargo fmt --check");
-    expect(workflowSource).toContain("run: cargo test");
+    expect(workflowSource).toContain("run: cargo fmt --check --manifest-path src-tauri/Cargo.toml");
+    expect(workflowSource).toContain("run: cargo test --manifest-path src-tauri/Cargo.toml");
   });
 
   it("publishes both the portable zip and the signed UIAccess installer zip when release signing is configured", () => {
