@@ -1,0 +1,60 @@
+import { describe, expect, it } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const propertyBarPath = resolve(process.cwd(), "src/components/StickerTopStripPropertyBar.tsx");
+const iconsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarIcons.tsx");
+
+const propertyBarSource = readFileSync(propertyBarPath, "utf8");
+const iconsExists = existsSync(iconsPath);
+const iconsSource = iconsExists ? readFileSync(iconsPath, "utf8") : "";
+
+describe("Hook sticker top strip property bar icon extraction contract", () => {
+    it("keeps the icon catalog in a dedicated helper module without re-inlining it into the property bar", () => {
+        expect(iconsExists).toBe(true);
+        expect(iconsSource).toContain("export type MiniIconProps");
+        expect(iconsSource).toContain("export const StrokeColorIcon");
+        expect(iconsSource).toContain("export const FillColorIcon");
+        expect(iconsSource).toContain("export const SquareConstraintGlyphIcon");
+        expect(iconsSource).toContain("export const StepIcon");
+        expect(iconsSource).toContain("export const LineWidthIcon");
+        expect(iconsSource).toContain("export const AngleSnapIcon");
+        expect(iconsSource).toContain("export const ArrowHeadIcon");
+        expect(iconsSource).toContain("export const BrushIcon");
+        expect(iconsSource).toContain("export const HighlighterGlowIcon");
+        expect(iconsSource).toContain("export const TextIcon");
+        expect(iconsSource).toContain("export const RadiusIcon");
+        expect(iconsSource).toContain("export const PolygonSidesIcon");
+        expect(iconsSource).toContain("export const BlurIcon");
+        expect(iconsSource).toContain("export const MosaicIcon");
+        expect(iconsSource).toContain("export const EraserIcon");
+        expect(iconsSource).toContain("export const AnnotationsOnlyFocusedIcon");
+        expect(iconsSource).toContain("export const FlipXIcon");
+        expect(iconsSource).toContain("export const FlipYIcon");
+        expect(iconsSource).toContain("export const ResetCropIcon");
+        expect(iconsSource).toContain("export const OpacityIcon");
+        expect(iconsSource).toContain("export const CanvasSizeIcon");
+        expect(propertyBarSource).toContain('from "./stickerTopStripPropertyBarIcons"');
+        expect(propertyBarSource).not.toContain("const StrokeColorIcon");
+        expect(propertyBarSource).not.toContain("const FillColorIcon");
+        expect(propertyBarSource).not.toContain("const SquareConstraintGlyphIcon");
+        expect(propertyBarSource).not.toContain("const StepIcon");
+        expect(propertyBarSource).not.toContain("const LineWidthIcon");
+        expect(propertyBarSource).not.toContain("const AngleSnapIcon");
+        expect(propertyBarSource).not.toContain("const ArrowHeadIcon");
+        expect(propertyBarSource).not.toContain("const BrushIcon");
+        expect(propertyBarSource).not.toContain("const HighlighterGlowIcon");
+        expect(propertyBarSource).not.toContain("const TextIcon");
+        expect(propertyBarSource).not.toContain("const RadiusIcon");
+        expect(propertyBarSource).not.toContain("const PolygonSidesIcon");
+        expect(propertyBarSource).not.toContain("const BlurIcon");
+        expect(propertyBarSource).not.toContain("const MosaicIcon");
+        expect(propertyBarSource).not.toContain("const EraserIcon");
+        expect(propertyBarSource).not.toContain("const AnnotationsOnlyFocusedIcon");
+        expect(propertyBarSource).not.toContain("const FlipXIcon");
+        expect(propertyBarSource).not.toContain("const FlipYIcon");
+        expect(propertyBarSource).not.toContain("const ResetCropIcon");
+        expect(propertyBarSource).not.toContain("const OpacityIcon");
+        expect(propertyBarSource).not.toContain("const CanvasSizeIcon");
+    });
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const clipboardSource = readFileSync(resolve(process.cwd(), "src/hooks/useClipboard.ts"), "utf8");
@@ -8,6 +8,10 @@ const apiSource = readFileSync(resolve(process.cwd(), "src/services/api.ts"), "u
 const exportSource = readFileSync(resolve(process.cwd(), "src/services/stickerExport.ts"), "utf8");
 const effectSource = readFileSync(resolve(process.cwd(), "src/services/stickerEffects.ts"), "utf8");
 const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStripPropertyBar.tsx"), "utf8");
+const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarSections.tsx");
+const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
+const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(propertyBarSectionsPath, "utf8") : "";
+const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
 
 describe("Hook sticker export contract", () => {
     it("routes copy/save of stickers through a composed export image instead of raw src bytes", () => {
@@ -18,7 +22,7 @@ describe("Hook sticker export contract", () => {
         expect(appSource).toContain("onSave: handleSave");
         expect(apiSource).toContain("saveStickerImage");
         expect(apiSource).toContain('"save_sticker_image"');
-        expect(propertyBarSource).toContain('title="重置裁剪"');
+        expect(propertyBarRenderSource).toContain('title="重置裁剪"');
         expect(effectSource).toContain("computeEffectSourceProjection");
         expect(effectSource).toContain("renderMosaicToCanvas");
         // Mosaic export paints a non-repeating grid of blue-gray cells (colored by

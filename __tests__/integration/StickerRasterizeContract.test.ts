@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const topStripSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStrip.tsx"), "utf8");
+const topStripCatalogPath = resolve(process.cwd(), "src/components/stickerTopStripCatalog.tsx");
+const topStripCatalogSource = existsSync(topStripCatalogPath) ? readFileSync(topStripCatalogPath, "utf8") : "";
+const topStripRenderSource = `${topStripSource}\n${topStripCatalogSource}`;
 const exportSource = readFileSync(resolve(process.cwd(), "src/services/stickerExport.ts"), "utf8");
 const rasterizeSource = readFileSync(resolve(process.cwd(), "src/services/stickerRasterize.ts"), "utf8");
 const rasterizeActionsSource = readFileSync(resolve(process.cwd(), "src/services/stickerRasterizeActions.ts"), "utf8");
@@ -17,8 +20,8 @@ const syncSource = readFileSync(resolve(process.cwd(), "src/services/syncService
 
 describe("Hook sticker rasterize contract", () => {
     it("exposes option C: rasterize the selected control or every editable control", () => {
-        expect(topStripSource).toContain("栅格化");
-        expect(topStripSource).toContain("栅格化全部");
+        expect(topStripRenderSource).toContain("栅格化");
+        expect(topStripRenderSource).toContain("栅格化全部");
         expect(topStripSource).toContain("selectedStickerAnnotationId");
         expect(topStripSource).toContain("runRasterizeAction");
         expect(topStripSource).toContain("rasterizeStickerAnnotationsForUnit");

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { isStickerSurfaceDoubleClickTarget } from "../../src/services/stickerDoubleClick";
+import {
+    isStickerSurfaceDoubleClickTarget,
+    resolveStickerSurfaceDoubleClickTarget,
+} from "../../src/services/stickerDoubleClick";
 
 const targetClosestTo = (closestResult: unknown): EventTarget =>
     ({
@@ -10,6 +13,15 @@ const targetClosestTo = (closestResult: unknown): EventTarget =>
     }) as unknown as EventTarget;
 
 describe("sticker double-click target guard", () => {
+    it("returns the closest sticker visual that belongs to the current unit container", () => {
+        const stickerVisual = {};
+        const container = {
+            contains: (node: unknown) => node === stickerVisual,
+        };
+
+        expect(resolveStickerSurfaceDoubleClickTarget(targetClosestTo(stickerVisual), container)).toBe(stickerVisual);
+    });
+
     it("allows double-click zoom only when the event target belongs to the sticker visual surface", () => {
         const stickerVisual = {};
         const container = {
@@ -33,6 +45,7 @@ describe("sticker double-click target guard", () => {
             contains: () => false,
         };
 
+        expect(resolveStickerSurfaceDoubleClickTarget(targetClosestTo(foreignStickerVisual), container)).toBeNull();
         expect(isStickerSurfaceDoubleClickTarget(targetClosestTo(foreignStickerVisual), container)).toBe(false);
     });
 
@@ -41,6 +54,8 @@ describe("sticker double-click target guard", () => {
             contains: () => true,
         };
 
+        expect(resolveStickerSurfaceDoubleClickTarget({} as EventTarget, container)).toBeNull();
+        expect(resolveStickerSurfaceDoubleClickTarget(null, container)).toBeNull();
         expect(isStickerSurfaceDoubleClickTarget({} as EventTarget, container)).toBe(false);
         expect(isStickerSurfaceDoubleClickTarget(null, container)).toBe(false);
     });

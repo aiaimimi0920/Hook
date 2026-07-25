@@ -12,13 +12,155 @@ import { checkDragModifier } from "./useShortcuts";
 let dragStartPositions: Record<string, {x: number, y: number}> = {};
 let hasMoved = false; // Track if actual movement occurred
 let clickHandler: ((id: string) => void) | undefined; // Callback for click (no-drag)
+type PendingDragPointer = {
+    clientX: number;
+    clientY: number;
+    alignment: boolean;
+    cascade: boolean;
+};
 
 export function useDraggable() {
     const [dragOffset, setDragOffset] = createSignal({ x: 0, y: 0 });
+    let pendingDragPointer: PendingDragPointer | null = null;
+    let dragMoveRafId: number | null = null;
+    let hasCommittedDragFrame = false;
+
+    const applyDragMoveSnapshot = (snapshot: PendingDragPointer) => {
+        const primaryId = draggingStickerId();
+        if (!primaryId) return;
+
+        // Threshold check for "Click" vs "Drag"
+        if (!hasMoved) {
+            const start = dragStartPositions[primaryId];
+            if (start) {
+                const dx = snapshot.clientX - dragOffset().x;
+                const dy = snapshot.clientY - dragOffset().y;
+                if (Math.hypot(dx - start.x, dy - start.y) > 3) {
+                    hasMoved = true;
+                }
+            }
+        }
+
+        let dx = snapshot.clientX - dragOffset().x;
+        let dy = snapshot.clientY - dragOffset().y;
+
+        const primaryStart = dragStartPositions[primaryId];
+        if (!primaryStart) return;
+
+        if (snapshot.alignment || snapshot.cascade) {
+            const threshold = 15;
+
+            if (snapshot.cascade) {
+                const mx = snapshot.clientX;
+                const my = snapshot.clientY;
+                const allUnits = graphStore.units;
+
+                for (let i = allUnits.length - 1; i >= 0; i--) {
+                    const target = allUnits[i];
+                    if (dragStartPositions[target.id]) continue;
+
+                    if (
+                        mx >= target.x && mx <= target.x + target.w &&
+                        my >= target.y && my <= target.y + target.h
+                    ) {
+                        dx = target.x + 20;
+                        dy = target.y + 20;
+                        break;
+                    }
+                }
+            } else if (snapshot.alignment) {
+                const draggedUnit = graphStore.units.find(s => s.id === primaryId);
+                if (draggedUnit) {
+                    const targetUnits = graphStore.units.filter(s => !dragStartPositions[s.id]);
+                    let snappedX = false;
+                    let snappedY = false;
+
+                    for (const target of targetUnits) {
+                        if (!snappedX) {
+                            if (Math.abs(dx - (target.x + target.w)) < threshold) {
+                                dx = target.x + target.w;
+                                snappedX = true;
+                            }
+                            else if (Math.abs((dx + draggedUnit.w) - target.x) < threshold) {
+                                dx = target.x - draggedUnit.w;
+                                snappedX = true;
+                            }
+                        }
+                        if (!snappedY) {
+                            if (Math.abs(dy - (target.y + target.h)) < threshold) {
+                                dy = target.y + target.h;
+                                snappedY = true;
+                            }
+                            else if (Math.abs((dy + draggedUnit.h) - target.y) < threshold) {
+                                dy = target.y - draggedUnit.h;
+                                snappedY = true;
+                            }
+                        }
+                        if (snappedX && snappedY) break;
+                    }
+                }
+            }
+        }
+
+        const deltaX = dx - primaryStart.x;
+        const deltaY = dy - primaryStart.y;
+
+        const nextPositions: Record<string, {x: number, y: number}> = {};
+        let changed = false;
+        const currentPositions = multiDragPositions();
+
+        for (const id in dragStartPositions) {
+            const start = dragStartPositions[id];
+            const next = {
+                x: start.x + deltaX,
+                y: start.y + deltaY,
+            };
+            nextPositions[id] = next;
+            const current = currentPositions?.[id] ?? start;
+            if (current.x !== next.x || current.y !== next.y) {
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            setMultiDragPositions(nextPositions);
+        }
+    };
+
+    const flushPendingDragMove = () => {
+        if (dragMoveRafId !== null && typeof window !== "undefined") {
+            window.cancelAnimationFrame(dragMoveRafId);
+            dragMoveRafId = null;
+        }
+        const snapshot = pendingDragPointer;
+        pendingDragPointer = null;
+        if (snapshot) {
+            applyDragMoveSnapshot(snapshot);
+        }
+    };
+
+    const scheduleDragMoveFrame = () => {
+        if (typeof window === "undefined") {
+            flushPendingDragMove();
+            return;
+        }
+        if (dragMoveRafId !== null) return;
+        dragMoveRafId = window.requestAnimationFrame(() => {
+            dragMoveRafId = null;
+            const snapshot = pendingDragPointer;
+            pendingDragPointer = null;
+            if (snapshot) {
+                applyDragMoveSnapshot(snapshot);
+            }
+        });
+    };
 
     const startDrag = (e: MouseEvent, id: string, onClick?: (id: string) => void) => {
         const unit = graphStore.units.find(u => u.id === id);
         if (unit) {
+             flushPendingDragMove();
+             pendingDragPointer = null;
+             hasCommittedDragFrame = false;
              setDragOffset({ x: e.clientX - unit.x, y: e.clientY - unit.y });
              setDraggingStickerId(id);
 
@@ -34,128 +176,43 @@ export function useDraggable() {
              const targetIds = isMulti ? selection : [id];
 
              dragStartPositions = {};
-             const initialPositions: Record<string, {x: number, y: number}> = {};
 
              targetIds.forEach(tid => {
                  const u = graphStore.units.find(u => u.id === tid);
                  if (u) {
                      dragStartPositions[tid] = { x: u.x, y: u.y };
-                     initialPositions[tid] = { x: u.x, y: u.y };
                  }
              });
-
-             // Initial State
-             setMultiDragPositions(initialPositions);
+             if (multiDragPositions()) {
+                 setMultiDragPositions(null);
+             }
         }
     };
 
     const handleDragMove = (e: MouseEvent) => {
-        const primaryId = draggingStickerId();
-        if (!primaryId) return;
+        if (!draggingStickerId()) return;
 
-        // Threshold check for "Click" vs "Drag"
-        if (!hasMoved) {
-            const start = dragStartPositions[primaryId];
-            if (start) {
-                const dx = e.clientX - dragOffset().x;
-                const dy = e.clientY - dragOffset().y;
-                // If moved more than 3 pixels from start
-                if (Math.hypot(dx - start.x, dy - start.y) > 3) {
-                    hasMoved = true;
-                }
-            }
+        pendingDragPointer = {
+            clientX: e.clientX,
+            clientY: e.clientY,
+            alignment: checkDragModifier(e, "alignment"),
+            cascade: checkDragModifier(e, "cascade"),
+        };
+        if (!hasCommittedDragFrame) {
+            hasCommittedDragFrame = true;
+            flushPendingDragMove();
+            return;
         }
-
-        let dx = e.clientX - dragOffset().x;
-        let dy = e.clientY - dragOffset().y;
-
-        // Calculate Delta based on Primary Unit (ignoring snap for now to get raw delta)
-        const primaryStart = dragStartPositions[primaryId];
-        if (!primaryStart) return; // Should not happen
-
-        // --- Snapping Logic (Applied to Primary Unit) ---
-        // For simplicity, snapping calculates the *Final Position* of the Primary Unit.
-        // We then derive the Delta from that snapped position.
-
-        if (checkDragModifier(e, 'alignment') || checkDragModifier(e, 'cascade')) {
-               const threshold = 15;
-
-               // CTRL: Stack/Cascade
-               if (checkDragModifier(e, 'cascade')) {
-                    const mx = e.clientX;
-                    const my = e.clientY;
-                    const allUnits = graphStore.units;
-
-                    for (let i = allUnits.length - 1; i >= 0; i--) {
-                        const target = allUnits[i];
-                        if (dragStartPositions[target.id]) continue; // Skip self/selection
-
-                        if (mx >= target.x && mx <= target.x + target.w &&
-                            my >= target.y && my <= target.y + target.h) {
-
-                            dx = target.x + 20;
-                            dy = target.y + 20;
-                            break;
-                        }
-                    }
-               }
-               // ALT: Adjacency
-               else if (checkDragModifier(e, 'alignment')) {
-                   const draggedUnit = graphStore.units.find(s => s.id === primaryId);
-                   if (draggedUnit) {
-                       const targetUnits = graphStore.units.filter(s => !dragStartPositions[s.id]);
-                       let snappedX = false;
-                       let snappedY = false;
-
-                       for (const target of targetUnits) {
-                           if (!snappedX) {
-                               if (Math.abs(dx - (target.x + target.w)) < threshold) {
-                                   dx = target.x + target.w;
-                                   snappedX = true;
-                               }
-                               else if (Math.abs((dx + draggedUnit.w) - target.x) < threshold) {
-                                   dx = target.x - draggedUnit.w;
-                                   snappedX = true;
-                               }
-                           }
-                           if (!snappedY) {
-                               if (Math.abs(dy - (target.y + target.h)) < threshold) {
-                                   dy = target.y + target.h;
-                                   snappedY = true;
-                               }
-                               else if (Math.abs((dy + draggedUnit.h) - target.y) < threshold) {
-                                   dy = target.y - draggedUnit.h;
-                                   snappedY = true;
-                               }
-                           }
-                           if (snappedX && snappedY) break;
-                       }
-                   }
-               }
-          }
-
-          // Apply Delta to All Selected Units
-          const deltaX = dx - primaryStart.x;
-          const deltaY = dy - primaryStart.y;
-
-          const nextPositions: Record<string, {x: number, y: number}> = {};
-
-          for (const id in dragStartPositions) {
-              const start = dragStartPositions[id];
-              nextPositions[id] = {
-                  x: start.x + deltaX,
-                  y: start.y + deltaY
-              };
-          }
-
-          setMultiDragPositions(nextPositions);
+        scheduleDragMoveFrame();
     };
 
     const handleDragEnd = async () => {
         const id = draggingStickerId();
-        const positions = multiDragPositions();
 
         if (!id) return;
+        flushPendingDragMove();
+        hasCommittedDragFrame = false;
+        const positions = multiDragPositions();
 
         // 1. Handle Click (No Drag)
         if (!hasMoved) {
@@ -167,9 +224,8 @@ export function useDraggable() {
         }
 
         // 2. Commit All Positions to Store (BEFORE clearing transient state to prevent flicker)
+        let changed = false;
         if (positions) {
-            let changed = false;
-
             for (const uid in positions) {
                 const final = positions[uid];
                 const original = graphStore.units.find(u => u.id === uid);
@@ -179,16 +235,18 @@ export function useDraggable() {
                     changed = true;
                 }
             }
-
-            if (changed) {
-                 await syncService.updateBackendRects();
-                 await syncService.performWorkflowSync();
-            }
         }
 
         // 3. Clear Transient State
         setDraggingStickerId(null);
         setMultiDragPositions(null);
+
+        if (changed) {
+            void (async () => {
+                await syncService.updateBackendRects();
+                await syncService.performWorkflowSync();
+            })();
+        }
     };
 
     return { startDrag, handleDragMove, handleDragEnd };

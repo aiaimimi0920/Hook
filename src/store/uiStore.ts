@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js";
+import { batch, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
 import {
     addStickerPaletteColor,
@@ -46,15 +46,19 @@ export const [selectedUnitIds, setSelectedUnitIds] = createStore<string[]>([]);
 
 export const selectionActions = {
     add: (id: string) => {
-        setSelectedUnitIds(prev => prev.includes(id) ? prev : [...prev, id]);
-        // Keep single-select for backward compat / primary target
-        setSelectedStickerId(id);
+        batch(() => {
+            setSelectedUnitIds(prev => prev.includes(id) ? prev : [...prev, id]);
+            // Keep single-select for backward compat / primary target
+            setSelectedStickerId(id);
+        });
     },
     remove: (id: string) => {
-        setSelectedUnitIds(prev => prev.filter(uid => uid !== id));
-        if (selectedStickerId() === id) {
-             setSelectedStickerId(null);
-        }
+        batch(() => {
+            setSelectedUnitIds(prev => prev.filter(uid => uid !== id));
+            if (selectedStickerId() === id) {
+                 setSelectedStickerId(null);
+            }
+        });
     },
     toggle: (id: string) => {
         if (selectedUnitIds.includes(id)) {
@@ -64,16 +68,20 @@ export const selectionActions = {
         }
     },
     clear: () => {
-        setSelectedUnitIds([]);
-        setSelectedStickerId(null);
+        batch(() => {
+            setSelectedUnitIds([]);
+            setSelectedStickerId(null);
+        });
     },
     set: (ids: string[]) => {
-        setSelectedUnitIds(ids);
-        if (ids.length === 1) setSelectedStickerId(ids[0]);
-        else if (ids.length === 0) setSelectedStickerId(null);
-        // If multiple, maybe keep the last one as "primary" or "focused"?
-        // For now, let's say the last added is the "active" one for params panel etc.
-        if (ids.length > 0) setSelectedStickerId(ids[ids.length - 1]);
+        batch(() => {
+            setSelectedUnitIds(ids);
+            if (ids.length === 1) setSelectedStickerId(ids[0]);
+            else if (ids.length === 0) setSelectedStickerId(null);
+            // If multiple, maybe keep the last one as "primary" or "focused"?
+            // For now, let's say the last added is the "active" one for params panel etc.
+            if (ids.length > 0) setSelectedStickerId(ids[ids.length - 1]);
+        });
     },
     isSelected: (id: string) => selectedUnitIds.includes(id)
 };
@@ -446,27 +454,31 @@ export const uiActions = {
         setActiveStickerEditTargetId(unitId);
     },
     showStickerToolbar: (unitId: string) => {
-        setActiveStickerEditTargetId(unitId);
-        setSelectedStickerAnnotationId(null);
-        setSelectedStickerAnnotationIds([]);
-        setStickerToolSettings((prev) =>
-            applyStickerToolSettingsPatch(prev, {
-                mode: "select",
-                transformMode: "select",
-            }),
-        );
+        batch(() => {
+            setActiveStickerEditTargetId(unitId);
+            setSelectedStickerAnnotationId(null);
+            setSelectedStickerAnnotationIds([]);
+            setStickerToolSettings((prev) =>
+                applyStickerToolSettingsPatch(prev, {
+                    mode: "select",
+                    transformMode: "select",
+                }),
+            );
+        });
     },
     hideStickerToolbar: () => {
-        setActiveStickerEditTargetId(null);
-        setSelectedStickerAnnotationId(null);
-        setSelectedStickerAnnotationIds([]);
-        setStickerToolSettings((prev) =>
-            applyStickerToolSettingsPatch(prev, {
-                mode: "select",
-                transformMode: "select",
-            }),
-        );
-        setStickerEditCancelToken((value) => value + 1);
+        batch(() => {
+            setActiveStickerEditTargetId(null);
+            setSelectedStickerAnnotationId(null);
+            setSelectedStickerAnnotationIds([]);
+            setStickerToolSettings((prev) =>
+                applyStickerToolSettingsPatch(prev, {
+                    mode: "select",
+                    transformMode: "select",
+                }),
+            );
+            setStickerEditCancelToken((value) => value + 1);
+        });
     },
     setSelectedStickerAnnotation: (annotationId: string | null) => {
         setSelectedStickerAnnotationId(annotationId);

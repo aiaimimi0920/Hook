@@ -1,5 +1,6 @@
 import type { ScreenColorSample } from "../services/api";
 import { isTransparentStickerColor } from "../services/stickerEditing";
+import { getDashSegments } from "../services/stickerCanvas";
 import type { StickerPoint, StickerShapeAnnotation } from "../types/stickerEditing";
 
 export type TransformAxisMode = "xy" | "x" | "y";
@@ -220,10 +221,8 @@ export const getAnnotationCornerRadius = (shape: StickerShapeAnnotation) =>
     shape.style.cornerRadius ?? (shape.type === "round-rect" ? 12 : 0);
 
 export const getStrokeDashArray = (dashPattern?: "solid" | "dash-1" | "dash-2") => {
-    if (!dashPattern || dashPattern === "solid") return undefined;
-    if (dashPattern === "dash-1") return "8 4";
-    if (dashPattern === "dash-2") return "4 2 1 2";
-    return undefined;
+    const segments = getDashSegments(dashPattern, 1);
+    return segments.length > 0 ? segments.join(" ") : undefined;
 };
 
 export const normalizeRect = (start: StickerPoint, end: StickerPoint) => ({

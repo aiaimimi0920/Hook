@@ -9,14 +9,21 @@ type ContainingTarget = EventTarget & {
 export const isStickerSurfaceDoubleClickTarget = (
     eventTarget: EventTarget | null,
     unitContainer: EventTarget | null,
-): boolean => {
-    if (!eventTarget || !unitContainer) return false;
+): boolean => !!resolveStickerSurfaceDoubleClickTarget(eventTarget, unitContainer);
+
+export const resolveStickerSurfaceDoubleClickTarget = (
+    eventTarget: EventTarget | null,
+    unitContainer: EventTarget | null,
+): HTMLElement | null => {
+    if (!eventTarget || !unitContainer) return null;
 
     const closest = (eventTarget as ClosestCapableTarget).closest;
-    if (typeof closest !== "function") return false;
+    if (typeof closest !== "function") return null;
     const contains = (unitContainer as ContainingTarget).contains;
-    if (typeof contains !== "function") return false;
+    if (typeof contains !== "function") return null;
 
     const stickerVisual = closest.call(eventTarget, ".sticker-visual");
-    return !!stickerVisual && contains.call(unitContainer, stickerVisual as Node);
+    return stickerVisual && contains.call(unitContainer, stickerVisual as Node)
+        ? (stickerVisual as HTMLElement)
+        : null;
 };

@@ -1,4 +1,4 @@
-import { onMount, onCleanup, createEffect, createSignal, Show, ErrorBoundary, untrack } from "solid-js";
+import { onMount, onCleanup, createEffect, createSignal, Show, ErrorBoundary, untrack, batch } from "solid-js";
 import { api, isTauriRuntimeAvailable, listenBrowserArtLoomMethod, type TeaTicketSummary, type VoiceSettingsSummary } from "./services/api";
 import { listen } from "@tauri-apps/api/event";
 import { installErrorDiagnostics } from "./services/errorDiagnostics";
@@ -1543,7 +1543,9 @@ export default function App() {
 
   // Global Event Handlers
   const handleGlobalMouseMove = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
+      if (!draggingStickerId()) {
+          setMousePos({ x: e.clientX, y: e.clientY });
+      }
       if (!overlaySyntheticMoveRelayActive && !draggingStickerId()) {
           relayOverlaySyntheticPointerMove(e);
       }
@@ -1631,39 +1633,41 @@ export default function App() {
           return;
       }
 
-      if (e.ctrlKey) {
-           // Toggle Logic
-           if (wasSelected) {
-               // If already selected, we DON'T toggle off immediately on MouseDown.
-               // We wait to see if it's a Drag or a Click.
-               // This is handled by the onClick callback passed to startDrag below.
-           } else {
-               selectionActions.add(id);
-           }
-      } else {
-           // No Modifiers
-           if (!wasSelected) {
-               // Clicked unselected -> Exclusive Select
-               selectionActions.set([id]);
-           }
-           // else: Clicked part of group -> Keep group (for potential drag)
-      }
-
-      startDrag(e, id, (clickedId) => {
-          const clickedUnit = graphStore.units.find((unit) => unit.id === clickedId);
-          if (clickedUnit?.type !== "sticker" || activeStickerEditTargetId() !== clickedId) {
-              uiActions.hideStickerToolbar();
-          }
-          // Handle Click (No Drag)
+      batch(() => {
           if (e.ctrlKey) {
-              // Only toggle off if it WAS selected *before* this interaction
-              if (wasSelected) {
-                  selectionActions.toggle(clickedId);
-              }
+               // Toggle Logic
+               if (wasSelected) {
+                   // If already selected, we DON'T toggle off immediately on MouseDown.
+                   // We wait to see if it's a Drag or a Click.
+                   // This is handled by the onClick callback passed to startDrag below.
+               } else {
+                   selectionActions.add(id);
+               }
           } else {
-              // Click without Ctrl on a group member -> Exclusive Select (Deselect others)
-              selectionActions.set([clickedId]);
+               // No Modifiers
+               if (!wasSelected) {
+                   // Clicked unselected -> Exclusive Select
+                   selectionActions.set([id]);
+               }
+               // else: Clicked part of group -> Keep group (for potential drag)
           }
+
+          startDrag(e, id, (clickedId) => {
+              const clickedUnit = graphStore.units.find((unit) => unit.id === clickedId);
+              if (clickedUnit?.type !== "sticker" || activeStickerEditTargetId() !== clickedId) {
+                  uiActions.hideStickerToolbar();
+              }
+              // Handle Click (No Drag)
+              if (e.ctrlKey) {
+                  // Only toggle off if it WAS selected *before* this interaction
+                  if (wasSelected) {
+                      selectionActions.toggle(clickedId);
+                  }
+              } else {
+                  // Click without Ctrl on a group member -> Exclusive Select (Deselect others)
+                  selectionActions.set([clickedId]);
+              }
+          });
       });
   };
 

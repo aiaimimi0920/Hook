@@ -54,12 +54,13 @@ describe("hook terminal theme contract", () => {
     it("replaces cyan-selected editing chrome with signal-yellow terminal classes", () => {
         const topStrip = readSource("src/components/StickerTopStrip.tsx");
         const propertyBar = readSource("src/components/StickerTopStripPropertyBar.tsx");
+        const propertyBarFields = readSource("src/components/stickerTopStripPropertyBarFields.tsx");
 
         expect(topStrip).toContain("hook-toolbar-button--active");
         expect(topStrip).toContain("hook-toolbar-menu-item--active");
         expect(topStrip).not.toContain("bg-cyan-500/20");
-        expect(propertyBar).toContain("hook-mini-toggle--active");
-        expect(propertyBar).toContain("hook-mini-switch--active");
+        expect(propertyBarFields).toContain("hook-mini-toggle--active");
+        expect(propertyBarFields).toContain("hook-mini-switch--active");
         expect(propertyBar).not.toContain("border-cyan-400");
     });
 });

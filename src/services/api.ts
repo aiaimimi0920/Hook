@@ -3,7 +3,13 @@ import { HandshakeRequest, HandshakeResponse } from "./protocol";
 import { ShaderResponse } from "../components/ShaderRenderer";
 import { BootProfile, defaultBootProfile, normalizeBootProfile } from "./bootProfile";
 import type { FrozenStickerEntry } from "./stickerSnapshot";
-import type { SessionSticker, SessionLink, SessionGroup } from "../types/unit";
+import type {
+    SessionSticker,
+    SessionLink,
+    SessionGroup,
+    WorkflowAssetArchiveHints,
+    WorkflowAssetArchiveIndex,
+} from "../types/unit";
 import type {
     LongCaptureAxis,
     LongCaptureDirection,
@@ -60,6 +66,7 @@ export interface SessionData {
     groups?: SessionGroup[];
     recycleBin?: FrozenStickerEntry[];
     referenceLibrary?: FrozenStickerEntry[];
+    workflowAssetArchiveIndex?: WorkflowAssetArchiveIndex;
 }
 
 export interface PreciseSelectionResult {
@@ -443,6 +450,10 @@ const loadBrowserPreviewSession = (): SessionData => {
                 groups: Array.isArray(parsed?.groups) ? parsed.groups : [],
                 recycleBin: Array.isArray(parsed?.recycleBin) ? parsed.recycleBin : [],
                 referenceLibrary: Array.isArray(parsed?.referenceLibrary) ? parsed.referenceLibrary : [],
+                workflowAssetArchiveIndex:
+                    parsed?.workflowAssetArchiveIndex && typeof parsed.workflowAssetArchiveIndex === "object"
+                        ? parsed.workflowAssetArchiveIndex
+                        : undefined,
             } as SessionData;
         }
     } catch (error) {
@@ -467,6 +478,7 @@ const compactBrowserPreviewSession = (
     groups: SessionGroup[] = [],
     recycleBin: FrozenStickerEntry[] = [],
     referenceLibrary: FrozenStickerEntry[] = [],
+    workflowAssetArchiveIndex?: WorkflowAssetArchiveIndex,
 ): SessionData => ({
     stickers: stickers.map((sticker) => ({
         ...sticker,
@@ -478,6 +490,7 @@ const compactBrowserPreviewSession = (
     groups,
     recycleBin,
     referenceLibrary,
+    workflowAssetArchiveIndex,
 });
 
 const saveBrowserPreviewSession = (
@@ -486,11 +499,12 @@ const saveBrowserPreviewSession = (
     groups: SessionGroup[] = [],
     recycleBin: FrozenStickerEntry[] = [],
     referenceLibrary: FrozenStickerEntry[] = [],
+    workflowAssetArchiveIndex?: WorkflowAssetArchiveIndex,
 ) => {
     try {
         window.localStorage.setItem(
             BROWSER_SESSION_STORAGE_KEY,
-            JSON.stringify({ stickers, links, groups, recycleBin, referenceLibrary }),
+            JSON.stringify({ stickers, links, groups, recycleBin, referenceLibrary, workflowAssetArchiveIndex }),
         );
     } catch {
         try {
@@ -500,6 +514,7 @@ const saveBrowserPreviewSession = (
                 groups,
                 recycleBin,
                 referenceLibrary,
+                workflowAssetArchiveIndex,
             );
             window.localStorage.setItem(
                 BROWSER_SESSION_STORAGE_KEY,
@@ -564,11 +579,19 @@ export const api = {
         groups: any[] = [],
         recycleBin: FrozenStickerEntry[] = [],
         referenceLibrary: FrozenStickerEntry[] = [],
+        workflowAssetArchiveHints: WorkflowAssetArchiveHints = { workflows: {} },
     ): Promise<void> =>
         safeInvoke(
             "save_session",
-            { stickers, links, groups, recycleBin, referenceLibrary },
-            () => saveBrowserPreviewSession(stickers, links, groups, recycleBin, referenceLibrary),
+            { stickers, links, groups, recycleBin, referenceLibrary, workflowAssetArchiveHints },
+            () =>
+                saveBrowserPreviewSession(
+                    stickers,
+                    links,
+                    groups,
+                    recycleBin,
+                    referenceLibrary,
+                ),
             false,
         ),
 

@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const typeSource = readFileSync(resolve(process.cwd(), "src/types/stickerEditing.ts"), "utf8");
 const uiStoreSource = readFileSync(resolve(process.cwd(), "src/store/uiStore.ts"), "utf8");
 const topStripSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStrip.tsx"), "utf8");
 const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStripPropertyBar.tsx"), "utf8");
+const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarSections.tsx");
+const propertyBarSectionsSource = existsSync(propertyBarSectionsPath) ? readFileSync(propertyBarSectionsPath, "utf8") : "";
+const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
 const toolbarModelSource = readFileSync(resolve(process.cwd(), "src/components/stickerToolbarModel.ts"), "utf8");
 const annotationLayerSource = readFileSync(resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"), "utf8");
 const annotationModelSource = readFileSync(resolve(process.cwd(), "src/components/stickerAnnotationModel.ts"), "utf8");
@@ -81,7 +84,7 @@ describe("Hook sticker transform modes contract", () => {
     it("keeps highlighter as a brush property instead of a parallel create-tool button", () => {
         expect(toolbarModelSource).toContain('{ mode: "brush", label: "画笔" }');
         expect(toolbarModelSource).not.toContain('{ mode: "highlighter", label: "荧光" }');
-        expect(propertyBarSource).toContain("brushHighlighterEnabled");
+        expect(propertyBarRenderSource).toContain("brushHighlighterEnabled");
     });
 
     it("re-allows whole-sticker dragging in select mode when existing-node editing has no active annotation selection", () => {

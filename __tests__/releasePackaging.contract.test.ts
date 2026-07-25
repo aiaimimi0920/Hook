@@ -15,6 +15,17 @@ describe("Hook release build scripts contract", () => {
     expect(script).not.toMatch(/release\\Hook\\full/i);
   });
 
+  test("local build script falls back to a timestamped exe when release/Hook/hook.exe is locked", () => {
+    const repoRoot = path.resolve(__dirname, "..");
+    const scriptPath = path.join(repoRoot, "scripts", "build-local-hook-exe.ps1");
+    const script = fs.readFileSync(scriptPath, "utf8");
+
+    expect(script).toMatch(/Get-Date -Format "yyyyMMdd-HHmmss"/i);
+    expect(script).toMatch(/\$fallbackExe\s*=\s*Join-Path \$outputRoot/i);
+    expect(script).toMatch(/Copy-Item -LiteralPath \$releaseExe -Destination \$fallbackExe -Force/i);
+    expect(script).toMatch(/existing hook\.exe is locked/i);
+  });
+
   test("package-hook-release.ps1 delegates to the Hook-local build script instead of the former parent-repo release script", () => {
     const repoRoot = path.resolve(__dirname, "..");
     const scriptPath = path.join(repoRoot, "package-hook-release.ps1");

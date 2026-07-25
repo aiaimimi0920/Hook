@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStripPropertyBar.tsx"), "utf8");
+const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarSections.tsx");
+const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
+const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(propertyBarSectionsPath, "utf8") : "";
+const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
+const propertyBarSectionSource = propertyBarSectionsExists ? propertyBarSectionsSource : propertyBarSource;
+const fieldsSource = readFileSync(resolve(process.cwd(), "src/components/stickerTopStripPropertyBarFields.tsx"), "utf8");
 const annotationLayerSource = readFileSync(resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"), "utf8");
 const annotationModelSource = readFileSync(resolve(process.cwd(), "src/components/stickerAnnotationModel.ts"), "utf8");
 const uiStoreSource = readFileSync(resolve(process.cwd(), "src/store/uiStore.ts"), "utf8");
@@ -10,16 +16,24 @@ const stickerEditingSource = readFileSync(resolve(process.cwd(), "src/services/s
 const exportSource = readFileSync(resolve(process.cwd(), "src/services/stickerExport.ts"), "utf8");
 const typeSource = readFileSync(resolve(process.cwd(), "src/types/stickerEditing.ts"), "utf8");
 
+const sourceBetween = (source: string, start: string, end: string) => {
+    const startIndex = source.indexOf(start);
+    expect(startIndex).toBeGreaterThanOrEqual(0);
+    const endIndex = source.indexOf(end, startIndex + start.length);
+    expect(endIndex).toBeGreaterThan(startIndex);
+    return source.slice(startIndex, endIndex);
+};
+
 describe("Hook sticker style controls contract", () => {
     it("exposes per-shape independent stroke/fill color slots backed by one shared palette", () => {
-        expect(propertyBarSource).toContain("MiniColorField");
-        expect(propertyBarSource).toContain("MiniNumericField");
-        expect(propertyBarSource).toContain("MiniDashField");
-        expect(propertyBarSource).toContain('title="圆角半径"');
-        expect(propertyBarSource).toContain("shapeCornerRadius");
+        expect(propertyBarRenderSource).toContain("MiniColorField");
+        expect(propertyBarRenderSource).toContain("MiniNumericField");
+        expect(propertyBarRenderSource).toContain("MiniDashField");
+        expect(propertyBarRenderSource).toContain('title="圆角半径"');
+        expect(propertyBarRenderSource).toContain("shapeCornerRadius");
         expect(propertyBarSource).toContain("addStickerPaletteColor");
         expect(propertyBarSource).toContain("removeStickerPaletteColor");
-        expect(propertyBarSource).toContain('title="线宽"');
+        expect(propertyBarRenderSource).toContain('title="线宽"');
 
         // Each shape/line tool keeps an independent color rather than sharing one shape color.
         expect(propertyBarSource).toContain("shapeStrokeColorSlot");
@@ -81,34 +95,44 @@ describe("Hook sticker style controls contract", () => {
     });
 
     it("uses the unified modal color picker for the line tool with its own independent color and exposes arrow as a line option", () => {
-        const lineStart = propertyBarSource.indexOf("<Show when={isLineTool()}>");
-        const lineEnd = propertyBarSource.indexOf("<Show when={isBrushTool()}>");
-        expect(lineStart).toBeGreaterThan(-1);
-        expect(lineEnd).toBeGreaterThan(lineStart);
-        const lineSource = propertyBarSource.slice(lineStart, lineEnd);
+        expect(propertyBarRenderSource).toContain("const renderLineFields = () => (");
+        expect(propertyBarSource).toContain("<Show when={isLineTool()}>{renderLineFields()}</Show>");
+        const lineSource = sourceBetween(
+            propertyBarSectionSource,
+            "const renderLineFields = () => (",
+            "const renderBrushFields = () => (",
+        );
 
-        expect(lineSource).toContain('<MiniColorField title="描边颜色" slot={shapeStrokeColorSlot()} Icon={StrokeColorIcon} />');
-        expect(lineSource).toContain('<MiniDashField title="线型" />');
+        expect(lineSource).toContain('title="描边颜色"');
+        expect(lineSource).toContain("shapeStrokeColorSlot()");
+        expect(lineSource).toContain("Icon={StrokeColorIcon}");
+        expect(lineSource).toContain('title="线型"');
         expect(lineSource).toContain("lineArrowEnabled");
         expect(lineSource).toContain('title="角吸附"');
         expect(lineSource).not.toContain("renderColorControls(false)");
     });
 
     it("uses the unified modal color picker for paint tools and makes highlighter a brush option", () => {
-        const brushStart = propertyBarSource.indexOf("<Show when={isBrushTool()}>");
-        const mosaicStart = propertyBarSource.indexOf("<Show when={isTextTool()}>");
-        const blurStart = propertyBarSource.indexOf("<Show when={isEffectTool()}>");
-        expect(brushStart).toBeGreaterThan(-1);
-        expect(mosaicStart).toBeGreaterThan(brushStart);
-        expect(blurStart).toBeGreaterThan(mosaicStart);
-
-        const brushSource = propertyBarSource.slice(brushStart, mosaicStart);
-        expect(brushSource).toContain('<MiniColorField title="画笔颜色" slot="brushColor" Icon={StrokeColorIcon} />');
+        expect(propertyBarRenderSource).toContain("const renderBrushFields = () => (");
+        expect(propertyBarSource).toContain("<Show when={isBrushTool()}>{renderBrushFields()}</Show>");
+        expect(propertyBarRenderSource).toContain("const renderEffectFields = () => (");
+        const brushSource = sourceBetween(
+            propertyBarSectionSource,
+            "const renderBrushFields = () => (",
+            "const renderTextFields = () => (",
+        );
+        expect(brushSource).toContain('title="画笔颜色"');
+        expect(brushSource).toContain('slot="brushColor"');
+        expect(brushSource).toContain("Icon={StrokeColorIcon}");
         expect(brushSource).toContain('title="荧光开关"');
         expect(brushSource).toContain("brushHighlighterEnabled");
         expect(brushSource).not.toContain("renderColorControls(false)");
 
-        const mosaicSource = propertyBarSource.slice(blurStart);
+        const mosaicSource = sourceBetween(
+            propertyBarSectionSource,
+            "const renderEffectFields = () => (",
+            "const renderEraserFields = () => (",
+        );
         // Mosaic is now image pixelation (each block samples the underlying image),
         // so there are no fixed color-block pickers — just a brush size + the unit
         // square width control. No rectangle border controls.
@@ -120,11 +144,12 @@ describe("Hook sticker style controls contract", () => {
     });
 
     it("gives blur a brush-size control without rectangle border or generic active color controls", () => {
-        const blurStart = propertyBarSource.indexOf("<Show when={isEffectTool()}>");
-        const serialStart = propertyBarSource.indexOf("<Show when={isEraserTool()}>");
-        expect(blurStart).toBeGreaterThan(-1);
-        expect(serialStart).toBeGreaterThan(blurStart);
-        const blurSource = propertyBarSource.slice(blurStart, serialStart);
+        expect(propertyBarSource).toContain("<Show when={isEffectTool()}>{renderEffectFields()}</Show>");
+        const blurSource = sourceBetween(
+            propertyBarSectionSource,
+            "const renderEffectFields = () => (",
+            "const renderEraserFields = () => (",
+        );
 
         expect(blurSource).toContain('settingKey="effectBrushSize"');
         expect(blurSource).toContain('settingKey="blurStrength"');
@@ -140,14 +165,18 @@ describe("Hook sticker style controls contract", () => {
         expect(stickerEditingSource).toContain("serialRadius: 14");
         expect(stickerEditingSource).toContain("buildSerialAnnotationMetrics");
 
-        const serialStart = propertyBarSource.indexOf("<Show when={isSerialTool()}>");
-        const finalizeStart = propertyBarSource.indexOf("<Show when={props.tool === \"selected-serial\"}>");
-        expect(serialStart).toBeGreaterThan(-1);
-        expect(finalizeStart).toBeGreaterThan(serialStart);
-        const serialSource = propertyBarSource.slice(serialStart, finalizeStart);
+        expect(propertyBarRenderSource).toContain("const renderSerialFields = () => (");
+        expect(propertyBarSource).toContain("<Show when={isSerialTool()}>{renderSerialFields()}</Show>");
+        const serialSource = sourceBetween(
+            propertyBarSectionSource,
+            "const renderSerialFields = () => (",
+            "const renderSelectedSerialFields = () => (",
+        );
 
-        expect(serialSource).toContain('<MiniColorField title="描边颜色" slot="serialForegroundColor" Icon={StrokeColorIcon} />');
-        expect(serialSource).toContain('<MiniColorField title="填充颜色" slot="serialFillColor" Icon={FillColorIcon} />');
+        expect(serialSource).toContain('title="描边颜色"');
+        expect(serialSource).toContain('slot="serialForegroundColor"');
+        expect(serialSource).toContain('title="填充颜色"');
+        expect(serialSource).toContain('slot="serialFillColor"');
         expect(serialSource).toContain('settingKey="serialRadius"');
         expect(serialSource).not.toContain("renderTextControls()");
 
@@ -159,29 +188,34 @@ describe("Hook sticker style controls contract", () => {
         expect(annotationLayerSource).toContain('dominant-baseline={text().type === "serial" ? "central" : undefined}');
         expect(annotationLayerSource).toContain("y={text().type === \"serial\" ? text().y - serialFontSize() / 2 : text().y}");
         expect(exportSource).toContain("const serialMetrics = buildSerialAnnotationMetrics(text.style.cornerRadius ?? 14)");
-        expect(exportSource).toContain('context.textBaseline = annotation.type === "serial" ? "middle" : "top";');
+        expect(exportSource).toContain('context.textBaseline = annotation.type === "serial" ? "middle" : "alphabetic";');
         expect(exportSource).toContain("isTransparentStickerColor(text.style.fill)");
     });
 
     it("keeps numeric property inputs as drafts until Enter or blur instead of committing every keystroke", () => {
         expect(propertyBarSource).toContain("const [numericDrafts, setNumericDrafts]");
         expect(propertyBarSource).toContain("const commitNumericDraft = (");
-        expect(propertyBarSource).toContain("MiniNumericField");
-        expect(propertyBarSource).toContain("MiniDeferredNumericField");
-        expect(propertyBarSource).toContain('if (event.key !== "Enter") return;');
+        expect(propertyBarRenderSource).toContain("MiniNumericField");
+        expect(propertyBarRenderSource).toContain("MiniDeferredNumericField");
+        expect(fieldsSource).toContain('if (event.key !== "Enter") return;');
 
-        expect(propertyBarSource).toContain('settingKey="serialRadius"');
-        expect(propertyBarSource).toContain('settingKey="contentEraserSize"');
-        expect(propertyBarSource).toContain('settingKey="mosaicSize"');
-        expect(propertyBarSource).toContain('settingKey="blurStrength"');
+        expect(propertyBarRenderSource).toContain('settingKey="serialRadius"');
+        expect(propertyBarRenderSource).toContain('settingKey="contentEraserSize"');
+        expect(propertyBarRenderSource).toContain('settingKey="mosaicSize"');
+        expect(propertyBarRenderSource).toContain('settingKey="blurStrength"');
         expect(propertyBarSource).toContain('const [cropCornerRadiusDraft, setCropCornerRadiusDraft] = createSignal<string | null>(null);');
-        expect(propertyBarSource).toContain('value={cropCornerRadiusDraft() ?? String(getEditableFrameCornerRadius())}');
-        expect(propertyBarSource).toContain('onCommit={commitCropCornerRadiusDraft}');
+        expect(propertyBarRenderSource).toMatch(
+            /value=\{(?:options\.)?cropCornerRadiusDraft\(\) \?\? String\((?:options\.)?getEditableFrameCornerRadius\(\)\)\}/,
+        );
+        expect(propertyBarRenderSource).toMatch(/onCommit=\{(?:options\.)?commitCropCornerRadiusDraft\}/);
     });
 
     it("renders sticker appearance steppers through a stable component so typing does not remount the input and trigger blur commits", () => {
-        expect(propertyBarSource).toContain("const MiniDeferredNumericField: Component<");
-        expect(propertyBarSource).toContain("const MiniNumericField: Component<");
+        expect(propertyBarSource).toContain("createStickerTopStripPropertyBarFields({");
+        expect(fieldsSource).toContain("export type MiniDeferredNumericFieldComponent = Component<");
+        expect(fieldsSource).toContain("export type MiniNumericFieldComponent = Component<");
+        expect(fieldsSource).toContain("const MiniDeferredNumericField: MiniDeferredNumericFieldComponent =");
+        expect(fieldsSource).toContain("const MiniNumericField: MiniNumericFieldComponent =");
         expect(propertyBarSource).not.toContain("renderCanvasStepperControl");
     });
 });

@@ -28,6 +28,11 @@ describe("Hook Ctrl+S sticker save-as contract", () => {
         expect(rustSource).toContain("SaveDialogPlacement");
         expect(rustSource).toContain("OFN_ENABLEHOOK");
         expect(rustSource).toContain("SetWindowPos");
+        expect(rustSource).toContain("NATIVE_FILE_DIALOG_ACTIVE");
+        expect(rustSource).toContain("fn run_with_native_file_dialog_input_passthrough");
+        expect(rustSource).toContain("hide_overlay_input_shield_window();");
+        expect(rustSource).toContain("refresh_overlay_interactivity_from_runtime_state");
+        expect(rustSource).toContain("run_with_native_file_dialog_input_passthrough(");
         expect(rustSource).toContain("save_sticker_image_as,");
 
         const manualSaveIndex = rustSource.indexOf("fn save_sticker_image_as(");

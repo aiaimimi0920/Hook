@@ -479,8 +479,14 @@ export const computeMinifiedStickerWindow = (
     const clampedRelY = Math.min(Math.max(relY, 0), 1);
     const clickUnitX = clampedRelX * frame.w;
     const clickUnitY = clampedRelY * frame.h;
-    const offsetX = clickUnitX - cropSize / 2;
-    const offsetY = clickUnitY - cropSize / 2;
+    const rawOffsetX = clickUnitX - cropSize / 2;
+    const rawOffsetY = clickUnitY - cropSize / 2;
+    const minOffsetX = Math.min(0, frame.w - cropSize);
+    const maxOffsetX = Math.max(0, frame.w - cropSize);
+    const minOffsetY = Math.min(0, frame.h - cropSize);
+    const maxOffsetY = Math.max(0, frame.h - cropSize);
+    const offsetX = Math.min(Math.max(rawOffsetX, minOffsetX), maxOffsetX);
+    const offsetY = Math.min(Math.max(rawOffsetY, minOffsetY), maxOffsetY);
 
     return {
         savedRect: { ...frame },

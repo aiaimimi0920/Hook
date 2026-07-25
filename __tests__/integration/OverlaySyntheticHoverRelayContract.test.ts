@@ -51,8 +51,8 @@ describe("overlay synthetic hover relay contract", () => {
     expect(moveBlock).not.toContain("return LRESULT(1);");
 
     expect(refreshBlock).toContain("should_overlay_window_ignore_cursor_events");
-    expect(refreshBlock).toContain("window.set_ignore_cursor_events(should_ignore)");
-    expect(refreshBlock).toContain("OVERLAY_CLICK_THROUGH_ACTIVE.store(should_ignore, Ordering::SeqCst);");
+    expect(refreshBlock).toContain("set_overlay_click_through_impl(window, should_ignore);");
+    expect(rustSource).toContain("OVERLAY_CLICK_THROUGH_ACTIVE.store(click_through, Ordering::SeqCst);");
     expect(rdevMouseMoveBlock).toContain("window.set_ignore_cursor_events(should_ignore)");
 
     expect(dispatchBlock).toContain("\"mouseenter\"");

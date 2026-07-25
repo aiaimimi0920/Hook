@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { buildSyncedImagePayload, normalizePreviewSrc } from "../../src/services/syncedImagePayload";
+import { describe, expect, it, vi } from "vitest";
+import {
+    buildSyncedImagePayload,
+    buildSyncedImageSignature,
+    normalizePreviewSrc,
+    requiresBakedStickerSyncImage,
+} from "../../src/services/syncedImagePayload";
 
 describe("synced image payload helpers", () => {
     it("drops previewSrc when it is missing or identical to src", () => {
@@ -25,8 +30,8 @@ describe("synced image payload helpers", () => {
         ).toBe("data:image/png;base64,preview");
     });
 
-    it("builds sync payloads without duplicate preview data", () => {
-        expect(
+    it("builds sync payloads without duplicate preview data", async () => {
+        await expect(
             buildSyncedImagePayload({
                 data: {
                     src: "data:image/png;base64,abc",
@@ -34,12 +39,12 @@ describe("synced image payload helpers", () => {
                     rasterizedAnnotationLayerSrc: "layer",
                 },
             } as any),
-        ).toEqual({
+        ).resolves.toEqual({
             src: "data:image/png;base64,abc",
             rasterizedAnnotationLayerSrc: "layer",
         });
 
-        expect(
+        await expect(
             buildSyncedImagePayload({
                 data: {
                     src: "data:image/png;base64,abc",
@@ -47,15 +52,15 @@ describe("synced image payload helpers", () => {
                     rasterizedAnnotationLayerSrc: null,
                 },
             } as any),
-        ).toEqual({
+        ).resolves.toEqual({
             src: "data:image/png;base64,abc",
             previewSrc: "data:image/png;base64,preview",
             rasterizedAnnotationLayerSrc: null,
         });
     });
 
-    it("uses file-backed image references without syncing giant base64 payloads", () => {
-        const payload = buildSyncedImagePayload({
+    it("uses file-backed image references without syncing giant base64 payloads", async () => {
+        const payload = await buildSyncedImagePayload({
             data: {
                 src: "file:///C:/Users/Public/Hook/cache/long.png",
                 filePath: "C:/Users/Public/Hook/cache/long.png",
@@ -69,5 +74,136 @@ describe("synced image payload helpers", () => {
             filePath: "C:/Users/Public/Hook/cache/long.png",
             rasterizedAnnotationLayerSrc: null,
         });
+    });
+
+    it("marks stickers with Hook-only edit state as requiring a baked sync image", () => {
+        expect(
+            requiresBakedStickerSyncImage({
+                type: "sticker",
+                w: 160,
+                h: 90,
+                data: {
+                    src: "data:image/png;base64,base",
+                    annotationState: {
+                        elements: [
+                            {
+                                id: "annotation-1",
+                                type: "line",
+                                zIndex: 1,
+                                points: [
+                                    { x: 10, y: 10 },
+                                    { x: 40, y: 30 },
+                                ],
+                                style: {
+                                    color: "#ffffff",
+                                    width: 2,
+                                },
+                            },
+                        ],
+                        serialCounter: 1,
+                    },
+                },
+            } as any),
+        ).toBe(true);
+
+        expect(
+            requiresBakedStickerSyncImage({
+                type: "sticker",
+                w: 160,
+                h: 90,
+                data: {
+                    src: "data:image/png;base64,base",
+                    imageEditState: {
+                        contentEraseStrokes: [],
+                        cropRect: { x: 5, y: 6, w: 70, h: 50 },
+                    },
+                },
+            } as any),
+        ).toBe(true);
+    });
+
+    it("uses the baked Hook-side composite as the sync image when Loom cannot reconstruct the visual result", async () => {
+        const renderBakedPreviewSrc = vi
+            .fn()
+            .mockResolvedValue("data:image/png;base64,baked-sync-preview");
+
+        const payload = await buildSyncedImagePayload(
+            {
+                type: "sticker",
+                w: 160,
+                h: 90,
+                data: {
+                    src: "file:///C:/Users/Public/Hook/cache/base.png",
+                    filePath: "C:/Users/Public/Hook/cache/base.png",
+                    rasterizedAnnotationLayerSrc: "data:image/png;base64,LAYER",
+                    annotationState: {
+                        elements: [
+                            {
+                                id: "annotation-1",
+                                type: "line",
+                                zIndex: 1,
+                                points: [
+                                    { x: 10, y: 10 },
+                                    { x: 40, y: 30 },
+                                ],
+                                style: {
+                                    color: "#ffffff",
+                                    width: 2,
+                                },
+                            },
+                        ],
+                        serialCounter: 1,
+                    },
+                },
+            } as any,
+            { renderBakedPreviewSrc },
+        );
+
+        expect(renderBakedPreviewSrc).toHaveBeenCalledTimes(1);
+        expect(payload).toEqual({
+            src: "data:image/png;base64,baked-sync-preview",
+            rasterizedAnnotationLayerSrc: null,
+        });
+    });
+
+    it("includes vector and edit state in the sync signature so Hook can re-render Loom payloads when visuals change", () => {
+        const baseUnit = {
+            type: "sticker",
+            w: 160,
+            h: 90,
+            data: {
+                src: "data:image/png;base64,base",
+                annotationState: { elements: [], serialCounter: 1 },
+                imageEditState: { contentEraseStrokes: [] },
+            },
+        } as any;
+
+        const baseSignature = buildSyncedImageSignature(baseUnit);
+        const changedSignature = buildSyncedImageSignature({
+            ...baseUnit,
+            data: {
+                ...baseUnit.data,
+                annotationState: {
+                    elements: [
+                        {
+                            id: "annotation-1",
+                            type: "line",
+                            zIndex: 1,
+                            points: [
+                                { x: 10, y: 10 },
+                                { x: 40, y: 30 },
+                            ],
+                            style: {
+                                color: "#ffffff",
+                                width: 2,
+                            },
+                        },
+                    ],
+                    serialCounter: 1,
+                },
+            },
+        });
+
+        expect(baseSignature).not.toEqual(changedSignature);
     });
 });

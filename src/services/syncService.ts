@@ -1,6 +1,6 @@
 import { api } from "./api";
 import { graphStore } from "../store/graphStore";
-import { Unit, Link } from "../types/unit";
+import { Unit, Link, WorkflowAssetArchiveHints } from "../types/unit";
 import { extraRects } from "./uiRegistry";
 import { artLoom } from "./client";
 import { WORKFLOW_ID } from "../constants";
@@ -8,10 +8,19 @@ import type { BootProfile } from "./bootProfile";
 import type { StickerGroup } from "../types/stickerEditing";
 import { getCapabilityInputsForPorts } from "./artPorts";
 import { deriveUnitExecutionConfig } from "./nodeExecutionConfig";
-import { buildSyncedImagePayload, normalizePreviewSrc } from "./syncedImagePayload";
+import {
+    buildSyncedImagePayload,
+    buildSyncedImageSignature,
+} from "./syncedImagePayload";
+import {
+    renderStickerCompositeWithAnnotations,
+    resolveStickerCompositeBaseImageSrc,
+} from "./stickerExport";
+import { buildSessionStickersForSave } from "./sessionStickerPayload";
 
 // Local state for sync optimization (dirtiness check)
-const lastSyncedSrcs = new Map<string, string>(); // Key: "workflowId:unitId" -> src
+const lastSyncedImageSignatures = new Map<string, string>();
+const bakedSyncPreviewCache = new Map<string, { signature: string; src: string }>();
 
 const buildUnitPorts = (unitType: "sticker" | "art", artId?: string) => {
     if (unitType === "sticker") {
@@ -80,34 +89,6 @@ const mapSessionStickerToUnit = (sticker: any): Unit => {
     };
 };
 
-const mapUnitToSessionSticker = (unit: Unit) => ({
-    id: unit.id,
-    src: unit.data.src || "",
-    x: unit.x,
-    y: unit.y,
-    w: unit.w,
-    h: unit.h,
-    minified: unit.data.minified ?? false,
-    savedRect: unit.data.savedRect || null,
-    cropOffset: unit.data.cropOffset || null,
-    opacityNormal: unit.data.opacityNormal ?? 1,
-    opacityMini: unit.data.opacityMini ?? 0.9,
-    type: unit.type,
-    artId: unit.artId || null,
-    params: unit.params || {},
-    filePath: unit.data.filePath || null,
-    previewSrc: normalizePreviewSrc(unit) || null,
-    rasterizedAnnotationLayerSrc: unit.data.rasterizedAnnotationLayerSrc || null,
-    outputs: unit.data.outputs || null,
-    originWorkflowId: unit.data.originWorkflowId || null,
-    originNodeId: unit.data.originNodeId || null,
-    executionConfig: unit.data.executionConfig || null,
-    annotationState: unit.data.annotationState || null,
-    imageEditState: unit.data.imageEditState || null,
-    groupId: unit.data.groupId || null,
-    captureMeta: unit.data.captureMeta || null,
-});
-
 const mapLinkToSessionLink = (link: Link) => ({
     id: link.id,
     fromUnitId: link.fromUnitId,
@@ -122,6 +103,16 @@ const mapGroupToSessionGroup = (group: StickerGroup) => ({
     hidden: group.hidden ?? false,
     locked: group.locked ?? false,
 });
+
+const ensureWorkflowArchiveHint = (
+    hints: WorkflowAssetArchiveHints,
+    workflowId: string,
+) => {
+    if (!hints.workflows[workflowId]) {
+        hints.workflows[workflowId] = { nodes: {} };
+    }
+    return hints.workflows[workflowId];
+};
 
 class SyncScheduler {
     private debounceTimer: number | null = null;
@@ -181,20 +172,55 @@ const executeSyncCycle = async () => {
     const currentUnits = graphStore.units;
     const currentLinks = graphStore.links;
     const unitParams = graphStore.unitParams;
-    const pendingImageCommits = new Map<string, string>(); // Commit these only on success
+    const pendingImageCommits = new Map<string, string>();
+    const workflowAssetArchiveHints: WorkflowAssetArchiveHints = { workflows: {} };
+
+    const resolveBakedPreviewDisplaySrc = (unit: Unit) =>
+        resolveStickerCompositeBaseImageSrc({
+            unit,
+            units: currentUnits,
+            links: currentLinks,
+            capabilities: graphStore.capabilities,
+        });
+
+    const buildBakedPreviewSignature = (unit: Unit) =>
+        buildSyncedImageSignature(unit, {
+            displaySrcOverride: resolveBakedPreviewDisplaySrc(unit) ?? null,
+        });
+
+    const renderBakedPreviewSrc = async (unit: Unit) => {
+        const baseImageSrcOverride = resolveBakedPreviewDisplaySrc(unit);
+        const signature = buildBakedPreviewSignature(unit);
+        if (!signature) {
+            return baseImageSrcOverride || unit.data.previewSrc || unit.data.src || "";
+        }
+
+        const cached = bakedSyncPreviewCache.get(unit.id);
+        if (cached?.signature === signature) {
+            return cached.src;
+        }
+
+        const bakedPreviewSrc = await renderStickerCompositeWithAnnotations(
+            unit,
+            unit.data.annotationState?.elements || [],
+            { baseImageSrcOverride },
+        );
+        bakedSyncPreviewCache.set(unit.id, { signature, src: bakedPreviewSrc });
+        return bakedPreviewSrc;
+    };
 
     // Helper to check dirtiness but defer commit
     const shouldSyncImage = (u: Unit, targetWfId: string) => {
         const key = `${targetWfId}:${u.id}`;
-        const last = lastSyncedSrcs.get(key);
-        const currentImg = u.data?.previewSrc || u.data?.src;
+        const last = lastSyncedImageSignatures.get(key);
+        const currentSignature = buildBakedPreviewSignature(u);
         const forceImageSync = targetWfId === WORKFLOW_ID;
-        if (forceImageSync && currentImg) {
-            pendingImageCommits.set(key, currentImg);
+        if (forceImageSync && currentSignature) {
+            pendingImageCommits.set(key, currentSignature);
             return true;
         }
-        if (currentImg && currentImg !== last) {
-            pendingImageCommits.set(key, currentImg);
+        if (currentSignature && currentSignature !== last) {
+            pendingImageCommits.set(key, currentSignature);
             return true;
         }
         return false;
@@ -257,9 +283,16 @@ const executeSyncCycle = async () => {
 
         if (dominantWfId) {
             const componentIds = new Set(componentUnits.map(u => u.id));
+            const workflowArchiveHint = ensureWorkflowArchiveHint(workflowAssetArchiveHints, dominantWfId);
+            componentUnits.forEach((u) => {
+                workflowArchiveHint.nodes[u.data?.originNodeId || u.id] = { stickerId: u.id };
+            });
 
-            const rfNodes = componentUnits.map(u => {
+            const rfNodes = componentUnits.map(async (u) => {
                 const syncImg = shouldSyncImage(u, dominantWfId!);
+                const imagePayload = syncImg
+                    ? await buildSyncedImagePayload(u, { renderBakedPreviewSrc })
+                    : {};
                 return {
                     id: u.data?.originNodeId || u.id,
                     type: 'artNode',
@@ -269,7 +302,7 @@ const executeSyncCycle = async () => {
                         art_id: u.artId,
                         artId: u.artId,
                         params: unitParams[u.id] || u.params || {},
-                        ...(syncImg ? buildSyncedImagePayload(u) : {}),
+                        ...imagePayload,
                         outputs: u.data?.outputs || null,
                         w: u.w, h: u.h,
                         minified: u.data?.minified,
@@ -294,7 +327,7 @@ const executeSyncCycle = async () => {
                 }));
 
             const snapshot = {
-                nodes: rfNodes,
+                nodes: await Promise.all(rfNodes),
                 edges: rfEdges,
                 viewport: { x: 0, y: 0, zoom: 1 }
             };
@@ -324,16 +357,24 @@ const executeSyncCycle = async () => {
     // 3. DUAL SYNC (Global)
     // Cleanup Stale Cache
     const currentUnitIds = new Set(currentUnits.map(u => u.id));
-    for (const key of lastSyncedSrcs.keys()) {
-            const [wfId, unitId] = key.split(':');
-            if (wfId === WORKFLOW_ID && !currentUnitIds.has(unitId)) {
-                lastSyncedSrcs.delete(key);
-            }
+    for (const key of lastSyncedImageSignatures.keys()) {
+        const [, unitId] = key.split(':');
+        if (!currentUnitIds.has(unitId)) {
+            lastSyncedImageSignatures.delete(key);
+        }
+    }
+    for (const unitId of bakedSyncPreviewCache.keys()) {
+        if (!currentUnitIds.has(unitId)) {
+            bakedSyncPreviewCache.delete(unitId);
+        }
     }
 
-    const globalRfNodes = currentUnits.map(u => {
+    const globalRfNodes = currentUnits.map(async (u) => {
         const syncImg = shouldSyncImage(u, WORKFLOW_ID);
         const artLoomType = u.type === 'sticker' ? 'sticker' : 'artNode';
+        const imagePayload = syncImg
+            ? await buildSyncedImagePayload(u, { renderBakedPreviewSrc })
+            : {};
 
         return {
             id: u.id,
@@ -344,7 +385,7 @@ const executeSyncCycle = async () => {
                 art_id: u.artId,
                 artId: u.artId,
                 params: unitParams[u.id] || u.params || {},
-                ...(syncImg ? buildSyncedImagePayload(u) : {}),
+                ...imagePayload,
                 outputs: u.data?.outputs || null,
                 w: u.w, h: u.h,
                 minified: u.data?.minified,
@@ -367,24 +408,35 @@ const executeSyncCycle = async () => {
     }));
 
     syncPromises.push(artLoom.syncWorkflow(WORKFLOW_ID, {
-        nodes: globalRfNodes,
+        nodes: await Promise.all(globalRfNodes),
         edges: globalRfEdges,
         viewport: { x: 0, y: 0, zoom: 1 }
     }));
+    const liveWorkflowArchiveHint = ensureWorkflowArchiveHint(workflowAssetArchiveHints, WORKFLOW_ID);
+    currentUnits.forEach((u) => {
+        liveWorkflowArchiveHint.nodes[u.id] = { stickerId: u.id };
+    });
 
     // Wait for all syncs to complete
     await Promise.all(syncPromises);
 
     // Commit image state updates
-    pendingImageCommits.forEach((val, key) => lastSyncedSrcs.set(key, val));
+    pendingImageCommits.forEach((val, key) => lastSyncedImageSignatures.set(key, val));
 
     // Persist the current local runtime state after a successful sync cycle.
+    const sessionStickers = await buildSessionStickersForSave(graphStore.units, {
+        renderBakedPreviewSrc,
+        previewCache: bakedSyncPreviewCache,
+        buildPreviewSignature: buildBakedPreviewSignature,
+    });
+
     await api.saveSession(
-        graphStore.units.map(mapUnitToSessionSticker),
+        sessionStickers,
         graphStore.links.map(mapLinkToSessionLink),
         graphStore.stickerGroups.map(mapGroupToSessionGroup),
         graphStore.recycleBin.map((entry) => entry),
         graphStore.referenceLibrary.map((entry) => entry),
+        workflowAssetArchiveHints,
     );
 };
 

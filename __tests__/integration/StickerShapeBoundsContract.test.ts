@@ -14,7 +14,9 @@ describe("Hook sticker shape bounds contract", () => {
         expect(annotationModelSource).toContain('mode === "shape-rect"');
         expect(annotationModelSource).toContain('mode === "shape-ellipse"');
         expect(annotationLayerSource).toContain("isBoundedBoxMode(prev.mode)");
-        expect(annotationLayerSource).toContain("isBoundedBoxMode(shape.mode)");
         expect(annotationLayerSource).toContain("isBoundedBoxMode(draft.mode)");
+        expect(annotationLayerSource).toContain("const resolveDraftShapeRect = (draft: DraftShape) =>");
+        expect(annotationLayerSource).toContain("const rect = resolveDraftShapeRect(shape);");
+        expect(annotationLayerSource).toContain("return resolveDraftShapeRect(draft);");
     });
 });

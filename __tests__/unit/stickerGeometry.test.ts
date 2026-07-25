@@ -183,7 +183,7 @@ describe("stickerGeometry", () => {
             x: 10,
             y: 20,
             w: 118,
-            h: 50,
+            h: 30,
         });
     });
 
@@ -206,7 +206,7 @@ describe("stickerGeometry", () => {
 
             expect(getAnnotationGroupBounds(annotations)).toEqual({
                 x: 80,
-                y: 50,
+                y: 30,
                 w: 48,
                 h: 20,
             });
@@ -214,6 +214,22 @@ describe("stickerGeometry", () => {
         } finally {
             errorSpy.mockRestore();
         }
+    });
+
+    it("hit-tests normal text around its SVG baseline-aligned glyph bounds", () => {
+        const annotation: StickerAnnotation = {
+            id: "baseline-text",
+            type: "text",
+            zIndex: 1,
+            x: 80,
+            y: 50,
+            text: "Wide",
+            fontSize: 20,
+            style: { color: "#fff", width: 2, opacity: 1 },
+        };
+
+        expect(annotationContainsPoint(annotation, { x: 90, y: 40 }, 0)).toBe(true);
+        expect(annotationContainsPoint(annotation, { x: 90, y: 62 }, 0)).toBe(false);
     });
 
     it("builds rounded polygon SVG paths when corner radius is enabled", () => {

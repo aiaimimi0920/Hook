@@ -2,6 +2,17 @@ import { For, Show, createEffect, createMemo, createSignal, onCleanup, type Comp
 import { Portal } from "solid-js/web";
 
 import { ColorPicker } from "./ColorPicker";
+import {
+    TextIcon,
+} from "./stickerTopStripPropertyBarIcons";
+import {
+    createStickerTopStripPropertyBarFields,
+    type MiniDropdownOption,
+} from "./stickerTopStripPropertyBarFields";
+import {
+    createStickerTopStripPropertyBarSections,
+    type SelectedExistingColorRole,
+} from "./stickerTopStripPropertyBarSections";
 import { graphStore } from "../store/graphStore";
 import {
     getResetColorForSlot,
@@ -50,16 +61,6 @@ interface AnchorRect {
     height: number;
 }
 
-interface MiniIconProps {
-    class?: string;
-}
-
-interface MiniDropdownOption {
-    value: string;
-    label: string;
-    title?: string;
-}
-
 interface OpenMiniDropdownMenu {
     id: string;
     anchor: AnchorRect;
@@ -68,11 +69,6 @@ interface OpenMiniDropdownMenu {
     value: string;
     onSelect: (value: string) => void;
 }
-
-type SelectedExistingColorRole =
-    | "selected-text-color"
-    | "selected-serial-foreground"
-    | "selected-serial-fill";
 
 const iconShellClass =
     "flex h-6 shrink-0 items-center justify-center border border-white/10 bg-black/35 text-white/80 transition-colors hover:border-white/25 hover:bg-white/10";
@@ -86,180 +82,6 @@ const dashOptions: Array<{ key: "solid" | "dash-1" | "dash-2"; label: string; ti
     { key: "dash-1", label: "╌", title: "虚线1" },
     { key: "dash-2", label: "┄", title: "虚线2" },
 ];
-
-const StrokeColorIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
-        <rect x="3" y="3" width="10" height="10" rx="1.2" />
-    </svg>
-);
-
-const FillColorIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="currentColor">
-        <rect x="3" y="3" width="10" height="10" rx="1.2" />
-    </svg>
-);
-
-const SquareConstraintGlyphIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none">
-        <text
-            x="8"
-            y="11"
-            fill="currentColor"
-            font-size="10"
-            font-weight="700"
-            text-anchor="middle"
-        >
-            正
-        </text>
-    </svg>
-);
-
-const StepIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 11.5 6 8.5 8 10 12.5 5.5" />
-        <path d="M12.5 5.5V8.5" />
-    </svg>
-);
-
-const LineWidthIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round">
-        <path d="M3 12.5h10" stroke-width="2.4" />
-        <path d="M3 8h10" stroke-width="1.5" />
-        <path d="M3 4h10" stroke-width="0.9" />
-    </svg>
-);
-
-const AngleSnapIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 12V4h8" />
-        <path d="M4 12 12 4" />
-        <path d="M6.5 12A2.5 2.5 0 0 0 4 9.5" />
-    </svg>
-);
-
-const ArrowHeadIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 12 12 3" />
-        <path d="M8.5 3H12v3.5" />
-    </svg>
-);
-
-const BrushIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M10.5 3.5 13 6l-5.5 5.5-2.5.5.5-2.5L10.5 3.5Z" />
-        <path d="M5.5 10.5c-.7.2-1.5.8-1.5 1.8" />
-    </svg>
-);
-
-const HighlighterGlowIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M8 3.2v2" />
-        <path d="M11.4 4.6 10 6" />
-        <path d="M12.8 8h-2" />
-        <path d="M5.8 9.6 9.6 5.8 12.2 8.4 8.4 12.2H5.6Z" />
-        <path d="M4.2 12.6h4.2" />
-    </svg>
-);
-
-const TextIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 4h10" />
-        <path d="M8 4v8" />
-        <path d="M5.5 12h5" />
-    </svg>
-);
-
-const RadiusIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 12V6a2 2 0 0 1 2-2h6" />
-        <path d="M6 12h6" />
-        <path d="M12 4v4" />
-    </svg>
-);
-
-const PolygonSidesIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="8,2.5 12.5,5 12.5,11 8,13.5 3.5,11 3.5,5" />
-        <circle cx="8" cy="2.5" r="0.6" fill="currentColor" stroke="none" />
-        <circle cx="12.5" cy="5" r="0.6" fill="currentColor" stroke="none" />
-        <circle cx="12.5" cy="11" r="0.6" fill="currentColor" stroke="none" />
-        <circle cx="8" cy="13.5" r="0.6" fill="currentColor" stroke="none" />
-        <circle cx="3.5" cy="11" r="0.6" fill="currentColor" stroke="none" />
-        <circle cx="3.5" cy="5" r="0.6" fill="currentColor" stroke="none" />
-    </svg>
-);
-
-const BlurIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
-        <circle cx="8" cy="8" r="2.3" />
-        <path d="M3 8h1.2M11.8 8H13" />
-        <path d="M8 3v1.2M8 11.8V13" />
-    </svg>
-);
-
-const MosaicIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="currentColor">
-        <rect x="3" y="3" width="4" height="4" rx="0.5" />
-        <rect x="8.5" y="3" width="4.5" height="4" rx="0.5" />
-        <rect x="3" y="8.5" width="4" height="4.5" rx="0.5" />
-        <rect x="8.5" y="8.5" width="4.5" height="4.5" rx="0.5" />
-    </svg>
-);
-
-const EraserIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M6.2 4.2h4.2l2.1 2.1-5.4 5.5H3.9L2.5 10.4 6.2 4.2Z" />
-        <path d="M8 11.8h4.5" />
-    </svg>
-);
-
-const AnnotationsOnlyFocusedIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2.5" y="2.5" width="11" height="11" rx="1.5" opacity="0.35" />
-        <rect x="4.2" y="4.2" width="5.2" height="5.2" rx="0.9" stroke-dasharray="1.1 1.1" />
-        <path d="M10.3 9.8 12.9 7.2" />
-        <path d="M10.7 6.8h1.7l.8.8-2.5 2.5H9.9l-.6-.6 1.4-2.7Z" />
-    </svg>
-);
-
-const FlipXIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M8 2.8v10.4" />
-        <path d="m6.1 5.3-2.8 2.8 2.8 2.8" />
-        <path d="m9.9 5.3 2.8 2.8-2.8 2.8" />
-    </svg>
-);
-
-const FlipYIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M2.8 8h10.4" />
-        <path d="m5.3 6.1 2.8-2.8 2.8 2.8" />
-        <path d="m5.3 9.9 2.8 2.8 2.8-2.8" />
-    </svg>
-);
-
-const ResetCropIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4.5 3.5h7v7" />
-        <path d="M11.5 12.5h-7v-7" />
-        <path d="M5 5 3 7l2 2" />
-    </svg>
-);
-
-const OpacityIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M8 2.7 11.8 6.8A4.8 4.8 0 1 1 4.2 6.8L8 2.7Z" />
-        <path d="M8 4.8v6.5" opacity="0.55" />
-    </svg>
-);
-
-const CanvasSizeIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="4" width="10" height="8" rx="1.2" />
-        <path d="M5 8h6" />
-        <path d="M9 6l2 2-2 2" />
-    </svg>
-);
 
 export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarProps> = (props) => {
     const [numericDrafts, setNumericDrafts] = createSignal<Partial<Record<NumericToolSettingKey, string>>>({});
@@ -879,333 +701,96 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
         });
     });
 
-    const MiniColorField: Component<{
-        title: string;
-        slot: ShapeColorSettingKey;
-        Icon: Component<MiniIconProps>;
-    }> = (fieldProps) => {
-        let buttonRef: HTMLButtonElement | undefined;
-        const current = createMemo(() => stickerToolSettings[fieldProps.slot]);
-        const isTransparent = createMemo(
-            () => current().trim().toLowerCase() === "transparent" || current().trim().toLowerCase() === "#00000000",
-        );
-
-        return (
-            <button
-                ref={buttonRef}
-                type="button"
-                class={`${iconShellClass} relative w-6 overflow-hidden`}
-                title={fieldProps.title}
-                onClick={() => {
-                    if (!buttonRef) return;
-                    openColorPicker(fieldProps.slot, buttonRef);
-                }}
-            >
-                <span
-                    class="absolute inset-0"
-                    style={{
-                        background:
-                            "linear-gradient(45deg, #9ca3af 25%, transparent 25%), linear-gradient(-45deg, #9ca3af 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #9ca3af 75%), linear-gradient(-45deg, transparent 75%, #9ca3af 75%)",
-                        "background-size": "6px 6px",
-                        "background-position": "0 0, 0 3px, 3px -3px, -3px 0px",
-                    }}
-                />
-                <Show when={!isTransparent()}>
-                    <span class="absolute inset-[2px]" style={{ background: current() }} />
-                </Show>
-                <span class="relative z-[1] text-white">
-                    <fieldProps.Icon class="h-3.5 w-3.5" />
-                </span>
-            </button>
-        );
-    };
-
-    const MiniDirectColorField: Component<{
-        title: string;
-        value: string;
-        Icon: Component<MiniIconProps>;
-        onOpen: (button: HTMLButtonElement) => void;
-    }> = (fieldProps) => {
-        let buttonRef: HTMLButtonElement | undefined;
-        const isTransparent = createMemo(
-            () =>
-                fieldProps.value.trim().toLowerCase() === "transparent"
-                || fieldProps.value.trim().toLowerCase() === "#00000000",
-        );
-
-        return (
-            <button
-                ref={buttonRef}
-                type="button"
-                class={`${iconShellClass} relative w-6 overflow-hidden`}
-                title={fieldProps.title}
-                onClick={() => {
-                    if (!buttonRef) return;
-                    fieldProps.onOpen(buttonRef);
-                }}
-            >
-                <span
-                    class="absolute inset-0"
-                    style={{
-                        background:
-                            "linear-gradient(45deg, #9ca3af 25%, transparent 25%), linear-gradient(-45deg, #9ca3af 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #9ca3af 75%), linear-gradient(-45deg, transparent 75%, #9ca3af 75%)",
-                        "background-size": "6px 6px",
-                        "background-position": "0 0, 0 3px, 3px -3px, -3px 0px",
-                    }}
-                />
-                <Show when={!isTransparent()}>
-                    <span class="absolute inset-[2px]" style={{ background: fieldProps.value }} />
-                </Show>
-                <span class="relative z-[1] text-white">
-                    <fieldProps.Icon class="h-3.5 w-3.5" />
-                </span>
-            </button>
-        );
-    };
-
-    const MiniNumericField: Component<{
-        title: string;
-        settingKey: NumericToolSettingKey;
-        currentValue: number;
-        min: number;
-        max: number;
-        Icon: Component<MiniIconProps>;
-        inputClass?: string;
-    }> = (fieldProps) => (
-        <label class={groupedShellClass} title={fieldProps.title}>
-            <fieldProps.Icon class="h-3.5 w-3.5 shrink-0 text-white/70" />
-            <input
-                class={`${compactInputClass} ${fieldProps.inputClass ?? ""}`.trim()}
-                type="text"
-                inputmode="numeric"
-                value={getNumericValue(fieldProps.settingKey, fieldProps.currentValue)}
-                onInput={(event) => setNumericDraft(fieldProps.settingKey, event.currentTarget.value)}
-                onBlur={() =>
-                    commitNumericDraft(
-                        fieldProps.settingKey,
-                        fieldProps.currentValue,
-                        fieldProps.min,
-                        fieldProps.max,
-                    )
-                }
-                onKeyDown={(event) => {
-                    if (event.key !== "Enter") return;
-                    commitNumericDraft(
-                        fieldProps.settingKey,
-                        fieldProps.currentValue,
-                        fieldProps.min,
-                        fieldProps.max,
-                    );
-                    event.currentTarget.blur();
-                }}
-            />
-        </label>
-    );
-
-    const MiniDeferredNumericField: Component<{
-        title: string;
-        value: string;
-        Icon: Component<MiniIconProps>;
-        onInput: (value: string) => void;
-        onCommit: () => void;
-        inputClass?: string;
-    }> = (fieldProps) => (
-        <label class={groupedShellClass} title={fieldProps.title}>
-            <fieldProps.Icon class="h-3.5 w-3.5 shrink-0 text-white/70" />
-            <input
-                class={`${compactInputClass} ${fieldProps.inputClass ?? ""}`.trim()}
-                type="text"
-                inputmode="numeric"
-                value={fieldProps.value}
-                onInput={(event) => fieldProps.onInput(event.currentTarget.value)}
-                onBlur={() => fieldProps.onCommit()}
-                onKeyDown={(event) => {
-                    if (event.key !== "Enter") return;
-                    fieldProps.onCommit();
-                    event.currentTarget.blur();
-                }}
-            />
-        </label>
-    );
-
-    const MiniToggleField: Component<{
-        title: string;
-        enabled: boolean;
-        onToggle: () => void;
-        Icon: Component<MiniIconProps>;
-    }> = (fieldProps) => (
-        <button
-            type="button"
-            class={`hook-mini-toggle ${iconShellClass} w-6`}
-            classList={{
-                "hook-mini-toggle--active": fieldProps.enabled,
-                "border-white/10 bg-black/35 text-white/75 hover:border-white/25 hover:bg-white/10": !fieldProps.enabled,
-            }}
-            title={fieldProps.title}
-            onClick={() => fieldProps.onToggle()}
-        >
-            <fieldProps.Icon class="h-3.5 w-3.5" />
-        </button>
-    );
-
-    const MiniActionField: Component<{
-        title: string;
-        onClick: () => void | Promise<void>;
-        Icon: Component<MiniIconProps>;
-    }> = (fieldProps) => (
-        <button
-            type="button"
-            class={`${iconShellClass} w-6`}
-            title={fieldProps.title}
-            onClick={() => void fieldProps.onClick()}
-        >
-            <fieldProps.Icon class="h-3.5 w-3.5" />
-        </button>
-    );
-
-    const MiniSwitchField: Component<{
-        title: string;
-        enabled: boolean;
-        onToggle: () => void;
-        Icon: Component<MiniIconProps>;
-    }> = (fieldProps) => (
-        <button
-            type="button"
-            class="hook-mini-switch flex h-6 w-[42px] shrink-0 items-center justify-between border px-1.5 transition-colors"
-            classList={{
-                "hook-mini-switch--active": fieldProps.enabled,
-                "border-white/10 bg-black/35 text-white/75 hover:border-white/25 hover:bg-white/10": !fieldProps.enabled,
-            }}
-            title={fieldProps.title}
-            onClick={() => fieldProps.onToggle()}
-        >
-            <fieldProps.Icon class="h-3.5 w-3.5 shrink-0" />
-            <span
-                class="hook-mini-switch__thumb h-3.5 w-3.5 shrink-0 transition-all"
-                classList={{
-                    "translate-x-0": fieldProps.enabled,
-                    "-translate-x-0.5": !fieldProps.enabled,
-                }}
-            />
-        </button>
-    );
-
-    const MiniDropdownField: Component<{
-        id: string;
-        title: string;
-        value: string;
-        options: MiniDropdownOption[];
-        onChange: (value: string) => void;
-        onOpen?: () => void;
-        Icon?: Component<MiniIconProps>;
-        triggerWidthClass: string;
-        menuWidth: number;
-        triggerLabelClass?: string;
-    }> = (fieldProps) => {
-        let buttonRef: HTMLButtonElement | undefined;
-        const selectedOption = createMemo(
-            () => fieldProps.options.find((option) => option.value === fieldProps.value) ?? fieldProps.options[0],
-        );
-        const isOpen = createMemo(() => openDropdownMenu()?.id === fieldProps.id);
-
-        return (
-            <button
-                ref={buttonRef}
-                type="button"
-                data-top-strip-popup-trigger={fieldProps.id}
-                class={`${groupedShellClass} ${fieldProps.triggerWidthClass} justify-between`}
-                title={fieldProps.title}
-                onPointerDown={(event) => {
-                    event.stopPropagation();
-                    void api.focusOverlayWindow();
-                }}
-                onMouseDown={(event) => {
-                    event.stopPropagation();
-                    void api.focusOverlayWindow();
-                }}
-                onClick={() => {
-                    if (!buttonRef) return;
-                    fieldProps.onOpen?.();
-                    const rect = buttonRef.getBoundingClientRect();
-                    toggleDropdownMenu(
-                        fieldProps.id,
-                        {
-                            x: rect.left,
-                            y: rect.top,
-                            width: rect.width,
-                            height: rect.height,
-                        },
-                        fieldProps.menuWidth,
-                        fieldProps.options,
-                        fieldProps.value,
-                        fieldProps.onChange,
-                    );
-                }}
-            >
-                <span class="flex min-w-0 items-center gap-1">
-                    {fieldProps.Icon
-                        ? (() => {
-                              const Icon = fieldProps.Icon!;
-                              return <Icon class="h-3.5 w-3.5 shrink-0 text-white/70" />;
-                          })()
-                        : null}
-                    <span
-                        class={`truncate text-left text-[10px] text-white ${
-                            fieldProps.triggerLabelClass ?? ""
-                        }`.trim()}
-                    >
-                        {selectedOption()?.label ?? fieldProps.value}
-                    </span>
-                </span>
-                <span class={`shrink-0 text-[9px] text-white/55 transition-transform ${isOpen() ? "rotate-180" : ""}`}>
-                    ▾
-                </span>
-            </button>
-        );
-    };
-
-    const MiniDashField: Component<{ title: string }> = (fieldProps) => (
-        <MiniDropdownField
-            id={`${props.unitId}-dash-pattern`}
-            title={fieldProps.title}
-            value={stickerToolSettings.shapeStrokeDashPattern}
-            options={dashOptions.map((option) => ({
-                value: option.key,
-                label: option.label,
-                title: option.title,
-            }))}
-            onChange={(value) => {
-                uiActions.patchStickerToolSettings({
-                    shapeStrokeDashPattern: value as "solid" | "dash-1" | "dash-2",
-                });
-                closeDropdownMenu();
-            }}
-            triggerWidthClass="w-[46px]"
-            menuWidth={72}
-            triggerLabelClass="text-center font-semibold"
-        />
-    );
-
-    const MiniFontField: Component<{ title: string; value: string; onChange: (value: string) => void }> = (fieldProps) => (
-        <MiniDropdownField
-            id={`${props.unitId}-${fieldProps.title}-font`}
-            title={fieldProps.title}
-            value={fieldProps.value}
-            options={availableFontFamilies().map((font) => ({
-                value: font,
-                label: font,
-                title: font,
-            }))}
-            onChange={(value) => {
-                fieldProps.onChange(value);
-                closeDropdownMenu();
-            }}
-            onOpen={loadInstalledFontsOnDemand}
-            Icon={TextIcon}
-            triggerWidthClass="w-[110px]"
-            menuWidth={196}
-        />
-    );
+    const {
+        MiniActionField,
+        MiniColorField,
+        MiniDashField,
+        MiniDeferredNumericField,
+        MiniDirectColorField,
+        MiniFontField,
+        MiniNumericField,
+        MiniSwitchField,
+        MiniToggleField,
+    } = createStickerTopStripPropertyBarFields({
+        unitId: () => props.unitId,
+        dashOptions,
+        iconShellClass,
+        groupedShellClass,
+        compactInputClass,
+        stickerToolSettings,
+        availableFontFamilies,
+        fontIcon: TextIcon,
+        focusOverlayWindow: () => api.focusOverlayWindow(),
+        openColorPicker,
+        getNumericValue,
+        setNumericDraft,
+        commitNumericDraft,
+        isDropdownOpen: (id) => openDropdownMenu()?.id === id,
+        patchStickerToolSettings: (patch) => uiActions.patchStickerToolSettings(patch),
+        toggleDropdownMenu,
+        closeDropdownMenu,
+        loadInstalledFontsOnDemand,
+    });
+    const {
+        renderShapeFields,
+        renderLineFields,
+        renderBrushFields,
+        renderTextFields,
+        renderSelectedTextFields,
+        renderSerialFields,
+        renderSelectedSerialFields,
+        renderEffectFields,
+        renderEraserFields,
+        renderCropFields,
+    } = createStickerTopStripPropertyBarSections({
+        tool: () => props.tool,
+        stickerToolSettings,
+        shapeStrokeColorSlot,
+        shapeFillColorSlot,
+        supportsCornerRadius,
+        isPolygonTool,
+        selectedExistingTextColor,
+        selectedTextSizeDraft,
+        selectedExistingTextSize,
+        selectedExistingTextFontFamily,
+        selectedExistingSerialForegroundColor,
+        selectedExistingSerialFillColor,
+        selectedSerialRadiusDraft,
+        selectedExistingSerialRadius,
+        selectedExistingSerialFontFamily,
+        cropCornerRadiusDraft,
+        cropOpacityDraft,
+        cropCanvasWidthDraft,
+        isCropBorderEnabled: () => !!((unit()?.data.imageEditState?.borderWidth || 0) > 0),
+        setSelectedTextSizeDraft,
+        commitSelectedTextSizeDraft,
+        setSelectedSerialRadiusDraft,
+        commitSelectedSerialRadiusDraft,
+        openSelectedExistingColorPicker,
+        applySelectedAnnotationFontFamilyChange,
+        patchStickerToolSettings: (patch) => uiActions.patchStickerToolSettings(patch),
+        applyCropFlip,
+        resetCrop,
+        getEditableFrameCornerRadius,
+        setCropCornerRadiusDraft,
+        commitCropCornerRadiusDraft,
+        toggleCropBorder,
+        getEditableOpacityPercent,
+        setCropOpacityDraft,
+        commitCropOpacityDraft,
+        getEditableCanvasWidth,
+        setCropCanvasWidthDraft,
+        commitCropCanvasWidthDraft,
+        MiniActionField,
+        MiniColorField,
+        MiniDashField,
+        MiniDeferredNumericField,
+        MiniDirectColorField,
+        MiniFontField,
+        MiniNumericField,
+        MiniSwitchField,
+        MiniToggleField,
+    });
 
     return (
         <>
@@ -1220,320 +805,16 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
                     void api.focusOverlayWindow();
                 }}
             >
-                <Show when={isShapeTool()}>
-                    <>
-                        <MiniColorField title="描边颜色" slot={shapeStrokeColorSlot()} Icon={StrokeColorIcon} />
-                        <Show when={shapeFillColorSlot()}>
-                            <MiniColorField title="填充颜色" slot={shapeFillColorSlot()!} Icon={FillColorIcon} />
-                        </Show>
-                        <MiniSwitchField
-                            title="正图形开关"
-                            enabled={stickerToolSettings.shapeConstrainSquare}
-                            onToggle={() =>
-                                uiActions.patchStickerToolSettings({
-                                    shapeConstrainSquare: !stickerToolSettings.shapeConstrainSquare,
-                                })
-                            }
-                            Icon={SquareConstraintGlyphIcon}
-                        />
-                        <MiniNumericField
-                            title="步进"
-                            settingKey="shapeSnapStep"
-                            currentValue={stickerToolSettings.shapeSnapStep}
-                            min={0}
-                            max={50}
-                            Icon={StepIcon}
-                        />
-                        <MiniNumericField
-                            title="线宽"
-                            settingKey="strokeWidth"
-                            currentValue={stickerToolSettings.strokeWidth}
-                            min={0}
-                            max={96}
-                            Icon={LineWidthIcon}
-                        />
-                        <MiniDashField title="线型" />
-                        <Show when={supportsCornerRadius()}>
-                            <MiniNumericField
-                                title="圆角半径"
-                                settingKey="shapeCornerRadius"
-                                currentValue={stickerToolSettings.shapeCornerRadius}
-                                min={0}
-                                max={256}
-                                Icon={RadiusIcon}
-                                inputClass="w-[30px]"
-                            />
-                        </Show>
-                        <Show when={isPolygonTool()}>
-                            <MiniNumericField
-                                title="边数"
-                                settingKey="polygonSides"
-                                currentValue={stickerToolSettings.polygonSides}
-                                min={3}
-                                max={12}
-                                Icon={PolygonSidesIcon}
-                            />
-                        </Show>
-                    </>
-                </Show>
-
-                <Show when={isLineTool()}>
-                    <>
-                        <MiniColorField title="描边颜色" slot={shapeStrokeColorSlot()} Icon={StrokeColorIcon} />
-                        <MiniNumericField
-                            title="线宽"
-                            settingKey="strokeWidth"
-                            currentValue={stickerToolSettings.strokeWidth}
-                            min={0}
-                            max={96}
-                            Icon={LineWidthIcon}
-                        />
-                        <MiniDashField title="线型" />
-                        <MiniToggleField
-                            title="角吸附"
-                            enabled={stickerToolSettings.lineAngleSnap}
-                            onToggle={() =>
-                                uiActions.patchStickerToolSettings({
-                                    lineAngleSnap: !stickerToolSettings.lineAngleSnap,
-                                })
-                            }
-                            Icon={AngleSnapIcon}
-                        />
-                        <MiniToggleField
-                            title="箭头"
-                            enabled={stickerToolSettings.lineArrowEnabled}
-                            onToggle={() =>
-                                uiActions.patchStickerToolSettings({
-                                    lineArrowEnabled: !stickerToolSettings.lineArrowEnabled,
-                                })
-                            }
-                            Icon={ArrowHeadIcon}
-                        />
-                    </>
-                </Show>
-
-                <Show when={isBrushTool()}>
-                    <>
-                        <MiniColorField title="画笔颜色" slot="brushColor" Icon={StrokeColorIcon} />
-                        <MiniNumericField
-                            title="线宽"
-                            settingKey="strokeWidth"
-                            currentValue={stickerToolSettings.strokeWidth}
-                            min={1}
-                            max={96}
-                            Icon={LineWidthIcon}
-                        />
-                        <MiniToggleField
-                            title="荧光开关"
-                            enabled={stickerToolSettings.brushHighlighterEnabled}
-                            onToggle={() =>
-                                uiActions.patchStickerToolSettings({
-                                    brushHighlighterEnabled: !stickerToolSettings.brushHighlighterEnabled,
-                                })
-                            }
-                            Icon={HighlighterGlowIcon}
-                        />
-                    </>
-                </Show>
-
-                <Show when={isTextTool()}>
-                    <>
-                        <MiniColorField title="文字颜色" slot="textColor" Icon={TextIcon} />
-                        <MiniNumericField
-                            title="字号"
-                            settingKey="textSize"
-                            currentValue={stickerToolSettings.textSize}
-                            min={8}
-                            max={96}
-                            Icon={LineWidthIcon}
-                        />
-                        <MiniFontField
-                            title="字体"
-                            value={stickerToolSettings.textFontFamily}
-                            onChange={(value) => uiActions.patchStickerToolSettings({ textFontFamily: value })}
-                        />
-                    </>
-                </Show>
-
-                <Show when={props.tool === "selected-text"}>
-                    <>
-                        <MiniDirectColorField
-                            title="节点文字颜色"
-                            value={selectedExistingTextColor()}
-                            Icon={TextIcon}
-                            onOpen={(button) =>
-                                openSelectedExistingColorPicker("selected-text-color", selectedExistingTextColor(), button)
-                            }
-                        />
-                        <MiniDeferredNumericField
-                            title="节点字号"
-                            value={selectedTextSizeDraft() ?? String(selectedExistingTextSize())}
-                            Icon={LineWidthIcon}
-                            onInput={setSelectedTextSizeDraft}
-                            onCommit={commitSelectedTextSizeDraft}
-                        />
-                        <MiniFontField
-                            title="节点字体"
-                            value={selectedExistingTextFontFamily()}
-                            onChange={(value) => applySelectedAnnotationFontFamilyChange("text", value)}
-                        />
-                    </>
-                </Show>
-
-                <Show when={isSerialTool()}>
-                    <>
-                        <MiniColorField title="描边颜色" slot="serialForegroundColor" Icon={StrokeColorIcon} />
-                        <MiniColorField title="填充颜色" slot="serialFillColor" Icon={FillColorIcon} />
-                        <MiniNumericField
-                            title="半径"
-                            settingKey="serialRadius"
-                            currentValue={stickerToolSettings.serialRadius}
-                            min={8}
-                            max={96}
-                            Icon={RadiusIcon}
-                        />
-                        <MiniFontField
-                            title="字体"
-                            value={stickerToolSettings.serialFontFamily}
-                            onChange={(value) => uiActions.patchStickerToolSettings({ serialFontFamily: value })}
-                        />
-                    </>
-                </Show>
-
-                <Show when={props.tool === "selected-serial"}>
-                    <>
-                        <MiniDirectColorField
-                            title="节点描边/数字颜色"
-                            value={selectedExistingSerialForegroundColor()}
-                            Icon={StrokeColorIcon}
-                            onOpen={(button) =>
-                                openSelectedExistingColorPicker(
-                                    "selected-serial-foreground",
-                                    selectedExistingSerialForegroundColor(),
-                                    button,
-                                )
-                            }
-                        />
-                        <MiniDirectColorField
-                            title="节点填充颜色"
-                            value={selectedExistingSerialFillColor()}
-                            Icon={FillColorIcon}
-                            onOpen={(button) =>
-                                openSelectedExistingColorPicker(
-                                    "selected-serial-fill",
-                                    selectedExistingSerialFillColor(),
-                                    button,
-                                )
-                            }
-                        />
-                        <MiniDeferredNumericField
-                            title="节点半径"
-                            value={selectedSerialRadiusDraft() ?? String(selectedExistingSerialRadius())}
-                            Icon={RadiusIcon}
-                            onInput={setSelectedSerialRadiusDraft}
-                            onCommit={commitSelectedSerialRadiusDraft}
-                        />
-                        <MiniFontField
-                            title="节点字体"
-                            value={selectedExistingSerialFontFamily()}
-                            onChange={(value) => applySelectedAnnotationFontFamilyChange("serial", value)}
-                        />
-                    </>
-                </Show>
-
-                <Show when={isEffectTool()}>
-                    <>
-                        <MiniNumericField
-                            title="笔刷"
-                            settingKey="effectBrushSize"
-                            currentValue={stickerToolSettings.effectBrushSize}
-                            min={4}
-                            max={200}
-                            Icon={BrushIcon}
-                            inputClass="w-9"
-                        />
-                        <Show when={props.tool === "mosaic"}>
-                            <MiniNumericField
-                                title="强度"
-                                settingKey="mosaicSize"
-                                currentValue={stickerToolSettings.mosaicSize}
-                                min={2}
-                                max={64}
-                                Icon={MosaicIcon}
-                            />
-                        </Show>
-                        <Show when={props.tool === "blur"}>
-                            <MiniNumericField
-                                title="强度"
-                                settingKey="blurStrength"
-                                currentValue={stickerToolSettings.blurStrength}
-                                min={2}
-                                max={64}
-                                Icon={BlurIcon}
-                            />
-                        </Show>
-                    </>
-                </Show>
-
-                <Show when={isEraserTool()}>
-                    <>
-                        <MiniNumericField
-                            title="擦除半径"
-                            settingKey="contentEraserSize"
-                            currentValue={stickerToolSettings.contentEraserSize}
-                            min={4}
-                            max={96}
-                            Icon={EraserIcon}
-                        />
-                        <MiniToggleField
-                            title="只擦标记"
-                            enabled={stickerToolSettings.contentEraserOnlyAnnotations}
-                            onToggle={() =>
-                                uiActions.patchStickerToolSettings({
-                                    contentEraserOnlyAnnotations: !stickerToolSettings.contentEraserOnlyAnnotations,
-                                })
-                            }
-                            Icon={AnnotationsOnlyFocusedIcon}
-                        />
-                    </>
-                </Show>
-
-                <Show when={props.tool === "crop"}>
-                    <>
-                        <MiniActionField title="翻X" onClick={() => applyCropFlip("x")} Icon={FlipXIcon} />
-                        <MiniActionField title="翻Y" onClick={() => applyCropFlip("y")} Icon={FlipYIcon} />
-                        <MiniActionField title="重置裁剪" onClick={resetCrop} Icon={ResetCropIcon} />
-                        <MiniDeferredNumericField
-                            title="圆角半径"
-                            value={cropCornerRadiusDraft() ?? String(getEditableFrameCornerRadius())}
-                            Icon={RadiusIcon}
-                            onInput={setCropCornerRadiusDraft}
-                            onCommit={commitCropCornerRadiusDraft}
-                            inputClass="w-[30px]"
-                        />
-                        <MiniToggleField
-                            title="边框开关"
-                            enabled={!!((unit()?.data.imageEditState?.borderWidth || 0) > 0)}
-                            onToggle={toggleCropBorder}
-                            Icon={StrokeColorIcon}
-                        />
-                        <MiniDeferredNumericField
-                            title="透明度"
-                            value={cropOpacityDraft() ?? String(getEditableOpacityPercent())}
-                            Icon={OpacityIcon}
-                            onInput={setCropOpacityDraft}
-                            onCommit={commitCropOpacityDraft}
-                        />
-                        <MiniDeferredNumericField
-                            title="大小"
-                            value={cropCanvasWidthDraft() ?? String(getEditableCanvasWidth())}
-                            Icon={CanvasSizeIcon}
-                            onInput={setCropCanvasWidthDraft}
-                            onCommit={commitCropCanvasWidthDraft}
-                            inputClass="w-9"
-                        />
-                    </>
-                </Show>
+                <Show when={isShapeTool()}>{renderShapeFields()}</Show>
+                <Show when={isLineTool()}>{renderLineFields()}</Show>
+                <Show when={isBrushTool()}>{renderBrushFields()}</Show>
+                <Show when={isTextTool()}>{renderTextFields()}</Show>
+                <Show when={props.tool === "selected-text"}>{renderSelectedTextFields()}</Show>
+                <Show when={isSerialTool()}>{renderSerialFields()}</Show>
+                <Show when={props.tool === "selected-serial"}>{renderSelectedSerialFields()}</Show>
+                <Show when={isEffectTool()}>{renderEffectFields()}</Show>
+                <Show when={isEraserTool()}>{renderEraserFields()}</Show>
+                <Show when={props.tool === "crop"}>{renderCropFields()}</Show>
             </div>
 
             <Show when={openDropdownMenu()}>

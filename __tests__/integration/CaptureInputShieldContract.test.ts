@@ -158,7 +158,7 @@ describe("capture input shield contract", () => {
     expect(showIndex).toBeGreaterThan(-1);
     expect(lastNoActivateIndex).toBeGreaterThan(showIndex);
     expect(clickThroughBlock).toContain("apply_overlay_no_activate(window);");
-    expect(refreshBlock).toContain("apply_overlay_no_activate(window);");
+    expect(refreshBlock).toContain("set_overlay_click_through_impl(window, should_ignore);");
     expect(rdevMouseMoveBlock).toContain("apply_overlay_no_activate(&window);");
     expect(showCanvasBlock).toContain("clear_overlay_no_activate(window);");
   });
@@ -218,8 +218,8 @@ describe("capture input shield contract", () => {
     expect(moveBlock).toContain("OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);");
     expect(refreshBlock).not.toContain("should_ignore_cursor_events(&rects, cursor_x, cursor_y)");
     expect(refreshBlock).toContain("should_overlay_window_ignore_cursor_events");
-    expect(refreshBlock).toContain("window.set_ignore_cursor_events(should_ignore)");
-    expect(refreshBlock).toContain("OVERLAY_CLICK_THROUGH_ACTIVE.store(should_ignore, Ordering::SeqCst);");
+    expect(refreshBlock).toContain("set_overlay_click_through_impl(window, should_ignore);");
+    expect(rustSource).toContain("OVERLAY_CLICK_THROUGH_ACTIVE.store(click_through, Ordering::SeqCst);");
     expect(rdevMouseMoveBlock).not.toContain("should_route_overlay_mouse_events(x, y)");
     expect(rdevMouseMoveBlock).not.toContain("should_route_overlay_mouse ||");
     expect(rdevMouseMoveBlock).toContain("should_overlay_window_ignore_cursor_events");
@@ -284,7 +284,7 @@ describe("capture input shield contract", () => {
     expect(rustSource).toContain("let overlay_hover_active = OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.load(Ordering::SeqCst);");
     expect(moveBlock).toContain("if !capture_active && overlay_hover_active {");
     expect(moveBlock).toContain("OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(false, Ordering::SeqCst);");
-    expect(refreshBlock).toContain("window.set_ignore_cursor_events(should_ignore)");
+    expect(refreshBlock).toContain("set_overlay_click_through_impl(window, should_ignore);");
     expect(rdevMouseMoveBlock).toContain("OVERLAY_CLICK_THROUGH_ACTIVE");
   });
 });

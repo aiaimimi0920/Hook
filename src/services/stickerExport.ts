@@ -1,4 +1,4 @@
-import type { Unit } from "../types/unit";
+import type { Link, Unit } from "../types/unit";
 import type {
     StickerAnnotation,
     StickerEffectAnnotation,
@@ -7,12 +7,14 @@ import type {
     StickerShapeAnnotation,
     StickerTextAnnotation,
 } from "../types/stickerEditing";
+import type { ArtCapability } from "./protocol";
 import {
     BLUR_EFFECT_OVERLAY_FILL,
     computeEffectSourceProjection,
     paintMosaicGrid,
     renderBlurToCanvas,
 } from "./stickerEffects";
+import { resolveUnitImageFromGraph } from "./graphImageResolution";
 import {
     buildSerialAnnotationMetrics,
     HIGHLIGHTER_LAYER_OPACITY,
@@ -196,7 +198,7 @@ const drawAnnotation = (
             const serialMetrics = buildSerialAnnotationMetrics(text.style.cornerRadius ?? 14);
             const fontSize = text.fontSize ?? (annotation.type === "serial" ? serialMetrics.fontSize : 18);
             context.font = `${annotation.type === "serial" ? "700" : "500"} ${fontSize}px "${text.fontFamily || "Segoe UI"}", sans-serif`;
-            context.textBaseline = annotation.type === "serial" ? "middle" : "top";
+            context.textBaseline = annotation.type === "serial" ? "middle" : "alphabetic";
             applyAnnotationRotation(context, text);
             if (annotation.type === "serial") {
                 const serialCenterY = text.y - fontSize / 2;
@@ -381,17 +383,64 @@ const drawAnnotationsWithHighlighterLayer = (
     }
 };
 
+const computeContainPlacement = (
+    container: { width: number; height: number },
+    source: { width: number; height: number },
+) => {
+    if (source.width <= 0 || source.height <= 0) {
+        return {
+            left: 0,
+            top: 0,
+            width: container.width,
+            height: container.height,
+        };
+    }
+
+    const scale = Math.min(container.width / source.width, container.height / source.height);
+    const width = source.width * scale;
+    const height = source.height * scale;
+
+    return {
+        left: (container.width - width) / 2,
+        top: (container.height - height) / 2,
+        width,
+        height,
+    };
+};
+
+export const resolveStickerCompositeBaseImageSrc = (input: {
+    unit: Unit;
+    units: readonly Unit[];
+    links: readonly Link[];
+    capabilities?: readonly ArtCapability[];
+}) => {
+    const displaySrc = resolveUnitImageFromGraph({
+        units: input.units,
+        links: input.links,
+        unitId: input.unit.id,
+        capabilities: input.capabilities,
+    });
+
+    if (input.unit.data.rasterizedAnnotationLayerSrc) {
+        return input.unit.data.src || displaySrc || input.unit.data.previewSrc;
+    }
+
+    return displaySrc || input.unit.data.previewSrc || input.unit.data.src;
+};
+
 export const renderStickerCompositeWithAnnotations = async (
     unit: Unit,
     annotationsOverride: StickerAnnotation[],
     options?: {
         includeRasterizedAnnotationLayer?: boolean;
+        baseImageSrcOverride?: string;
     },
 ): Promise<string> => {
     const baseSrc =
-        unit.data.rasterizedAnnotationLayerSrc
+        options?.baseImageSrcOverride ||
+        (unit.data.rasterizedAnnotationLayerSrc
             ? unit.data.src
-            : unit.data.previewSrc || unit.data.src;
+            : unit.data.previewSrc || unit.data.src);
     if (!baseSrc) {
         throw new Error("Sticker has no image source");
     }
@@ -437,7 +486,20 @@ export const renderStickerCompositeWithAnnotations = async (
             renderHeight,
         );
     } else {
-        context.drawImage(image, 0, 0, renderWidth, renderHeight);
+        const placement = computeContainPlacement(
+            { width: renderWidth, height: renderHeight },
+            {
+                width: image.naturalWidth || image.width,
+                height: image.naturalHeight || image.height,
+            },
+        );
+        context.drawImage(
+            image,
+            placement.left,
+            placement.top,
+            placement.width,
+            placement.height,
+        );
     }
     context.restore();
 

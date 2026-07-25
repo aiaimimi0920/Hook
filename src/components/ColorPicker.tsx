@@ -130,7 +130,9 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
 
     let svPickerRef: HTMLDivElement | undefined;
     let hueSliderRef: HTMLDivElement | undefined;
+    let alphaSliderRef: HTMLDivElement | undefined;
     let panelRef: HTMLDivElement | undefined;
+    let lastSyncedExternalValue: string | undefined;
 
     const currentColor = () => {
         const rgb = hsvToRgb(hue(), saturation(), value());
@@ -167,7 +169,10 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
     // from elsewhere (sliders, SV picker, palette), but never while the user is
     // actively typing in the field.
     createEffect(() => {
-        syncFromExternalValue(props.value);
+        const nextValue = props.value;
+        if (nextValue === lastSyncedExternalValue) return;
+        lastSyncedExternalValue = nextValue;
+        syncFromExternalValue(nextValue);
     });
 
     createEffect(() => {
@@ -198,6 +203,13 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
         const rect = hueSliderRef.getBoundingClientRect();
         const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width));
         setHue((x / rect.width) * 360);
+    };
+
+    const handleAlphaPick = (event: MouseEvent) => {
+        if (!alphaSliderRef) return;
+        const rect = alphaSliderRef.getBoundingClientRect();
+        const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width));
+        setAlpha(rect.width <= 0 ? alpha() : x / rect.width);
     };
 
     const handleApply = () => {
@@ -246,18 +258,26 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
         }
     };
 
+    const alphaSliderBackground = () => {
+        const rgb = hsvToRgb(hue(), saturation(), value());
+        return `linear-gradient(to right, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 1)), linear-gradient(45deg, #9ca3af 25%, transparent 25%), linear-gradient(-45deg, #9ca3af 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #9ca3af 75%), linear-gradient(-45deg, transparent 75%, #9ca3af 75%)`;
+    };
+
     onMount(() => {
         let svDragging = false;
         let hueDragging = false;
+        let alphaDragging = false;
 
         const onMouseMove = (event: MouseEvent) => {
             if (svDragging) handleSvPick(event);
             if (hueDragging) handleHuePick(event);
+            if (alphaDragging) handleAlphaPick(event);
         };
 
         const onMouseUp = () => {
             svDragging = false;
             hueDragging = false;
+            alphaDragging = false;
         };
 
         if (svPickerRef) {
@@ -278,6 +298,15 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
             });
         }
 
+        if (alphaSliderRef) {
+            alphaSliderRef.addEventListener("mousedown", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                alphaDragging = true;
+                handleAlphaPick(event);
+            });
+        }
+
         window.addEventListener("mousemove", onMouseMove);
         window.addEventListener("mouseup", onMouseUp);
 
@@ -291,23 +320,42 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
     // click-through window routes cursor events to the picker. Without this the
     // picker area stays click-through and pointer events pass through the window.
     onMount(() => {
+        let rectSyncRaf: number | null = null;
+        let lastSyncedRect: { x: number; y: number; width: number; height: number } | null = null;
         const syncRect = () => {
-            if (!panelRef) return;
-            const rect = panelRef.getBoundingClientRect();
-            if (rect.width <= 0 || rect.height <= 0) return;
-            addOrUpdateRect({
-                id: COLOR_PICKER_RECT_ID,
-                x: rect.left,
-                y: rect.top,
-                width: rect.width,
-                height: rect.height,
-                name: COLOR_PICKER_RECT_NAME,
+            if (rectSyncRaf !== null) return;
+            rectSyncRaf = window.requestAnimationFrame(() => {
+                rectSyncRaf = null;
+                if (!panelRef) return;
+                const rect = panelRef.getBoundingClientRect();
+                if (rect.width <= 0 || rect.height <= 0) return;
+                const nextRect = {
+                    x: rect.left,
+                    y: rect.top,
+                    width: rect.width,
+                    height: rect.height,
+                };
+                if (
+                    lastSyncedRect &&
+                    Math.abs(lastSyncedRect.x - nextRect.x) < 0.5 &&
+                    Math.abs(lastSyncedRect.y - nextRect.y) < 0.5 &&
+                    Math.abs(lastSyncedRect.width - nextRect.width) < 0.5 &&
+                    Math.abs(lastSyncedRect.height - nextRect.height) < 0.5
+                ) {
+                    return;
+                }
+                lastSyncedRect = nextRect;
+                addOrUpdateRect({
+                    id: COLOR_PICKER_RECT_ID,
+                    ...nextRect,
+                    name: COLOR_PICKER_RECT_NAME,
+                });
+                void syncService.updateBackendRects();
             });
-            void syncService.updateBackendRects();
         };
 
         // Sync after layout settles so getBoundingClientRect reflects final position.
-        requestAnimationFrame(syncRect);
+        syncRect();
 
         let observer: ResizeObserver | undefined;
         if (typeof ResizeObserver !== "undefined" && panelRef) {
@@ -316,6 +364,9 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
         }
 
         onCleanup(() => {
+            if (rectSyncRaf !== null) {
+                window.cancelAnimationFrame(rectSyncRaf);
+            }
             observer?.disconnect();
             removeRect(COLOR_PICKER_RECT_ID);
             void syncService.updateBackendRects();
@@ -435,16 +486,27 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
 
                 <div class="mb-3 flex items-center gap-2">
                     <span class="text-sm text-white/70">透明度</span>
-                    <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={alpha() * 100}
-                        class="flex-1"
-                        onInput={(e) => setAlpha(parseInt(e.currentTarget.value) / 100)}
+                    <div
+                        ref={alphaSliderRef}
+                        data-alpha-slider
+                        class="relative h-4 flex-1 cursor-pointer border border-white/10"
+                        style={{
+                            background: alphaSliderBackground(),
+                            "background-size": "100% 100%, 8px 8px, 8px 8px, 8px 8px, 8px 8px",
+                            "background-position": "0 0, 0 0, 0 4px, 4px -4px, -4px 0px",
+                        }}
                         onPointerDown={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
-                    />
+                    >
+                        <div
+                            class="absolute h-6 w-2 -translate-x-1/2 -translate-y-1/2 border-2 border-white bg-black/30"
+                            style={{
+                                left: `${alpha() * 100}%`,
+                                top: "50%",
+                                "pointer-events": "none",
+                            }}
+                        />
+                    </div>
                     <span class="text-sm text-white">{Math.round(alpha() * 100)}%</span>
                 </div>
 

@@ -217,4 +217,33 @@ export interface SessionGroup {
     locked?: boolean;
 }
 
+export interface WorkflowAssetArchiveNodeHint {
+    stickerId: string;
+}
+
+export interface WorkflowAssetArchiveWorkflowHint {
+    nodes: Record<string, WorkflowAssetArchiveNodeHint>;
+}
+
+export interface WorkflowAssetArchiveHints {
+    workflows: Record<string, WorkflowAssetArchiveWorkflowHint>;
+}
+
+export interface WorkflowAssetArchiveNodeIndex {
+    stickerId: string;
+    updatedAt: string;
+    src?: string | null;
+    previewSrc?: string | null;
+}
+
+export interface WorkflowAssetArchiveWorkflowIndex {
+    updatedAt: string;
+    nodes: Record<string, WorkflowAssetArchiveNodeIndex>;
+}
+
+export interface WorkflowAssetArchiveIndex {
+    version: number;
+    workflows: Record<string, WorkflowAssetArchiveWorkflowIndex>;
+}
+
 export type { StickerGroup };

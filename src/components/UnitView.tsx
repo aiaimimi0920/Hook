@@ -3,7 +3,6 @@ import { Portal } from "solid-js/web";
 import { graphStore } from "../store/graphStore";
 import {
   activeStickerEditTargetId,
-  draggingStickerId,
   enhancementNotices,
   isCleanView,
   isSelecting,
@@ -162,7 +161,7 @@ export const UnitView: Component<Props> = (props) => {
   // Dynamic Style for the container
   const currentPos = () => {
     // Check Multi-Drag (Unified)
-    if (draggingStickerId() && props.multiDragPositions && props.multiDragPositions[props.unit.id]) {
+    if (props.multiDragPositions && props.multiDragPositions[props.unit.id]) {
         return props.multiDragPositions[props.unit.id];
     }
 

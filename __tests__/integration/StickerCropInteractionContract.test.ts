@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitView.tsx"), "utf8");
 const annotationLayerSource = readFileSync(resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"), "utf8");
 const topStripSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStrip.tsx"), "utf8");
 const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStripPropertyBar.tsx"), "utf8");
+const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarSections.tsx");
+const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
+const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(propertyBarSectionsPath, "utf8") : "";
+const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
 const toolbarModelSource = readFileSync(resolve(process.cwd(), "src/components/stickerToolbarModel.ts"), "utf8");
 
 const sourceBetween = (source: string, start: string, end: string) => {
@@ -44,7 +48,7 @@ describe("Hook sticker crop interaction contract", () => {
     });
 
     it("still routes the crop secondary tool to crop controls instead of hiding the whole toolbar", () => {
-        const toolbarContractSource = `${topStripSource}\n${propertyBarSource}\n${toolbarModelSource}`;
+        const toolbarContractSource = `${topStripSource}\n${propertyBarRenderSource}\n${toolbarModelSource}`;
 
         expect(toolbarContractSource).toContain('{ id: "geometry", label: "几何"');
         expect(topStripSource).toContain('stickerToolSettings.domain === "sticker" && stickerToolSettings.activeCanvasTool === "crop"');
@@ -52,7 +56,7 @@ describe("Hook sticker crop interaction contract", () => {
         expect(toolbarModelSource).toContain('if (activeCanvasTool === "crop") return "crop";');
         expect(propertyBarSource).toContain('props.tool === "crop"');
         expect(propertyBarSource).not.toContain("清理改动");
-        expect(propertyBarSource).toContain('title="重置裁剪"');
+        expect(propertyBarRenderSource).toContain('title="重置裁剪"');
     });
 
     it("renders the crop drag preview as a solid outline with no fill so the selected crop area remains visually readable", () => {

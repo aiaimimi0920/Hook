@@ -504,6 +504,7 @@ const MAX_STITCH_FRAME_COUNT: usize = 512;
 const CLIPBOARD_CACHE_MAX_AGE_SECS: u64 = 7 * 24 * 60 * 60;
 const CLIPBOARD_CACHE_MAX_BYTES: u64 = 256 * 1024 * 1024;
 const CLIPBOARD_CACHE_TARGET_BYTES: u64 = 128 * 1024 * 1024;
+const SESSION_IMAGE_ASSET_RETENTION_SECS: u64 = 30 * 24 * 60 * 60;
 
 fn decode_base64_image_data(base64_image: &str) -> Result<Vec<u8>, String> {
     let base64_data = base64_image.split(",").last().unwrap_or(base64_image);
@@ -619,9 +620,7 @@ fn ensure_clipboard_cache_dir() -> Result<PathBuf, String> {
 }
 
 // Confirm `candidate` resolves to a location inside `root`. Both are canonicalized
-// so `..` traversal and symlinks cannot escape the allowed root. Used to constrain
-// native file-drag to app-owned directories instead of trusting an arbitrary
-// frontend-supplied path.
+// so `..` traversal and symlinks cannot escape the allowed root.
 fn path_is_within(candidate: &Path, root: &Path) -> bool {
     let candidate = match candidate.canonicalize() {
         Ok(p) => p,
@@ -770,6 +769,7 @@ fn select_sticker_save_path(
     dialog_center_x: f64,
     dialog_center_y: f64,
 ) -> Result<Option<PathBuf>, String> {
+    let window = app.get_webview_window("main");
     let (owner, placement) = resolve_save_dialog_placement(app, dialog_center_x, dialog_center_y)?;
 
     let default_filename = format!("Hook_{}.png", file_timestamp_component());
@@ -796,25 +796,27 @@ fn select_sticker_save_path(
     dialog.lCustData = LPARAM((&placement as *const SaveDialogPlacement) as isize);
     dialog.lpfnHook = Some(save_dialog_hook);
 
-    let accepted = unsafe { GetSaveFileNameW(&mut dialog).as_bool() };
-    if !accepted {
-        let error = unsafe { CommDlgExtendedError() };
-        if error.0 == 0 {
+    run_with_native_file_dialog_input_passthrough(window.as_ref(), || {
+        let accepted = unsafe { GetSaveFileNameW(&mut dialog).as_bool() };
+        if !accepted {
+            let error = unsafe { CommDlgExtendedError() };
+            if error.0 == 0 {
+                return Ok(None);
+            }
+            return Err(format!("Save dialog failed: {}", error.0));
+        }
+
+        let end = file_buffer
+            .iter()
+            .position(|value| *value == 0)
+            .unwrap_or(file_buffer.len());
+        if end == 0 {
             return Ok(None);
         }
-        return Err(format!("Save dialog failed: {}", error.0));
-    }
 
-    let end = file_buffer
-        .iter()
-        .position(|value| *value == 0)
-        .unwrap_or(file_buffer.len());
-    if end == 0 {
-        return Ok(None);
-    }
-
-    let selected = String::from_utf16_lossy(&file_buffer[..end]);
-    Ok(Some(PathBuf::from(selected)))
+        let selected = String::from_utf16_lossy(&file_buffer[..end]);
+        Ok(Some(PathBuf::from(selected)))
+    })
 }
 
 #[cfg(target_os = "windows")]
@@ -1170,6 +1172,8 @@ static OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE: AtomicBool = AtomicBool:
 #[cfg(target_os = "windows")]
 static OVERLAY_MOUSE_HOOK_HOVER_ACTIVE: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
+static NATIVE_FILE_DIALOG_ACTIVE: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
 static NATIVE_FILE_DRAG_ACTIVE: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
 static MAIN_UI_THREAD_ID: OnceLock<std::thread::ThreadId> = OnceLock::new();
@@ -1305,6 +1309,80 @@ fn is_pointer_over_sticker_body_synthetic_rect(x: f64, y: f64) -> bool {
 }
 
 #[cfg(target_os = "windows")]
+fn refresh_overlay_interactivity_from_runtime_state(
+    window: &tauri::WebviewWindow,
+    fallback_click_through: bool,
+) {
+    if NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst) {
+        hide_overlay_input_shield_window();
+        set_overlay_click_through_impl(window, true);
+        append_runtime_log_line("native_file_dialog_overlay_passthrough");
+        return;
+    }
+
+    let active = OVERLAY_MOUSE_HIT_MAP_ACTIVE.load(Ordering::SeqCst);
+    if !active {
+        set_overlay_click_through_impl(window, fallback_click_through);
+        return;
+    }
+
+    let rects = overlay_mouse_hit_map()
+        .lock()
+        .map(|guard| guard.clone())
+        .unwrap_or_default();
+    if let Some((cursor_x, cursor_y)) = current_cursor_position_physical() {
+        let should_ignore = should_overlay_window_ignore_cursor_events(&rects, cursor_x, cursor_y);
+        set_overlay_click_through_impl(window, should_ignore);
+        append_runtime_log_line(&format!(
+            "refresh_overlay_interactivity_runtime_state :: cursor_x={} cursor_y={} should_ignore={}",
+            cursor_x, cursor_y, should_ignore
+        ));
+        return;
+    }
+
+    set_overlay_click_through_impl(window, fallback_click_through);
+}
+
+#[cfg(not(target_os = "windows"))]
+fn refresh_overlay_interactivity_from_runtime_state(
+    _window: &tauri::WebviewWindow,
+    _fallback_click_through: bool,
+) {
+}
+
+#[cfg(target_os = "windows")]
+fn run_with_native_file_dialog_input_passthrough<T, F>(
+    window: Option<&tauri::WebviewWindow>,
+    action: F,
+) -> Result<T, String>
+where
+    F: FnOnce() -> Result<T, String>,
+{
+    let previous_click_through = OVERLAY_CLICK_THROUGH_ACTIVE.load(Ordering::SeqCst);
+    NATIVE_FILE_DIALOG_ACTIVE.store(true, Ordering::SeqCst);
+    OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(false, Ordering::SeqCst);
+    OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(false, Ordering::SeqCst);
+    OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(false, Ordering::SeqCst);
+    OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(false, Ordering::SeqCst);
+    OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(false, Ordering::SeqCst);
+    if let Some(window) = window {
+        hide_overlay_input_shield_window();
+        set_overlay_click_through_impl(window, true);
+    }
+    append_runtime_log_line("native_file_dialog_input_passthrough_start");
+
+    let result = action();
+
+    NATIVE_FILE_DIALOG_ACTIVE.store(false, Ordering::SeqCst);
+    if let Some(window) = window {
+        refresh_overlay_interactivity_from_runtime_state(window, previous_click_through);
+        sync_overlay_input_shield_from_runtime_state(window);
+    }
+    append_runtime_log_line("native_file_dialog_input_passthrough_end");
+    result
+}
+
+#[cfg(target_os = "windows")]
 unsafe extern "system" fn capture_mouse_hook_proc(
     code: i32,
     wparam: WPARAM,
@@ -1318,7 +1396,9 @@ unsafe extern "system" fn capture_mouse_hook_proc(
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
 
-    if NATIVE_FILE_DRAG_ACTIVE.load(Ordering::SeqCst) {
+    if NATIVE_FILE_DRAG_ACTIVE.load(Ordering::SeqCst)
+        || NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst)
+    {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
 
@@ -1743,6 +1823,10 @@ fn overlay_keyboard_hook_should_consume_keyup(vk_code: u32, modifiers: ModifierS
 
 #[cfg(target_os = "windows")]
 fn overlay_keyboard_capture_should_handle_current_cursor() -> bool {
+    if NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst) {
+        return false;
+    }
+
     if !OVERLAY_KEYBOARD_CAPTURE_ACTIVE.load(Ordering::SeqCst) {
         return false;
     }
@@ -1855,6 +1939,13 @@ fn refresh_overlay_interactivity_for_current_cursor(
     window: &tauri::WebviewWindow,
     hit_map: &SharedHitMap,
 ) {
+    if NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst) {
+        hide_overlay_input_shield_window();
+        set_overlay_click_through_impl(window, true);
+        append_runtime_log_line("refresh_overlay_interactivity_native_dialog_passthrough");
+        return;
+    }
+
     let active = match hit_map.active.lock() {
         Ok(guard) => *guard,
         Err(_) => return,
@@ -1876,12 +1967,7 @@ fn refresh_overlay_interactivity_for_current_cursor(
 
     let should_ignore = should_overlay_window_ignore_cursor_events(&rects, cursor_x, cursor_y);
 
-    if window.set_ignore_cursor_events(should_ignore).is_err() {
-        return;
-    }
-    set_overlay_transparent_style(window, should_ignore);
-    OVERLAY_CLICK_THROUGH_ACTIVE.store(should_ignore, Ordering::SeqCst);
-    apply_overlay_no_activate(window);
+    set_overlay_click_through_impl(window, should_ignore);
     append_runtime_log_line(&format!(
         "refresh_overlay_interactivity :: cursor_x={} cursor_y={} should_ignore={}",
         cursor_x, cursor_y, should_ignore
@@ -2081,6 +2167,199 @@ fn save_sticker_image_as(
     _dialog_center_y: f64,
 ) -> Result<Option<String>, String> {
     save_sticker_image(app, base64_image).map(Some)
+}
+
+fn session_image_asset_fingerprint(bytes: &[u8]) -> String {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("{hash:016x}")
+}
+
+fn persist_session_image_asset(
+    images_dir: &Path,
+    sticker_id: &str,
+    slot: &str,
+    value: &str,
+) -> Result<String, String> {
+    if !value.starts_with("data:image") {
+        return Ok(value.to_string());
+    }
+
+    let image_data = decode_base64_image_data(value)?;
+    let sticker_stem = sanitize_drag_filename_hint(Some(sticker_id));
+    let slot_stem = sanitize_drag_filename_hint(Some(slot));
+    let fingerprint = session_image_asset_fingerprint(&image_data);
+    let file_name = format!("{sticker_stem}_{slot_stem}_{fingerprint}.png");
+    let file_path = images_dir.join(file_name);
+
+    if !file_path.exists() {
+        let mut file = File::create(&file_path).map_err(|e| e.to_string())?;
+        file.write_all(&image_data).map_err(|e| e.to_string())?;
+    }
+
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+fn is_session_managed_image_asset_path(images_dir: &Path, path: &Path) -> bool {
+    if path.parent() != Some(images_dir) {
+        return false;
+    }
+
+    let Some(extension) = path.extension().and_then(|value| value.to_str()) else {
+        return false;
+    };
+    if !extension.eq_ignore_ascii_case("png") {
+        return false;
+    }
+
+    let Some(stem) = path.file_stem().and_then(|value| value.to_str()) else {
+        return false;
+    };
+    let Some((_, fingerprint)) = stem.rsplit_once('_') else {
+        return false;
+    };
+
+    fingerprint.len() == 16 && fingerprint.chars().all(|ch| ch.is_ascii_hexdigit())
+}
+
+fn collect_referenced_session_image_assets(
+    images_dir: &Path,
+    session_data: &SessionData,
+) -> std::collections::HashSet<PathBuf> {
+    let mut referenced = std::collections::HashSet::new();
+
+    let mut push_path = |value: Option<&str>| {
+        let Some(raw) = value else {
+            return;
+        };
+        let path = PathBuf::from(raw);
+        if is_session_managed_image_asset_path(images_dir, &path) {
+            referenced.insert(path);
+        }
+    };
+
+    for sticker in &session_data.stickers {
+        push_path(Some(sticker.src.as_str()));
+        push_path(sticker.preview_src.as_deref());
+    }
+
+    for entry in session_data
+        .recycle_bin
+        .iter()
+        .chain(session_data.reference_library.iter())
+    {
+        if let Some(snapshot) = entry.snapshot.as_object() {
+            push_path(snapshot.get("src").and_then(|value| value.as_str()));
+            push_path(snapshot.get("previewSrc").and_then(|value| value.as_str()));
+            push_path(
+                snapshot
+                    .get("rasterizedAnnotationLayerSrc")
+                    .and_then(|value| value.as_str()),
+            );
+        }
+    }
+
+    for workflow in session_data.workflow_asset_archive_index.workflows.values() {
+        for node in workflow.nodes.values() {
+            push_path(node.src.as_deref());
+            push_path(node.preview_src.as_deref());
+        }
+    }
+
+    referenced
+}
+
+fn merge_workflow_asset_archive_index(
+    existing: &WorkflowAssetArchiveIndex,
+    hints: &WorkflowAssetArchiveHints,
+    processed_stickers: &[StickerData],
+) -> WorkflowAssetArchiveIndex {
+    let mut merged = existing.clone();
+    let now = unix_timestamp_millis().to_string();
+
+    let sticker_by_id: std::collections::HashMap<&str, &StickerData> = processed_stickers
+        .iter()
+        .map(|sticker| (sticker.id.as_str(), sticker))
+        .collect();
+
+    for (workflow_id, workflow_hint) in &hints.workflows {
+        let mut nodes = std::collections::BTreeMap::new();
+
+        for (node_id, node_hint) in &workflow_hint.nodes {
+            let Some(sticker) = sticker_by_id.get(node_hint.sticker_id.as_str()) else {
+                continue;
+            };
+
+            nodes.insert(
+                node_id.clone(),
+                WorkflowAssetArchiveNodeIndex {
+                    sticker_id: sticker.id.clone(),
+                    updated_at: now.clone(),
+                    src: if sticker.src.is_empty() {
+                        None
+                    } else {
+                        Some(sticker.src.clone())
+                    },
+                    preview_src: sticker.preview_src.clone(),
+                },
+            );
+        }
+
+        merged.workflows.insert(
+            workflow_id.clone(),
+            WorkflowAssetArchiveWorkflowIndex {
+                updated_at: now.clone(),
+                nodes,
+            },
+        );
+    }
+
+    if merged.version == 0 {
+        merged.version = 1;
+    }
+
+    merged
+}
+
+fn cleanup_unreferenced_session_image_assets(
+    images_dir: &Path,
+    session_data: &SessionData,
+    now: SystemTime,
+) -> Result<(), String> {
+    if !images_dir.exists() {
+        return Ok(());
+    }
+
+    let referenced = collect_referenced_session_image_assets(images_dir, session_data);
+    let retention = std::time::Duration::from_secs(SESSION_IMAGE_ASSET_RETENTION_SECS);
+
+    for entry in fs::read_dir(images_dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if !is_session_managed_image_asset_path(images_dir, &path) {
+            continue;
+        }
+        if referenced.contains(&path) {
+            continue;
+        }
+
+        let metadata = entry.metadata().map_err(|e| e.to_string())?;
+        if !metadata.is_file() {
+            continue;
+        }
+
+        let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+        if now.duration_since(modified).unwrap_or_default() <= retention {
+            continue;
+        }
+
+        fs::remove_file(&path).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
 }
 
 #[cfg(target_os = "windows")]
@@ -2595,10 +2874,9 @@ fn begin_sticker_native_file_drag_from_path(
     if !metadata.is_file() {
         return Err("Drag source path is not a regular file".to_string());
     }
-    // Restrict drag-out to files Hook itself staged in the clipboard cache. Without
-    // this, the frontend could hand any absolute path here and drag an arbitrary
-    // readable file off disk. The legitimate flow always writes to the cache first
-    // (save_sticker_image_to_cache_for_drag), so a source outside it is rejected.
+    // Restrict direct path drag-out to files Hook itself staged in the clipboard
+    // cache. The frontend falls back to a freshly rendered cache drag for any
+    // external file path instead of widening this command to arbitrary disk files.
     if !path_is_within(&file_path, &clipboard_cache_dir()) {
         return Err("Drag source must be inside Hook's clipboard cache".to_string());
     }
@@ -2993,6 +3271,60 @@ pub struct FrozenStickerEntry {
     pub snapshot: serde_json::Value,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowAssetArchiveNodeIndex {
+    pub sticker_id: String,
+    pub updated_at: String,
+    pub src: Option<String>,
+    pub preview_src: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowAssetArchiveWorkflowIndex {
+    pub updated_at: String,
+    #[serde(default)]
+    pub nodes: std::collections::BTreeMap<String, WorkflowAssetArchiveNodeIndex>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowAssetArchiveIndex {
+    pub version: u32,
+    #[serde(default)]
+    pub workflows: std::collections::BTreeMap<String, WorkflowAssetArchiveWorkflowIndex>,
+}
+
+impl Default for WorkflowAssetArchiveIndex {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            workflows: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowAssetArchiveNodeHint {
+    pub sticker_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowAssetArchiveWorkflowHint {
+    #[serde(default)]
+    pub nodes: std::collections::BTreeMap<String, WorkflowAssetArchiveNodeHint>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkflowAssetArchiveHints {
+    #[serde(default)]
+    pub workflows: std::collections::BTreeMap<String, WorkflowAssetArchiveWorkflowHint>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionData {
@@ -3004,6 +3336,8 @@ pub struct SessionData {
     pub recycle_bin: Vec<FrozenStickerEntry>,
     #[serde(default)]
     pub reference_library: Vec<FrozenStickerEntry>,
+    #[serde(default)]
+    pub workflow_asset_archive_index: WorkflowAssetArchiveIndex,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -3451,6 +3785,7 @@ fn save_session(
     groups: Option<Vec<serde_json::Value>>,
     recycle_bin: Option<Vec<FrozenStickerEntry>>,
     reference_library: Option<Vec<FrozenStickerEntry>>,
+    workflow_asset_archive_hints: Option<WorkflowAssetArchiveHints>,
 ) -> Result<(), String> {
     let app_dir = effective_app_data_dir(&app)?;
     if !app_dir.exists() {
@@ -3465,40 +3800,33 @@ fn save_session(
     let mut processed_stickers = stickers.clone();
 
     for sticker in &mut processed_stickers {
-        if sticker.src.starts_with("data:image") {
-            let base64_data = sticker.src.split(",").last().unwrap_or(&sticker.src);
-            let image_data = base64::engine::general_purpose::STANDARD
-                .decode(base64_data)
-                .map_err(|e| format!("Base64 decode failed for {}: {}", sticker.id, e))?;
-
-            let filename = format!("{}.png", sticker.id);
-            let file_path = images_dir.join(&filename);
-
-            let mut file = File::create(&file_path).map_err(|e| e.to_string())?;
-            file.write_all(&image_data).map_err(|e| e.to_string())?;
-
-            sticker.src = file_path.to_string_lossy().to_string();
-        }
+        sticker.src = persist_session_image_asset(&images_dir, &sticker.id, "source", &sticker.src)
+            .map_err(|e| format!("Failed to persist source image for {}: {}", sticker.id, e))?;
 
         // Save Preview Image
         if let Some(ref mut p_src) = sticker.preview_src {
-            if p_src.starts_with("data:image") {
-                let base64_data = p_src.split(",").last().unwrap_or(p_src);
-                // Safe decode?
-                if let Ok(image_data) =
-                    base64::engine::general_purpose::STANDARD.decode(base64_data)
-                {
-                    let filename = format!("{}_preview.png", sticker.id);
-                    let file_path = images_dir.join(&filename);
-
-                    if let Ok(mut file) = File::create(&file_path) {
-                        let _ = file.write_all(&image_data);
-                        *p_src = file_path.to_string_lossy().to_string();
-                    }
-                }
-            }
+            *p_src = persist_session_image_asset(&images_dir, &sticker.id, "preview", p_src)
+                .map_err(|e| {
+                    format!("Failed to persist preview image for {}: {}", sticker.id, e)
+                })?;
         }
     }
+
+    let session_file = app_dir.join("session.json");
+    let existing_archive_index = if session_file.exists() {
+        fs::read_to_string(&session_file)
+            .ok()
+            .and_then(|content| serde_json::from_str::<SessionData>(&content).ok())
+            .map(|session| session.workflow_asset_archive_index)
+            .unwrap_or_default()
+    } else {
+        WorkflowAssetArchiveIndex::default()
+    };
+    let workflow_asset_archive_index = merge_workflow_asset_archive_index(
+        &existing_archive_index,
+        &workflow_asset_archive_hints.unwrap_or_default(),
+        &processed_stickers,
+    );
 
     // Save as SessionData with both stickers and links
     let session_data = SessionData {
@@ -3507,13 +3835,18 @@ fn save_session(
         groups: groups.unwrap_or_default(),
         recycle_bin: recycle_bin.unwrap_or_default(),
         reference_library: reference_library.unwrap_or_default(),
+        workflow_asset_archive_index,
     };
-
-    let session_file = app_dir.join("session.json");
     let json = serde_json::to_string_pretty(&session_data).map_err(|e| e.to_string())?;
 
     let mut file = File::create(session_file).map_err(|e| e.to_string())?;
     file.write_all(json.as_bytes()).map_err(|e| e.to_string())?;
+
+    if let Err(error) =
+        cleanup_unreferenced_session_image_assets(&images_dir, &session_data, SystemTime::now())
+    {
+        println!("Warning: session image asset cleanup skipped: {}", error);
+    }
 
     println!(
         "Session saved with {} stickers and {} links.",
@@ -3551,6 +3884,7 @@ fn load_session(app: tauri::AppHandle) -> Result<SessionData, String> {
             groups: Vec::new(),
             recycle_bin: Vec::new(),
             reference_library: Vec::new(),
+            workflow_asset_archive_index: WorkflowAssetArchiveIndex::default(),
         });
     }
 
@@ -3569,6 +3903,7 @@ fn load_session(app: tauri::AppHandle) -> Result<SessionData, String> {
                 groups: Vec::new(),
                 recycle_bin: Vec::new(),
                 reference_library: Vec::new(),
+                workflow_asset_archive_index: WorkflowAssetArchiveIndex::default(),
             }
         }
     };
@@ -3974,7 +4309,9 @@ fn promote_overlay_input_shield_to_fullscreen() {}
 
 #[cfg(target_os = "windows")]
 fn route_overlay_input_shield_mouse_message(message: u32, wparam: WPARAM) -> Option<LRESULT> {
-    if NATIVE_FILE_DRAG_ACTIVE.load(Ordering::SeqCst) {
+    if NATIVE_FILE_DRAG_ACTIVE.load(Ordering::SeqCst)
+        || NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst)
+    {
         return None;
     }
 
@@ -4201,6 +4538,11 @@ fn sync_overlay_input_shield_region(
     rects: &[mouse_monitor::Rect],
     active: bool,
 ) {
+    if NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst) {
+        hide_overlay_input_shield_window();
+        return;
+    }
+
     let Some(hwnd) = ensure_overlay_input_shield_window(window) else {
         return;
     };
@@ -4375,6 +4717,10 @@ fn install_overlay_topmost_maintenance_thread(window: &tauri::WebviewWindow) {
             std::thread::sleep(Duration::from_millis(
                 OVERLAY_TOPMOST_MAINTENANCE_INTERVAL_MS,
             ));
+
+            if NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst) {
+                continue;
+            }
 
             let needs_topmost_maintenance = OVERLAY_MOUSE_HIT_MAP_ACTIVE.load(Ordering::SeqCst)
                 || CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst)
@@ -6465,6 +6811,12 @@ pub fn run() {
                             Err(_) => return,
                         };
 
+                        if NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst) {
+                            input_state.is_ignoring_events = true;
+                            input_state.ctrl_pressed = false;
+                            return;
+                        }
+
                         match &event.event_type {
                             rdev::EventType::KeyPress(rdev::Key::ControlLeft)
                             | rdev::EventType::KeyPress(rdev::Key::ControlRight) => {
@@ -6559,7 +6911,9 @@ pub fn run() {
                             }
                             rdev::EventType::MouseMove { x, y } => {
                                 let _ = (x, y);
-                                if NATIVE_FILE_DRAG_ACTIVE.load(Ordering::SeqCst) {
+                                if NATIVE_FILE_DRAG_ACTIVE.load(Ordering::SeqCst)
+                                    || NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst)
+                                {
                                     input_state.is_ignoring_events = true;
                                     return;
                                 }
@@ -6662,6 +7016,21 @@ mod app_cli_tests {
             }
         }
         image
+    }
+
+    fn tiny_png_data_url_for_test(color: [u8; 3]) -> String {
+        let image = image::RgbImage::from_pixel(1, 1, Rgb(color));
+        let mut bytes = Vec::new();
+        image::DynamicImage::ImageRgb8(image)
+            .write_to(
+                &mut std::io::Cursor::new(&mut bytes),
+                image::ImageFormat::Png,
+            )
+            .expect("encode tiny png");
+        format!(
+            "data:image/png;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(bytes)
+        )
     }
 
     fn set_file_modified_time_for_test(path: &Path, time: SystemTime) -> std::io::Result<()> {
@@ -7353,6 +7722,340 @@ mod app_cli_tests {
     }
 
     #[test]
+    fn session_asset_persistence_reuses_the_same_file_for_unchanged_content() {
+        let root = std::env::temp_dir().join(format!(
+            "hook-session-asset-test-{}-{}",
+            std::process::id(),
+            file_timestamp_component()
+        ));
+        std::fs::create_dir_all(&root).expect("create session asset test dir");
+        let data_url = tiny_png_data_url_for_test([10, 20, 30]);
+
+        let first = persist_session_image_asset(&root, "sticker-1", "preview", &data_url)
+            .expect("first persist should succeed");
+        let second = persist_session_image_asset(&root, "sticker-1", "preview", &data_url)
+            .expect("second persist should succeed");
+
+        let file_count = std::fs::read_dir(&root)
+            .expect("read session asset dir")
+            .filter_map(Result::ok)
+            .count();
+        let _ = std::fs::remove_dir_all(&root);
+
+        assert_eq!(first, second);
+        assert_eq!(file_count, 1);
+    }
+
+    #[test]
+    fn session_asset_persistence_uses_a_new_file_when_content_changes() {
+        let root = std::env::temp_dir().join(format!(
+            "hook-session-asset-change-test-{}-{}",
+            std::process::id(),
+            file_timestamp_component()
+        ));
+        std::fs::create_dir_all(&root).expect("create session asset change test dir");
+        let first_data_url = tiny_png_data_url_for_test([10, 20, 30]);
+        let second_data_url = tiny_png_data_url_for_test([40, 50, 60]);
+
+        let first = persist_session_image_asset(&root, "sticker-1", "preview", &first_data_url)
+            .expect("first persist should succeed");
+        let second = persist_session_image_asset(&root, "sticker-1", "preview", &second_data_url)
+            .expect("second persist should succeed");
+
+        let _ = std::fs::remove_dir_all(&root);
+
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn session_asset_cleanup_keeps_current_session_references_and_prunes_old_orphans() {
+        let root = std::env::temp_dir().join(format!(
+            "hook-session-asset-cleanup-test-{}-{}",
+            std::process::id(),
+            file_timestamp_component()
+        ));
+        std::fs::create_dir_all(&root).expect("create session asset cleanup test dir");
+        let retained_src = persist_session_image_asset(
+            &root,
+            "sticker-1",
+            "source",
+            &tiny_png_data_url_for_test([10, 20, 30]),
+        )
+        .expect("persist retained source");
+        let retained_preview = persist_session_image_asset(
+            &root,
+            "sticker-1",
+            "preview",
+            &tiny_png_data_url_for_test([40, 50, 60]),
+        )
+        .expect("persist retained preview");
+        let stale_orphan = persist_session_image_asset(
+            &root,
+            "sticker-2",
+            "preview",
+            &tiny_png_data_url_for_test([70, 80, 90]),
+        )
+        .expect("persist stale orphan");
+        let fresh_orphan = persist_session_image_asset(
+            &root,
+            "sticker-3",
+            "preview",
+            &tiny_png_data_url_for_test([15, 25, 35]),
+        )
+        .expect("persist fresh orphan");
+
+        let old_time = SystemTime::now()
+            - std::time::Duration::from_secs(SESSION_IMAGE_ASSET_RETENTION_SECS + 60);
+        set_file_modified_time_for_test(Path::new(&stale_orphan), old_time)
+            .expect("age stale orphan");
+
+        let session_data = SessionData {
+            stickers: vec![StickerData {
+                id: "sticker-1".to_string(),
+                src: retained_src.clone(),
+                x: 0.0,
+                y: 0.0,
+                w: 100.0,
+                h: 100.0,
+                minified: None,
+                saved_rect: None,
+                crop_offset: None,
+                opacity_normal: None,
+                opacity_mini: None,
+                node_type: None,
+                art_id: None,
+                params: None,
+                file_path: None,
+                preview_src: Some(retained_preview.clone()),
+                origin_workflow_id: None,
+                origin_node_id: None,
+                execution_config: None,
+                annotation_state: None,
+                image_edit_state: None,
+                group_id: None,
+                capture_meta: None,
+            }],
+            links: Vec::new(),
+            groups: Vec::new(),
+            recycle_bin: vec![FrozenStickerEntry {
+                entry_id: "entry-1".to_string(),
+                source_sticker_id: "sticker-1".to_string(),
+                created_at: "2026-07-25T00:00:00Z".to_string(),
+                snapshot: serde_json::json!({
+                    "src": retained_src,
+                    "previewSrc": retained_preview,
+                }),
+            }],
+            reference_library: Vec::new(),
+            workflow_asset_archive_index: WorkflowAssetArchiveIndex::default(),
+        };
+
+        cleanup_unreferenced_session_image_assets(&root, &session_data, SystemTime::now())
+            .expect("cleanup session assets");
+        assert!(
+            Path::new(&retained_src).exists(),
+            "retained source should be kept"
+        );
+        assert!(
+            Path::new(&retained_preview).exists(),
+            "retained preview should be kept"
+        );
+        assert!(
+            !Path::new(&stale_orphan).exists(),
+            "stale orphan should be removed"
+        );
+        assert!(
+            Path::new(&fresh_orphan).exists(),
+            "fresh orphan should be retained"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn session_asset_cleanup_keeps_assets_referenced_only_by_workflow_archive_index() {
+        let root = std::env::temp_dir().join(format!(
+            "hook-session-asset-archive-cleanup-test-{}-{}",
+            std::process::id(),
+            file_timestamp_component()
+        ));
+        std::fs::create_dir_all(&root).expect("create session asset archive cleanup test dir");
+        let archived_preview = persist_session_image_asset(
+            &root,
+            "sticker-9",
+            "preview",
+            &tiny_png_data_url_for_test([90, 100, 110]),
+        )
+        .expect("persist archived preview");
+        let stale_orphan = persist_session_image_asset(
+            &root,
+            "sticker-10",
+            "preview",
+            &tiny_png_data_url_for_test([120, 130, 140]),
+        )
+        .expect("persist stale orphan");
+
+        let old_time = SystemTime::now()
+            - std::time::Duration::from_secs(SESSION_IMAGE_ASSET_RETENTION_SECS + 60);
+        set_file_modified_time_for_test(Path::new(&archived_preview), old_time)
+            .expect("age archived preview");
+        set_file_modified_time_for_test(Path::new(&stale_orphan), old_time)
+            .expect("age stale orphan");
+
+        let session_data = SessionData {
+            stickers: Vec::new(),
+            links: Vec::new(),
+            groups: Vec::new(),
+            recycle_bin: Vec::new(),
+            reference_library: Vec::new(),
+            workflow_asset_archive_index: WorkflowAssetArchiveIndex {
+                version: 1,
+                workflows: std::collections::BTreeMap::from([(
+                    "wf-1".to_string(),
+                    WorkflowAssetArchiveWorkflowIndex {
+                        updated_at: "123".to_string(),
+                        nodes: std::collections::BTreeMap::from([(
+                            "node-1".to_string(),
+                            WorkflowAssetArchiveNodeIndex {
+                                sticker_id: "sticker-9".to_string(),
+                                updated_at: "123".to_string(),
+                                src: None,
+                                preview_src: Some(archived_preview.clone()),
+                            },
+                        )]),
+                    },
+                )]),
+            },
+        };
+
+        cleanup_unreferenced_session_image_assets(&root, &session_data, SystemTime::now())
+            .expect("cleanup session assets");
+
+        assert!(
+            Path::new(&archived_preview).exists(),
+            "workflow archive reference should keep asset alive"
+        );
+        assert!(
+            !Path::new(&stale_orphan).exists(),
+            "stale orphan should be removed"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn workflow_asset_archive_merge_replaces_prior_workflow_snapshot_instead_of_appending() {
+        let existing = WorkflowAssetArchiveIndex {
+            version: 1,
+            workflows: std::collections::BTreeMap::from([
+                (
+                    "wf-1".to_string(),
+                    WorkflowAssetArchiveWorkflowIndex {
+                        updated_at: "old-1".to_string(),
+                        nodes: std::collections::BTreeMap::from([(
+                            "old-node".to_string(),
+                            WorkflowAssetArchiveNodeIndex {
+                                sticker_id: "sticker-old".to_string(),
+                                updated_at: "old-1".to_string(),
+                                src: Some("C:\\archive\\old-source.png".to_string()),
+                                preview_src: Some("C:\\archive\\old-preview.png".to_string()),
+                            },
+                        )]),
+                    },
+                ),
+                (
+                    "wf-2".to_string(),
+                    WorkflowAssetArchiveWorkflowIndex {
+                        updated_at: "keep-1".to_string(),
+                        nodes: std::collections::BTreeMap::from([(
+                            "keep-node".to_string(),
+                            WorkflowAssetArchiveNodeIndex {
+                                sticker_id: "sticker-keep".to_string(),
+                                updated_at: "keep-1".to_string(),
+                                src: Some("C:\\archive\\keep-source.png".to_string()),
+                                preview_src: Some("C:\\archive\\keep-preview.png".to_string()),
+                            },
+                        )]),
+                    },
+                ),
+            ]),
+        };
+        let hints = WorkflowAssetArchiveHints {
+            workflows: std::collections::BTreeMap::from([(
+                "wf-1".to_string(),
+                WorkflowAssetArchiveWorkflowHint {
+                    nodes: std::collections::BTreeMap::from([(
+                        "new-node".to_string(),
+                        WorkflowAssetArchiveNodeHint {
+                            sticker_id: "sticker-new".to_string(),
+                        },
+                    )]),
+                },
+            )]),
+        };
+        let processed_stickers = vec![StickerData {
+            id: "sticker-new".to_string(),
+            src: "C:\\archive\\new-source.png".to_string(),
+            x: 0.0,
+            y: 0.0,
+            w: 100.0,
+            h: 100.0,
+            minified: None,
+            saved_rect: None,
+            crop_offset: None,
+            opacity_normal: None,
+            opacity_mini: None,
+            node_type: None,
+            art_id: None,
+            params: None,
+            file_path: None,
+            preview_src: Some("C:\\archive\\new-preview.png".to_string()),
+            origin_workflow_id: None,
+            origin_node_id: None,
+            execution_config: None,
+            annotation_state: None,
+            image_edit_state: None,
+            group_id: None,
+            capture_meta: None,
+        }];
+
+        let merged = merge_workflow_asset_archive_index(&existing, &hints, &processed_stickers);
+
+        let merged_wf_1 = merged
+            .workflows
+            .get("wf-1")
+            .expect("updated workflow should be present");
+        assert_eq!(
+            merged_wf_1.nodes.len(),
+            1,
+            "resynced workflow should replace its archived node set instead of appending"
+        );
+        assert!(
+            !merged_wf_1.nodes.contains_key("old-node"),
+            "superseded archived nodes must be dropped so their baked assets can age out"
+        );
+        let new_node = merged_wf_1
+            .nodes
+            .get("new-node")
+            .expect("new archived node should be present");
+        assert_eq!(new_node.sticker_id, "sticker-new");
+        assert_eq!(new_node.src.as_deref(), Some("C:\\archive\\new-source.png"));
+        assert_eq!(
+            new_node.preview_src.as_deref(),
+            Some("C:\\archive\\new-preview.png")
+        );
+
+        let untouched_wf_2 = merged
+            .workflows
+            .get("wf-2")
+            .expect("unrelated workflow should be preserved");
+        assert!(
+            untouched_wf_2.nodes.contains_key("keep-node"),
+            "workflows that were not part of this sync must keep their prior archive index"
+        );
+    }
+
+    #[test]
     fn self_check_report_is_stable_json_for_release_smoke() {
         let report = self_check_report_json().expect("self-check json");
         let value: serde_json::Value = serde_json::from_str(&report).expect("valid json");
@@ -7423,12 +8126,12 @@ mod app_cli_tests {
         let _ = std::fs::remove_file(&output_path);
 
         std::env::set_var(&env_name, &output_path);
-        let result = write_optional_cli_output(&env_name, "hook 0.1.0\n");
+        let result = write_optional_cli_output(&env_name, "hook 0.1.1\n");
         std::env::remove_var(&env_name);
 
         result.expect("write optional cli output");
         let written = std::fs::read_to_string(&output_path).expect("read cli output");
         let _ = std::fs::remove_file(&output_path);
-        assert_eq!(written, "hook 0.1.0\n");
+        assert_eq!(written, "hook 0.1.1\n");
     }
 }

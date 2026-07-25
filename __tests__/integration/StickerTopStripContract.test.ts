@@ -8,6 +8,18 @@ const topStripExists = existsSync(topStripPath);
 const topStripSource = topStripExists ? readFileSync(topStripPath, "utf8") : "";
 const propertyBarExists = existsSync(propertyBarPath);
 const propertyBarSource = propertyBarExists ? readFileSync(propertyBarPath, "utf8") : "";
+const topStripCatalogPath = resolve(process.cwd(), "src/components/stickerTopStripCatalog.tsx");
+const topStripCatalogExists = existsSync(topStripCatalogPath);
+const topStripCatalogSource = topStripCatalogExists ? readFileSync(topStripCatalogPath, "utf8") : "";
+const topStripRenderSource = `${topStripSource}\n${topStripCatalogSource}`;
+const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarSections.tsx");
+const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
+const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(propertyBarSectionsPath, "utf8") : "";
+const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
+const propertyBarSectionSource = propertyBarSectionsExists ? propertyBarSectionsSource : propertyBarSource;
+const propertyBarFieldsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarFields.tsx");
+const propertyBarFieldsExists = existsSync(propertyBarFieldsPath);
+const propertyBarFieldsSource = propertyBarFieldsExists ? readFileSync(propertyBarFieldsPath, "utf8") : "";
 const layoutSource = topStripExists
     ? readFileSync(resolve(process.cwd(), "src/services/stickerTopStripLayout.ts"), "utf8")
     : "";
@@ -15,6 +27,14 @@ const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitV
 const toolbarModelSource = readFileSync(resolve(process.cwd(), "src/components/stickerToolbarModel.ts"), "utf8");
 const legacyToolbarPath = resolve(process.cwd(), "src/components/StickerEditToolbar.tsx");
 const legacyToolbarExists = existsSync(legacyToolbarPath);
+
+const sourceBetween = (source: string, start: string, end: string) => {
+    const startIndex = source.indexOf(start);
+    expect(startIndex).toBeGreaterThanOrEqual(0);
+    const endIndex = source.indexOf(end, startIndex + start.length);
+    expect(endIndex).toBeGreaterThan(startIndex);
+    return source.slice(startIndex, endIndex);
+};
 
 describe("Hook sticker top strip contract", () => {
     it("uses the dedicated top strip as the only sticker editing chrome", () => {
@@ -61,20 +81,20 @@ describe("Hook sticker top strip contract", () => {
         expect(topStripSource).toContain('onPointerDown={(event) => event.stopPropagation()}');
         expect(topStripSource).toContain('absolute bottom-0 right-0 z-10 flex h-6 w-6');
         expect(topStripSource).toContain("window.addEventListener(\"pointerdown\"");
-        expect(topStripSource).toContain("shape-rect");
-        expect(topStripSource).toContain("shape-ellipse");
-        expect(topStripSource).toContain("shape-triangle");
-        expect(topStripSource).toContain("shape-polygon");
+        expect(topStripRenderSource).toContain("shape-rect");
+        expect(topStripRenderSource).toContain("shape-ellipse");
+        expect(topStripRenderSource).toContain("shape-triangle");
+        expect(topStripRenderSource).toContain("shape-polygon");
         expect(topStripSource).toContain("uiActions.setStickerEditMode");
         expect(topStripSource).toContain('onClick={() => applyCreateTool(currentShapeTool())}');
         expect(topStripSource).toContain('setOpenMenu((current) => (current === "shape" ? null : "shape"))');
         expect(topStripSource).toContain('onClick={() => applyCreateTool("line")}');
         expect(topStripSource).toContain('setOpenMenu((current) => (current === "line" ? null : "line"))');
-        expect(topStripSource).toContain("矩形");
-        expect(topStripSource).toContain("椭圆");
-        expect(topStripSource).toContain("三角形");
-        expect(topStripSource).toContain("多边形");
-        expect(topStripSource).toContain("直线");
+        expect(topStripRenderSource).toContain("矩形");
+        expect(topStripRenderSource).toContain("椭圆");
+        expect(topStripRenderSource).toContain("三角形");
+        expect(topStripRenderSource).toContain("多边形");
+        expect(topStripRenderSource).toContain("直线");
         expect(topStripSource).toContain('applyCreateTool("brush")');
         expect(topStripSource).toContain('setOpenMenu((current) => (current === "label" ? null : "label"))');
         expect(topStripSource).toContain('onClick={() => applyCreateTool(currentLabelTool())}');
@@ -89,16 +109,16 @@ describe("Hook sticker top strip contract", () => {
         expect(topStripSource).toContain('onClick={() => void runRasterizeAction(currentRasterizeScope())}');
         expect(topStripSource).toContain('setOpenMenu((current) => (current === "rasterize" ? null : "rasterize"))');
         expect(topStripSource).toContain("画笔");
-        expect(topStripSource).toContain("文本");
-        expect(topStripSource).toContain("序号");
-        expect(topStripSource).toContain("马赛克");
-        expect(topStripSource).toContain("模糊");
+        expect(topStripRenderSource).toContain("文本");
+        expect(topStripRenderSource).toContain("序号");
+        expect(topStripRenderSource).toContain("马赛克");
+        expect(topStripRenderSource).toContain("模糊");
         expect(topStripSource).toContain("橡皮擦");
         expect(topStripSource).toContain("裁剪");
-        expect(topStripSource).toContain("撤销");
-        expect(topStripSource).toContain("重做");
-        expect(topStripSource).toContain("栅格化");
-        expect(topStripSource).toContain("栅格化全部");
+        expect(topStripRenderSource).toContain("撤销");
+        expect(topStripRenderSource).toContain("重做");
+        expect(topStripRenderSource).toContain("栅格化");
+        expect(topStripRenderSource).toContain("栅格化全部");
         expect(topStripSource).toContain("captureStickerEditSnapshot");
         expect(topStripSource).toContain("undoStickerHistory");
         expect(topStripSource).toContain("redoStickerHistory");
@@ -117,74 +137,80 @@ describe("Hook sticker top strip contract", () => {
         expect(propertyBarSource).not.toContain('label="步进"');
         expect(propertyBarSource).not.toContain('label="线宽"');
         expect(propertyBarSource).not.toContain('label="线型"');
-        expect(propertyBarSource).toContain('title="描边颜色"');
-        expect(propertyBarSource).toContain('title="填充颜色"');
-        expect(propertyBarSource).toContain('title="正图形开关"');
-        expect(propertyBarSource).toContain('title="步进"');
-        expect(propertyBarSource).toContain('title="线宽"');
-        expect(propertyBarSource).toContain('title="线型"');
-        expect(propertyBarSource).toContain('value={stickerToolSettings.shapeStrokeDashPattern}');
+        expect(propertyBarRenderSource).toContain('title="描边颜色"');
+        expect(propertyBarRenderSource).toContain('title="填充颜色"');
+        expect(propertyBarRenderSource).toContain('title="正图形开关"');
+        expect(propertyBarRenderSource).toContain('title="步进"');
+        expect(propertyBarRenderSource).toContain('title="线宽"');
+        expect(propertyBarRenderSource).toContain('title="线型"');
+        expect(propertyBarFieldsSource).toContain('value={options.stickerToolSettings.shapeStrokeDashPattern}');
         expect(propertyBarSource).toContain('{ key: "solid", label: "━", title: "实线" }');
         expect(propertyBarSource).toContain('{ key: "dash-1", label: "╌", title: "虚线1" }');
         expect(propertyBarSource).toContain('{ key: "dash-2", label: "┄", title: "虚线2" }');
-        expect(propertyBarSource).toContain("MiniDropdownField");
+        expect(propertyBarFieldsSource).toContain("const MiniDropdownField");
         expect(propertyBarSource).toContain("toggleDropdownMenu");
         expect(propertyBarSource).toContain('data-top-strip-property-popup="true"');
         expect(propertyBarSource).toContain("addOrUpdateRect");
         expect(propertyBarSource).toContain("removeRect");
-        expect(propertyBarSource).toContain(
+        expect(propertyBarFieldsSource).toContain(
             'shapeStrokeDashPattern: value as "solid" | "dash-1" | "dash-2"',
         );
         expect(propertyBarSource).not.toContain("<select");
         expect(propertyBarSource).not.toContain("class={dashButtonClass}");
-        expect(propertyBarSource).toContain("SquareConstraintGlyphIcon");
-        expect(propertyBarSource).toContain("Icon={SquareConstraintGlyphIcon}");
-        expect(propertyBarSource).toContain("HighlighterGlowIcon");
-        expect(propertyBarSource).toContain('Icon={HighlighterGlowIcon}');
-        expect(propertyBarSource).toMatch(
-            /title="线宽"[\s\S]*?settingKey="strokeWidth"[\s\S]*?currentValue=\{stickerToolSettings\.strokeWidth\}[\s\S]*?min=\{1\}[\s\S]*?max=\{96\}[\s\S]*?Icon=\{LineWidthIcon\}/,
+        expect(propertyBarRenderSource).toContain("SquareConstraintGlyphIcon");
+        expect(propertyBarRenderSource).toContain("Icon={SquareConstraintGlyphIcon}");
+        expect(propertyBarRenderSource).toContain("HighlighterGlowIcon");
+        expect(propertyBarRenderSource).toContain('Icon={HighlighterGlowIcon}');
+        expect(propertyBarRenderSource).toMatch(
+            /title="线宽"[\s\S]*?settingKey="strokeWidth"[\s\S]*?currentValue=\{(?:options\.)?stickerToolSettings\.strokeWidth\}[\s\S]*?min=\{1\}[\s\S]*?max=\{96\}[\s\S]*?Icon=\{LineWidthIcon\}/,
         );
-        expect(propertyBarSource).toContain('settingKey="shapeCornerRadius"');
-        expect(propertyBarSource).toContain('title="圆角半径"');
-        expect(propertyBarSource).toContain("PolygonSidesIcon");
+        expect(propertyBarRenderSource).toContain('settingKey="shapeCornerRadius"');
+        expect(propertyBarRenderSource).toContain('title="圆角半径"');
+        expect(propertyBarRenderSource).toContain("PolygonSidesIcon");
         expect(propertyBarSource).toContain("event.stopPropagation();");
         expect(propertyBarSource).toContain("api.focusOverlayWindow()");
         expect(propertyBarSource).toContain("<Portal>");
-        expect(propertyBarSource).toContain("shapeConstrainSquare");
-        expect(propertyBarSource).toContain("shapeSnapStep");
-        expect(propertyBarSource).toContain("shapeStrokeDashPattern");
-        expect(propertyBarSource).toContain('settingKey="contentEraserSize"');
-        expect(propertyBarSource).toContain('title="擦除半径"');
-        expect(propertyBarSource).toContain('title="只擦标记"');
-        expect(propertyBarSource).toContain("contentEraserOnlyAnnotations");
-        expect(propertyBarSource).toContain("AnnotationsOnlyFocusedIcon");
-        expect(propertyBarSource).toContain('title="翻X"');
-        expect(propertyBarSource).toContain('title="翻Y"');
-        expect(propertyBarSource).toContain('title="重置裁剪"');
-        expect(propertyBarSource).toContain('title="圆角半径"');
-        expect(propertyBarSource).toContain('title="边框开关"');
-        expect(propertyBarSource).toContain('title="透明度"');
-        expect(propertyBarSource).toContain('title="大小"');
+        expect(propertyBarRenderSource).toContain("shapeConstrainSquare");
+        expect(propertyBarRenderSource).toContain("shapeSnapStep");
+        expect(propertyBarFieldsSource).toContain("shapeStrokeDashPattern");
+        expect(propertyBarRenderSource).toContain('settingKey="contentEraserSize"');
+        expect(propertyBarRenderSource).toContain('title="擦除半径"');
+        expect(propertyBarRenderSource).toContain('title="只擦标记"');
+        expect(propertyBarRenderSource).toContain("contentEraserOnlyAnnotations");
+        expect(propertyBarRenderSource).toContain("AnnotationsOnlyFocusedIcon");
+        expect(propertyBarRenderSource).toContain('title="翻X"');
+        expect(propertyBarRenderSource).toContain('title="翻Y"');
+        expect(propertyBarRenderSource).toContain('title="重置裁剪"');
+        expect(propertyBarRenderSource).toContain('title="圆角半径"');
+        expect(propertyBarRenderSource).toContain('title="边框开关"');
+        expect(propertyBarRenderSource).toContain('title="透明度"');
+        expect(propertyBarRenderSource).toContain('title="大小"');
         expect(propertyBarSource).toContain("scaleStickerFrame");
         expect(propertyBarSource).toContain("toggleStickerBorder");
-        expect(propertyBarSource).toContain("OpacityIcon");
-        expect(propertyBarSource).toContain("CanvasSizeIcon");
+        expect(propertyBarRenderSource).toContain("OpacityIcon");
+        expect(propertyBarRenderSource).toContain("CanvasSizeIcon");
         expect(propertyBarSource).toContain("commitCropOpacityDraft");
         expect(propertyBarSource).toContain("commitCropCanvasWidthDraft");
         expect(propertyBarSource).toContain("commitCropCornerRadiusDraft");
         expect(propertyBarSource).toContain('props.tool === "crop"');
+        expect(propertyBarRenderSource).toContain("const renderCropFields = () => (");
+        expect(propertyBarSource).toContain('<Show when={props.tool === "crop"}>{renderCropFields()}</Show>');
         expect(propertyBarSource).toContain("flipStickerEditDataForFrame");
         expect(propertyBarSource).toContain("flipRasterizedAnnotationLayer");
         expect(propertyBarSource).toContain("computeRestoredCropFrame");
-        expect(propertyBarSource).toMatch(
-            /props\.tool === "crop"[\s\S]*?MiniDeferredNumericField[\s\S]*?title="圆角半径"[\s\S]*?Icon=\{RadiusIcon\}[\s\S]*?onCommit=\{commitCropCornerRadiusDraft\}/,
+        const cropFieldsSource = sourceBetween(
+            propertyBarSectionSource,
+            "const renderCropFields = () => (",
+            propertyBarSectionsExists ? "return {" : "return (",
         );
-        expect(propertyBarSource).toMatch(
-            /props\.tool === "crop"[\s\S]*?MiniDeferredNumericField[\s\S]*?title="透明度"[\s\S]*?onCommit=\{commitCropOpacityDraft\}/,
-        );
-        expect(propertyBarSource).toMatch(
-            /props\.tool === "crop"[\s\S]*?MiniDeferredNumericField[\s\S]*?title="大小"[\s\S]*?onCommit=\{commitCropCanvasWidthDraft\}/,
-        );
+        expect(cropFieldsSource).toContain("MiniDeferredNumericField");
+        expect(cropFieldsSource).toContain('title="圆角半径"');
+        expect(cropFieldsSource).toContain("Icon={RadiusIcon}");
+        expect(cropFieldsSource).toMatch(/onCommit=\{(?:options\.)?commitCropCornerRadiusDraft\}/);
+        expect(cropFieldsSource).toContain('title="透明度"');
+        expect(cropFieldsSource).toMatch(/onCommit=\{(?:options\.)?commitCropOpacityDraft\}/);
+        expect(cropFieldsSource).toContain('title="大小"');
+        expect(cropFieldsSource).toMatch(/onCommit=\{(?:options\.)?commitCropCanvasWidthDraft\}/);
         expect(propertyBarSource).toContain('props.tool === "selected-text"');
         expect(propertyBarSource).toContain('props.tool === "selected-serial"');
         expect(propertyBarSource).toContain("updateTextAnnotationFontFamilyById");
@@ -200,13 +226,13 @@ describe("Hook sticker top strip contract", () => {
         expect(propertyBarSource).toContain("patchSelectedTextAnnotationFontSize");
         expect(propertyBarSource).toContain("patchSelectedSerialAnnotationRadius");
         expect(propertyBarSource).toContain('props.tool === "selected-text"');
-        expect(propertyBarSource).toContain('title="节点文字颜色"');
-        expect(propertyBarSource).toContain('title="节点字号"');
-        expect(propertyBarSource).toContain('title="节点字体"');
+        expect(propertyBarRenderSource).toContain('title="节点文字颜色"');
+        expect(propertyBarRenderSource).toContain('title="节点字号"');
+        expect(propertyBarRenderSource).toContain('title="节点字体"');
         expect(propertyBarSource).toContain('props.tool === "selected-serial"');
-        expect(propertyBarSource).toContain('title="节点描边/数字颜色"');
-        expect(propertyBarSource).toContain('title="节点填充颜色"');
-        expect(propertyBarSource).toContain('title="节点半径"');
+        expect(propertyBarRenderSource).toContain('title="节点描边/数字颜色"');
+        expect(propertyBarRenderSource).toContain('title="节点填充颜色"');
+        expect(propertyBarRenderSource).toContain('title="节点半径"');
         expect(toolbarModelSource).toContain("resolveStickerTopStripPropertyTool");
         expect(toolbarModelSource).toContain("resolveSelectedExistingNodePropertyTool");
         expect(toolbarModelSource).toContain('| "selected-text"');

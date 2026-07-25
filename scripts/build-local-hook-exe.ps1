@@ -11,7 +11,11 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $hookRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
-$outputRoot = [System.IO.Path]::GetFullPath((Join-Path $hookRoot $OutputDir))
+$outputRoot = if ([System.IO.Path]::IsPathRooted($OutputDir)) {
+    [System.IO.Path]::GetFullPath($OutputDir)
+} else {
+    [System.IO.Path]::GetFullPath((Join-Path $hookRoot $OutputDir))
+}
 $releaseExe = Join-Path $hookRoot "src-tauri\target\release\hook.exe"
 
 function Ensure-OutputDirectory {
@@ -30,6 +34,23 @@ function Ensure-OutputDirectory {
     New-Item -ItemType Directory -Path $Path -Force | Out-Null
 }
 
+function Get-TimestampedHookExePath {
+    param(
+        [string]$OutputRoot
+    )
+
+    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $candidate = Join-Path $OutputRoot "hook-$timestamp.exe"
+    $counter = 1
+
+    while (Test-Path -LiteralPath $candidate) {
+        $candidate = Join-Path $OutputRoot "hook-$timestamp-$counter.exe"
+        $counter++
+    }
+
+    return $candidate
+}
+
 if ($DryRun) {
     $buildCommand = if ($UiAccess) {
         "set HOOK_WINDOWS_UIACCESS=1 && npm run tauri build -- --no-bundle"
@@ -40,6 +61,8 @@ if ($DryRun) {
         hookRoot = $hookRoot
         outputDir = $outputRoot
         releaseExe = $releaseExe
+        primaryOutputExe = (Join-Path $outputRoot "hook.exe")
+        fallbackOutputExeExample = (Join-Path $outputRoot "hook-YYYYMMDD-HHMMSS.exe")
         buildCommand = $buildCommand
         uiAccess = $UiAccess.IsPresent
         allowUnsignedUiAccessBuild = $AllowUnsignedUiAccessBuild.IsPresent
@@ -72,13 +95,25 @@ if (-not (Test-Path -LiteralPath $releaseExe -PathType Leaf)) {
     throw "Expected built executable is missing: $releaseExe"
 }
 
-if ($Force -and (Test-Path -LiteralPath (Join-Path $outputRoot "hook.exe") -PathType Leaf)) {
-    Remove-Item -LiteralPath (Join-Path $outputRoot "hook.exe") -Force
+$preferredExe = Join-Path $outputRoot "hook.exe"
+$publishedExe = $preferredExe
+
+try {
+    if ($Force -and (Test-Path -LiteralPath $preferredExe -PathType Leaf)) {
+        Remove-Item -LiteralPath $preferredExe -Force -ErrorAction Stop
+    }
+
+    Copy-Item -LiteralPath $releaseExe -Destination $preferredExe -Force -ErrorAction Stop
+}
+catch {
+    $fallbackExe = Join-Path $outputRoot (Split-Path -Leaf (Get-TimestampedHookExePath -OutputRoot $outputRoot))
+    Write-Warning "Primary release exe could not be replaced; existing hook.exe is locked or otherwise unavailable. Writing timestamped fallback instead: $fallbackExe"
+    Copy-Item -LiteralPath $releaseExe -Destination $fallbackExe -Force -ErrorAction Stop
+    $publishedExe = $fallbackExe
 }
 
-Copy-Item -LiteralPath $releaseExe -Destination (Join-Path $outputRoot "hook.exe") -Force
 Write-Host "[hook-local-build] Built exe:"
-Write-Host "  $(Join-Path $outputRoot "hook.exe")"
+Write-Host "  $publishedExe"
 if ($UiAccess) {
     Write-Warning "This build embeds a uiAccess manifest, but Windows only honors uiAccess when the binary is digitally signed and installed in a trusted location such as Program Files."
 }

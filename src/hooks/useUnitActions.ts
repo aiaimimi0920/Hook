@@ -3,7 +3,8 @@ import { graphStore } from "../store/graphStore";
 import { syncService } from "../services/syncService";
 import { logger } from "../services/logger";
 import { setDraggingStickerId, setMultiDragPositions, uiActions } from "../store/uiStore";
-import { computeRestoredMinifiedStickerWindow } from "../services/stickerEditing";
+import { computeMinifiedStickerWindow, computeRestoredMinifiedStickerWindow } from "../services/stickerEditing";
+import { resolveStickerSurfaceDoubleClickTarget } from "../services/stickerDoubleClick";
 import { useNodeParameters } from "./useNodeParameters";
 import { DEFAULT_EXECUTION_CONFIG, type Unit } from "../types/unit";
 import { resolveUnitImageFromGraph } from "../services/graphImageResolution";
@@ -136,48 +137,38 @@ export function useUnitActions() {
 
           // LEGACY BEHAVIOR: PARTIAL PIXEL VIEW (Auto-Crop)
           // "Double click defaults to showing partial pixels near the clicked point"
-          const target = e.currentTarget as HTMLElement;
+          const target = resolveStickerSurfaceDoubleClickTarget(e.target, e.currentTarget) ?? (e.currentTarget as HTMLElement);
           const rect = target.getBoundingClientRect();
           // Relative Click (0 to 1)
           const relX = (e.clientX - rect.left) / rect.width;
           const relY = (e.clientY - rect.top) / rect.height;
-
-          // Unit Space Click Coordinates
-          const clickUnitX = relX * u.w;
-          const clickUnitY = relY * u.h;
-
-          // Define Crop Window Size
-          const CROP_SIZE = 100;
-
-          // Center the Crop around the Click
-          const offsetX = clickUnitX - (CROP_SIZE / 2);
-          const offsetY = clickUnitY - (CROP_SIZE / 2);
-
-          // Update Unit Position (keep the "visual" click point stationary on screen)
-          const newX = u.x + offsetX;
-          const newY = u.y + offsetY;
+          const minified = computeMinifiedStickerWindow(
+              { x: u.x, y: u.y, w: u.w, h: u.h },
+              relX,
+              relY,
+          );
 
           setDraggingStickerId(null);
           setMultiDragPositions(null);
 
           void api.debugLogEvent(
               "sticker-double-click-window",
-              `unit=${id} relX=${relX.toFixed(4)} relY=${relY.toFixed(4)} rectW=${rect.width.toFixed(2)} rectH=${rect.height.toFixed(2)} offsetX=${offsetX.toFixed(2)} offsetY=${offsetY.toFixed(2)} frameX=${newX.toFixed(2)} frameY=${newY.toFixed(2)}`,
+              `unit=${id} relX=${relX.toFixed(4)} relY=${relY.toFixed(4)} rectW=${rect.width.toFixed(2)} rectH=${rect.height.toFixed(2)} offsetX=${minified.cropOffset.x.toFixed(2)} offsetY=${minified.cropOffset.y.toFixed(2)} frameX=${minified.frame.x.toFixed(2)} frameY=${minified.frame.y.toFixed(2)}`,
           );
 
           // Apply Changes
           graphStore.actions.updateStickerWindowState(
               id,
               {
-                  x: newX,
-                  y: newY,
-                  w: CROP_SIZE,
-                  h: CROP_SIZE,
+                  x: minified.frame.x,
+                  y: minified.frame.y,
+                  w: minified.frame.w,
+                  h: minified.frame.h,
               },
               {
                   minified: true,
-                  savedRect: { x: u.x, y: u.y, w: u.w, h: u.h },
-                  cropOffset: { x: offsetX, y: offsetY },
+                  savedRect: minified.savedRect,
+                  cropOffset: minified.cropOffset,
               },
           );
 

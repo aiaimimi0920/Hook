@@ -15,7 +15,7 @@ describe("Art scalar output contract", () => {
     expect(appSource).toContain('case "value":');
     expect(appSource).toContain("output: delivery.delivery.value ?? delivery.delivery.data");
     expect(appSource).toContain("outputs: nextOutputs");
-    expect(syncSource).toContain("outputs: unit.data.outputs || null");
+    expect(syncSource).toContain("outputs: u.data?.outputs || null");
     expect(syncSource).toContain("outputs: sticker.outputs || undefined");
   });
 });

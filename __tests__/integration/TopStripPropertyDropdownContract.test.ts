@@ -16,11 +16,15 @@ const sourceBetween = (source: string, start: string, end: string) => {
 describe("top strip property dropdown contract", () => {
   it("uses Hook-owned popup menus instead of native select popups so options that extend into sticker space still stay inside the protected overlay input model", () => {
     const propertyBarSource = readSource("src/components/StickerTopStripPropertyBar.tsx");
+    const fieldsSource = readSource("src/components/stickerTopStripPropertyBarFields.tsx");
 
-    expect(propertyBarSource).toContain("const MiniDropdownField");
+    expect(propertyBarSource).toContain("createStickerTopStripPropertyBarFields({");
+    expect(fieldsSource).toContain("const MiniDropdownField");
+    expect(fieldsSource).toContain("data-top-strip-popup-trigger={fieldProps.id}");
     expect(propertyBarSource).toContain('data-top-strip-menu="true"');
     expect(propertyBarSource).toContain("addOrUpdateRect(");
     expect(propertyBarSource).toContain("removeRect(");
+    expect(fieldsSource).toContain("toggleDropdownMenu(");
     expect(propertyBarSource).not.toContain("<select");
   });
 

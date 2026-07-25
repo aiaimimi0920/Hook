@@ -30,8 +30,12 @@ export const StringControl: Component<StringControlProps> = (props) => {
     props.onChange(next, true);
   };
 
+  const stopInteractiveEvent = (event: Event) => {
+    event.stopPropagation();
+  };
+
   return (
-    <div class="flex items-center gap-3 w-full h-6">
+    <div class="flex items-center gap-3 w-full h-6" onMouseDown={stopInteractiveEvent} onPointerDown={stopInteractiveEvent} onClick={stopInteractiveEvent}>
       <label
         class="text-[#EEF1FF]/80 font-medium text-[11px] shrink-0 truncate cursor-context-menu"
         style={{ "min-width": "70px" }}
@@ -49,7 +53,6 @@ export const StringControl: Component<StringControlProps> = (props) => {
             onInput={(e) => {
               setIsEditing(true);
               setDraftValue(e.currentTarget.value);
-              props.onChange(e.currentTarget.value, false);
             }}
             onBlur={commitDraft}
             onKeyDown={(event) => {
@@ -63,14 +66,28 @@ export const StringControl: Component<StringControlProps> = (props) => {
                 setDraftValue(props.value || "");
               }
             }}
-            onContextMenu={(event) => props.onContextMenu(event)}
+            onMouseDown={stopInteractiveEvent}
+            onPointerDown={stopInteractiveEvent}
+            onClick={stopInteractiveEvent}
+            onContextMenu={(event) => {
+              stopInteractiveEvent(event);
+              props.onContextMenu(event);
+            }}
           />
         }>
           <div
             class="w-full h-6 bg-white/5 border border-white/10 rounded px-2 flex items-center text-white/90 text-[11px] hover:bg-white/10 transition-colors cursor-pointer group/text"
             classList={{ "pointer-events-none opacity-50": props.isDisabled }}
-            onClick={() => !props.isDisabled && props.onEditStart?.()}
-            onContextMenu={(event) => props.onContextMenu(event)}
+            onMouseDown={stopInteractiveEvent}
+            onPointerDown={stopInteractiveEvent}
+            onClick={(event) => {
+              stopInteractiveEvent(event);
+              !props.isDisabled && props.onEditStart?.();
+            }}
+            onContextMenu={(event) => {
+              stopInteractiveEvent(event);
+              props.onContextMenu(event);
+            }}
           >
             <span class="truncate flex-1 min-w-0">{props.value}</span>
             <svg class="w-3 h-3 text-white/30 group-hover/text:text-white/70 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

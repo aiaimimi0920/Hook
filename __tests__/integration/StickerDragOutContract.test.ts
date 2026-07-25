@@ -107,10 +107,16 @@ describe("Hook sticker drag-out contract", () => {
     expect(unitViewSource).toContain("api.saveStickerDragExportFromPath(");
     expect(unitViewSource).toContain("api.saveStickerDragExport(");
     expect(unitViewSource).not.toContain("void beginNativeStickerDrag();");
+    expect(apiSource).toContain("beginStickerNativeFileDragFromPath");
+    expect(apiSource).toContain("begin_sticker_native_file_drag_from_path");
+    expect(apiSource).toContain("beginStickerNativeFileDrag");
+    expect(apiSource).toContain("begin_sticker_native_file_drag");
     expect(apiSource).toContain("saveStickerDragExportFromPath");
     expect(apiSource).toContain("save_sticker_drag_export_from_path");
     expect(apiSource).toContain("saveStickerDragExport");
     expect(apiSource).toContain("save_sticker_drag_export");
+    expect(rustSource).toContain("fn begin_sticker_native_file_drag_from_path(");
+    expect(rustSource).toContain("fn begin_sticker_native_file_drag(");
     expect(rustSource).toContain("fn save_sticker_drag_export_from_path(");
     expect(rustSource).toContain("fn save_sticker_drag_export(");
     expect(rustSource).toContain("resolve_drag_export_target_dir(global_x, global_y)");
@@ -192,7 +198,8 @@ describe("Hook sticker drag-out contract", () => {
       "fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow)",
     );
     expect(rustSource).toContain("static NATIVE_FILE_DRAG_ACTIVE: AtomicBool = AtomicBool::new(false);");
-    expect(hookProcSection).toContain("if NATIVE_FILE_DRAG_ACTIVE.load(Ordering::SeqCst) {");
+    expect(hookProcSection).toContain("if NATIVE_FILE_DRAG_ACTIVE.load(Ordering::SeqCst)");
+    expect(hookProcSection).toContain("|| NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst)");
     expect(hookProcSection).toContain("return unsafe { CallNextHookEx(None, code, wparam, lparam) };");
   });
 
@@ -332,7 +339,8 @@ describe("Hook sticker drag-out contract", () => {
     expect(unitViewSource).toContain("Math.hypot(x - start.x, y - start.y) < 6");
     expect(rustSource).toContain("&& !native_drag_preflight_active");
     expect(rustSource).toContain("should_route_overlay_mouse || native_drag_preflight_active");
-    expect(rdevMouseMoveSection).toContain("if NATIVE_FILE_DRAG_ACTIVE.load(Ordering::SeqCst) {");
+    expect(rdevMouseMoveSection).toContain("if NATIVE_FILE_DRAG_ACTIVE.load(Ordering::SeqCst)");
+    expect(rdevMouseMoveSection).toContain("|| NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst)");
     expect(rdevMouseMoveSection).toContain("input_state.is_ignoring_events = true;");
     expect(rdevMouseMoveSection).toContain("return;");
   });
@@ -370,6 +378,7 @@ describe("Hook sticker drag-out contract", () => {
     expect(beginNativeDragFromPathSection).toContain("let staged_drag_file = stage_drag_out_file_copy(&file_path)?;");
     expect(beginNativeDragFromPathSection).toContain("start_native_file_drag(window, staged_drag_file, hit_map.inner())?;");
     expect(beginNativeDragFromPathSection).toContain("Ok(path)");
+    expect(beginNativeDragFromPathSection).toContain("Drag source must be inside Hook's clipboard cache");
     const nativeDragHelper = extractRustSection(
       "fn start_native_file_drag_on_ui_thread(",
       "#[cfg(target_os = \"windows\")]\n#[tauri::command]\nfn begin_sticker_native_file_drag(",

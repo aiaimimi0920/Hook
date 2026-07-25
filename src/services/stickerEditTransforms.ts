@@ -46,19 +46,20 @@ const mirrorPoint = (
 });
 
 const measureAnnotationTextWidth = (annotation: StickerTextAnnotation, fontSize: number) => {
+    const text = typeof annotation.text === "string" ? annotation.text : "";
     if (typeof document !== "undefined" && typeof document.createElement === "function") {
         const canvas = document.createElement("canvas");
         const context = canvas.getContext("2d");
         if (context) {
             context.font = `${annotation.type === "serial" ? "700" : "500"} ${fontSize}px "Segoe UI", sans-serif`;
-            const width = context.measureText(annotation.text).width;
+            const width = context.measureText(text).width;
             if (Number.isFinite(width) && width > 0) {
                 return width;
             }
         }
     }
 
-    return Math.max(fontSize, annotation.text.length * fontSize * DEFAULT_TEXT_WIDTH_FACTOR);
+    return Math.max(fontSize, text.length * fontSize * DEFAULT_TEXT_WIDTH_FACTOR);
 };
 
 const flipAnnotation = (
@@ -109,7 +110,7 @@ const flipAnnotation = (
         return {
             ...annotation,
             x: axis === "x" ? frame.w - annotation.x - textWidth : annotation.x,
-            y: axis === "y" ? frame.h - annotation.y - fontSize : annotation.y,
+            y: axis === "y" ? frame.h - annotation.y + fontSize : annotation.y,
         };
     }
 

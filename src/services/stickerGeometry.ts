@@ -468,19 +468,20 @@ const measureTextWidth = (
     fontWeight: "500" | "700" = "500",
     fontFamily = "Segoe UI",
 ) => {
+    const safeText = typeof text === "string" ? text : "";
     if (typeof document !== "undefined" && typeof document.createElement === "function") {
         const canvas = document.createElement("canvas");
         const context = canvas.getContext("2d");
         if (context) {
             context.font = `${fontWeight} ${fontSize}px "${fontFamily}", sans-serif`;
-            const width = context.measureText(text).width;
+            const width = context.measureText(safeText).width;
             if (Number.isFinite(width) && width > 0) {
                 return width;
             }
         }
     }
 
-    return Math.max(fontSize, text.length * fontSize * DEFAULT_TEXT_WIDTH_FACTOR);
+    return Math.max(fontSize, safeText.length * fontSize * DEFAULT_TEXT_WIDTH_FACTOR);
 };
 
 const getTextAnnotationMetrics = (annotation: Extract<StickerAnnotation, { type: "text" | "serial" }>) => {
@@ -504,8 +505,8 @@ const getTextAnnotationMetrics = (annotation: Extract<StickerAnnotation, { type:
         width,
         height: fontSize,
         left: annotation.x,
-        top: annotation.y,
-        centerY: annotation.y + fontSize / 2,
+        top: annotation.y - fontSize,
+        centerY: annotation.y - fontSize / 2,
         fontSize,
     };
 };
@@ -620,7 +621,7 @@ const rotateAnnotationAroundPivot = (
             : {
                   ...annotation,
                   x: nextCenter.x - metrics.width / 2,
-                  y: nextCenter.y - metrics.height / 2,
+                  y: nextCenter.y + metrics.height / 2,
                   rotation: normalizeRotation(annotation.rotation, angleDegrees),
               };
     }
@@ -727,7 +728,7 @@ const scaleAnnotationAroundPivot = (
         return {
             ...annotation,
             x: nextCenter.x - nextWidth / 2,
-            y: nextCenter.y - (fontSize ?? DEFAULT_TEXT_FONT_SIZE) / 2,
+            y: nextCenter.y + (fontSize ?? DEFAULT_TEXT_FONT_SIZE) / 2,
             fontSize,
             style: scaleAnnotationStyle(annotation.style, scale),
         };

@@ -117,6 +117,12 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
       return [];
   };
   const paramGroups = createMemo(() => buildArtParamGroups(derivedParams()));
+  const hoveringDataUrlPreview = createMemo(() => {
+      const paramId = hoveringParam();
+      if (!paramId) return null;
+      const value = props.params[paramId];
+      return typeof value === "string" && value.startsWith("data:") ? value : null;
+  });
 
   const displaySrc = () => {
       let resolvedSrc: string | undefined;
@@ -180,6 +186,11 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
       }
   };
 
+  const openTextEditor = (param: ArtParam) => {
+      setTempText(String(getParamValue(param.id, param.default) ?? ""));
+      setEditingTextId(param.id);
+  };
+
   const handleParamChange = (id: string, val: any, isFinal: boolean = true) => {
       // Handle local dragging state optimization
       if (!isFinal && typeof val === 'number') {
@@ -206,7 +217,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
           onLinkMove={props.onLinkMove}
           onLinkHover={props.onLinkHover}
           registerLinkTarget={(el) => registerPanelPort(el, param.id)}
-          onEditStart={() => setEditingTextId(param.id)}
+          onEditStart={() => openTextEditor(param)}
           onPreview={(id, active) => setHoveringParam(active ? id : null)}
       />
   );
@@ -235,7 +246,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
       const dragging = draggingSlider();
       if (dragging) {
           const currentVal = props.params[dragging.id];
-          if (currentVal !== undefined && currentVal !== DISABLED_PREFIX && Math.abs(currentVal - dragging.value) < 0.001) {
+          if (typeof currentVal === "number" && Math.abs(currentVal - dragging.value) < 0.001) {
               setDraggingSlider(null);
           }
       }
@@ -244,7 +255,9 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
   // Sync tempText
   createEffect(() => {
       const id = editingTextId();
-      if (id) setTempText(props.params[id] ?? "");
+      if (!id) return;
+      const param = derivedParams().find((item) => item.id === id);
+      setTempText(String(getParamValue(id, param?.default) ?? ""));
   });
 
   // Rect Registration for Panel
@@ -670,14 +683,20 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                      "padding": "12px",
                      "color": "var(--text-primary)"
                  }}
-                 onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} onDblClick={(e) => e.stopPropagation()}
+                 onMouseDown={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} onDblClick={(e) => e.stopPropagation()}
              >
                  <div class="flex items-center justify-between mb-2">
                      <span class="text-xs font-bold text-white/90 uppercase tracking-wider">Edit Text</span>
                       <button class="text-white/40 hover:text-white transition-colors" onClick={() => setEditingTextId(null)}><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
                  </div>
                  <textarea class="hook-terminal-input w-full h-[150px] p-3 text-[11px] leading-relaxed resize-y min-h-[100px] scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent font-mono mb-3"
-                     value={tempText()} onInput={(e) => setTempText(e.currentTarget.value)} placeholder="Enter text..." autofocus
+                     value={tempText()}
+                     onInput={(e) => setTempText(e.currentTarget.value)}
+                     onMouseDown={(e) => e.stopPropagation()}
+                     onPointerDown={(e) => e.stopPropagation()}
+                     onClick={(e) => e.stopPropagation()}
+                     placeholder="Enter text..."
+                     autofocus
                  />
                  <div class="flex justify-between items-center mt-auto">
                      <span class="text-[10px] text-white/30 font-mono self-center">{tempText().length} chars</span>
@@ -687,7 +706,8 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
              </div>
     </Show>
 
-    <Show when={hoveringParam() && props.params[hoveringParam()!] && props.params[hoveringParam()!].startsWith("data:")}>
+    <Show when={hoveringDataUrlPreview()}>
+        {(previewSrc) => (
             <div class="hook-terminal-shell hook-terminal-shell--strong absolute flex flex-col z-[110] animate-in slide-in-from-left-2 duration-200 pointer-events-auto"
                 style={{
                     position: "absolute",
@@ -697,9 +717,10 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                 }} onMouseDown={(e) => e.stopPropagation()}
             >
                  <div class="mb-2 flex justify-between items-center text-[10px] text-white/50 font-mono border-b border-white/10 pb-1"><span class="font-bold text-white/80 uppercase tracking-widest">Image Preview</span></div>
-                 <img src={props.params[hoveringParam()!]} class="w-full h-auto object-contain bg-black/20 border border-white/5" style={{"max-height": "300px"}} />
-                 <div class="mt-1 text-[9px] text-white/30 font-mono text-right truncate">{(props.params[hoveringParam()!].length / 1024).toFixed(1)} KB</div>
+                 <img src={previewSrc()} class="w-full h-auto object-contain bg-black/20 border border-white/5" style={{"max-height": "300px"}} />
+                 <div class="mt-1 text-[9px] text-white/30 font-mono text-right truncate">{(previewSrc().length / 1024).toFixed(1)} KB</div>
             </div>
+        )}
     </Show>
     </>
   );

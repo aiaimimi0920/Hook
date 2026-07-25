@@ -9,21 +9,24 @@ const topStripSource = readFileSync(resolve(process.cwd(), "src/components/Stick
 const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStripPropertyBar.tsx"), "utf8");
 
 describe("Hook sticker double-click contract", () => {
-    it("uses the pre-foundation double-click minify math so the clicked point remains centered in the cropped window", () => {
-        expect(actionsSource).toContain("const target = e.currentTarget as HTMLElement;");
+    it("derives double-click minify from the actual sticker visual rect and routes the crop math through the shared helper so every corner uses the same edge handling", () => {
+        expect(actionsSource).toContain("computeMinifiedStickerWindow(");
+        expect(actionsSource).toContain("resolveStickerSurfaceDoubleClickTarget(");
+        expect(actionsSource).toContain("const target = resolveStickerSurfaceDoubleClickTarget(e.target, e.currentTarget) ?? (e.currentTarget as HTMLElement);");
         expect(actionsSource).toContain("const rect = target.getBoundingClientRect();");
-        expect(actionsSource).toContain("const clickUnitX = relX * u.w;");
-        expect(actionsSource).toContain("const clickUnitY = relY * u.h;");
-        expect(actionsSource).toContain("const CROP_SIZE = 100;");
-        expect(actionsSource).toContain("const offsetX = clickUnitX - (CROP_SIZE / 2);");
-        expect(actionsSource).toContain("const offsetY = clickUnitY - (CROP_SIZE / 2);");
-        expect(actionsSource).toContain("const newX = u.x + offsetX;");
-        expect(actionsSource).toContain("const newY = u.y + offsetY;");
+        expect(actionsSource).toContain("const relX = (e.clientX - rect.left) / rect.width;");
+        expect(actionsSource).toContain("const relY = (e.clientY - rect.top) / rect.height;");
+        expect(actionsSource).toContain("const minified = computeMinifiedStickerWindow(");
+        expect(actionsSource).toContain("x: minified.frame.x,");
+        expect(actionsSource).toContain("y: minified.frame.y,");
+        expect(actionsSource).toContain("savedRect: minified.savedRect,");
+        expect(actionsSource).toContain("cropOffset: minified.cropOffset,");
         expect(actionsSource).toContain("setDraggingStickerId(null);");
         expect(actionsSource).toContain("setMultiDragPositions(null);");
         expect(actionsSource).toContain("sticker-double-click-window");
         expect(unitViewSource).toContain('"pointer-events": "none"');
-        expect(unitViewSource).toContain("if (draggingStickerId() && props.multiDragPositions");
+        expect(unitViewSource).toContain("if (props.multiDragPositions && props.multiDragPositions[props.unit.id])");
+        expect(unitViewSource).not.toContain("if (draggingStickerId() && props.multiDragPositions");
     });
 
     it("clears drag state before restoring a minified sticker so the render position cannot stay pinned to the mini sticker location", () => {

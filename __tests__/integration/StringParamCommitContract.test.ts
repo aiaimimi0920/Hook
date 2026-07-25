@@ -13,10 +13,25 @@ describe("String parameter commit contract", () => {
         expect(source).toContain("commitDraft");
         expect(source).toContain("onInput={(e) =>");
         expect(source).not.toContain("onInput={(e) => props.onChange(e.currentTarget.value)}");
+        const inputHandler = source.slice(source.indexOf("onInput={(e) =>"), source.indexOf("onBlur={commitDraft}"));
+        expect(inputHandler).not.toContain("props.onChange");
+        expect(source).toContain("stopInteractiveEvent");
         expect(source).toContain('event.key === "Enter"');
         expect(source).toContain("onBlur={commitDraft}");
         expect(source).toContain("props.onChange(next, true)");
         expect(source).not.toContain("if (next !== props.value)");
+    });
+
+    it("initializes the multiline text editor from the effective panel value", () => {
+        const source = readFileSync(
+            resolve(process.cwd(), "src", "components", "UnitParamsPanel.tsx"),
+            "utf8",
+        );
+
+        expect(source).toContain("const openTextEditor = (param: ArtParam) => {");
+        expect(source).toContain('setTempText(String(getParamValue(param.id, param.default) ?? ""));');
+        expect(source).toContain("onEditStart={() => openTextEditor(param)}");
+        expect(source).not.toContain("onEditStart={() => setEditingTextId(param.id)}");
     });
 
     it("passes text commit finality through UnitParamControl instead of treating every draft as final", () => {

@@ -2,18 +2,17 @@ import type { StickerPoint } from "../types/stickerEditing";
 import { normalizeImageSourceForDisplay } from "./imageSource";
 
 /**
- * Resolve a canvas line-dash array (in px) from the annotation dash pattern,
- * scaled by stroke width so the pattern stays proportional. Mirrors the SVG
- * stroke-dasharray used in the live layer.
+ * Resolve a canvas line-dash array (in px) from the annotation dash pattern.
+ * These values must match the live SVG stroke-dasharray exactly; otherwise the
+ * rasterized result visibly diverges from the editable vector preview.
  */
 export const getDashSegments = (
     dashPattern: "solid" | "dash-1" | "dash-2" | undefined,
-    width: number,
+    _width: number,
 ): number[] => {
     if (!dashPattern || dashPattern === "solid") return [];
-    const unit = Math.max(1, width);
-    if (dashPattern === "dash-1") return [8 * unit, 4 * unit];
-    if (dashPattern === "dash-2") return [4 * unit, 2 * unit, 1 * unit, 2 * unit];
+    if (dashPattern === "dash-1") return [8, 4];
+    if (dashPattern === "dash-2") return [4, 2, 1, 2];
     return [];
 };
 

@@ -151,6 +151,20 @@ interface ActiveTransformInteraction {
     pivot: StickerPoint;
 }
 
+interface ResizeAnnotationState {
+    annotationId: string;
+    handle: ResizeHandle;
+    current: StickerPoint;
+    original: StickerAnnotation;
+}
+
+interface ReshapeLineState {
+    annotationId: string;
+    handle: LineEndpointHandle;
+    current: StickerPoint;
+    original: StickerAnnotation;
+}
+
 export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (props) => {
     let hostRef: HTMLDivElement | undefined;
     let pendingTextInputRef: HTMLInputElement | undefined;
@@ -161,23 +175,8 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
     const [pendingTextInput, setPendingTextInput] = createSignal<PendingTextInput | null>(null);
     const [ctrlPressed, setCtrlPressed] = createSignal(false);
     const [shiftPressed, setShiftPressed] = createSignal(false);
-    const [dragAnnotation, setDragAnnotation] = createSignal<{
-        annotationId: string;
-        start: StickerPoint;
-        current: StickerPoint;
-    } | null>(null);
-    const [resizeAnnotation, setResizeAnnotation] = createSignal<{
-        annotationId: string;
-        handle: ResizeHandle;
-        current: StickerPoint;
-        original: StickerAnnotation;
-    } | null>(null);
-    const [reshapeLine, setReshapeLine] = createSignal<{
-        annotationId: string;
-        handle: LineEndpointHandle;
-        current: StickerPoint;
-        original: StickerAnnotation;
-    } | null>(null);
+    const [resizeAnnotation, setResizeAnnotation] = createSignal<ResizeAnnotationState | null>(null);
+    const [reshapeLine, setReshapeLine] = createSignal<ReshapeLineState | null>(null);
     const [altPressed, setAltPressed] = createSignal(false);
     const [transformInteraction, setTransformInteraction] = createSignal<ActiveTransformInteraction | null>(null);
     const logWheelEvent = (phase: string, detail: string) => {
@@ -259,9 +258,12 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
         }),
     );
 
-    const buildTransformPreviewAnnotations = (
-        interaction: ActiveTransformInteraction,
-    ): StickerAnnotation[] => {
+    const applyAnnotationReplacements = (
+        elements: StickerAnnotation[],
+        replacements: ReadonlyMap<string, StickerAnnotation>,
+    ) => elements.map((annotation) => replacements.get(annotation.id) ?? annotation);
+
+    const buildTransformPreviewAnnotations = (interaction: ActiveTransformInteraction): StickerAnnotation[] => {
         const deltaX = interaction.currentPoint.x - interaction.startPoint.x;
         const deltaY = interaction.currentPoint.y - interaction.startPoint.y;
         if (interaction.kind === "move") {
@@ -273,7 +275,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                     translateAnnotation(annotation, appliedDeltaX, appliedDeltaY),
                 ]),
             );
-            return annotationState().elements.map((annotation) => replacements.get(annotation.id) ?? annotation);
+            return applyAnnotationReplacements(annotationState().elements, replacements);
         }
 
         if (interaction.kind === "rotate") {
@@ -294,7 +296,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                 ? rotateAnnotationsAroundOwnCenters(interaction.baseAnnotations, angleDegrees)
                 : rotateAnnotationsAroundGroupCenter(interaction.baseAnnotations, angleDegrees);
             const replacements = new Map(transformed.map((annotation) => [annotation.id, annotation]));
-            return annotationState().elements.map((annotation) => replacements.get(annotation.id) ?? annotation);
+            return applyAnnotationReplacements(annotationState().elements, replacements);
         }
 
         const currentVector = {
@@ -326,8 +328,30 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             ? scaleAnnotationsAroundOwnCenters(interaction.baseAnnotations, scale)
             : scaleAnnotationsAroundGroupCenter(interaction.baseAnnotations, scale);
         const replacements = new Map(transformed.map((annotation) => [annotation.id, annotation]));
-        return annotationState().elements.map((annotation) => replacements.get(annotation.id) ?? annotation);
+        return applyAnnotationReplacements(annotationState().elements, replacements);
     };
+
+    const buildReshapedPreviewAnnotations = (reshape: ReshapeLineState) =>
+        applyAnnotationReplacements(
+            annotationState().elements,
+            new Map([
+                [
+                    reshape.annotationId,
+                    moveLineEndpoint(reshape.original, reshape.handle, reshape.current),
+                ],
+            ]),
+        );
+
+    const buildResizedPreviewAnnotations = (resize: ResizeAnnotationState) =>
+        applyAnnotationReplacements(
+            annotationState().elements,
+            new Map([
+                [
+                    resize.annotationId,
+                    resizeBoxAnnotation(resize.original, resize.handle, resize.current),
+                ],
+            ]),
+        );
 
     const patchUnitDataLocally = (patch: Partial<Unit["data"]>) => {
         graphStore.actions.updateUnitData(props.unitId, patch);
@@ -364,6 +388,16 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
         );
     };
 
+    const commitAnnotationElements = async (elements: StickerAnnotation[]) => {
+        rememberCurrentState();
+        await patchUnitData({
+            annotationState: {
+                ...annotationState(),
+                elements,
+            },
+        }, { propagateEdit: true });
+    };
+
     const previewAnnotations = createMemo(() => {
         const transform = transformInteraction();
         if (transform) {
@@ -372,31 +406,15 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
 
         const reshape = reshapeLine();
         if (reshape) {
-            return annotationState().elements.map((annotation) =>
-                annotation.id === reshape.annotationId
-                    ? moveLineEndpoint(reshape.original, reshape.handle, reshape.current)
-                    : annotation,
-            );
+            return buildReshapedPreviewAnnotations(reshape);
         }
 
         const resize = resizeAnnotation();
         if (resize) {
-            return annotationState().elements.map((annotation) =>
-                annotation.id === resize.annotationId
-                    ? resizeBoxAnnotation(resize.original, resize.handle, resize.current)
-                    : annotation,
-            );
+            return buildResizedPreviewAnnotations(resize);
         }
 
-        const drag = dragAnnotation();
-        if (!drag) return annotationState().elements;
-        const deltaX = drag.current.x - drag.start.x;
-        const deltaY = drag.current.y - drag.start.y;
-        return annotationState().elements.map((annotation) =>
-            annotation.id === drag.annotationId
-                ? translateAnnotation(annotation, deltaX, deltaY)
-                : annotation,
-            );
+        return annotationState().elements;
     });
     const getPendingTextExistingAnnotation = (draft: PendingTextInput) =>
         draft.annotationId
@@ -577,6 +595,24 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             setPendingTextInput(null);
         }
     };
+
+    const resolveDraftShapeRect = (draft: DraftShape) =>
+        isBoundedBoxMode(draft.mode)
+            ? isRegularShapeMode(draft.mode) && draft.constrainSquare
+                ? clampShapeRectToStickerBounds(draft.start, draft.current, {
+                      w: props.width,
+                      h: props.height,
+                  }, true, draft.snapStep)
+                : isRegularShapeMode(draft.mode)
+                  ? clampShapeRectToStickerBounds(draft.start, draft.current, {
+                        w: props.width,
+                        h: props.height,
+                    }, false, draft.snapStep)
+                  : clampCropRectToStickerBounds(draft.start, draft.current, {
+                        w: props.width,
+                        h: props.height,
+                    })
+            : normalizeRect(draft.start, draft.current);
 
     // Live "erase annotations only" pipeline. The generation-token / pending-
     // buffer / runner plumbing lives in LiveEraseQueue; this owns only the
@@ -994,12 +1030,6 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             return;
         }
 
-        if (dragAnnotation()) {
-            const point = toLocalPoint(event);
-            setDragAnnotation((prev) => (prev ? { ...prev, current: point } : prev));
-            return;
-        }
-
         if (draftShape()) {
             setDraftShape((prev) => {
                 if (!prev) return prev;
@@ -1108,99 +1138,34 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
         const transform = transformInteraction();
         const reshape = reshapeLine();
         const resize = resizeAnnotation();
-        const drag = dragAnnotation();
         const shape = draftShape();
         const line = draftLine();
         setTransformInteraction(null);
         setReshapeLine(null);
         setResizeAnnotation(null);
-        setDragAnnotation(null);
         setDraftShape(null);
         setDraftLine(null);
 
         if (transform) {
-            rememberCurrentState();
-            const nextElements = buildTransformPreviewAnnotations(transform);
-            await patchUnitData({
-                annotationState: {
-                    ...annotationState(),
-                    elements: nextElements,
-                },
-            }, { propagateEdit: true });
+            await commitAnnotationElements(buildTransformPreviewAnnotations(transform));
             uiActions.setSelectedStickerAnnotations(transform.annotationIds);
             return;
         }
 
         if (reshape) {
-            const nextLine = moveLineEndpoint(reshape.original, reshape.handle, reshape.current);
-            rememberCurrentState();
-            const nextElements = annotationState().elements.map((annotation) =>
-                annotation.id === reshape.annotationId ? nextLine : annotation,
-            );
-            await patchUnitData({
-                annotationState: {
-                    ...annotationState(),
-                    elements: nextElements,
-                },
-            }, { propagateEdit: true });
+            await commitAnnotationElements(buildReshapedPreviewAnnotations(reshape));
             uiActions.setSelectedStickerAnnotation(reshape.annotationId);
             return;
         }
 
         if (resize) {
-            const resized = resizeBoxAnnotation(resize.original, resize.handle, resize.current);
-            rememberCurrentState();
-            const nextElements = annotationState().elements.map((annotation) =>
-                annotation.id === resize.annotationId ? resized : annotation,
-            );
-            await patchUnitData({
-                annotationState: {
-                    ...annotationState(),
-                    elements: nextElements,
-                },
-            }, { propagateEdit: true });
+            await commitAnnotationElements(buildResizedPreviewAnnotations(resize));
             uiActions.setSelectedStickerAnnotation(resize.annotationId);
             return;
         }
 
-        if (drag) {
-            const deltaX = drag.current.x - drag.start.x;
-            const deltaY = drag.current.y - drag.start.y;
-            if (Math.abs(deltaX) >= 1 || Math.abs(deltaY) >= 1) {
-                const nextElements = annotationState().elements.map((annotation) =>
-                    annotation.id === drag.annotationId
-                        ? translateAnnotation(annotation, deltaX, deltaY)
-                        : annotation,
-                );
-                rememberCurrentState();
-                await patchUnitData({
-                    annotationState: {
-                        ...annotationState(),
-                        elements: nextElements,
-                    },
-                }, { propagateEdit: true });
-            }
-            return;
-        }
-
         if (shape) {
-            const rect =
-                isBoundedBoxMode(shape.mode)
-                    ? isRegularShapeMode(shape.mode) && shape.constrainSquare
-                        ? clampShapeRectToStickerBounds(shape.start, shape.current, {
-                              w: props.width,
-                              h: props.height,
-                          }, true, shape.snapStep)
-                        : isRegularShapeMode(shape.mode)
-                          ? clampShapeRectToStickerBounds(shape.start, shape.current, {
-                                w: props.width,
-                                h: props.height,
-                            }, false, shape.snapStep)
-                        : clampCropRectToStickerBounds(shape.start, shape.current, {
-                              w: props.width,
-                              h: props.height,
-                          })
-                    : normalizeRect(shape.start, shape.current);
+            const rect = resolveDraftShapeRect(shape);
             if (rect.w < 4 || rect.h < 4) return;
             if (shape.mode === "crop") {
                 rememberCurrentState();
@@ -1680,7 +1645,6 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             transformInteraction() ||
             reshapeLine() ||
             resizeAnnotation() ||
-            dragAnnotation() ||
             draftShape() ||
             draftLine()
         ) {
@@ -1740,35 +1704,14 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                 : scaleAnnotationsAroundGroupCenter(targetAnnotations, scale);
         const replacements = new Map(transformed.map((annotation) => [annotation.id, annotation]));
 
-        rememberCurrentState();
-        await patchUnitData({
-            annotationState: {
-                ...annotationState(),
-                elements: annotationState().elements.map((annotation) => replacements.get(annotation.id) ?? annotation),
-            },
-        }, { propagateEdit: true });
+        await commitAnnotationElements(applyAnnotationReplacements(annotationState().elements, replacements));
         uiActions.setSelectedStickerAnnotations(annotationIds);
     };
 
     const draftShapeRect = createMemo(() => {
         const draft = draftShape();
         if (!draft) return null;
-        return isBoundedBoxMode(draft.mode)
-            ? isRegularShapeMode(draft.mode) && draft.constrainSquare
-                ? clampShapeRectToStickerBounds(draft.start, draft.current, {
-                      w: props.width,
-                      h: props.height,
-                  }, true, draft.snapStep)
-                : isRegularShapeMode(draft.mode)
-                  ? clampShapeRectToStickerBounds(draft.start, draft.current, {
-                        w: props.width,
-                        h: props.height,
-                    }, false, draft.snapStep)
-                  : clampCropRectToStickerBounds(draft.start, draft.current, {
-                        w: props.width,
-                        h: props.height,
-                    })
-            : normalizeRect(draft.start, draft.current);
+        return resolveDraftShapeRect(draft);
     });
     const draftShapeMode = createMemo(() => draftShape()?.mode);
     const draftShapeMeasurement = createMemo(() => {
@@ -2011,7 +1954,6 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
         }
         setDraftShape(null);
         setDraftLine(null);
-        setDragAnnotation(null);
         setResizeAnnotation(null);
         setReshapeLine(null);
         setPendingTextInput(null);

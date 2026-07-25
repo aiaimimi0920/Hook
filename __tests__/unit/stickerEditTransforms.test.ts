@@ -345,7 +345,7 @@ describe("sticker edit transforms", () => {
           { x: 150, y: 95 },
         ],
       },
-      { id: "text", x: 160, y: 88, fontSize: 20, text: "AB" },
+      { id: "text", x: 160, y: 128, fontSize: 20, text: "AB" },
       { id: "serial", x: 128, y: 88, fontSize: 18, text: "8" },
     ]);
     expect(flippedY.imageEditState?.contentEraseStrokes[0]).toMatchObject({

@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const topStripSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStrip.tsx"), "utf8");
 const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStripPropertyBar.tsx"), "utf8");
+const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarSections.tsx");
+const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
+const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(propertyBarSectionsPath, "utf8") : "";
+const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
 const toolbarModelSource = readFileSync(resolve(process.cwd(), "src/components/stickerToolbarModel.ts"), "utf8");
-const toolbarContractSource = `${topStripSource}\n${propertyBarSource}\n${toolbarModelSource}`;
+const toolbarContractSource = `${topStripSource}\n${propertyBarRenderSource}\n${toolbarModelSource}`;
 const annotationLayerSource = readFileSync(resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"), "utf8");
 const exportSource = readFileSync(resolve(process.cwd(), "src/services/stickerExport.ts"), "utf8");
+const geometrySource = readFileSync(resolve(process.cwd(), "src/services/stickerGeometry.ts"), "utf8");
 const typeSource = readFileSync(resolve(process.cwd(), "src/types/stickerEditing.ts"), "utf8");
 const stickerEditingSource = readFileSync(resolve(process.cwd(), "src/services/stickerEditing.ts"), "utf8");
 const mutationSource = readFileSync(resolve(process.cwd(), "src/services/stickerAnnotationMutations.ts"), "utf8");
@@ -20,9 +25,9 @@ describe("Hook sticker text sizing contract", () => {
     it("stores font size on text annotations and exposes direct text size controls", () => {
         expect(typeSource).toContain("fontSize?: number");
         expect(toolbarContractSource).toContain('| "textSize"');
-        expect(propertyBarSource).toContain('title="字号"');
-        expect(propertyBarSource).toContain('settingKey="textSize"');
-        expect(propertyBarSource).toContain("currentValue={stickerToolSettings.textSize}");
+        expect(propertyBarRenderSource).toContain('title="字号"');
+        expect(propertyBarRenderSource).toContain('settingKey="textSize"');
+        expect(propertyBarRenderSource).toMatch(/currentValue=\{(?:options\.)?stickerToolSettings\.textSize\}/);
         expect(annotationLayerSource).toContain("fontSize: existing?.fontSize ?? stickerToolSettings.textSize");
         expect(annotationLayerSource).toContain("fontSize: draft.fontSize");
         expect(annotationLayerSource).toContain("font-size={text().fontSize");
@@ -32,7 +37,9 @@ describe("Hook sticker text sizing contract", () => {
     it("uses the shared color-slot palette for text color instead of the generic active color controls", () => {
         expect(typeSource).toContain("textColor: string");
         expect(stickerEditingSource).toContain('textColor: "#ef4444"');
-        expect(propertyBarSource).toContain('<MiniColorField title="文字颜色" slot="textColor" Icon={TextIcon} />');
+        expect(propertyBarRenderSource).toContain('title="文字颜色"');
+        expect(propertyBarRenderSource).toContain('slot="textColor"');
+        expect(propertyBarRenderSource).toContain("Icon={TextIcon}");
         expect(propertyBarSource).toContain("<ColorPicker");
         expect(propertyBarSource).not.toContain("renderColorControls");
         expect(annotationLayerSource).toContain("color: existing?.style.color ?? stickerToolSettings.textColor");
@@ -94,9 +101,9 @@ describe("Hook sticker text sizing contract", () => {
         expect(propertyBarSource).toMatch(/api\s*\.\s*getInstalledFonts\(\)/);
         expect(propertyBarSource).toContain("setInstalledStickerFonts(fonts)");
         expect(propertyBarSource).toContain("availableFontFamilies");
-        expect(propertyBarSource).toContain("value={stickerToolSettings.textFontFamily}");
-        expect(propertyBarSource).toContain("value={stickerToolSettings.serialFontFamily}");
-        expect(propertyBarSource).toContain('title="字体"');
+        expect(propertyBarRenderSource).toMatch(/value=\{(?:options\.)?stickerToolSettings\.textFontFamily\}/);
+        expect(propertyBarRenderSource).toMatch(/value=\{(?:options\.)?stickerToolSettings\.serialFontFamily\}/);
+        expect(propertyBarRenderSource).toContain('title="字体"');
         expect(propertyBarSource).toContain('updateTextAnnotationFontFamilyById');
         expect(apiSource).toContain("getInstalledFonts");
         expect(rustSource).toContain("get_installed_fonts");
@@ -106,9 +113,9 @@ describe("Hook sticker text sizing contract", () => {
         expect(topStripSource).toContain("resolveSelectedExistingNodePropertyTool");
         expect(propertyBarSource).toContain("selectedExistingTextFontFamily");
         expect(propertyBarSource).toContain("selectedExistingSerialFontFamily");
-        expect(propertyBarSource).toContain('title="节点字体"');
-        expect(propertyBarSource).toContain('applySelectedAnnotationFontFamilyChange("text", value)');
-        expect(propertyBarSource).toContain('applySelectedAnnotationFontFamilyChange("serial", value)');
+        expect(propertyBarRenderSource).toContain('title="节点字体"');
+        expect(propertyBarRenderSource).toContain('applySelectedAnnotationFontFamilyChange("text", value)');
+        expect(propertyBarRenderSource).toContain('applySelectedAnnotationFontFamilyChange("serial", value)');
         expect(annotationLayerSource).toContain(
             'const resolveTextAnnotationFontFamily = (annotation?: StickerTextAnnotation) =>',
         );
@@ -121,5 +128,13 @@ describe("Hook sticker text sizing contract", () => {
         expect(annotationLayerSource).toContain('<Show when={stickerToolSettings.transformMode === "select"}>');
         expect(annotationLayerSource).toContain("<For each={getBoundsHandlePoints(bounds)}>");
         expect(annotationLayerSource).toContain('beginDirectTransform(event, [value], "scale", { axis: "xy" })');
+    });
+
+    it("aligns text selection/export bounds to the SVG text baseline", () => {
+        expect(annotationLayerSource).toContain("draft.y - draft.fontSize");
+        expect(geometrySource).toContain("top: annotation.y - fontSize");
+        expect(geometrySource).toContain("centerY: annotation.y - fontSize / 2");
+        expect(exportSource).toContain('context.textBaseline = annotation.type === "serial" ? "middle" : "alphabetic";');
+        expect(exportSource).not.toContain('context.textBaseline = annotation.type === "serial" ? "middle" : "top";');
     });
 });

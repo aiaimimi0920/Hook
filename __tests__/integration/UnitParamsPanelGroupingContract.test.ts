@@ -77,4 +77,16 @@ describe("UnitParamsPanel grouped scrolling contract", () => {
         expect(controlSource).toContain('class="w-full min-w-0"');
         expect(controlSource).not.toContain("min-w-[72px]");
     });
+
+    it("keeps in-flight slider values local and guards image hover previews against stale params", () => {
+        const panelSource = readFileSync(resolve(process.cwd(), "src", "components", "UnitParamsPanel.tsx"), "utf8");
+
+        expect(panelSource).toContain("const [draggingSlider, setDraggingSlider]");
+        expect(panelSource).toContain("if (dragging && dragging.id === paramId) return dragging.value;");
+        expect(panelSource).toContain('typeof currentVal === "number"');
+        expect(panelSource).toContain("const hoveringDataUrlPreview = createMemo(() => {");
+        expect(panelSource).toContain('typeof value === "string" && value.startsWith("data:")');
+        expect(panelSource).toContain("previewSrc().length");
+        expect(panelSource).not.toContain("props.params[hoveringParam()!].length");
+    });
 });

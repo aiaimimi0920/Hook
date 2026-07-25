@@ -3982,18 +3982,18 @@ impl LongCaptureIncrementalStitcher {
                         axis,
                         self.options,
                     )?;
-                    if *source == DirectionReferenceSource::CoveredSkip {
-                        let Some(aggregate_signatures) = self.aggregate.signatures.as_ref() else {
-                            return None;
-                        };
-                        if aggregate_candidate_new_slice_is_already_covered(
-                            aggregate_signatures,
-                            &candidate.current_signatures,
-                            candidate.matched,
-                        ) {
+                    let Some(aggregate_signatures) = self.aggregate.signatures.as_ref() else {
+                        return None;
+                    };
+                    if aggregate_candidate_new_slice_is_already_covered(
+                        aggregate_signatures,
+                        &candidate.current_signatures,
+                        candidate.matched,
+                    ) {
+                        if *source == DirectionReferenceSource::CoveredSkip {
                             rejected_covered_skip_fast_path = true;
-                            return None;
                         }
+                        return None;
                     }
                     Some(candidate)
                 });
@@ -4894,6 +4894,30 @@ mod tests {
         assert_eq!(result.image.height(), 240);
         assert_eq!(result.image.get_pixel(0, 0).0, rows[0]);
         assert_eq!(result.image.get_pixel(0, 239).0, rows[239]);
+    }
+
+    #[test]
+    fn aggregate_signature_stitcher_skips_trailing_duplicate_final_frame_before_adjacent_merge() {
+        let frames = [0, 40, 80, 80]
+            .iter()
+            .map(|start| solid_rows(4, &unique_rows(*start, 120)))
+            .collect::<Vec<_>>();
+
+        let result = stitch_long_capture_frames_with_aggregate_signatures(
+            &frames,
+            LongCaptureStitchOptions {
+                axis: Some(LongCaptureAxis::Vertical),
+                direction: None,
+                max_scan: Some(119),
+                min_overlap_px: Some(16),
+            },
+        )
+        .expect("a duplicate final frame should be ignored instead of appended again");
+
+        assert_eq!(result.axis, Some(LongCaptureAxis::Vertical));
+        assert_eq!(result.image.height(), 200);
+        assert_eq!(result.merged_frames, 3);
+        assert_eq!(result.skipped_frames, 1);
     }
 
     #[test]
