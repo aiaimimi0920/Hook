@@ -2852,9 +2852,35 @@ fn aggregate_direction_allowed(
         .unwrap_or(false)
 }
 
+fn aggregate_match_is_near_perfect(candidate: AggregateMatch) -> bool {
+    let misses = candidate
+        .overlap_windows
+        .saturating_sub(candidate.match_windows);
+    misses <= 1
+        && candidate.overlap_windows > 0
+        && (candidate.match_windows as u64) * 100 >= (candidate.overlap_windows as u64) * 97
+}
+
 fn aggregate_match_is_better(candidate: AggregateMatch, current: AggregateMatch) -> bool {
     let candidate_new = candidate.prepend_px + candidate.append_px;
     let current_new = current.prepend_px + current.append_px;
+    let candidate_near_perfect = aggregate_match_is_near_perfect(candidate);
+    let current_near_perfect = aggregate_match_is_near_perfect(current);
+    let same_extension_side = (candidate.append_px > 0
+        && current.append_px > 0
+        && candidate.prepend_px == 0
+        && current.prepend_px == 0)
+        || (candidate.prepend_px > 0
+            && current.prepend_px > 0
+            && candidate.append_px == 0
+            && current.append_px == 0);
+    if same_extension_side
+        && candidate_near_perfect
+        && current_near_perfect
+        && candidate.overlap_px != current.overlap_px
+    {
+        return candidate.overlap_px > current.overlap_px;
+    }
     let candidate_density = candidate.match_windows as u64 * current.overlap_windows.max(1) as u64;
     let current_density = current.match_windows as u64 * candidate.overlap_windows.max(1) as u64;
 
@@ -3982,18 +4008,18 @@ impl LongCaptureIncrementalStitcher {
                         axis,
                         self.options,
                     )?;
-                    let Some(aggregate_signatures) = self.aggregate.signatures.as_ref() else {
-                        return None;
-                    };
-                    if aggregate_candidate_new_slice_is_already_covered(
-                        aggregate_signatures,
-                        &candidate.current_signatures,
-                        candidate.matched,
-                    ) {
-                        if *source == DirectionReferenceSource::CoveredSkip {
+                    if *source == DirectionReferenceSource::CoveredSkip {
+                        let Some(aggregate_signatures) = self.aggregate.signatures.as_ref() else {
+                            return None;
+                        };
+                        if aggregate_candidate_new_slice_is_already_covered(
+                            aggregate_signatures,
+                            &candidate.current_signatures,
+                            candidate.matched,
+                        ) {
                             rejected_covered_skip_fast_path = true;
+                            return None;
                         }
-                        return None;
                     }
                     Some(candidate)
                 });
@@ -4866,6 +4892,58 @@ mod tests {
         assert_eq!(result.image.get_pixel(0, 119).0, rows[119]);
         assert_eq!(result.image.get_pixel(0, 120).0, rows[120]);
         assert_eq!(result.image.get_pixel(0, 199).0, rows[199]);
+    }
+
+    #[test]
+    fn monotonic_down_scroll_with_repeated_blocks_does_not_prepend_extra_top_content() {
+        const FRAME_HEIGHT: usize = 120;
+        const DOC_HEIGHT: usize = 420;
+        const STEPS: [usize; 6] = [0, 40, 80, 120, 160, 200];
+
+        for duplicate_len in [40usize, 60, 80] {
+            for source_start in (0..=140usize).step_by(20) {
+                let source_end = source_start + duplicate_len;
+                if source_end >= DOC_HEIGHT {
+                    continue;
+                }
+                for duplicate_start in ((source_start + 40)..=240usize).step_by(20) {
+                    let duplicate_end = duplicate_start + duplicate_len;
+                    if duplicate_end >= DOC_HEIGHT {
+                        continue;
+                    }
+
+                    let mut rows = unique_rows(0, DOC_HEIGHT as u32);
+                    for offset in 0..duplicate_len {
+                        rows[duplicate_start + offset] = rows[source_start + offset];
+                    }
+
+                    let frames = STEPS
+                        .iter()
+                        .map(|start| solid_rows(4, &rows[*start..(*start + FRAME_HEIGHT)]))
+                        .collect::<Vec<_>>();
+                    let stitched = stitch_long_capture_frames(
+                        &frames,
+                        LongCaptureStitchOptions {
+                            axis: Some(LongCaptureAxis::Vertical),
+                            direction: None,
+                            max_scan: Some((FRAME_HEIGHT - 1) as u32),
+                            min_overlap_px: Some(16),
+                        },
+                    )
+                    .expect("monotonic down-scroll should stitch");
+
+                    let expected_rows = &rows[STEPS[0]..(STEPS[STEPS.len() - 1] + FRAME_HEIGHT)];
+                    let expected = solid_rows(4, expected_rows);
+                    assert_eq!(
+                        stitched.as_raw(),
+                        expected.as_raw(),
+                        "unexpected top prepend for source_start={source_start} duplicate_start={duplicate_start} duplicate_len={duplicate_len}: stitched_height={} expected_height={}",
+                        stitched.height(),
+                        expected.height(),
+                    );
+                }
+            }
+        }
     }
 
     #[test]

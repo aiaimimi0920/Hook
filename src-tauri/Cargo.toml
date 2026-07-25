@@ -1,6 +1,6 @@
 [package]
 name = "hook"
-version = "0.1.4"
+version = "0.1.5"
 description = "Windows-first Tauri desktop capture, sticker editing, and visual workflow workspace."
 authors = ["yamiyu"]
 edition = "2021"
