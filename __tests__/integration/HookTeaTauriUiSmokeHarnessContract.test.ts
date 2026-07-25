@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const harnessPath = resolve(process.cwd(), "..", "scripts", "smoke-hook-tea-tauri-ui-real.ps1");
+const harnessPath = resolve(process.cwd(), "scripts", "smoke-hook-tea-tauri-ui-real.ps1");
 const harnessExists = existsSync(harnessPath);
 const harnessSource = harnessExists ? readFileSync(harnessPath, "utf8") : "";
 

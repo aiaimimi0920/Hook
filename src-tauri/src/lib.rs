@@ -8126,12 +8126,12 @@ mod app_cli_tests {
         let _ = std::fs::remove_file(&output_path);
 
         std::env::set_var(&env_name, &output_path);
-        let result = write_optional_cli_output(&env_name, "hook 0.1.1\n");
+        let result = write_optional_cli_output(&env_name, "hook 0.1.2\n");
         std::env::remove_var(&env_name);
 
         result.expect("write optional cli output");
         let written = std::fs::read_to_string(&output_path).expect("read cli output");
         let _ = std::fs::remove_file(&output_path);
-        assert_eq!(written, "hook 0.1.1\n");
+        assert_eq!(written, "hook 0.1.2\n");
     }
 }

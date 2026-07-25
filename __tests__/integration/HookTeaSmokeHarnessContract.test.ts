@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const harnessSource = readFileSync(
-  resolve(process.cwd(), "..", "scripts", "smoke-hook-tea-real.ps1"),
+  resolve(process.cwd(), "scripts", "smoke-hook-tea-real.ps1"),
   "utf8",
 );
 
