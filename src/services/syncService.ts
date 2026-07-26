@@ -6,8 +6,7 @@ import { artLoom } from "./client";
 import { WORKFLOW_ID } from "../constants";
 import type { BootProfile } from "./bootProfile";
 import type { StickerGroup } from "../types/stickerEditing";
-import { getCapabilityInputsForPorts } from "./artPorts";
-import { deriveUnitExecutionConfig } from "./nodeExecutionConfig";
+import { mapSessionStickerToUnit, detectUnknownSessionStickerKeys } from "./sessionStickerMapping";
 import {
     buildSyncedImagePayload,
     buildSyncedImageSignature,
@@ -21,73 +20,6 @@ import { buildSessionStickersForSave } from "./sessionStickerPayload";
 // Local state for sync optimization (dirtiness check)
 const lastSyncedImageSignatures = new Map<string, string>();
 const bakedSyncPreviewCache = new Map<string, { signature: string; src: string }>();
-
-const buildUnitPorts = (unitType: "sticker" | "art", artId?: string) => {
-    if (unitType === "sticker") {
-        return {
-            inputs: [{ id: "image", type: "image", direction: "input", label: "Image" }] as Unit["inputs"],
-            outputs: [{ id: "output_image", type: "image", direction: "output", label: "Image" }] as Unit["outputs"],
-        };
-    }
-
-    const capability = graphStore.capabilities.find((cap) => cap.id === artId);
-    const inputs = getCapabilityInputsForPorts(capability, [{ name: "input_image", label: "Input", type: "image" }]).map((port) => ({
-        id: port.name,
-        label: port.label,
-        type: (port.type as "image" | "text" | "any") || "any",
-        direction: "input" as const,
-    }));
-    const outputs = (capability?.outputs || [{ name: "output_image", label: "Image", type: "image" }]).map((port) => ({
-        id: port.name,
-        label: port.label,
-        type: (port.type as "image" | "text" | "any") || "any",
-        direction: "output" as const,
-    }));
-
-    return { inputs, outputs };
-};
-
-const mapSessionStickerToUnit = (sticker: any): Unit => {
-    const unitType: "sticker" | "art" = sticker.type === "art" || sticker.artId ? "art" : "sticker";
-    const { inputs, outputs } = buildUnitPorts(unitType, sticker.artId);
-    const capability = graphStore.capabilities.find((cap) => cap.id === sticker.artId);
-    const executionConfig = deriveUnitExecutionConfig({
-        capability,
-        explicitConfig: sticker.executionConfig,
-    });
-
-    return {
-        id: sticker.id,
-        type: unitType,
-        artId: sticker.artId || undefined,
-        x: sticker.x,
-        y: sticker.y,
-        w: sticker.w,
-        h: sticker.h,
-        params: (sticker.params as Record<string, any>) || {},
-        inputs,
-        outputs,
-        data: {
-            src: sticker.src,
-            minified: sticker.minified ?? false,
-            savedRect: sticker.savedRect || undefined,
-            cropOffset: sticker.cropOffset || undefined,
-            opacityNormal: sticker.opacityNormal ?? 1,
-            opacityMini: sticker.opacityMini ?? 0.9,
-            previewSrc: sticker.previewSrc && sticker.previewSrc !== sticker.src ? sticker.previewSrc : undefined,
-            filePath: sticker.filePath || undefined,
-            rasterizedAnnotationLayerSrc: sticker.rasterizedAnnotationLayerSrc || undefined,
-            outputs: sticker.outputs || undefined,
-            originWorkflowId: sticker.originWorkflowId || undefined,
-            originNodeId: sticker.originNodeId || undefined,
-            executionConfig,
-            annotationState: sticker.annotationState || undefined,
-            imageEditState: sticker.imageEditState || undefined,
-            groupId: sticker.groupId || undefined,
-            captureMeta: sticker.captureMeta || undefined,
-        },
-    };
-};
 
 const mapLinkToSessionLink = (link: Link) => ({
     id: link.id,
@@ -481,8 +413,26 @@ export const syncService = {
         try {
             const sessionData = await api.loadSession();
             if (sessionData) {
-                 const loadedUnits = (sessionData.stickers || []).map(mapSessionStickerToUnit);
-                 const loadedLinks = (sessionData.links || []).map((link: any) => ({
+                 const rawStickers = sessionData.stickers || [];
+                 const loadedUnits = rawStickers.map((s) =>
+                     mapSessionStickerToUnit(s, { capabilities: graphStore.capabilities }),
+                 );
+
+                 // Diagnostic only: surface persisted sticker fields the loader no
+                 // longer recognizes (e.g. a renamed backend field silently dropped
+                 // on load). Never rejects — a drifted session still loads.
+                 const unknownStickerKeys = new Set<string>();
+                 rawStickers.forEach((s) => {
+                     for (const key of detectUnknownSessionStickerKeys(s as unknown as Record<string, unknown>)) {
+                         unknownStickerKeys.add(key);
+                     }
+                 });
+                 if (unknownStickerKeys.size > 0) {
+                     console.warn(
+                         `[session] loaded with ${unknownStickerKeys.size} unrecognized sticker field(s), data for these is ignored: ${[...unknownStickerKeys].join(", ")}`,
+                     );
+                 }
+                 const loadedLinks = (sessionData.links || []).map((link) => ({
                      id: link.id,
                      fromUnitId: link.fromUnitId,
                      fromPortId: link.fromPortId,
@@ -500,8 +450,8 @@ export const syncService = {
                  // Populate Params Map
                  const paramsMap: any = {};
                  const execConfigMap: any = {};
-                 loadedUnits.forEach((u: any) => paramsMap[u.id] = u.params || {});
-                 loadedUnits.forEach((u: any) => {
+                 loadedUnits.forEach((u) => paramsMap[u.id] = u.params || {});
+                 loadedUnits.forEach((u) => {
                      execConfigMap[u.id] = u.data?.executionConfig;
                  });
                  graphStore.setUnitParams(paramsMap);

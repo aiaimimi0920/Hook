@@ -16,8 +16,11 @@ const sourceBetween = (source: string, start: string, end: string) => {
 describe("overlay synthetic pointer reset contract", () => {
   it("resets frontend synthetic overlay drag state when capture begins and when a global mouse-up finishes interaction, so post-capture sticker drags do not inherit stale locked pointer targets", () => {
     const appSource = readSource("src/app.tsx");
+    // The synthetic engine (reset + dispatch logic) now lives in its own module;
+    // app.tsx keeps the capture-begin and global-mouse-up call sites that reset it.
+    const overlaySource = readSource("src/services/overlaySyntheticEvents.ts");
     const resetBlock = sourceBetween(
-      appSource,
+      overlaySource,
       "const resetOverlaySyntheticPointerState = () => {",
       "const dispatchSyntheticOverlayMouseEvent = (",
     );
@@ -32,7 +35,7 @@ describe("overlay synthetic pointer reset contract", () => {
       "const handleGlobalMouseDown = (e: MouseEvent) => {",
     );
     const dispatchBlock = sourceBetween(
-      appSource,
+      overlaySource,
       "const dispatchSyntheticOverlayMouseEvent = (",
       "const relayOverlaySyntheticPointerMove = (event: MouseEvent) => {",
     );
@@ -41,8 +44,8 @@ describe("overlay synthetic pointer reset contract", () => {
     expect(resetBlock).toContain("overlaySyntheticPointerActive = false;");
     expect(resetBlock).toContain("overlaySyntheticPrimaryButtonDown = false;");
     expect(resetBlock).toContain("overlaySyntheticMoveRelayActive = false;");
-    expect(beginCaptureBlock).toContain("resetOverlaySyntheticPointerState();");
-    expect(globalMouseUpBlock).toContain("resetOverlaySyntheticPointerState();");
+    expect(beginCaptureBlock).toContain("overlaySynthetic.reset();");
+    expect(globalMouseUpBlock).toContain("overlaySynthetic.reset();");
     expect(dispatchBlock).toContain("if (type === \"mousedown\") {");
     expect(dispatchBlock).toContain("resetOverlaySyntheticPointerState();");
   });

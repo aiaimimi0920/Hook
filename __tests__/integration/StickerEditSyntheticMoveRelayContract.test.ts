@@ -17,6 +17,9 @@ describe("sticker edit synthetic move relay contract", () => {
   it("keeps a JS target-relay fallback even when native overlay drag move replay is enabled, so synthetic drag streams can still stay attached to the original sticker tool target", () => {
     const appSource = readSource("src/app.tsx");
     const rustSource = readSource("src-tauri/src/lib.rs");
+    // The synthetic move-relay engine now lives in its own module; app.tsx keeps
+    // the global-mouse-move wiring that gates and invokes the relay.
+    const overlaySource = readSource("src/services/overlaySyntheticEvents.ts");
     const globalMoveBlock = sourceBetween(
       appSource,
       "const handleGlobalMouseMove = (e: MouseEvent) => {",
@@ -26,16 +29,16 @@ describe("sticker edit synthetic move relay contract", () => {
     expect(rustSource).toContain("OverlayMove {");
     expect(rustSource).toContain("native_drag_preflight: bool");
     expect(appSource).toContain('"overlay/global_mouse_move"');
-    expect(appSource).toContain("let overlaySyntheticMoveRelayActive = false;");
-    expect(appSource).toContain("const relayOverlaySyntheticPointerMove = (event: MouseEvent) => {");
-    expect(appSource).toContain("overlaySyntheticPointerActive");
-    expect(appSource).toContain("overlaySyntheticPrimaryButtonDown");
-    expect(appSource).toContain("overlaySyntheticPointerTarget");
-    expect(appSource).toContain("new PointerEvent");
-    expect(appSource).toContain('new MouseEvent("mousemove"');
+    expect(overlaySource).toContain("let overlaySyntheticMoveRelayActive = false;");
+    expect(overlaySource).toContain("const relayOverlaySyntheticPointerMove = (event: MouseEvent) => {");
+    expect(overlaySource).toContain("overlaySyntheticPointerActive");
+    expect(overlaySource).toContain("overlaySyntheticPrimaryButtonDown");
+    expect(overlaySource).toContain("overlaySyntheticPointerTarget");
+    expect(overlaySource).toContain("new PointerEvent");
+    expect(overlaySource).toContain('new MouseEvent("mousemove"');
     expect(globalMoveBlock).not.toContain("if (overlaySyntheticMoveRelayActive) return;");
-    expect(globalMoveBlock).toContain("if (!overlaySyntheticMoveRelayActive && !draggingStickerId()) {");
-    expect(globalMoveBlock).toContain("relayOverlaySyntheticPointerMove(e);");
+    expect(globalMoveBlock).toContain("if (!overlaySynthetic.moveRelayActive && !draggingStickerId()) {");
+    expect(globalMoveBlock).toContain("overlaySynthetic.relayPointerMove(e);");
     expect(globalMoveBlock).toContain("handleDragMove(e);");
   });
 

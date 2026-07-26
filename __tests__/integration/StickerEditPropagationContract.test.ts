@@ -24,8 +24,8 @@ describe("sticker edit propagation contract", () => {
     expect(annotationLayerSource).toContain("graphStore.actions.updateStickerEditData(props.unitId");
     expect(annotationLayerSource).toContain("graphStore.actions.propagateStickerEditsFrom(props.unitId)");
     expect(annotationLayerSource).toContain("propagateStickerEditFromCurrentUnit");
-    expect(appSource).toContain("graphStore.actions.updateStickerEditData(stickerId");
-    expect(appSource).toContain("graphStore.actions.propagateStickerEditsFrom(stickerId)");
+    expect(appSource).toContain("graphStore.actions.updateStickerEditData(plan.stickerId");
+    expect(appSource).toContain("graphStore.actions.propagateStickerEditsFrom(plan.stickerId)");
   });
 
   it("backfills existing sticker edits when a new downstream link is created", () => {

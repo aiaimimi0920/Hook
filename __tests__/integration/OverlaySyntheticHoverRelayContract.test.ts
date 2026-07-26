@@ -16,7 +16,6 @@ const sourceBetween = (source: string, start: string, end: string) => {
 describe("overlay synthetic hover relay contract", () => {
   it("keeps the overlay click-through during sticker hover/click and relies on synthetic mouse relay instead of flipping the native window interactive", () => {
     const rustSource = readSource("src-tauri/src/lib.rs");
-    const appSource = readSource("src/app.tsx");
 
     const hookProcBlock = sourceBetween(
       rustSource,
@@ -38,8 +37,10 @@ describe("overlay synthetic hover relay contract", () => {
       "rdev::EventType::MouseMove { x, y }",
       "_ => {}",
     );
+    // Synthetic engine extracted from app.tsx into its own service module.
+    const overlaySource = readSource("src/services/overlaySyntheticEvents.ts");
     const dispatchBlock = sourceBetween(
-      appSource,
+      overlaySource,
       "const dispatchSyntheticOverlayMouseEvent = (",
       "const relayOverlaySyntheticPointerMove = (event: MouseEvent) => {",
     );

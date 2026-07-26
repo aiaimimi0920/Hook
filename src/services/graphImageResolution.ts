@@ -271,6 +271,57 @@ export const resolveUnitImageFromGraph = (input: {
     return unit.data.src;
 };
 
+/**
+ * Canvas display-image resolver — the simpler, capability-agnostic variant
+ * extracted verbatim from app.tsx's former inline `resolveUnitImage`. It decides
+ * which image a node shows on the canvas. Priority: the node's own generated
+ * `previewSrc`, then an upstream image connected on a fixed set of input ports
+ * (`image` / `input_image` / `input`), then the node's own `src`. A `visited`
+ * set guards against link cycles (A -> B -> A).
+ *
+ * This INTENTIONALLY DIFFERS from `resolveUnitImageFromGraph` above, which is
+ * capability-aware and, for stickers, resolves upstream BEFORE `previewSrc` and
+ * additionally honors `DISABLED_PREFIX` / `image_path`. The two resolvers are
+ * kept separate on purpose; the divergence is pinned by a test in
+ * `resolveCanvasDisplayImage.test.ts`. Do not unify them without a deliberate
+ * behavior-change decision.
+ */
+export const resolveCanvasDisplayImage = (input: {
+    units: readonly Unit[];
+    links: readonly Link[];
+    unitId: string;
+    visited?: Set<string>;
+}): string | undefined => {
+    const visited = input.visited ?? new Set<string>();
+    // Loop Detection
+    if (visited.has(input.unitId)) return undefined;
+    visited.add(input.unitId);
+
+    const unit = input.units.find((item) => item.id === input.unitId);
+    if (!unit) return undefined;
+
+    // 1. Generated Result (Highest Priority)
+    if (unit.data.previewSrc) {
+        return unit.data.previewSrc;
+    }
+
+    // 2. Upstream Resolution (Pass-Through) on a fixed set of image input ports,
+    // checked BEFORE falling back to the original `src`.
+    const link = input.links.find(
+        (l) =>
+            l.toUnitId === input.unitId &&
+            (l.toPortId === "image" || l.toPortId === "input_image" || l.toPortId === "input"),
+    );
+
+    if (link) {
+        const upstream = resolveCanvasDisplayImage({ ...input, unitId: link.fromUnitId, visited });
+        if (upstream) return upstream;
+    }
+
+    // 3. Fallback to Source (Original Screenshot / Upload)
+    return unit.data.src;
+};
+
 export const resolveUnitExecutionInputImage = (input: {
     units: readonly Unit[];
     links: readonly Link[];

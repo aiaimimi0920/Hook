@@ -16,7 +16,9 @@ const typeSource = readFileSync(resolve(process.cwd(), "src/types/unit.ts"), "ut
 const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitView.tsx"), "utf8");
 const annotationLayerSource = readFileSync(resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"), "utf8");
 const annotationModelSource = readFileSync(resolve(process.cwd(), "src/components/stickerAnnotationModel.ts"), "utf8");
-const syncSource = readFileSync(resolve(process.cwd(), "src/services/syncService.ts"), "utf8");
+// The session-load mapping (which carries rasterizedAnnotationLayerSrc onto the
+// restored unit) was extracted from syncService.ts into its own module.
+const sessionMappingSource = readFileSync(resolve(process.cwd(), "src/services/sessionStickerMapping.ts"), "utf8");
 
 describe("Hook sticker rasterize contract", () => {
     it("exposes option C: rasterize the selected control or every editable control", () => {
@@ -58,7 +60,7 @@ describe("Hook sticker rasterize contract", () => {
         expect(typeSource).toContain("rasterizedAnnotationLayerSrc?: string");
         expect(unitViewSource).toContain("rasterizedAnnotationLayerSrc");
         expect(unitViewSource).toContain("sticker-rasterized-annotation-layer");
-        expect(syncSource).toContain("rasterizedAnnotationLayerSrc");
+        expect(sessionMappingSource).toContain("rasterizedAnnotationLayerSrc");
     });
 
     it("routes the content eraser and its annotation-only switch through bitmap layer editing", () => {

@@ -16,15 +16,17 @@ const sourceBetween = (source: string, start: string, end: string) => {
 describe("overlay synthetic port linking contract", () => {
   it("resolves live hit targets during an active port-link drag so mouseup can land on the target input port instead of the original output port", () => {
     const appSource = readSource("src/app.tsx");
+    // Synthetic engine extracted into its own module; app.tsx injects linkingState.
+    const overlaySource = readSource("src/services/overlaySyntheticEvents.ts");
     const dispatchBlock = sourceBetween(
-      appSource,
+      overlaySource,
       "const dispatchSyntheticOverlayMouseEvent = (",
       "const relayOverlaySyntheticPointerMove = (event: MouseEvent) =>",
     );
 
     expect(appSource).toContain("linkingState");
     expect(dispatchBlock).toContain("const shouldResolveLiveOverlayTarget =");
-    expect(dispatchBlock).toContain("linkingState().isLinking");
+    expect(dispatchBlock).toContain("deps.isLinking()");
     expect(dispatchBlock).toContain('type === "mouseup"');
     expect(dispatchBlock).toContain('type === "mousemove"');
     expect(dispatchBlock).toContain("target = resolveTarget(true);");

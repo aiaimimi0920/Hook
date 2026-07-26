@@ -7,11 +7,13 @@ const readSource = (relativePath: string) =>
 
 describe("sticker edit synthetic target contract", () => {
   it("normalizes overlay-routed pointer targets to a stable sticker interaction root so Ctrl+E tools can keep receiving drag events while the annotation DOM rerenders", () => {
-    const appSource = readSource("src/app.tsx");
+    // The overlay target-normalization logic was extracted from app.tsx into
+    // the synthetic overlay events module.
+    const overlaySource = readSource("src/services/overlaySyntheticEvents.ts");
     const annotationLayerSource = readSource("src/components/StickerAnnotationLayer.tsx");
 
-    expect(appSource).toContain("[data-sticker-interaction-root='true']");
-    expect(appSource).toContain("closest?.(\"[data-sticker-interaction-root='true']\")");
+    expect(overlaySource).toContain("[data-sticker-interaction-root='true']");
+    expect(overlaySource).toContain("closest?.(\"[data-sticker-interaction-root='true']\")");
     expect(annotationLayerSource).toContain("data-sticker-interaction-root=\"true\"");
   });
 });

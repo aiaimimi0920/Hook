@@ -57,7 +57,7 @@ describe("sticker drag move performance contract", () => {
     const mouseDownBlock = sourceBetween(
       appSource,
       "const onStartDragUnit = (e: MouseEvent, id: string) => {",
-      "const resolveUnitImage = (id: string, visited = new Set<string>()): string | undefined => {",
+      "const resolveUnitImage = (id: string): string | undefined =>",
     );
     const uiStoreSource = readSource("src/store/uiStore.ts");
 

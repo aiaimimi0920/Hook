@@ -166,6 +166,9 @@ describe("capture input shield contract", () => {
   it("keeps sticker hover synthetic while the overlay window stays click-through so hover/click do not leak or black out the app underneath", () => {
     const rustSource = readSource("src-tauri/src/lib.rs");
     const appSource = readSource("src/app.tsx");
+    // The synthetic overlay mouse-event engine now lives in its own module
+    // (extracted from app.tsx); app.tsx retains only the overlay/* listener wiring.
+    const overlaySource = readSource("src/services/overlaySyntheticEvents.ts");
     const overlayRouteBlock = sourceBetween(
       rustSource,
       "fn should_route_overlay_mouse_events",
@@ -225,13 +228,13 @@ describe("capture input shield contract", () => {
     expect(rdevMouseMoveBlock).toContain("should_overlay_window_ignore_cursor_events");
     expect(rdevMouseMoveBlock).toContain("window.set_ignore_cursor_events(should_ignore)");
 
-    expect(appSource).toContain("const dispatchSyntheticOverlayMouseEvent =");
-    expect(appSource).toContain("document.elementFromPoint");
-    expect(appSource).toContain("new MouseEvent");
-    expect(appSource).toContain('"mouseenter"');
-    expect(appSource).toContain('"mouseleave"');
-    expect(appSource).toContain('"click"');
-    expect(appSource).toContain('"contextmenu"');
+    expect(overlaySource).toContain("const dispatchSyntheticOverlayMouseEvent =");
+    expect(overlaySource).toContain("doc.elementFromPoint");
+    expect(overlaySource).toContain("new MouseEvent");
+    expect(overlaySource).toContain('"mouseenter"');
+    expect(overlaySource).toContain('"mouseleave"');
+    expect(overlaySource).toContain('"click"');
+    expect(overlaySource).toContain('"contextmenu"');
     expect(appSource).toContain('"overlay/global_mouse_down"');
     expect(appSource).toContain('"overlay/global_mouse_move"');
     expect(appSource).toContain('"overlay/global_mouse_up"');

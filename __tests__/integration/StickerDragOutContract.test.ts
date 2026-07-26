@@ -14,6 +14,12 @@ const appSource = readFileSync(
   resolve(process.cwd(), "src/app.tsx"),
   "utf8",
 );
+// The synthetic overlay mouse-event engine (and its payload type) was extracted
+// from app.tsx into this module; app.tsx retains the preflight event wiring.
+const overlaySource = readFileSync(
+  resolve(process.cwd(), "src/services/overlaySyntheticEvents.ts"),
+  "utf8",
+);
 const captureRustSource = readFileSync(
   resolve(process.cwd(), "src-tauri/src/capture.rs"),
   "utf8",
@@ -293,7 +299,7 @@ describe("Hook sticker drag-out contract", () => {
       "fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow)",
     );
     const syntheticOverlaySection = extractTsSection(
-      appSource,
+      overlaySource,
       "const dispatchSyntheticOverlayMouseEvent = (",
       "const relayOverlaySyntheticPointerMove =",
     );
@@ -307,7 +313,7 @@ describe("Hook sticker drag-out contract", () => {
     expect(syntheticOverlaySection).toContain("const shouldBypassSyntheticPointerCapture =");
     expect(syntheticOverlaySection).toContain("payload.shiftKey");
     expect(syntheticOverlaySection).toContain("data-sticker-interaction-root");
-    expect(appSource).toContain("nativeDragPreflight?: boolean;");
+    expect(overlaySource).toContain("nativeDragPreflight?: boolean;");
     expect(appSource).toContain("if (event.payload?.nativeDragPreflight) {");
     expect(appSource).toContain('new CustomEvent("hook:overlay-native-drag-preflight-down"');
   });

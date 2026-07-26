@@ -46,6 +46,14 @@ import {
 import { artLoom } from "./services/client";
 import { syncService } from "./services/syncService";
 import { shaderCache } from "./services/shaderCache";
+import {
+    createOverlaySyntheticDispatcher,
+    type OverlaySyntheticMousePayload,
+} from "./services/overlaySyntheticEvents";
+import { resolveCanvasDisplayImage } from "./services/graphImageResolution";
+import { extractArtDeliveryValueOutputs, mergeArtDeliveryOutputs } from "./services/artDeliveryOutputs";
+import { resolveDeletionPlan } from "./services/deletionPlan";
+import { composeTeaTicketText, summarizeUnitsForTea } from "./services/teaTicketText";
 import type { BootProfile } from "./services/bootProfile";
 import { captureStickerEditSnapshot } from "./services/stickerHistory";
 import { removeAnnotationById } from "./services/stickerAnnotationMutations";
@@ -61,8 +69,11 @@ import {
     type WorkflowSnapshotPayload,
 } from "./services/workflowPayload";
 import { normalizeImageSourceForDisplay } from "./services/imageSource";
-import { buildUnitPortsFromCapability } from "./services/artNodeFactory";
-import { deriveUnitExecutionConfig } from "./services/nodeExecutionConfig";
+import {
+    buildWorkflowInstantiation,
+    mergeInstantiatedLinks,
+    mergeInstantiatedUnits,
+} from "./services/workflowInstantiation";
 import { refreshArtLoomCapabilitiesOnStartup } from "./services/artLoomStartup";
 
 // Hooks
@@ -74,7 +85,7 @@ import { useUnitActions } from "./hooks/useUnitActions";
 import { useClipboard } from "./hooks/useClipboard";
 import { useFileDrop } from "./hooks/useFileDrop";
 import type { ArtDelivery, ArtCapability } from "./services/protocol";
-import type { Unit, Link } from "./types/unit";
+import type { Unit } from "./types/unit";
 
 type VoiceStatus = "idle" | "recording" | "transcribing" | "completed" | "failed" | "cancelled" | "unknown";
 
@@ -92,18 +103,6 @@ type VoiceSessionPayload = {
     outputText?: string | null;
     error?: string | null;
     sessionLogPath?: string | null;
-};
-
-type OverlaySyntheticMousePayload = {
-    x?: number;
-    y?: number;
-    globalX?: number;
-    globalY?: number;
-    ctrlKey?: boolean;
-    altKey?: boolean;
-    shiftKey?: boolean;
-    deltaY?: number;
-    nativeDragPreflight?: boolean;
 };
 
 const resolveVoiceHotkeyStatus = (payload: VoiceHotkeyPayload): VoiceStatus => {
@@ -165,339 +164,16 @@ export default function App() {
   useFileDrop();
 
   const STICKER_GLOBAL_DELETE_ARM_WINDOW_MS = 2500;
-  const OVERLAY_SYNTHETIC_CLICK_MAX_DISTANCE = 4;
-  const OVERLAY_SYNTHETIC_DOUBLE_CLICK_MAX_DELAY_MS = 320;
   let lastStickerKeyboardDeleteArmAt = 0;
-  let overlaySyntheticPointerTarget: EventTarget | null = null;
-  let overlaySyntheticPointerDownTarget: EventTarget | null = null;
-  let overlaySyntheticHoverTarget: EventTarget | null = null;
-  let overlaySyntheticPointerDownPoint: { x: number; y: number } | null = null;
-  let overlaySyntheticLastClickTarget: EventTarget | null = null;
-  let overlaySyntheticLastClickPoint: { x: number; y: number } | null = null;
-  let overlaySyntheticLastClickAt = 0;
-  let overlaySyntheticPointerActive = false;
-  let overlaySyntheticPrimaryButtonDown = false;
-  let overlaySyntheticMoveRelayActive = false;
   const armStickerKeyboardDelete = () => {
       lastStickerKeyboardDeleteArmAt = Date.now();
   };
-  const resetOverlaySyntheticPointerState = () => {
-      overlaySyntheticPointerTarget = null;
-      overlaySyntheticPointerActive = false;
-      overlaySyntheticPrimaryButtonDown = false;
-      overlaySyntheticMoveRelayActive = false;
-  };
-  const dispatchSyntheticOverlayMouseEvent = (
-      type: "mousedown" | "mousemove" | "mouseup" | "wheel" | "contextmenu",
-      payload: OverlaySyntheticMousePayload,
-  ) => {
-      if (typeof document === "undefined") return;
-
-      const clientX = payload.x ?? payload.globalX ?? 0;
-      const clientY = payload.y ?? payload.globalY ?? 0;
-      const appMain = document.getElementById("app-main");
-      const resolveEditableSyntheticControl = (target: EventTarget | null) => {
-          if (!(target instanceof Element)) return null;
-          if (
-              target instanceof HTMLInputElement ||
-              target instanceof HTMLSelectElement ||
-              target instanceof HTMLTextAreaElement
-          ) {
-              return target;
-          }
-          return target.closest("input, select, textarea");
-      };
-      const focusEditableSyntheticControl = (target: EventTarget | null) => {
-          const editable = resolveEditableSyntheticControl(target);
-          if (!editable || !(editable instanceof HTMLElement)) return;
-          editable.focus();
-      };
-      const isOverlayRootTarget = (target: EventTarget | null) =>
-          target === appMain ||
-          target === document.body ||
-          target === document.documentElement ||
-          target === window;
-      const isStickerInteractionRootTarget = (target: EventTarget | null) =>
-          target instanceof Element &&
-          target.getAttribute("data-sticker-interaction-root") === "true";
-      const resolveTarget = (allowFallback: boolean) => {
-          const rawTarget = document.elementFromPoint(clientX, clientY) as EventTarget | null;
-          if (!rawTarget || isOverlayRootTarget(rawTarget)) {
-              return allowFallback ? appMain ?? window : null;
-          }
-          if (rawTarget instanceof Element) {
-              const stickerInteractionRoot =
-                  rawTarget.closest?.("[data-sticker-interaction-root='true']") ?? null;
-              if (stickerInteractionRoot) {
-                  return stickerInteractionRoot;
-              }
-          }
-          return rawTarget;
-      };
-      const buildBaseInit = (button: number, buttons: number) => ({
-          bubbles: true,
-          cancelable: true,
-          composed: true,
-          clientX,
-          clientY,
-          screenX: payload.globalX ?? clientX,
-          screenY: payload.globalY ?? clientY,
-          ctrlKey: !!payload.ctrlKey,
-          altKey: !!payload.altKey,
-          shiftKey: !!payload.shiftKey,
-          button,
-          buttons,
-      });
-      const dispatchHoverTransition = (
-          nextTarget: EventTarget | null,
-          pointerInit: PointerEventInit,
-          mouseInit: MouseEventInit,
-      ) => {
-          const previousTarget = overlaySyntheticHoverTarget;
-          if (previousTarget === nextTarget) {
-              return;
-          }
-
-          if (previousTarget) {
-              if (typeof PointerEvent !== "undefined") {
-                  previousTarget.dispatchEvent(
-                      new PointerEvent("pointerout", {
-                          ...pointerInit,
-                          relatedTarget: nextTarget,
-                      }),
-                  );
-                  previousTarget.dispatchEvent(
-                      new PointerEvent("pointerleave", {
-                          ...pointerInit,
-                          bubbles: false,
-                          relatedTarget: nextTarget,
-                      }),
-                  );
-              }
-              previousTarget.dispatchEvent(
-                  new MouseEvent("mouseout", {
-                      ...mouseInit,
-                      relatedTarget: nextTarget,
-                  }),
-              );
-              previousTarget.dispatchEvent(
-                  new MouseEvent("mouseleave", {
-                      ...mouseInit,
-                      bubbles: false,
-                      relatedTarget: nextTarget,
-                  }),
-              );
-          }
-
-          if (nextTarget) {
-              if (typeof PointerEvent !== "undefined") {
-                  nextTarget.dispatchEvent(
-                      new PointerEvent("pointerover", {
-                          ...pointerInit,
-                          relatedTarget: previousTarget,
-                      }),
-                  );
-                  nextTarget.dispatchEvent(
-                      new PointerEvent("pointerenter", {
-                          ...pointerInit,
-                          bubbles: false,
-                          relatedTarget: previousTarget,
-                      }),
-                  );
-              }
-              nextTarget.dispatchEvent(
-                  new MouseEvent("mouseover", {
-                      ...mouseInit,
-                      relatedTarget: previousTarget,
-                  }),
-              );
-              nextTarget.dispatchEvent(
-                  new MouseEvent("mouseenter", {
-                      ...mouseInit,
-                      bubbles: false,
-                      relatedTarget: previousTarget,
-                  }),
-              );
-          }
-
-          overlaySyntheticHoverTarget = nextTarget;
-      };
-
-      const baseInit =
-          type === "contextmenu"
-              ? buildBaseInit(2, 0)
-              : buildBaseInit(
-                    0,
-                    type === "mouseup"
-                        ? 0
-                        : overlaySyntheticPrimaryButtonDown || type === "mousedown"
-                          ? 1
-                          : 0,
-                );
-      const pointerInit: PointerEventInit = {
-          ...baseInit,
-          pointerId: 1,
-          pointerType: "mouse",
-          isPrimary: true,
-      };
-      const shouldResolveLiveOverlayTarget =
-          linkingState().isLinking && (type === "mousemove" || type === "mouseup");
-
-      let target: EventTarget | null =
-          type === "mousemove" && !overlaySyntheticPrimaryButtonDown
-              ? resolveTarget(false)
-              : resolveTarget(true);
-      const shouldBypassSyntheticPointerCapture =
-          type === "mousedown" &&
-          !!payload.shiftKey &&
-          isStickerInteractionRootTarget(target);
-      if (type === "mousedown") {
-          if (shouldBypassSyntheticPointerCapture) {
-              overlaySyntheticPointerDownTarget = null;
-              overlaySyntheticPointerDownPoint = null;
-              resetOverlaySyntheticPointerState();
-          } else {
-              resetOverlaySyntheticPointerState();
-              overlaySyntheticPointerTarget = target;
-              overlaySyntheticPointerDownTarget = target;
-              overlaySyntheticPointerDownPoint = { x: clientX, y: clientY };
-              overlaySyntheticPointerActive = true;
-              overlaySyntheticPrimaryButtonDown = true;
-          }
-      } else if (shouldResolveLiveOverlayTarget) {
-          target = resolveTarget(true);
-      } else if (
-          (type === "mousemove" || type === "mouseup") &&
-          overlaySyntheticPointerActive &&
-          overlaySyntheticPointerTarget
-      ) {
-          target = overlaySyntheticPointerTarget;
-      }
-      if (type === "mousemove" && overlaySyntheticPrimaryButtonDown && draggingStickerId()) {
-          target = appMain ?? window;
-      }
-
-      if (!target) {
-          dispatchHoverTransition(null, pointerInit, baseInit);
-          return;
-      }
-
-      if (
-          type === "mousedown" ||
-          (type === "mousemove" && !overlaySyntheticPrimaryButtonDown) ||
-          type === "contextmenu"
-      ) {
-          dispatchHoverTransition(target, pointerInit, baseInit);
-      }
-      if (type === "mousedown") {
-          focusEditableSyntheticControl(target);
-      }
-
-      if (type !== "wheel" && type !== "contextmenu" && typeof PointerEvent !== "undefined") {
-          target.dispatchEvent(
-              new PointerEvent(
-                  type === "mouseup"
-                      ? "pointerup"
-                      : type === "mousemove"
-                        ? "pointermove"
-                        : "pointerdown",
-                  pointerInit,
-              ),
-          );
-      }
-
-      if (type === "wheel") {
-          target.dispatchEvent(
-              new WheelEvent("wheel", {
-                  ...baseInit,
-                  deltaY: payload.deltaY ?? 0,
-              }),
-          );
-      } else if (type === "contextmenu") {
-          target.dispatchEvent(new MouseEvent("contextmenu", baseInit));
-      } else {
-          target.dispatchEvent(new MouseEvent(type, baseInit));
-      }
-
-      if (type === "mouseup") {
-          if (
-              overlaySyntheticPointerDownTarget &&
-              overlaySyntheticPointerDownTarget === target &&
-              overlaySyntheticPointerDownPoint &&
-              Math.hypot(
-                  clientX - overlaySyntheticPointerDownPoint.x,
-                  clientY - overlaySyntheticPointerDownPoint.y,
-              ) <= OVERLAY_SYNTHETIC_CLICK_MAX_DISTANCE
-          ) {
-              focusEditableSyntheticControl(target);
-              target.dispatchEvent(new MouseEvent("click", buildBaseInit(0, 0)));
-              const clickTime = Date.now();
-              const isDoubleClick =
-                  overlaySyntheticLastClickTarget === target &&
-                  overlaySyntheticLastClickPoint &&
-                  clickTime - overlaySyntheticLastClickAt <= OVERLAY_SYNTHETIC_DOUBLE_CLICK_MAX_DELAY_MS &&
-                  Math.hypot(
-                      clientX - overlaySyntheticLastClickPoint.x,
-                      clientY - overlaySyntheticLastClickPoint.y,
-                  ) <= OVERLAY_SYNTHETIC_CLICK_MAX_DISTANCE;
-              if (isDoubleClick) {
-                  target.dispatchEvent(new MouseEvent("dblclick", buildBaseInit(0, 0)));
-                  overlaySyntheticLastClickTarget = null;
-                  overlaySyntheticLastClickPoint = null;
-                  overlaySyntheticLastClickAt = 0;
-              } else {
-                  overlaySyntheticLastClickTarget = target;
-                  overlaySyntheticLastClickPoint = { x: clientX, y: clientY };
-                  overlaySyntheticLastClickAt = clickTime;
-              }
-          }
-          overlaySyntheticPointerDownTarget = null;
-          overlaySyntheticPointerDownPoint = null;
-          resetOverlaySyntheticPointerState();
-      }
-  };
-  const relayOverlaySyntheticPointerMove = (event: MouseEvent) => {
-      if (
-          !overlaySyntheticPointerActive ||
-          !overlaySyntheticPrimaryButtonDown ||
-          !overlaySyntheticPointerTarget ||
-          event.target === overlaySyntheticPointerTarget
-      ) {
-          return;
-      }
-
-      const baseInit = {
-          bubbles: true,
-          cancelable: true,
-          composed: true,
-          clientX: event.clientX,
-          clientY: event.clientY,
-          screenX: event.screenX,
-          screenY: event.screenY,
-          ctrlKey: event.ctrlKey,
-          altKey: event.altKey,
-          shiftKey: event.shiftKey,
-          button: 0,
-          buttons: event.buttons,
-      };
-
-      overlaySyntheticMoveRelayActive = true;
-      try {
-          if (typeof PointerEvent !== "undefined") {
-              overlaySyntheticPointerTarget.dispatchEvent(
-                  new PointerEvent("pointermove", {
-                      ...baseInit,
-                      pointerId: 1,
-                      pointerType: "mouse",
-                      isPrimary: true,
-                  }),
-              );
-          }
-          overlaySyntheticPointerTarget.dispatchEvent(new MouseEvent("mousemove", baseInit));
-      } finally {
-          overlaySyntheticMoveRelayActive = false;
-      }
-  };
+  const overlaySynthetic = createOverlaySyntheticDispatcher({
+      doc: document,
+      isLinking: () => linkingState().isLinking,
+      getDraggingStickerId: draggingStickerId,
+      now: Date.now,
+  });
 
   const isContextualShaderArt = (art: ArtCapability) =>
       art.execution_type === "shader" &&
@@ -567,33 +243,17 @@ export default function App() {
           : selectedStickerId()
               ? [selectedStickerId()!]
               : [];
-      if (ids.length === 0) return "";
-
-      const idSet = new Set(ids);
-      return graphStore.units
-          .filter((unit) => idSet.has(unit.id))
-          .map((unit) => [
-              `id=${unit.id}`,
-              `type=${unit.type}`,
-              `art=${unit.artId || "none"}`,
-              `originWorkflow=${unit.data?.originWorkflowId || "none"}`,
-              `originNode=${unit.data?.originNodeId || "none"}`,
-          ].join(" "))
-          .join("\n");
+      return summarizeUnitsForTea(graphStore.units, ids);
   };
 
-  const buildTeaTicketText = (trigger: string) => {
-      const selectedSummary = summarizeSelectedUnitsForTea();
-      const voiceOutput = lastVoiceSession()?.outputText || lastVoiceSession()?.transcript || "";
-      return [
-          `Hook desktop ticket request (${trigger})`,
-          `units: ${graphStore.units.length}`,
-          `links: ${graphStore.links.length}`,
-          selectedSummary ? `selected_units:\n${selectedSummary}` : "selected_units: none",
-          voiceOutput ? `voice_context:\n${voiceOutput}` : "voice_context: none",
-          "requested_action: Analyze this Hook context and propose the next AI work-order plan.",
-      ].join("\n");
-  };
+  const buildTeaTicketText = (trigger: string) =>
+      composeTeaTicketText({
+          trigger,
+          unitCount: graphStore.units.length,
+          linkCount: graphStore.links.length,
+          selectedSummary: summarizeSelectedUnitsForTea(),
+          voiceOutput: lastVoiceSession()?.outputText || lastVoiceSession()?.transcript || "",
+      });
 
   const createTeaTicketFromCurrentHookState = async (trigger = "panel") => {
       const selectedSummary = summarizeSelectedUnitsForTea();
@@ -636,119 +296,19 @@ export default function App() {
       });
   };
 
-  const buildPortsFromCapability = (type: "sticker" | "art", artId?: string) => {
-      const capability = graphStore.capabilities.find((item) => item.id === artId);
-      return buildUnitPortsFromCapability(type, capability);
-  };
-
   const instantiateWorkflowSnapshot = async (payload: WorkflowSnapshotPayload) => {
-      const incomingNodes = payload.nodes;
-      const incomingEdges = payload.edges;
-      if (incomingNodes.length === 0) return;
+      const result = buildWorkflowInstantiation(payload, {
+          existingUnits: graphStore.units,
+          capabilities: graphStore.capabilities,
+          newId: () => crypto.randomUUID(),
+      });
+      if (!result) return;
+      const { units: instantiatedUnits, links: instantiatedLinks, referencedLocalIds } = result;
 
-      const isReferenceMode = payload.mode === "reference" && !!payload.workflow_id;
-      const incomingOriginNodeIds = new Set(
-          incomingNodes
-              .map((node) => (typeof node.id === "string" ? node.id : undefined))
-              .filter((nodeId): nodeId is string => !!nodeId)
+      graphStore.setUnits((prev) => mergeInstantiatedUnits(prev, instantiatedUnits));
+      graphStore.setLinks((prev) =>
+          mergeInstantiatedLinks(prev, instantiatedLinks, referencedLocalIds),
       );
-      const existingReferenceUnitsByOrigin = new Map<string, Unit>();
-      if (isReferenceMode) {
-          graphStore.units.forEach((unit) => {
-              const originWorkflowId = unit.data?.originWorkflowId;
-              const originNodeId = unit.data?.originNodeId;
-              if (
-                  originWorkflowId === payload.workflow_id &&
-                  originNodeId &&
-                  incomingOriginNodeIds.has(originNodeId)
-              ) {
-                  existingReferenceUnitsByOrigin.set(originNodeId, unit);
-              }
-          });
-      }
-
-      const idMap = new Map<string, string>();
-      incomingNodes.forEach((node) => {
-          const existingUnit =
-              isReferenceMode && typeof node.id === "string"
-                  ? existingReferenceUnitsByOrigin.get(node.id)
-                  : undefined;
-          idMap.set(node.id, existingUnit?.id || crypto.randomUUID());
-      });
-
-      const instantiatedUnits: Unit[] = incomingNodes.map((node) => {
-          const localId = idMap.get(node.id)!;
-          const nodeType: "sticker" | "art" = node.type === "sticker" ? "sticker" : "art";
-          const artId = node.data?.artId || node.data?.art_id || undefined;
-          const capability = graphStore.capabilities.find((item) => item.id === artId);
-          const { inputs, outputs } = buildPortsFromCapability(nodeType, artId);
-          const executionConfig = deriveUnitExecutionConfig({
-              capability,
-              explicitConfig: node.data?.executionConfig,
-          });
-
-          return {
-              id: localId,
-              type: nodeType,
-              artId,
-              x: node.position?.x ?? 0,
-              y: node.position?.y ?? 0,
-              w: node.data?.w ?? node.measured?.width ?? 240,
-              h: node.data?.h ?? node.measured?.height ?? 180,
-              params: node.data?.params || {},
-              inputs,
-              outputs,
-              data: {
-                  src: node.data?.src,
-                  previewSrc: node.data?.previewSrc,
-                  rasterizedAnnotationLayerSrc: node.data?.rasterizedAnnotationLayerSrc,
-                  minified: node.data?.minified ?? false,
-                  savedRect: node.data?.savedRect,
-                  cropOffset: node.data?.cropOffset,
-                  opacityNormal: node.data?.opacityNormal ?? 1,
-                  opacityMini: node.data?.opacityMini ?? 0.9,
-                  executionConfig,
-                  originWorkflowId: isReferenceMode ? payload.workflow_id || undefined : undefined,
-                  originNodeId: isReferenceMode ? node.id : undefined,
-              },
-          };
-      });
-
-      const instantiatedLinks: Link[] = incomingEdges
-          .filter((edge) => idMap.has(edge.source) && idMap.has(edge.target))
-          .map((edge) => ({
-              id: crypto.randomUUID(),
-              fromUnitId: idMap.get(edge.source)!,
-              fromPortId: edge.sourceHandle || "output",
-              toUnitId: idMap.get(edge.target)!,
-              toPortId: edge.targetHandle || "input",
-          }));
-
-      const referencedLocalIds = new Set(instantiatedUnits.map((unit) => unit.id));
-      const linkKey = (link: Link) =>
-          `${link.fromUnitId}::${link.fromPortId || ""}::${link.toUnitId}::${link.toPortId || ""}`;
-
-      graphStore.setUnits((prev) => {
-          const nextById = new Map(prev.map((unit) => [unit.id, unit] as const));
-          instantiatedUnits.forEach((unit) => {
-              nextById.set(unit.id, unit);
-          });
-          return Array.from(nextById.values());
-      });
-      graphStore.setLinks((prev) => {
-          const next = prev.filter(
-              (link) => !(referencedLocalIds.has(link.fromUnitId) && referencedLocalIds.has(link.toUnitId))
-          );
-          const seen = new Set(next.map(linkKey));
-          instantiatedLinks.forEach((link) => {
-              const key = linkKey(link);
-              if (!seen.has(key)) {
-                  seen.add(key);
-                  next.push(link);
-              }
-          });
-          return next;
-      });
       graphStore.setUnitParams((prev) => {
           const next = { ...prev };
           instantiatedUnits.forEach((unit) => {
@@ -830,26 +390,18 @@ export default function App() {
           case "json":
           case "text":
           case "number":
-              outputValues = {
-                  output: delivery.delivery.value ?? delivery.delivery.data,
-                  ...(delivery.delivery.outputs || {}),
-              };
+              outputValues = extractArtDeliveryValueOutputs(delivery.delivery);
               break;
           default:
               break;
       }
 
-      const nextOutputs: Record<string, unknown> = {
-          ...(unit.data.outputs || {}),
-          ...(outputValues || {}),
-      };
-      if (previewSrc) {
-          nextOutputs.output = previewSrc;
-          nextOutputs.output_image = previewSrc;
-      }
-      if (filePath) {
-          nextOutputs.file_path = filePath;
-      }
+      const nextOutputs = mergeArtDeliveryOutputs({
+          currentOutputs: unit.data.outputs,
+          valueOutputs: outputValues,
+          previewSrc,
+          filePath,
+      });
 
       graphStore.actions.updateUnitData(unitId, {
           previewSrc: previewSrc || unit.data.previewSrc,
@@ -866,30 +418,29 @@ export default function App() {
   };
 
   const deleteSelectedUnitOrAnnotation = () => {
-      const annotationId = selectedStickerAnnotationId();
-      const stickerId = selectedStickerId();
-      if (annotationId && stickerId) {
-          const activeUnit = graphStore.units.find((unit) => unit.id === stickerId);
-          if (activeUnit?.type === "sticker" && activeUnit.data.annotationState) {
-              uiActions.pushStickerHistory(stickerId, captureStickerEditSnapshot(activeUnit));
-              graphStore.actions.updateStickerEditData(stickerId, {
-                  annotationState: removeAnnotationById(activeUnit.data.annotationState, annotationId),
+      const plan = resolveDeletionPlan({
+          selectedAnnotationId: selectedStickerAnnotationId(),
+          selectedStickerId: selectedStickerId(),
+          selectedUnitIds: [...selectedUnitIds],
+          units: graphStore.units,
+      });
+
+      if (plan.kind === "annotation") {
+          const activeUnit = graphStore.units.find((unit) => unit.id === plan.stickerId);
+          if (activeUnit?.data.annotationState) {
+              uiActions.pushStickerHistory(plan.stickerId, captureStickerEditSnapshot(activeUnit));
+              graphStore.actions.updateStickerEditData(plan.stickerId, {
+                  annotationState: removeAnnotationById(activeUnit.data.annotationState, plan.annotationId),
               });
-              graphStore.actions.propagateStickerEditsFrom(stickerId);
+              graphStore.actions.propagateStickerEditsFrom(plan.stickerId);
               uiActions.setSelectedStickerAnnotation(null);
               void syncService.performWorkflowSync();
-              return;
           }
+          return;
       }
 
-      const selectedSticker = selectedStickerId();
-      const ids = selectedUnitIds.length > 0
-          ? [...selectedUnitIds]
-          : selectedSticker
-              ? [selectedSticker]
-              : [];
-
-      if (ids.length > 0) {
+      if (plan.kind === "units") {
+          const ids = plan.unitIds;
           const recycleEntries = ids
               .map((id) => graphStore.units.find((unit) => unit.id === id))
               .filter((unit): unit is Unit => !!unit && unit.type === "sticker")
@@ -1070,7 +621,7 @@ export default function App() {
           return;
       }
 
-      resetOverlaySyntheticPointerState();
+      overlaySynthetic.reset();
       resetSelection();
       setCaptureMode(captureStart.captureMode);
       setIsSelecting(true);
@@ -1330,7 +881,7 @@ export default function App() {
                           }),
                       );
                   } else {
-                      dispatchSyntheticOverlayMouseEvent("mousedown", event.payload);
+                      overlaySynthetic.dispatch("mousedown", event.payload);
                   }
               },
           );
@@ -1345,7 +896,7 @@ export default function App() {
                           }),
                       );
                   } else {
-                      dispatchSyntheticOverlayMouseEvent("mousemove", event.payload);
+                      overlaySynthetic.dispatch("mousemove", event.payload);
                   }
               },
           );
@@ -1360,7 +911,7 @@ export default function App() {
                           }),
                       );
                   } else {
-                      dispatchSyntheticOverlayMouseEvent("mouseup", event.payload);
+                      overlaySynthetic.dispatch("mouseup", event.payload);
                   }
               },
           );
@@ -1368,14 +919,14 @@ export default function App() {
           const unlistenOverlayMouseWheel = await listen<OverlaySyntheticMousePayload>(
               "overlay/global_mouse_wheel",
               (event) => {
-                  dispatchSyntheticOverlayMouseEvent("wheel", event.payload);
+                  overlaySynthetic.dispatch("wheel", event.payload);
               },
           );
 
           const unlistenOverlayContextMenu = await listen<OverlaySyntheticMousePayload>(
               "overlay/global_context_menu",
               (event) => {
-                  dispatchSyntheticOverlayMouseEvent("contextmenu", event.payload);
+                  overlaySynthetic.dispatch("contextmenu", event.payload);
               },
           );
 
@@ -1546,8 +1097,8 @@ export default function App() {
       if (!draggingStickerId()) {
           setMousePos({ x: e.clientX, y: e.clientY });
       }
-      if (!overlaySyntheticMoveRelayActive && !draggingStickerId()) {
-          relayOverlaySyntheticPointerMove(e);
+      if (!overlaySynthetic.moveRelayActive && !draggingStickerId()) {
+          overlaySynthetic.relayPointerMove(e);
       }
       handleDragMove(e);
       handleSelectionMove(e);
@@ -1556,7 +1107,7 @@ export default function App() {
   const handleGlobalMouseUp = (e: MouseEvent) => {
       handleDragEnd();
       handleSelectionEnd(e);
-      resetOverlaySyntheticPointerState();
+      overlaySynthetic.reset();
 
       setLinkingState(prev => ({ ...prev, isLinking: false }));
   };
@@ -1673,37 +1224,10 @@ export default function App() {
 
 
 
-  const resolveUnitImage = (id: string, visited = new Set<string>()): string | undefined => {
-      // Loop Detection
-      if (visited.has(id)) return undefined;
-      visited.add(id);
-
-      const u = graphStore.units.find(u => u.id === id);
-      if (!u) return undefined;
-
-      // 1. Generated Result (Highest Priority)
-      if (u.data.previewSrc) {
-        return u.data.previewSrc;
-      }
-
-      // 2. Upstream Resolution (Pass-Through)
-      // Check connected inputs BEFORE falling back to 'src' (Original Screenshot)
-      // Try to find a connected input that provides an image
-      // Priority: 'image', 'input_image', or just the first connected one
-      const link = graphStore.links.find(l =>
-          l.toUnitId === id &&
-          (l.toPortId === 'image' || l.toPortId === 'input_image' || l.toPortId === 'input')
-      );
-
-      if (link) {
-          const upstream = resolveUnitImage(link.fromUnitId, visited);
-          if (upstream) return upstream;
-      }
-
-      // 3. Fallback to Source (Original Screenshot / Upload)
-      // If no result and no upstream image, show original
-      return u.data.src;
-  };
+  // Canvas display-image resolution lives in graphImageResolution.ts
+  // (resolveCanvasDisplayImage), characterized by resolveCanvasDisplayImage.test.ts.
+  const resolveUnitImage = (id: string): string | undefined =>
+      resolveCanvasDisplayImage({ units: graphStore.units, links: graphStore.links, unitId: id });
 
   return (
     <ErrorBoundary
