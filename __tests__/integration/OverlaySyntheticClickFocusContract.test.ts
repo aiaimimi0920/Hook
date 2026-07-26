@@ -33,7 +33,10 @@ describe("overlay synthetic click and focus contract", () => {
     const appSource = readSource("src/app.tsx");
 
     expect(appSource).toContain("draggingStickerId()");
-    expect(overlaySource).toContain('type === "mousemove" && overlaySyntheticPrimaryButtonDown && deps.getDraggingStickerId()');
+    // Drag-move target is pinned to #app-main, gated on button-down + dragging.
+    expect(overlaySource).toContain("const pinDragTargetToAppMain =");
+    expect(overlaySource).toContain("overlaySyntheticPrimaryButtonDown &&");
+    expect(overlaySource).toContain("deps.getDraggingStickerId()");
     expect(overlaySource).toContain("target = appMain ?? win;");
     expect(appSource).toContain("if (!overlaySynthetic.moveRelayActive && !draggingStickerId()) {");
   });

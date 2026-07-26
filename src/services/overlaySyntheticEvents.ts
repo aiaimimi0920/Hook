@@ -245,10 +245,21 @@ export function createOverlaySyntheticDispatcher(
         const shouldResolveLiveOverlayTarget =
             deps.isLinking() && (type === "mousemove" || type === "mouseup");
 
-        let target: EventTarget | null =
-            type === "mousemove" && !overlaySyntheticPrimaryButtonDown
-                ? resolveTarget(false)
-                : resolveTarget(true);
+        // A whole-sticker drag pins the target to #app-main below, so the
+        // elementFromPoint hit-test would run — and be discarded — on every
+        // un-throttled drag-move event. elementFromPoint forces a synchronous
+        // layout while nodes/links are re-rendering, which shows up as
+        // intermittent drag stutter. Skip it when we already know the target.
+        const pinDragTargetToAppMain =
+            type === "mousemove" &&
+            overlaySyntheticPrimaryButtonDown &&
+            !!deps.getDraggingStickerId();
+
+        let target: EventTarget | null = pinDragTargetToAppMain
+            ? appMain ?? win
+            : type === "mousemove" && !overlaySyntheticPrimaryButtonDown
+              ? resolveTarget(false)
+              : resolveTarget(true);
         const shouldBypassSyntheticPointerCapture =
             type === "mousedown" &&
             !!payload.shiftKey &&
@@ -275,7 +286,7 @@ export function createOverlaySyntheticDispatcher(
         ) {
             target = overlaySyntheticPointerTarget;
         }
-        if (type === "mousemove" && overlaySyntheticPrimaryButtonDown && deps.getDraggingStickerId()) {
+        if (pinDragTargetToAppMain) {
             target = appMain ?? win;
         }
 

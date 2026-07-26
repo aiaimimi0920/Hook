@@ -363,4 +363,24 @@ describe("overlaySyntheticEvents", () => {
         h.d.dispatch("mousedown", { x: 10, y: 10 });
         expect(h.typesFor("A")).toContain("pointerdown");
     });
+
+    it("15. skips elementFromPoint hit-testing on drag-move frames (perf, no layout thrash)", () => {
+        let hitCalls = 0;
+        h.setHit((_x, _y) => {
+            hitCalls += 1;
+            return h.a;
+        });
+        h.d.dispatch("mousedown", { x: 10, y: 10 }); // capture (a hit-test here is fine)
+        h.setDragging("s1");
+        hitCalls = 0; // measure only the drag-move phase
+
+        h.d.dispatch("mousemove", { x: 20, y: 20 });
+        h.d.dispatch("mousemove", { x: 30, y: 30 });
+
+        // The target is pinned to #app-main during a sticker drag, so no
+        // (layout-forcing) hit-test should run on these move frames.
+        expect(hitCalls).toBe(0);
+        // ...and the moves are still delivered to #app-main as before.
+        expect(h.typesFor("app")).toContain("mousemove");
+    });
 });
