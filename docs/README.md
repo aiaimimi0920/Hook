@@ -37,6 +37,12 @@ These files are current and are not archival-only:
 - `SIGNPATH_APPLICATION_CHECKLIST.md`
 - `SIGNPATH_APPLICATION_DRAFT.md`
 
+### Maintenance records
+
+- `PURE_LOGIC_EXTRACTION.md` — record of the pure-logic extraction / testability
+  campaign: modules pulled out of `app.tsx` (and a `tea_client.rs` hardening),
+  the discipline used, decisions deliberately preserved, and remaining tech debt.
+
 ## What is archived here
 
 ### `migration/`
