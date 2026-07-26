@@ -71,16 +71,16 @@ use windows::Win32::UI::Controls::Dialogs::{
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, VK_BACK, VK_CONTROL, VK_DELETE, VK_ESCAPE, VK_LSHIFT, VK_MENU, VK_RSHIFT,
-    VK_SHIFT,
+    VK_SHIFT, VK_TAB,
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Shell::{IShellWindows, IWebBrowser2, ShellWindows};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CallWindowProcW, CopyIcon, CreateWindowExW, DefWindowProcW, DispatchMessageW,
-    EnumWindows, GetAncestor, GetClassNameW, GetCursorPos, GetMessageW, GetParent,
-    GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, IsWindowVisible, LoadCursorW,
-    SetLayeredWindowAttributes, SetSystemCursor, SetWindowLongPtrW, SetWindowPos,
+    EnumWindows, GetAncestor, GetClassNameW, GetCursorPos, GetForegroundWindow, GetMessageW,
+    GetParent, GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, IsWindowVisible,
+    LoadCursorW, SetLayeredWindowAttributes, SetSystemCursor, SetWindowLongPtrW, SetWindowPos,
     SetWindowsHookExW, ShowWindow, SystemParametersInfoW, TranslateMessage, UnhookWindowsHookEx,
     WindowFromPoint, GA_ROOT, GWLP_WNDPROC, GWL_EXSTYLE, HCURSOR, HC_ACTION, HICON, HWND_TOPMOST,
     IDC_CROSS, KBDLLHOOKSTRUCT, LWA_ALPHA, MA_NOACTIVATE, MSG, MSLLHOOKSTRUCT, OCR_CROSS, OCR_HAND,
@@ -1133,12 +1133,35 @@ enum CaptureMouseHookEvent {
 }
 
 #[cfg(target_os = "windows")]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum OverlayKeyboardHookEvent {
     Escape,
     Delete,
     Copy,
     Paste,
+    // A sticker-selected DOM shortcut (Tab, Shift+1, Alt+2, ...) captured while
+    // the webview lacks OS keyboard focus, forwarded so the frontend can run it
+    // without the overlay having to steal foreground focus from video below.
+    Shortcut {
+        key: String,
+        ctrl: bool,
+        shift: bool,
+        alt: bool,
+    },
+}
+
+// Serialized payload for the `overlay/global_shortcut` event. Field names match
+// the DOM KeyboardEvent init the frontend reconstructs.
+#[cfg(target_os = "windows")]
+#[derive(Clone, serde::Serialize)]
+struct ForwardedShortcutPayload {
+    key: String,
+    #[serde(rename = "ctrlKey")]
+    ctrl_key: bool,
+    #[serde(rename = "shiftKey")]
+    shift_key: bool,
+    #[serde(rename = "altKey")]
+    alt_key: bool,
 }
 
 #[cfg(target_os = "windows")]
@@ -1839,6 +1862,190 @@ fn overlay_keyboard_capture_should_handle_current_cursor() -> bool {
 }
 
 #[cfg(target_os = "windows")]
+fn overlay_webview_has_foreground_focus() -> bool {
+    // If the HWND is unknown, assume focused so we do NOT intercept keys
+    // (safe fallback: let the normal DOM path handle them).
+    let Some(&main_hwnd) = OVERLAY_MAIN_HWND.get() else {
+        return true;
+    };
+    let foreground = unsafe { GetForegroundWindow() };
+    foreground.0 as isize == main_hwnd
+}
+
+// A sticker-selected DOM shortcut the native hook can forward. `key`/`ctrl`/
+// `shift`/`alt` mirror the DOM KeyboardEvent the frontend reconstructs.
+#[cfg(target_os = "windows")]
+struct ForwardedShortcut {
+    key: &'static str,
+    ctrl: bool,
+    shift: bool,
+    alt: bool,
+}
+
+// Maps a physical key + modifier state to the DOM shortcut it should trigger,
+// for the "unit-selected" sticker shortcuts that are handled in the webview DOM
+// (i.e. NOT the native semantic set Escape/Delete/Copy/Paste, and NOT the global
+// shortcuts Ctrl+E/1/2/3). Kept in sync with src/services/shortcuts.ts; a
+// contract test guards the mapping.
+#[cfg(target_os = "windows")]
+fn overlay_keyboard_forwardable_shortcut(
+    vk_code: u32,
+    modifiers: ModifierSnapshot,
+) -> Option<ForwardedShortcut> {
+    let ctrl = modifiers.ctrl_pressed;
+    let shift = modifiers.shift_pressed;
+    let alt = modifiers.alt_pressed;
+    let none = !ctrl && !shift && !alt;
+    let only_ctrl = ctrl && !shift && !alt;
+    let only_shift = shift && !ctrl && !alt;
+    let only_alt = alt && !ctrl && !shift;
+
+    let make = |key: &'static str| {
+        Some(ForwardedShortcut {
+            key,
+            ctrl,
+            shift,
+            alt,
+        })
+    };
+
+    if none && vk_code == VK_TAB.0 as u32 {
+        return make("Tab"); // toggle-params
+    }
+    if only_shift && vk_code == b'1' as u32 {
+        return make("!"); // toggle-actions (Shift+1)
+    }
+    if only_alt && vk_code == b'2' as u32 {
+        return make("2"); // toggle-ocr
+    }
+    if only_alt && vk_code == b'3' as u32 {
+        return make("3"); // toggle-translation
+    }
+    if only_ctrl {
+        let key = match vk_code {
+            v if v == b'S' as u32 => Some("s"), // save
+            v if v == b'Z' as u32 => Some("z"), // undo-edit
+            v if v == b'Y' as u32 => Some("y"), // redo-edit
+            v if v == b'H' as u32 => Some("h"), // toggle-history
+            v if v == b'O' as u32 => Some("o"), // open-image
+            v if v == b'4' as u32 => Some("4"), // toggle-clean-view
+            _ => None,
+        };
+        if let Some(key) = key {
+            return make(key);
+        }
+    }
+    if none {
+        let key = match vk_code {
+            v if v == b'Q' as u32 => Some("q"), // transform-select
+            v if v == b'W' as u32 => Some("w"), // transform-move
+            v if v == b'E' as u32 => Some("e"), // transform-rotate
+            v if v == b'R' as u32 => Some("r"), // transform-scale
+            _ => None,
+        };
+        if let Some(key) = key {
+            return make(key);
+        }
+    }
+    None
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod overlay_forwardable_shortcut_tests {
+    use super::{overlay_keyboard_forwardable_shortcut, ModifierSnapshot, VK_TAB};
+
+    fn mods(ctrl: bool, shift: bool, alt: bool) -> ModifierSnapshot {
+        ModifierSnapshot {
+            ctrl_pressed: ctrl,
+            alt_pressed: alt,
+            shift_pressed: shift,
+        }
+    }
+
+    #[test]
+    fn forwards_tab_as_toggle_params() {
+        let sc = overlay_keyboard_forwardable_shortcut(VK_TAB.0 as u32, mods(false, false, false))
+            .expect("Tab should forward");
+        assert_eq!(sc.key, "Tab");
+        assert!(!sc.ctrl && !sc.shift && !sc.alt);
+    }
+
+    #[test]
+    fn forwards_shift_1_as_bang() {
+        let sc = overlay_keyboard_forwardable_shortcut(b'1' as u32, mods(false, true, false))
+            .expect("Shift+1 should forward");
+        assert_eq!(sc.key, "!");
+        assert!(sc.shift && !sc.ctrl && !sc.alt);
+    }
+
+    #[test]
+    fn forwards_alt_digit_toggles() {
+        assert_eq!(
+            overlay_keyboard_forwardable_shortcut(b'2' as u32, mods(false, false, true))
+                .unwrap()
+                .key,
+            "2"
+        );
+        assert_eq!(
+            overlay_keyboard_forwardable_shortcut(b'3' as u32, mods(false, false, true))
+                .unwrap()
+                .key,
+            "3"
+        );
+    }
+
+    #[test]
+    fn forwards_ctrl_shortcuts() {
+        for (vk, expected) in [
+            (b'S', "s"),
+            (b'Z', "z"),
+            (b'Y', "y"),
+            (b'H', "h"),
+            (b'O', "o"),
+            (b'4', "4"),
+        ] {
+            let sc = overlay_keyboard_forwardable_shortcut(vk as u32, mods(true, false, false))
+                .unwrap_or_else(|| panic!("Ctrl+{} should forward", expected));
+            assert_eq!(sc.key, expected);
+            assert!(sc.ctrl && !sc.shift && !sc.alt);
+        }
+    }
+
+    #[test]
+    fn forwards_bare_transform_letters() {
+        for (vk, expected) in [(b'Q', "q"), (b'W', "w"), (b'E', "e"), (b'R', "r")] {
+            assert_eq!(
+                overlay_keyboard_forwardable_shortcut(vk as u32, mods(false, false, false))
+                    .unwrap()
+                    .key,
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_wrong_modifiers() {
+        // Tab requires no modifiers.
+        assert!(
+            overlay_keyboard_forwardable_shortcut(VK_TAB.0 as u32, mods(true, false, false))
+                .is_none()
+        );
+        // Ctrl+E is a GLOBAL shortcut, must not be forwarded as the bare-'e' transform.
+        assert!(
+            overlay_keyboard_forwardable_shortcut(b'E' as u32, mods(true, false, false)).is_none()
+        );
+        // A plain letter that is not a shortcut is not forwarded.
+        assert!(
+            overlay_keyboard_forwardable_shortcut(b'A' as u32, mods(false, false, false)).is_none()
+        );
+        // Shift+2 (=@) is not a shortcut.
+        assert!(
+            overlay_keyboard_forwardable_shortcut(b'2' as u32, mods(false, true, false)).is_none()
+        );
+    }
+}
+
+#[cfg(target_os = "windows")]
 unsafe extern "system" fn overlay_keyboard_hook_proc(
     code: i32,
     wparam: WPARAM,
@@ -1874,6 +2081,21 @@ unsafe extern "system" fn overlay_keyboard_hook_proc(
                 queue_overlay_keyboard_hook_event(event);
                 return LRESULT(1);
             }
+            // Forward sticker-selected DOM shortcuts (Tab, Shift+1, ...) only when
+            // the webview lacks OS focus (so the DOM listener would miss them).
+            // When focused we do nothing here: the real keydown reaches the DOM,
+            // preserving normal text typing during sticker edit.
+            if !overlay_webview_has_foreground_focus() {
+                if let Some(shortcut) = overlay_keyboard_forwardable_shortcut(vk_code, modifiers) {
+                    queue_overlay_keyboard_hook_event(OverlayKeyboardHookEvent::Shortcut {
+                        key: shortcut.key.to_string(),
+                        ctrl: shortcut.ctrl,
+                        shift: shortcut.shift,
+                        alt: shortcut.alt,
+                    });
+                    return LRESULT(1);
+                }
+            }
         }
         WM_KEYUP | WM_SYSKEYUP => {
             if overlay_keyboard_hook_should_consume_keyup(vk_code, modifiers) {
@@ -1899,14 +2121,42 @@ fn install_overlay_keyboard_hook_thread(window: tauri::WebviewWindow) {
         .name("hook-overlay-keyboard-events".to_string())
         .spawn(move || {
             while let Ok(event) = receiver.recv() {
-                let event_name = match event {
-                    OverlayKeyboardHookEvent::Escape => "trigger-escape",
-                    OverlayKeyboardHookEvent::Delete => "trigger-delete",
-                    OverlayKeyboardHookEvent::Copy => "trigger-copy",
-                    OverlayKeyboardHookEvent::Paste => "trigger-paste",
-                };
-                append_runtime_log_line(&format!("overlay_keyboard_hook_emit :: {}", event_name));
-                let _ = emit_window.emit(event_name, ());
+                match event {
+                    OverlayKeyboardHookEvent::Shortcut {
+                        key,
+                        ctrl,
+                        shift,
+                        alt,
+                    } => {
+                        append_runtime_log_line(&format!(
+                            "overlay_keyboard_hook_emit :: shortcut {}",
+                            key
+                        ));
+                        let _ = emit_window.emit(
+                            "overlay/global_shortcut",
+                            ForwardedShortcutPayload {
+                                key,
+                                ctrl_key: ctrl,
+                                shift_key: shift,
+                                alt_key: alt,
+                            },
+                        );
+                    }
+                    other => {
+                        let event_name = match other {
+                            OverlayKeyboardHookEvent::Escape => "trigger-escape",
+                            OverlayKeyboardHookEvent::Delete => "trigger-delete",
+                            OverlayKeyboardHookEvent::Copy => "trigger-copy",
+                            OverlayKeyboardHookEvent::Paste => "trigger-paste",
+                            OverlayKeyboardHookEvent::Shortcut { .. } => "",
+                        };
+                        append_runtime_log_line(&format!(
+                            "overlay_keyboard_hook_emit :: {}",
+                            event_name
+                        ));
+                        let _ = emit_window.emit(event_name, ());
+                    }
+                }
             }
         });
 

@@ -769,6 +769,30 @@ export default function App() {
               void handlePaste();
           });
 
+          // The native overlay keyboard hook forwards sticker-selected DOM
+          // shortcuts (Tab, Shift+1, ...) here when the webview lacks OS keyboard
+          // focus, so they work without the overlay stealing foreground focus.
+          // Replay them as a synthetic keydown into the normal ShortcutManager path.
+          const unlistenOverlayShortcut = await listen<{
+              key: string;
+              ctrlKey: boolean;
+              shiftKey: boolean;
+              altKey: boolean;
+          }>("overlay/global_shortcut", (event) => {
+              const payload = event.payload;
+              if (!payload?.key) return;
+              window.dispatchEvent(
+                  new KeyboardEvent("keydown", {
+                      key: payload.key,
+                      ctrlKey: !!payload.ctrlKey,
+                      shiftKey: !!payload.shiftKey,
+                      altKey: !!payload.altKey,
+                      bubbles: true,
+                      cancelable: true,
+                  }),
+              );
+          });
+
            const unlistenCreateTeaTicket = await listen("trigger-create-tea-ticket", () => {
                untrack(() => {
                    logger.debug("Backend Triggered Tea Ticket Creation");
@@ -988,6 +1012,7 @@ export default function App() {
               unlistenOpenImage,
               unlistenCopy,
               unlistenPaste,
+              unlistenOverlayShortcut,
                unlistenCreateTeaTicket,
                unlistenVoiceHotkey,
                unlistenVoiceSession,
