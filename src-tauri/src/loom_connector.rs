@@ -476,7 +476,7 @@ fn ascii_case_insensitive_find(haystack: &str, needle: &str) -> Option<usize> {
         .find(&needle.to_ascii_lowercase())
 }
 
-fn read_default_loom_manifest() -> Result<LoomManifest, LoomConnectorError> {
+pub fn read_default_loom_manifest() -> Result<LoomManifest, LoomConnectorError> {
     let path = default_loom_manifest_paths()
         .into_iter()
         .find(|candidate| candidate.exists())

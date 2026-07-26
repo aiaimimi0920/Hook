@@ -249,6 +249,62 @@ fn load_arts_from_disk() -> Option<Vec<ArtDefinition>> {
     None
 }
 
+// Map a Loom `/v1/artloom-compat/arts` response body into Hook art definitions.
+// Each art that fails to deserialize is skipped (defensive) rather than failing
+// the whole list. Separated from the network call so it can be unit-tested.
+fn map_loom_arts_response(body: &str) -> Option<Vec<ArtDefinition>> {
+    let value: serde_json::Value = serde_json::from_str(body).ok()?;
+    let arts = value.get("arts")?.as_array()?;
+    let mapped: Vec<ArtDefinition> = arts
+        .iter()
+        .filter_map(|art| serde_json::from_value::<ArtDefinition>(art.clone()).ok())
+        .collect();
+    Some(mapped)
+}
+
+// Fetch the Art node list from the Loom daemon's tool registry over HTTP
+// (GET {base}/v1/artloom-compat/arts). Returns None if Loom isn't discoverable
+// or unreachable, so the caller can fall back to the local arts file.
+async fn load_arts_from_loom() -> Option<Vec<ArtDefinition>> {
+    let manifest = crate::loom_connector::read_default_loom_manifest().ok()?;
+    let base = manifest.transport.base_url.trim_end_matches('/');
+    let endpoint = format!("{base}/v1/artloom-compat/arts");
+
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_millis(2000))
+        .build()
+        .ok()?;
+    let mut request = client.get(&endpoint);
+    if manifest
+        .transport
+        .auth
+        .as_deref()
+        .unwrap_or("none")
+        .eq_ignore_ascii_case("bearer")
+    {
+        if let Some(token) = manifest
+            .transport
+            .auth_token
+            .as_deref()
+            .map(str::trim)
+            .filter(|token| !token.is_empty())
+        {
+            request = request.bearer_auth(token);
+        }
+    }
+
+    let response = request.send().await.ok()?;
+    if !response.status().is_success() {
+        println!("Loom arts endpoint returned {}", response.status());
+        return None;
+    }
+    let body = response.text().await.ok()?;
+    let arts = map_loom_arts_response(&body)?;
+    println!("Loaded {} arts from Loom.", arts.len());
+    Some(arts)
+}
+
 fn extract_artloom_error_message(json: &serde_json::Value) -> String {
     json["error"]
         .as_str()
@@ -389,11 +445,15 @@ pub async fn artloom_handshake(
         s.session_id.clone()
     };
 
-    // Try load real arts, fallback to empty
-    let arts = load_arts_from_disk().unwrap_or_else(|| {
-        println!("No arts found on disk, returning empty.");
-        vec![]
-    });
+    // Prefer arts from the Loom daemon (tool registry); fall back to the local
+    // arts file when Loom isn't running/discoverable, then to empty.
+    let arts = match load_arts_from_loom().await {
+        Some(arts) if !arts.is_empty() => arts,
+        _ => load_arts_from_disk().unwrap_or_else(|| {
+            println!("No arts found on disk, returning empty.");
+            vec![]
+        }),
+    };
 
     // Cache loaded arts for prefetch_shader
     {
@@ -1476,4 +1536,56 @@ fn prefetch_shader_blocking(
 
     println!("[MockArtLoom] Shader prefetch success");
     Ok(result)
+}
+
+#[cfg(test)]
+mod loom_arts_mapping {
+    use super::*;
+
+    #[test]
+    fn maps_loom_arts_response_into_definitions() {
+        // Mirrors Loom's /v1/artloom-compat/arts shape: { arts: [ artloom_compat_art_json ] }
+        let body = r#"{
+          "compatCommand": "list_arts",
+          "count": 1,
+          "arts": [
+            {
+              "id": "hook-wf-abc",
+              "label": "链 工具",
+              "description": "由 Hook 截图工作流封装的 Loom 工具。",
+              "icon": "",
+              "enabled": true,
+              "auto_process": false,
+              "params": [
+                {"id": "input", "label": "输入图像", "widget": "image_link", "default": ""},
+                {"id": "a_width", "label": "A / 宽度", "widget": "number", "default": "512"}
+              ],
+              "defaults": {},
+              "inputs": [],
+              "outputs": []
+            }
+          ]
+        }"#;
+        let arts = map_loom_arts_response(body).expect("map arts");
+        assert_eq!(arts.len(), 1);
+        assert_eq!(arts[0].id, "hook-wf-abc");
+        assert_eq!(arts[0].label, "链 工具");
+        assert_eq!(arts[0].params.len(), 2);
+        assert_eq!(arts[0].params[0].id, "input");
+        assert_eq!(arts[0].params[0].param_type, "image_link");
+        assert_eq!(arts[0].params[1].id, "a_width");
+    }
+
+    #[test]
+    fn skips_unparseable_arts_but_keeps_valid_ones() {
+        let body = r#"{
+          "arts": [
+            {"id": "bad", "label": "no params"},
+            {"id": "good", "label": "ok", "params": [{"id":"p","label":"P","widget":"text","default":""}]}
+          ]
+        }"#;
+        let arts = map_loom_arts_response(body).expect("map");
+        assert_eq!(arts.len(), 1);
+        assert_eq!(arts[0].id, "good");
+    }
 }
