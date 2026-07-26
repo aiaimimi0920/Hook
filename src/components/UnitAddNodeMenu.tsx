@@ -42,7 +42,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
             <Portal mount={document.body}>
                 <div
                     id={`actions-menu-${props.unit?.id ?? "global"}`}
-                    class="hook-terminal-shell hook-terminal-shell--strong absolute flex flex-col pointer-events-auto overflow-hidden transition-all duration-200 ease-out animate-in fade-in zoom-in-95 text-white"
+                    class="hook-terminal-shell hook-terminal-shell--strong absolute flex flex-col pointer-events-auto overflow-hidden transition duration-200 ease-out animate-in fade-in zoom-in-95 text-white"
                     onMouseDown={(e) => e.stopPropagation()}
                     onDblClick={(e) => e.stopPropagation()}
                     style={{
