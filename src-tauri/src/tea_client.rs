@@ -117,10 +117,11 @@ impl TeaIntakeClient {
 
         let status = response.status();
         if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
+            let raw_body = response.text().await.unwrap_or_default();
             return Err(TeaIntakeError::HttpStatus {
                 status: status.as_u16(),
-                body,
+                // Redact secrets before the untrusted body reaches error text / logs.
+                body: redact_sensitive_body(&raw_body, &self.config.auth_token),
             });
         }
 
@@ -187,4 +188,81 @@ fn env_bool(key: &str, default: bool) -> Option<bool> {
         normalized.as_str(),
         "1" | "true" | "yes" | "on" | "enabled"
     ))
+}
+
+/// Redacts secrets from an untrusted server response body before it is surfaced
+/// in an error message or written to a log. Strips `Bearer <token>` sequences
+/// and, defensively, the client's own auth token if the server echoed it back.
+/// Kept local so the Tea client stays self-contained (the loom/talk connectors
+/// carry their own, intentionally distinct, redaction).
+fn redact_sensitive_body(body: &str, auth_token: &str) -> String {
+    let redacted = redact_bearer_tokens(body);
+    if auth_token.is_empty() {
+        redacted
+    } else {
+        redacted.replace(auth_token, "[redacted]")
+    }
+}
+
+fn redact_bearer_tokens(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    let mut rest = input;
+
+    loop {
+        let lower = rest.to_ascii_lowercase();
+        let Some(index) = lower.find("bearer ") else {
+            output.push_str(rest);
+            break;
+        };
+
+        output.push_str(&rest[..index]);
+        output.push_str("Bearer [redacted]");
+
+        let after_prefix = &rest[index + "bearer ".len()..];
+        let token_len = after_prefix
+            .find(|character: char| {
+                character.is_whitespace()
+                    || matches!(character, '"' | '\'' | ',' | '}' | ']' | '\\')
+            })
+            .unwrap_or(after_prefix.len());
+        rest = &after_prefix[token_len..];
+    }
+
+    output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn redacts_bearer_tokens_case_insensitively() {
+        assert_eq!(
+            redact_sensitive_body("auth failed: Bearer abc123.def", ""),
+            "auth failed: Bearer [redacted]"
+        );
+        assert_eq!(
+            redact_sensitive_body("x bearer TOKEN\"y", ""),
+            "x Bearer [redacted]\"y"
+        );
+    }
+
+    #[test]
+    fn redacts_the_clients_own_auth_token_when_echoed_back() {
+        let body = "{\"error\":\"invalid\",\"echo\":\"secret-token-xyz\"}";
+        let out = redact_sensitive_body(body, "secret-token-xyz");
+        assert!(!out.contains("secret-token-xyz"));
+        assert!(out.contains("[redacted]"));
+    }
+
+    #[test]
+    fn leaves_non_sensitive_bodies_unchanged() {
+        let body = "{\"error\":\"not found\"}";
+        assert_eq!(redact_sensitive_body(body, "some-token"), body);
+    }
+
+    #[test]
+    fn empty_auth_token_only_redacts_bearer() {
+        assert_eq!(redact_sensitive_body("plain text", ""), "plain text");
+    }
 }
