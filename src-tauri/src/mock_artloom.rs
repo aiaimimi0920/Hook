@@ -43,13 +43,24 @@ pub struct ArtLoomCapabilities {
     pub art_definitions: Vec<ArtDefinition>,
 }
 
+// Deserialize a string field tolerating an explicit JSON `null` (which serde's
+// `#[serde(default)]` alone does NOT handle — default only covers a *missing*
+// field). Loom's art JSON sends `icon: null` for tools without an icon.
+fn null_tolerant_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt: Option<String> = Option::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_default())
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ArtDefinition {
     pub id: String, // e.g. "core.image.pixelate"
     pub label: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_tolerant_string")]
     pub description: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_tolerant_string")]
     pub icon: String,
     pub params: Vec<ArtParameter>,
     #[serde(default)]
@@ -305,6 +316,76 @@ async fn load_arts_from_loom() -> Option<Vec<ArtDefinition>> {
     Some(arts)
 }
 
+// Merge local arts with the arts already registered in Loom, keyed by id (local
+// wins on conflict). Keeps Loom-side compat tools (e.g. wrapped hook-wf-*) so a
+// full-replace sync doesn't clobber them. Pure/testable.
+fn merge_arts_by_id(local: &[ArtDefinition], existing: &[ArtDefinition]) -> Vec<ArtDefinition> {
+    let mut merged: Vec<ArtDefinition> = local.to_vec();
+    let local_ids: std::collections::HashSet<String> =
+        local.iter().map(|art| art.id.clone()).collect();
+    for art in existing {
+        if !local_ids.contains(&art.id) {
+            merged.push(art.clone());
+        }
+    }
+    merged
+}
+
+// Register Hook's local arts into Loom's tool registry via the artloom-compat
+// sync endpoint, so Loom can resolve/execute them when Hook forwards art/process.
+// Merges with Loom's existing compat tools first so the full-replace sync keeps
+// previously wrapped tools. Best-effort: silently no-ops if Loom is unreachable.
+async fn sync_arts_to_loom(local: &[ArtDefinition]) {
+    let Ok(manifest) = crate::loom_connector::read_default_loom_manifest() else {
+        return;
+    };
+    let base = manifest
+        .transport
+        .base_url
+        .trim_end_matches('/')
+        .to_string();
+
+    let existing = load_arts_from_loom().await.unwrap_or_default();
+    let merged = merge_arts_by_id(local, &existing);
+
+    let client = match reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_millis(3000))
+        .build()
+    {
+        Ok(client) => client,
+        Err(_) => return,
+    };
+    let mut request = client
+        .post(format!("{base}/v1/artloom-compat/arts/sync"))
+        .json(&serde_json::json!({ "arts": merged }));
+    if manifest
+        .transport
+        .auth
+        .as_deref()
+        .unwrap_or("none")
+        .eq_ignore_ascii_case("bearer")
+    {
+        if let Some(token) = manifest
+            .transport
+            .auth_token
+            .as_deref()
+            .map(str::trim)
+            .filter(|token| !token.is_empty())
+        {
+            request = request.bearer_auth(token);
+        }
+    }
+    match request.send().await {
+        Ok(response) => println!(
+            "Synced {} arts to Loom (status {}).",
+            merged.len(),
+            response.status()
+        ),
+        Err(error) => println!("Sync arts to Loom failed: {error}"),
+    }
+}
+
 fn extract_artloom_error_message(json: &serde_json::Value) -> String {
     json["error"]
         .as_str()
@@ -445,15 +526,28 @@ pub async fn artloom_handshake(
         s.session_id.clone()
     };
 
-    // Prefer arts from the Loom daemon (tool registry); fall back to the local
-    // arts file when Loom isn't running/discoverable, then to empty.
-    let arts = match load_arts_from_loom().await {
-        Some(arts) if !arts.is_empty() => arts,
-        _ => load_arts_from_disk().unwrap_or_else(|| {
-            println!("No arts found on disk, returning empty.");
-            vec![]
-        }),
-    };
+    // Load the local arts file (the built-in art nodes).
+    let local_arts = load_arts_from_disk().unwrap_or_else(|| {
+        println!("No arts found on disk.");
+        vec![]
+    });
+
+    // Register the local arts into Loom's tool registry so Loom can resolve and
+    // execute them when Hook forwards art/process (best-effort; no-op if Loom is
+    // down). Merges with Loom's existing compat tools to avoid clobbering them.
+    sync_arts_to_loom(&local_arts).await;
+
+    // Build the display list: local arts first, then Loom arts (deduped by id).
+    let mut arts = local_arts;
+    if let Some(loom_arts) = load_arts_from_loom().await {
+        let existing: std::collections::HashSet<String> =
+            arts.iter().map(|art| art.id.clone()).collect();
+        for art in loom_arts {
+            if !existing.contains(&art.id) {
+                arts.push(art);
+            }
+        }
+    }
 
     // Cache loaded arts for prefetch_shader
     {
@@ -718,6 +812,7 @@ pub async fn artloom_dispatch_action(
                         if et == "cloud_api"
                             || et == "script"
                             || et == "python"
+                            || et == "shader"
                             || et == "mcp"
                             || et == "workflow"
                         {
@@ -1553,7 +1648,7 @@ mod loom_arts_mapping {
               "id": "hook-wf-abc",
               "label": "链 工具",
               "description": "由 Hook 截图工作流封装的 Loom 工具。",
-              "icon": "",
+              "icon": null,
               "enabled": true,
               "auto_process": false,
               "params": [
@@ -1587,5 +1682,49 @@ mod loom_arts_mapping {
         let arts = map_loom_arts_response(body).expect("map");
         assert_eq!(arts.len(), 1);
         assert_eq!(arts[0].id, "good");
+    }
+}
+
+#[cfg(test)]
+mod arts_merge {
+    use super::*;
+
+    fn art(id: &str, label: &str) -> ArtDefinition {
+        ArtDefinition {
+            id: id.to_string(),
+            label: label.to_string(),
+            description: String::new(),
+            icon: String::new(),
+            params: vec![],
+            auto_process: false,
+            enabled: true,
+            defaults: HashMap::new(),
+            execution_type: None,
+            execution: None,
+            input_schema: None,
+            output_schema: None,
+        }
+    }
+
+    #[test]
+    fn merge_prefers_local_and_appends_unique_existing() {
+        let local = vec![art("custom-1", "本地A"), art("custom-2", "本地B")];
+        let existing = vec![
+            art("custom-1", "Loom覆盖版"), // dup id → local wins, existing dropped
+            art("hook-wf-x", "封装工具"),  // unique → kept
+        ];
+        let merged = merge_arts_by_id(&local, &existing);
+        let ids: Vec<&str> = merged.iter().map(|a| a.id.as_str()).collect();
+        assert_eq!(ids, vec!["custom-1", "custom-2", "hook-wf-x"]);
+        // local wins on the conflicting id
+        assert_eq!(merged[0].label, "本地A");
+    }
+
+    #[test]
+    fn merge_with_empty_existing_returns_local() {
+        let local = vec![art("a", "A")];
+        let merged = merge_arts_by_id(&local, &[]);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].id, "a");
     }
 }

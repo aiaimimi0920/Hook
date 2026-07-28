@@ -563,6 +563,10 @@ export default function App() {
           onToggleActions: () => {
               const id = selectedStickerId();
               if (id) {
+                  // Re-pull arts from Loom each time the add-node menu opens, so
+                  // tools registered/wrapped after Hook started (or before the
+                  // Loom daemon was ready at handshake time) still show up.
+                  void refreshCapabilities();
                   uiActions.toggleActions(id);
                   scheduleOverlayHitTestRefresh();
               }
