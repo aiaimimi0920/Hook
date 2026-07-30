@@ -139,7 +139,8 @@ describe("Hook sticker drag-out contract", () => {
     expect(apiSource).toContain("setNativeStickerDragPreflight");
     expect(unitViewSource).toContain("api.setNativeStickerDragPreflight(true)");
     expect(unitViewSource).toContain("api.setNativeStickerDragPreflight(false)");
-    expect(unitViewSource).toContain("resolveExistingNativeDragFilePath()");
+    expect(unitViewSource).toContain("resolveCurrentUnitDragExportPlan()");
+    expect(unitViewSource).toContain("resolveUnitDragExportPlan");
     expect(unitViewSource).toContain("dragOutFilePath");
     expect(unitViewSource).toContain("renderStickerComposite(");
     expect(appSource).toContain('hook:overlay-native-drag-preflight-down');
@@ -358,7 +359,7 @@ describe("Hook sticker drag-out contract", () => {
     expect(clipboardSource).toContain("previewSrc: s.data.previewSrc");
     expect(clipboardSource).toContain("dragOutFilePath: clip.dragOutFilePath");
     expect(clipboardSource).toContain("filePath: clip.filePath");
-    expect(unitViewSource).toContain("if (!useExistingPath) {");
+    expect(unitViewSource).toContain("if (exportPlan.cacheSavedPath) {");
     expect(unitViewSource).toContain("graphStore.actions.updateUnitData(props.unit.id, {");
   });
 
@@ -391,6 +392,16 @@ describe("Hook sticker drag-out contract", () => {
     );
     expect(nativeDragHelper).toContain("mode: drag::DragMode::Copy");
     expect(nativeDragHelper).not.toContain("mode: drag::DragMode::CopyOrMove");
+  });
+
+  it("notifies Explorer that the saved drag-export file and its parent folder changed so destination folders refresh without a manual F5", () => {
+    expect(rustSource).toContain("fn notify_shell_path_changed(path: &Path)");
+    expect(rustSource).toContain("SHChangeNotify(");
+    expect(rustSource).toContain("SHCNE_UPDATEITEM");
+    expect(rustSource).toContain("SHCNE_UPDATEDIR");
+    expect(rustSource).toContain("SHCNF_PATHW");
+    expect(rustSource).toContain("SHCNF_FLUSHNOWAIT");
+    expect(rustSource).toContain("notify_shell_path_changed(&target_path);");
   });
 
   it("keeps the vendored Windows drag crate capable of copy-or-move effects even though Hook currently exports stickers as copy-only drags", () => {

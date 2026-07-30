@@ -169,4 +169,33 @@ describe("session sticker payload helpers", () => {
         });
         consoleError.mockRestore();
     });
+
+    it("prefers live param overrides when persisting a session sticker", async () => {
+        const unit = makeSticker({
+            type: "art",
+            artId: "custom-1770177813416",
+            params: {
+                force_update: 1,
+            },
+        });
+
+        const result = await buildSessionStickersForSave([unit], {
+            renderBakedPreviewSrc: vi.fn(),
+            previewCache: new Map(),
+            paramsByUnitId: {
+                "sticker-1": {
+                    query: "日本美女",
+                    force_update: 2,
+                },
+            },
+        });
+
+        expect(result[0]).toMatchObject({
+            id: "sticker-1",
+            params: {
+                query: "日本美女",
+                force_update: 2,
+            },
+        });
+    });
 });

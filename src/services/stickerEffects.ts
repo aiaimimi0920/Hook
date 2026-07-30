@@ -91,18 +91,32 @@ export const paintMosaicGrid = (
     const w = Math.max(1, Math.round(width));
     const h = Math.max(1, Math.round(height));
     const palette = colors.length > 0 ? colors : MOSAIC_CELL_COLORS;
-    // Absolute column/row of the first cell that covers the canvas top-left, and
-    // the sub-cell pixel offset so cell boundaries land on the absolute grid.
-    const baseCol = Math.floor(originX / size);
-    const baseRow = Math.floor(originY / size);
-    const offsetX = baseCol * size - originX;
-    const offsetY = baseRow * size - originY;
-    for (let py = offsetY; py < h; py += size) {
-        for (let px = offsetX; px < w; px += size) {
-            const column = baseCol + Math.round((px - offsetX) / size);
-            const row = baseRow + Math.round((py - offsetY) / size);
+    // When the stroke box starts on fractional coordinates, painting cell
+    // rects directly at fractional x/y creates antialiased seams between cells.
+    // Those seams become partially transparent and can leak readable pixels from
+    // the source image in exported PNGs. Instead, snap each local cell bounds to
+    // integer canvas pixels while keeping the ABSOLUTE sticker-space column/row
+    // identity, so the export matches the live sticker-sized texture.
+    const startCol = Math.floor(originX / size);
+    const endCol = Math.ceil((originX + w) / size);
+    const startRow = Math.floor(originY / size);
+    const endRow = Math.ceil((originY + h) / size);
+
+    for (let row = startRow; row < endRow; row += 1) {
+        const absoluteTop = row * size;
+        const absoluteBottom = absoluteTop + size;
+        const top = Math.max(0, Math.floor(absoluteTop - originY));
+        const bottom = Math.min(h, Math.ceil(absoluteBottom - originY));
+        if (bottom <= top) continue;
+
+        for (let column = startCol; column < endCol; column += 1) {
+            const absoluteLeft = column * size;
+            const absoluteRight = absoluteLeft + size;
+            const left = Math.max(0, Math.floor(absoluteLeft - originX));
+            const right = Math.min(w, Math.ceil(absoluteRight - originX));
+            if (right <= left) continue;
             context.fillStyle = palette[mosaicCellColorIndex(column, row, palette.length)];
-            context.fillRect(px, py, size, size);
+            context.fillRect(left, top, right - left, bottom - top);
         }
     }
 };

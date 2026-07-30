@@ -38,7 +38,7 @@ toml = "0.8"
 thiserror = "1"
 hound = "3"
 async-trait = "0.1"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 image = "0.25.9"
 base64 = "0.22.1"
 arboard = "3.6.1"

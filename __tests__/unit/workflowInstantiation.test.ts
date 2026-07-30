@@ -93,6 +93,32 @@ describe("buildWorkflowInstantiation", () => {
         expect(unit.data.executionConfig).toBeDefined();
     });
 
+    it("4b. still instantiates an art node when a stale payload labels it as sticker but carries artId in node data", () => {
+        const capability = {
+            id: "color-transfer-art",
+            inputs: [{ name: "input_image", label: "In", type: "image" }],
+            outputs: [{ name: "output_image", label: "Out", type: "image" }],
+            params: [],
+        } as unknown as ArtCapability;
+        const result = buildWorkflowInstantiation(
+            mkPayload({
+                nodes: [
+                    {
+                        id: "n",
+                        type: "sticker",
+                        data: { artId: "color-transfer-art" },
+                    },
+                ],
+            }),
+            counterDeps({ capabilities: [capability] }),
+        );
+        const unit = result!.units[0];
+        expect(unit.type).toBe("art");
+        expect(unit.artId).toBe("color-transfer-art");
+        expect(unit.inputs.map((p) => p.id)).toEqual(["input_image"]);
+        expect(unit.outputs.map((p) => p.id)).toEqual(["output_image"]);
+    });
+
     it("5. prefers data.w over measured.width over the default", () => {
         const both = buildWorkflowInstantiation(
             mkPayload({ nodes: [{ id: "a", data: { w: 100 }, measured: { width: 50 } }] }),

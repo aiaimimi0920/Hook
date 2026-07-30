@@ -37,6 +37,7 @@ interface BuildSessionStickersForSaveOptions {
     renderBakedPreviewSrc: (unit: Unit) => Promise<string>;
     previewCache: Map<string, { signature: string; src: string }>;
     buildPreviewSignature?: (unit: Unit) => string | undefined;
+    paramsByUnitId?: Record<string, Record<string, unknown>>;
 }
 
 export const buildSessionStickersForSave = async (
@@ -46,20 +47,28 @@ export const buildSessionStickersForSave = async (
     Promise.all(
         units.map(async (unit) => {
             const base = mapUnitToSessionSticker(unit);
+            const params = options.paramsByUnitId?.[unit.id];
+            const normalizedBase =
+                params === undefined
+                    ? base
+                    : {
+                          ...base,
+                          params,
+                      };
             if (!requiresBakedStickerSyncImage(unit)) {
-                return base;
+                return normalizedBase;
             }
 
             const signature =
                 options.buildPreviewSignature?.(unit) ?? buildSyncedImageSignature(unit);
             if (!signature) {
-                return base;
+                return normalizedBase;
             }
 
             const cached = options.previewCache.get(unit.id);
             if (cached?.signature === signature) {
                 return {
-                    ...base,
+                    ...normalizedBase,
                     previewSrc: cached.src,
                 };
             }
@@ -68,12 +77,12 @@ export const buildSessionStickersForSave = async (
                 const bakedPreviewSrc = await options.renderBakedPreviewSrc(unit);
                 options.previewCache.set(unit.id, { signature, src: bakedPreviewSrc });
                 return {
-                    ...base,
+                    ...normalizedBase,
                     previewSrc: bakedPreviewSrc,
                 };
             } catch (error) {
                 console.error("Bake sticker preview for session persistence failed", unit.id, error);
-                return base;
+                return normalizedBase;
             }
         }),
     );

@@ -26,6 +26,9 @@ describe("Hook sticker double-click contract", () => {
         expect(actionsSource).toContain("sticker-double-click-window");
         expect(unitViewSource).toContain('"pointer-events": "none"');
         expect(unitViewSource).toContain("if (props.multiDragPositions && props.multiDragPositions[props.unit.id])");
+        expect(unitViewSource).toContain('data-sticker-base-image="true"');
+        expect(unitViewSource).toContain("baseImageIntrinsicSize() || undefined");
+        expect(unitViewSource).toContain("setBaseImageIntrinsicSize({ w: naturalWidth, h: naturalHeight });");
         expect(unitViewSource).not.toContain("if (draggingStickerId() && props.multiDragPositions");
     });
 

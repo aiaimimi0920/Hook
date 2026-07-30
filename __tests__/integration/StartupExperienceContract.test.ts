@@ -37,4 +37,35 @@ describe("Hook startup experience contract", () => {
     expect(syncServiceSource).not.toContain("await api.showCanvasWindow();");
     expect(syncServiceSource).not.toContain("await api.showOverlayHost(true);");
   });
+
+  it("reloads art capabilities after session restore when restored art nodes would otherwise boot without their catalog", () => {
+    const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
+    const restoreIndex = appSource.indexOf("await syncService.restoreSession(bootProfile || undefined);");
+    const historyIndex = appSource.indexOf("const rawHistory = await api.loadHistory();");
+
+    expect(restoreIndex).toBeGreaterThanOrEqual(0);
+    expect(historyIndex).toBeGreaterThan(restoreIndex);
+
+    const restoreTail = appSource.slice(restoreIndex, historyIndex);
+    expect(restoreTail).toContain("restoredSessionNeedsCapabilityRefresh");
+    expect(restoreTail).toContain("await refreshCapabilities();");
+  });
+
+  it("re-applies the persisted session after restored-art capability refresh so art nodes rebuild from the real catalog", () => {
+    const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
+    const restoreIndex = appSource.indexOf("await syncService.restoreSession(bootProfile || undefined);");
+    const historyIndex = appSource.indexOf("const rawHistory = await api.loadHistory();");
+
+    expect(restoreIndex).toBeGreaterThanOrEqual(0);
+    expect(historyIndex).toBeGreaterThan(restoreIndex);
+
+    const restoreTail = appSource.slice(restoreIndex, historyIndex);
+    const restoreCall = "await syncService.restoreSession(bootProfile || undefined);";
+    const firstRestore = restoreTail.indexOf(restoreCall);
+    const refreshCall = restoreTail.indexOf("await refreshCapabilities();");
+    const secondRestore = restoreTail.indexOf(restoreCall, firstRestore + restoreCall.length);
+
+    expect(refreshCall).toBeGreaterThan(firstRestore);
+    expect(secondRestore).toBeGreaterThan(refreshCall);
+  });
 });

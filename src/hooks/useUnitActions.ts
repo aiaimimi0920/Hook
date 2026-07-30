@@ -3,7 +3,10 @@ import { graphStore } from "../store/graphStore";
 import { syncService } from "../services/syncService";
 import { logger } from "../services/logger";
 import { setDraggingStickerId, setMultiDragPositions, uiActions } from "../store/uiStore";
-import { computeMinifiedStickerWindow, computeRestoredMinifiedStickerWindow } from "../services/stickerEditing";
+import {
+    computeMinifiedStickerWindow,
+    computeRestoredMinifiedStickerWindow,
+} from "../services/stickerEditing";
 import { resolveStickerSurfaceDoubleClickTarget } from "../services/stickerDoubleClick";
 import { useNodeParameters } from "./useNodeParameters";
 import { DEFAULT_EXECUTION_CONFIG, type Unit } from "../types/unit";
@@ -139,7 +142,9 @@ export function useUnitActions() {
           // "Double click defaults to showing partial pixels near the clicked point"
           const target = resolveStickerSurfaceDoubleClickTarget(e.target, e.currentTarget) ?? (e.currentTarget as HTMLElement);
           const rect = target.getBoundingClientRect();
-          // Relative Click (0 to 1)
+          // Relative click in the full visible sticker frame. The mini window
+          // position should stay centered on the actual click whenever the
+          // square crop fits inside the full sticker bounds.
           const relX = (e.clientX - rect.left) / rect.width;
           const relY = (e.clientY - rect.top) / rect.height;
           const minified = computeMinifiedStickerWindow(

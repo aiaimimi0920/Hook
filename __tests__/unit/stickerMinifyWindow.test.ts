@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    computeContainFitPlacement,
     computeMinifiedStickerAnnotationViewport,
     computeMinifiedStickerViewport,
     computeMinifiedStickerWindow,
@@ -95,6 +96,7 @@ describe("sticker minify window", () => {
 
     it("combines the existing manual crop with the mini crop so crop-then-minify still shows the currently visible sticker instead of the original full image", () => {
         const viewport = computeMinifiedStickerViewport(
+            { w: 100, h: 100 },
             { w: 120, h: 80 },
             { x: 10, y: 5 },
             {
@@ -113,6 +115,7 @@ describe("sticker minify window", () => {
 
     it("uses the saved visible sticker frame directly when no manual crop exists", () => {
         const viewport = computeMinifiedStickerViewport(
+            { w: 100, h: 100 },
             { w: 120, h: 80 },
             { x: 10, y: 5 },
             undefined,
@@ -153,6 +156,88 @@ describe("sticker minify window", () => {
             height: 100,
             offsetX: 10,
             offsetY: 5,
+        });
+    });
+
+    it("computes the contain-fitted visible image rect inside a wider sticker frame", () => {
+        const placement = computeContainFitPlacement(
+            { width: 200, height: 100 },
+            { width: 100, height: 100 },
+        );
+
+        expect(placement).toEqual({
+            left: 50,
+            top: 0,
+            width: 100,
+            height: 100,
+        });
+    });
+
+    it("keeps the minified viewport aligned to the contain-fitted image so a square source is not stretched inside a wide sticker", () => {
+        const viewport = computeMinifiedStickerViewport(
+            { w: 100, h: 100 },
+            { w: 200, h: 100 },
+            { x: 50, y: 0 },
+            undefined,
+            { w: 100, h: 100 },
+        );
+
+        expect(viewport).toEqual({
+            width: 100,
+            height: 100,
+            offsetX: 0,
+            offsetY: 0,
+        });
+    });
+
+    it("preserves left-side letterboxing when the mini crop is centered on a click near the left blank margin", () => {
+        const viewport = computeMinifiedStickerViewport(
+            { w: 100, h: 100 },
+            { w: 200, h: 100 },
+            { x: 10, y: 0 },
+            undefined,
+            { w: 100, h: 100 },
+        );
+
+        expect(viewport).toEqual({
+            width: 100,
+            height: 100,
+            offsetX: 0,
+            offsetY: 0,
+        });
+    });
+
+    it("clamps right-side blank clicks back onto the visible image instead of sliding the mini viewport into a transparent crop", () => {
+        const viewport = computeMinifiedStickerViewport(
+            { w: 100, h: 100 },
+            { w: 200, h: 100 },
+            { x: 100, y: 0 },
+            undefined,
+            { w: 100, h: 100 },
+        );
+
+        expect(viewport).toEqual({
+            width: 100,
+            height: 100,
+            offsetX: 0,
+            offsetY: 0,
+        });
+    });
+
+    it("falls back to the full sticker frame when contain-fit source dimensions are unavailable", () => {
+        const viewport = computeMinifiedStickerViewport(
+            { w: 100, h: 100 },
+            { w: 200, h: 100 },
+            { x: 10, y: 0 },
+            undefined,
+            undefined,
+        );
+
+        expect(viewport).toEqual({
+            width: 200,
+            height: 100,
+            offsetX: 10,
+            offsetY: 0,
         });
     });
 });

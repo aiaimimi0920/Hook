@@ -2,17 +2,19 @@
  * ShaderPreview - WebGL canvas component for Shader Art real-time preview.
  */
 
-import { Component, createEffect, onCleanup, onMount } from "solid-js";
+import { Component, createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { isTauriRuntimeAvailable } from "../services/api";
 import { shaderCache } from "../services/shaderCache";
 import { ShaderRenderer } from "./ShaderRenderer";
+import { computeContainFitPlacement } from "../services/stickerEditing";
 
 interface Props {
     unitId: string;
     artId: string;
     artPath?: string;
     params: Record<string, any>;
+    fallbackPreviewSrc?: string;
     inputImageSrc?: string;
     referenceImageSrc?: string;
     requiresReference?: boolean;
@@ -20,6 +22,7 @@ interface Props {
     height: number;
     opacity?: number;
     onRendered?: (dataUrl: string) => void;
+    onIntrinsicSizeChange?: (size: { w: number; h: number }) => void;
     resolveUnitImage?: (unitId: string) => string | undefined;
 }
 
@@ -31,6 +34,10 @@ export const ShaderPreview: Component<Props> = (props) => {
     let lastShaderContextKey = "";
     let lastInputSrc = "";
     let lastRenderedDataUrl = "";
+    let lastReactiveResetKey = "";
+    const [inputImageSize, setInputImageSize] = createSignal<{ width: number; height: number } | null>(null);
+    const [fallbackPreviewSize, setFallbackPreviewSize] = createSignal<{ width: number; height: number } | null>(null);
+    const [hasRenderedThisMount, setHasRenderedThisMount] = createSignal(false);
 
     const toBrowserImageUrl = (src: string) => {
         if (src.startsWith("data:") || src.startsWith("http") || !isTauriRuntimeAvailable()) {
@@ -41,6 +48,7 @@ export const ShaderPreview: Component<Props> = (props) => {
 
     const disposeRenderer = () => {
         renderExportSeq++;
+        setHasRenderedThisMount(false);
         if (renderer && props.artId) {
             shaderCache.disposeRenderer(props.artId, props.unitId);
             renderer = null;
@@ -54,6 +62,12 @@ export const ShaderPreview: Component<Props> = (props) => {
         const img = new Image();
         img.crossOrigin = "anonymous";
         img.onload = () => {
+            const width = img.naturalWidth || img.width;
+            const height = img.naturalHeight || img.height;
+            if (width > 0 && height > 0) {
+                setInputImageSize({ width, height });
+                props.onIntrinsicSizeChange?.({ w: width, h: height });
+            }
             renderer?.loadTexture("input", img);
             render();
         };
@@ -112,6 +126,23 @@ export const ShaderPreview: Component<Props> = (props) => {
         loadInputImage(inputSrc);
     };
 
+    const canvasPlacement = createMemo(() => {
+        const source = inputImageSize() || fallbackPreviewSize();
+        if (!source) {
+            return {
+                left: 0,
+                top: 0,
+                width: props.width,
+                height: props.height,
+            };
+        }
+
+        return computeContainFitPlacement(
+            { width: props.width, height: props.height },
+            source,
+        );
+    });
+
     onMount(() => {
         void ensureRenderer();
     });
@@ -125,11 +156,34 @@ export const ShaderPreview: Component<Props> = (props) => {
         const referenceSrc = props.referenceImageSrc;
         const artPath = props.artPath;
         const requiresReference = props.requiresReference;
+        const reactiveResetKey = [
+            props.unitId,
+            props.artId,
+            inputSrc || "",
+            referenceSrc || "",
+            artPath || "",
+            requiresReference ? "1" : "0",
+        ].join("|");
         void inputSrc;
         void referenceSrc;
         void artPath;
         void requiresReference;
+        if (reactiveResetKey === lastReactiveResetKey) {
+            return;
+        }
+        lastReactiveResetKey = reactiveResetKey;
+        setHasRenderedThisMount(false);
+        setInputImageSize(null);
+        setFallbackPreviewSize(null);
         void ensureRenderer();
+    });
+
+    createEffect(() => {
+        const fallbackPreviewSrc = props.fallbackPreviewSrc;
+        void fallbackPreviewSrc;
+        if (!hasRenderedThisMount()) {
+            setFallbackPreviewSize(null);
+        }
     });
 
     const prevParamsRef: { current: Record<string, any> } = { current: {} };
@@ -200,21 +254,51 @@ export const ShaderPreview: Component<Props> = (props) => {
         if (!renderer || !renderer.isReady()) return;
 
         renderer.render();
+        setHasRenderedThisMount(true);
         emitRenderedAsync();
     };
 
     return (
-        <canvas
-            id={`shader-canvas-${props.unitId}`}
-            ref={canvasRef!}
-            width={props.width}
-            height={props.height}
-            style={{
-                width: "100%",
-                height: "100%",
-                "object-fit": "fill",
-                opacity: props.opacity ?? 1.0
-            }}
-        />
+        <>
+            <Show when={props.fallbackPreviewSrc && !hasRenderedThisMount()}>
+                <img
+                    data-shader-fallback-preview="true"
+                    src={toBrowserImageUrl(props.fallbackPreviewSrc!)}
+                    alt=""
+                    draggable={false}
+                    onLoad={(event) => {
+                        const image = event.currentTarget;
+                        if (!(image instanceof HTMLImageElement)) return;
+                        const width = image.naturalWidth || image.width;
+                        const height = image.naturalHeight || image.height;
+                        if (width <= 0 || height <= 0) return;
+                        setFallbackPreviewSize({ width, height });
+                    }}
+                    style={{
+                        position: "absolute",
+                        display: "block",
+                        left: `${canvasPlacement().left}px`,
+                        top: `${canvasPlacement().top}px`,
+                        width: `${canvasPlacement().width}px`,
+                        height: `${canvasPlacement().height}px`,
+                        "object-fit": "fill",
+                        opacity: props.opacity ?? 1.0,
+                    }}
+                />
+            </Show>
+            <canvas
+                id={`shader-canvas-${props.unitId}`}
+                ref={canvasRef!}
+                style={{
+                    position: "absolute",
+                    display: "block",
+                    left: `${canvasPlacement().left}px`,
+                    top: `${canvasPlacement().top}px`,
+                    width: `${canvasPlacement().width}px`,
+                    height: `${canvasPlacement().height}px`,
+                    opacity: props.opacity ?? 1.0
+                }}
+            />
+        </>
     );
 };

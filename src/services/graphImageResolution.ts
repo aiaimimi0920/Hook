@@ -114,6 +114,34 @@ export const resolveUnitOutputValue = (input: {
     return undefined;
 };
 
+export const resolveConnectedUnitImageForPort = (input: {
+    units: readonly Unit[];
+    links: readonly Link[];
+    unitId: string;
+    portId: string;
+    capabilities?: readonly ArtCapability[];
+}): string | undefined => {
+    const link = input.links.find(
+        (candidate) =>
+            candidate.toUnitId === input.unitId &&
+            candidate.toPortId === input.portId,
+    );
+    if (!link) return undefined;
+
+    const upstreamValue = resolveUnitOutputValue({
+        units: input.units,
+        links: input.links,
+        capabilities: input.capabilities,
+        unitId: link.fromUnitId,
+        portId: link.fromPortId || "output",
+    });
+    const directValue =
+        getObjectField(upstreamValue, ["value", "data", "src", "previewSrc", "url", "path"]) ??
+        upstreamValue;
+
+    return typeof directValue === "string" && directValue.length > 0 ? directValue : undefined;
+};
+
 const toFiniteNumber = (value: unknown) => {
     const numeric = typeof value === "number" ? value : Number(value);
     return Number.isFinite(numeric) ? numeric : undefined;

@@ -41,6 +41,15 @@ interface UseShortcutsOptions {
   contextProvider: () => string | null;
 }
 
+export function isGlobalShortcutEditingTarget(target: EventTarget | null): target is HTMLElement {
+  return target instanceof HTMLElement
+    && (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA");
+}
+
+export function shouldIgnoreGlobalShortcut(target: EventTarget | null, key: string): boolean {
+  return isGlobalShortcutEditingTarget(target) && key !== "Escape";
+}
+
 /**
  * Hook to set up keyboard shortcut handling
  */
@@ -102,10 +111,7 @@ export function useShortcuts(options: UseShortcutsOptions) {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (suppressBareAlt(e)) return;
 
-      // Skip if editing text
-      const target = e.target as HTMLElement;
-      const isEditing = target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-      if (isEditing && !['Escape', 'Tab'].includes(e.key)) return;
+      if (shouldIgnoreGlobalShortcut(e.target, e.key)) return;
 
       const handled = ShortcutManager.handleKeyDown(e);
       if (handled) {

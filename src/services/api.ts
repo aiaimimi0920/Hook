@@ -807,6 +807,8 @@ export const api = {
     // --- File IO ---
     readImageFromPath: (path: string): Promise<string> =>
         safeInvoke("read_image_from_path", { path }),
+    cacheRemoteImageAsset: (url: string, referer?: string): Promise<string> =>
+        safeInvoke("cache_remote_image_asset", { url, referer }),
 
     beginStickerNativeFileDrag: (base64: string, filenameHint?: string): Promise<string> =>
         safeInvoke(

@@ -8,6 +8,7 @@ import type {
     StickerTextAnnotation,
 } from "../types/stickerEditing";
 import type { ArtCapability } from "./protocol";
+import { graphStore } from "../store/graphStore";
 import {
     BLUR_EFFECT_OVERLAY_FILL,
     computeEffectSourceProjection,
@@ -428,6 +429,14 @@ export const resolveStickerCompositeBaseImageSrc = (input: {
     return displaySrc || input.unit.data.previewSrc || input.unit.data.src;
 };
 
+const resolveRuntimeStickerCompositeBaseImageSrc = (unit: Unit) =>
+    resolveStickerCompositeBaseImageSrc({
+        unit,
+        units: graphStore.units,
+        links: graphStore.links,
+        capabilities: graphStore.capabilities,
+    });
+
 export const renderStickerCompositeWithAnnotations = async (
     unit: Unit,
     annotationsOverride: StickerAnnotation[],
@@ -438,6 +447,7 @@ export const renderStickerCompositeWithAnnotations = async (
 ): Promise<string> => {
     const baseSrc =
         options?.baseImageSrcOverride ||
+        resolveRuntimeStickerCompositeBaseImageSrc(unit) ||
         (unit.data.rasterizedAnnotationLayerSrc
             ? unit.data.src
             : unit.data.previewSrc || unit.data.src);
@@ -616,9 +626,10 @@ export const renderStickerTransparentAnnotationLayer = async (
     annotationIds: string[],
 ): Promise<string> => {
     const baseSrc =
-        unit.data.rasterizedAnnotationLayerSrc
+        resolveRuntimeStickerCompositeBaseImageSrc(unit) ||
+        (unit.data.rasterizedAnnotationLayerSrc
             ? unit.data.src
-            : unit.data.previewSrc || unit.data.src;
+            : unit.data.previewSrc || unit.data.src);
     if (!baseSrc) {
         throw new Error("Sticker has no image source");
     }

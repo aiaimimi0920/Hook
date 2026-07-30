@@ -1,5 +1,6 @@
 
 import { Component, Show, createEffect, createSignal } from "solid-js";
+import { api } from "../../../services/api";
 
 interface StringControlProps {
   id: string;
@@ -34,8 +35,22 @@ export const StringControl: Component<StringControlProps> = (props) => {
     event.stopPropagation();
   };
 
+  const focusEditableTarget = (
+    event: MouseEvent & { currentTarget: HTMLInputElement }
+      | PointerEvent & { currentTarget: HTMLInputElement },
+  ) => {
+    stopInteractiveEvent(event);
+    if (!props.isDisabled) {
+      const target = event.currentTarget;
+      target.focus();
+      void api.focusOverlayWindow().finally(() => {
+        requestAnimationFrame(() => target.focus());
+      });
+    }
+  };
+
   return (
-    <div class="flex items-center gap-3 w-full h-6" onMouseDown={stopInteractiveEvent} onPointerDown={stopInteractiveEvent} onClick={stopInteractiveEvent}>
+    <div class="flex items-center gap-3 w-full h-6">
       <label
         class="text-[#EEF1FF]/80 font-medium text-[11px] shrink-0 truncate cursor-context-menu"
         style={{ "min-width": "70px" }}
@@ -52,7 +67,9 @@ export const StringControl: Component<StringControlProps> = (props) => {
             disabled={props.isDisabled}
             onInput={(e) => {
               setIsEditing(true);
-              setDraftValue(e.currentTarget.value);
+              const next = e.currentTarget.value;
+              setDraftValue(next);
+              props.onChange(next, false);
             }}
             onBlur={commitDraft}
             onKeyDown={(event) => {
@@ -66,8 +83,8 @@ export const StringControl: Component<StringControlProps> = (props) => {
                 setDraftValue(props.value || "");
               }
             }}
-            onMouseDown={stopInteractiveEvent}
-            onPointerDown={stopInteractiveEvent}
+            onPointerDown={focusEditableTarget}
+            onMouseDown={focusEditableTarget}
             onClick={stopInteractiveEvent}
             onContextMenu={(event) => {
               stopInteractiveEvent(event);

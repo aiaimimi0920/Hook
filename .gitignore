@@ -9,6 +9,7 @@ tmp-*
 tmp/
 src-tauri/target
 src-tauri/target-codex-verify
+src-tauri/target-test-sync
 .vscode/
 .idea/
 .DS_Store

@@ -360,6 +360,7 @@ const executeSyncCycle = async () => {
         renderBakedPreviewSrc,
         previewCache: bakedSyncPreviewCache,
         buildPreviewSignature: buildBakedPreviewSignature,
+        paramsByUnitId: graphStore.unitParams,
     });
 
     await api.saveSession(

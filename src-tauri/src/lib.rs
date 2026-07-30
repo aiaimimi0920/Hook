@@ -74,7 +74,10 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     VK_SHIFT, VK_TAB,
 };
 #[cfg(target_os = "windows")]
-use windows::Win32::UI::Shell::{IShellWindows, IWebBrowser2, ShellWindows};
+use windows::Win32::UI::Shell::{
+    IShellWindows, IWebBrowser2, ShellWindows, SHChangeNotify, SHCNE_UPDATEDIR,
+    SHCNE_UPDATEITEM, SHCNF_FLUSHNOWAIT, SHCNF_PATHW,
+};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CallWindowProcW, CopyIcon, CreateWindowExW, DefWindowProcW, DispatchMessageW,
@@ -458,6 +461,44 @@ pub(crate) fn append_runtime_log_line(message: &str) {
     let _ = runtime_log_sender().try_send(line);
 }
 
+// Install a process-wide panic hook that records the panic message, location,
+// and thread name to the runtime log BEFORE the runtime aborts. The release
+// profile is `panic = "abort"` with `strip = true` and no symbols, so a panic
+// (on the UI thread OR any worker like the mock ArtLoom processing thread)
+// otherwise vanishes as a bare Windows fast-fail (0xc0000409) with no message.
+// Writing synchronously here — not via the async runtime-log channel — is
+// essential: the channel's background thread may never drain before abort.
+fn install_panic_logger() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let location = info
+            .location()
+            .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
+            .unwrap_or_else(|| "<unknown location>".to_string());
+        let message = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            (*s).to_string()
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "<non-string panic payload>".to_string()
+        };
+        let thread = std::thread::current();
+        let thread_name = thread.name().unwrap_or("<unnamed>").to_string();
+        let line = format!(
+            "[{}] PANIC in thread '{}' at {}: {}",
+            runtime_log_timestamp(),
+            thread_name,
+            location,
+            message
+        );
+        // Synchronous write so the record survives the imminent abort.
+        append_runtime_log_line_sync(&line);
+        eprintln!("{line}");
+        // Preserve default behavior (prints to stderr) for good measure.
+        default_hook(info);
+    }));
+}
+
 fn unix_timestamp_millis() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -664,6 +705,256 @@ fn cache_file_name_for_log(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| "<unknown>".to_string())
+}
+
+fn ensure_image_search_cache_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let cache_dir = effective_app_data_dir(app)?.join("image-search-cache");
+    fs::create_dir_all(&cache_dir)
+        .map_err(|e| format!("Failed to create image-search cache dir: {}", e))?;
+    Ok(cache_dir)
+}
+
+fn remote_image_cache_key(url: &str) -> String {
+    session_image_asset_fingerprint(url.as_bytes())
+}
+
+fn find_cached_remote_image_path(cache_dir: &Path, url: &str) -> Result<Option<PathBuf>, String> {
+    if !cache_dir.exists() {
+        return Ok(None);
+    }
+
+    let prefix = format!("remote_{}.", remote_image_cache_key(url));
+    for entry in fs::read_dir(cache_dir)
+        .map_err(|e| format!("Failed to read image-search cache dir: {}", e))?
+    {
+        let entry =
+            entry.map_err(|e| format!("Failed to inspect image-search cache entry: {}", e))?;
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        if name.starts_with(&prefix)
+            && fs::metadata(&path)
+                .map(|metadata| metadata.len() > 0)
+                .unwrap_or(false)
+        {
+            return Ok(Some(path));
+        }
+    }
+
+    Ok(None)
+}
+
+fn remote_image_cache_extension(
+    url: &str,
+    bytes: &[u8],
+    content_type: Option<&str>,
+) -> &'static str {
+    if let Ok(format) = image::guess_format(bytes) {
+        return match format {
+            image::ImageFormat::Png => "png",
+            image::ImageFormat::Jpeg => "jpg",
+            image::ImageFormat::WebP => "webp",
+            image::ImageFormat::Bmp => "bmp",
+            image::ImageFormat::Gif => "gif",
+            _ => "png",
+        };
+    }
+
+    if let Some(content_type) = content_type {
+        let normalized = content_type.to_ascii_lowercase();
+        if normalized.contains("png") {
+            return "png";
+        }
+        if normalized.contains("jpeg") || normalized.contains("jpg") {
+            return "jpg";
+        }
+        if normalized.contains("webp") {
+            return "webp";
+        }
+        if normalized.contains("bmp") {
+            return "bmp";
+        }
+        if normalized.contains("gif") {
+            return "gif";
+        }
+    }
+
+    let path_part = url.split('?').next().unwrap_or(url);
+    let path_part = path_part.split('#').next().unwrap_or(path_part);
+    let lower = path_part.to_ascii_lowercase();
+    if lower.ends_with(".png") {
+        "png"
+    } else if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
+        "jpg"
+    } else if lower.ends_with(".webp") {
+        "webp"
+    } else if lower.ends_with(".bmp") {
+        "bmp"
+    } else if lower.ends_with(".gif") {
+        "gif"
+    } else {
+        "png"
+    }
+}
+
+const IMAGE_SEARCH_FETCH_USER_AGENT: &str =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36";
+const IMAGE_SEARCH_FETCH_ACCEPT: &str =
+    "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8";
+const IMAGE_SEARCH_FETCH_ACCEPT_LANGUAGE: &str = "zh-CN,zh;q=0.9,en;q=0.8";
+
+fn looks_like_remote_url(value: &str) -> bool {
+    value.starts_with("http://") || value.starts_with("https://")
+}
+
+async fn download_remote_image_bytes_with_reqwest(
+    url: &str,
+    referer: Option<&str>,
+) -> Result<(Option<String>, Vec<u8>), String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .user_agent(IMAGE_SEARCH_FETCH_USER_AGENT)
+        .no_proxy()
+        .build()
+        .map_err(|e| format!("Failed to build remote image client: {}", e))?;
+    let mut request = client
+        .get(url)
+        .header(reqwest::header::ACCEPT, IMAGE_SEARCH_FETCH_ACCEPT)
+        .header(
+            reqwest::header::ACCEPT_LANGUAGE,
+            IMAGE_SEARCH_FETCH_ACCEPT_LANGUAGE,
+        );
+    if let Some(referer) = referer.filter(|value| looks_like_remote_url(value)) {
+        request = request.header(reqwest::header::REFERER, referer);
+    }
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download remote image: {}", e))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!(
+            "Remote image download failed: HTTP {}",
+            status.as_u16()
+        ));
+    }
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.to_string());
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read remote image response: {}", e))?
+        .to_vec();
+    Ok((content_type, bytes))
+}
+
+#[cfg(target_os = "windows")]
+fn download_remote_image_bytes_with_powershell_httpclient(
+    url: &str,
+    referer: Option<&str>,
+) -> Result<(Option<String>, Vec<u8>), String> {
+    let script = r#"
+Add-Type -AssemblyName System.Net.Http
+$handler = New-Object System.Net.Http.HttpClientHandler
+$client = New-Object System.Net.Http.HttpClient($handler)
+$client.Timeout = [TimeSpan]::FromSeconds(30)
+$client.DefaultRequestHeaders.UserAgent.ParseAdd($env:HOOK_FETCH_USER_AGENT)
+$client.DefaultRequestHeaders.Accept.ParseAdd($env:HOOK_FETCH_ACCEPT)
+$client.DefaultRequestHeaders.AcceptLanguage.ParseAdd($env:HOOK_FETCH_ACCEPT_LANGUAGE)
+if ($env:HOOK_FETCH_REFERER) {
+  try {
+    $client.DefaultRequestHeaders.Referrer = [Uri]$env:HOOK_FETCH_REFERER
+  } catch {
+  }
+}
+try {
+  $resp = $client.GetAsync($env:HOOK_FETCH_URL).GetAwaiter().GetResult()
+  if (-not $resp.IsSuccessStatusCode) {
+    exit 22
+  }
+  $bytes = $resp.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult()
+  $contentType = ''
+  if ($resp.Content.Headers.ContentType) {
+    $contentType = $resp.Content.Headers.ContentType.MediaType
+  }
+  @{ contentType = $contentType; dataBase64 = [Convert]::ToBase64String($bytes) } | ConvertTo-Json -Compress
+} finally {
+  $client.Dispose()
+  $handler.Dispose()
+}
+"#;
+
+    let mut command = std::process::Command::new("powershell.exe");
+    command
+        .arg("-NoProfile")
+        .arg("-ExecutionPolicy")
+        .arg("Bypass")
+        .arg("-Command")
+        .arg(script)
+        .env("HOOK_FETCH_URL", url)
+        .env("HOOK_FETCH_USER_AGENT", IMAGE_SEARCH_FETCH_USER_AGENT)
+        .env("HOOK_FETCH_ACCEPT", IMAGE_SEARCH_FETCH_ACCEPT)
+        .env(
+            "HOOK_FETCH_ACCEPT_LANGUAGE",
+            IMAGE_SEARCH_FETCH_ACCEPT_LANGUAGE,
+        )
+        .env(
+            "HOOK_FETCH_REFERER",
+            referer
+                .filter(|value| looks_like_remote_url(value))
+                .unwrap_or(""),
+        )
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    let output = command
+        .output()
+        .map_err(|e| format!("PowerShell remote image download failed: {}", e))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        if stderr.is_empty() {
+            return Err("PowerShell remote image download failed".to_string());
+        }
+        return Err(format!(
+            "PowerShell remote image download failed: {}",
+            stderr
+        ));
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    if stdout.is_empty() {
+        return Err("PowerShell remote image download returned empty stdout".to_string());
+    }
+    let response = serde_json::from_str::<serde_json::Value>(&stdout)
+        .map_err(|e| format!("Failed to parse PowerShell remote image response: {}", e))?;
+    let bytes = response
+        .get("dataBase64")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|base64| {
+            base64::engine::general_purpose::STANDARD
+                .decode(base64)
+                .ok()
+        })
+        .ok_or_else(|| "PowerShell remote image response contained no bytes".to_string())?;
+    let content_type = response
+        .get("contentType")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
+    Ok((content_type, bytes))
 }
 
 #[cfg(target_os = "windows")]
@@ -1866,6 +2157,25 @@ fn overlay_keyboard_hook_should_capture_semantic_keyup(
 }
 
 #[cfg(target_os = "windows")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RdevAppScopedShortcut {
+    Escape,
+    Delete,
+}
+
+#[cfg(target_os = "windows")]
+fn rdev_should_dispatch_app_scoped_shortcut(
+    shortcut: RdevAppScopedShortcut,
+    app_has_focus: bool,
+    capture_active: bool,
+) -> bool {
+    match shortcut {
+        RdevAppScopedShortcut::Escape => app_has_focus || capture_active,
+        RdevAppScopedShortcut::Delete => app_has_focus,
+    }
+}
+
+#[cfg(target_os = "windows")]
 fn overlay_keyboard_capture_should_handle_current_cursor() -> bool {
     if NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst) {
         return false;
@@ -2126,6 +2436,44 @@ mod overlay_semantic_shortcut_focus_tests {
                 "unfocused overlay should consume keyup for vk_code={vk_code}",
             );
         }
+    }
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod rdev_app_scoped_shortcut_tests {
+    use super::{rdev_should_dispatch_app_scoped_shortcut, RdevAppScopedShortcut};
+
+    #[test]
+    fn delete_requires_hook_foreground_focus() {
+        assert!(rdev_should_dispatch_app_scoped_shortcut(
+            RdevAppScopedShortcut::Delete,
+            true,
+            false,
+        ));
+        assert!(!rdev_should_dispatch_app_scoped_shortcut(
+            RdevAppScopedShortcut::Delete,
+            false,
+            false,
+        ));
+    }
+
+    #[test]
+    fn escape_requires_focus_unless_capture_is_active() {
+        assert!(rdev_should_dispatch_app_scoped_shortcut(
+            RdevAppScopedShortcut::Escape,
+            true,
+            false,
+        ));
+        assert!(rdev_should_dispatch_app_scoped_shortcut(
+            RdevAppScopedShortcut::Escape,
+            false,
+            true,
+        ));
+        assert!(!rdev_should_dispatch_app_scoped_shortcut(
+            RdevAppScopedShortcut::Escape,
+            false,
+            false,
+        ));
     }
 }
 
@@ -2992,6 +3340,32 @@ fn unique_drag_export_path(target_dir: &Path, filename: &str) -> PathBuf {
 }
 
 #[cfg(target_os = "windows")]
+fn notify_shell_path_changed(path: &Path) {
+    use std::os::windows::ffi::OsStrExt;
+
+    let notify_path = |event, target: &Path| {
+        let wide_path: Vec<u16> = target
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        unsafe {
+            SHChangeNotify(
+                event,
+                SHCNF_PATHW | SHCNF_FLUSHNOWAIT,
+                Some(wide_path.as_ptr() as *const core::ffi::c_void),
+                None,
+            );
+        }
+    };
+
+    notify_path(SHCNE_UPDATEITEM, path);
+    if let Some(parent) = path.parent() {
+        notify_path(SHCNE_UPDATEDIR, parent);
+    }
+}
+
+#[cfg(target_os = "windows")]
 fn write_drag_export_bytes(
     image_data: &[u8],
     filename_hint: Option<String>,
@@ -3010,6 +3384,7 @@ fn write_drag_export_bytes(
         "sticker_drag_export_saved :: path={}",
         path_string
     ));
+    notify_shell_path_changed(&target_path);
     Ok(path_string)
 }
 
@@ -3064,6 +3439,7 @@ fn save_sticker_drag_export_from_path(
         source_path.to_string_lossy(),
         path_string
     ));
+    notify_shell_path_changed(&target_path);
     Ok(path_string)
 }
 
@@ -3534,6 +3910,88 @@ fn read_image_from_path(path: String) -> Result<String, String> {
     let mime = mime_from_image_path(Path::new(&path), &bytes);
 
     Ok(format!("data:{};base64,{}", mime, b64))
+}
+
+#[tauri::command]
+async fn cache_remote_image_asset(
+    app: tauri::AppHandle,
+    url: String,
+    referer: Option<String>,
+) -> Result<String, String> {
+    let normalized_url = url.trim().to_string();
+    if normalized_url.is_empty() {
+        return Err("Remote image URL is required".to_string());
+    }
+
+    let lower = normalized_url.to_ascii_lowercase();
+    if !lower.starts_with("http://") && !lower.starts_with("https://") {
+        return Err("Only http/https remote image URLs are supported".to_string());
+    }
+
+    let cache_dir = ensure_image_search_cache_dir(&app)?;
+    if let Some(existing_path) = find_cached_remote_image_path(&cache_dir, &normalized_url)? {
+        return Ok(existing_path.to_string_lossy().to_string());
+    }
+
+    let normalized_referer = referer
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| looks_like_remote_url(value))
+        .map(str::to_owned);
+    let (content_type, bytes) = match download_remote_image_bytes_with_reqwest(
+        &normalized_url,
+        normalized_referer.as_deref(),
+    )
+    .await
+    {
+        Ok(result) => result,
+        Err(reqwest_error) => {
+            #[cfg(target_os = "windows")]
+            {
+                append_runtime_log_line(&format!(
+                    "image_search_cache_reqwest_failed :: url={} error={}",
+                    normalized_url, reqwest_error
+                ));
+                download_remote_image_bytes_with_powershell_httpclient(
+                    &normalized_url,
+                    normalized_referer.as_deref(),
+                )
+                .map_err(|powershell_error| {
+                    format!("{}; fallback failed: {}", reqwest_error, powershell_error)
+                })?
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                return Err(reqwest_error);
+            }
+        }
+    };
+    if bytes.len() > MAX_BASE64_IMAGE_ENCODED_BYTES {
+        return Err(format!(
+            "Remote image payload too large: {} bytes exceeds limit {}",
+            bytes.len(),
+            MAX_BASE64_IMAGE_ENCODED_BYTES
+        ));
+    }
+
+    validate_image_data_limits(bytes.as_ref())?;
+
+    let extension =
+        remote_image_cache_extension(&normalized_url, bytes.as_ref(), content_type.as_deref());
+    let target_path = cache_dir.join(format!(
+        "remote_{}.{}",
+        remote_image_cache_key(&normalized_url),
+        extension
+    ));
+    fs::write(&target_path, bytes.as_slice())
+        .map_err(|e| format!("Failed to write cached remote image: {}", e))?;
+    append_runtime_log_line(&format!(
+        "image_search_cache_saved :: file={} bytes={}",
+        cache_file_name_for_log(&target_path),
+        bytes.len()
+    ));
+
+    Ok(target_path.to_string_lossy().to_string())
 }
 
 // function moved to cli_engine.rs
@@ -6802,6 +7260,7 @@ fn configure_webview2_video_safe_composition() {}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    install_panic_logger();
     configure_webview2_video_safe_composition();
 
     let tauri_ctrl_1_last_trigger = Arc::new(std::sync::Mutex::new(
@@ -6968,6 +7427,7 @@ pub fn run() {
             mock_artloom::prefetch_shader,
             read_shared_memory,
             read_image_from_path,
+            cache_remote_image_asset,
             open_image_for_edit,
             read_clipboard_image,
             cli_engine::native_cli_execute
@@ -7198,6 +7658,22 @@ pub fn run() {
                                     );
                                     return;
                                 }
+                                let capture_active = capture_input_state_clone
+                                    .active
+                                    .lock()
+                                    .map(|guard| *guard)
+                                    .unwrap_or(false);
+                                let app_has_focus = overlay_webview_has_foreground_focus();
+                                if !rdev_should_dispatch_app_scoped_shortcut(
+                                    RdevAppScopedShortcut::Escape,
+                                    app_has_focus,
+                                    capture_active,
+                                ) {
+                                    append_runtime_log_line(
+                                        "rdev_escape_skipped_unfocused_app_scope",
+                                    );
+                                    return;
+                                }
                                 if input_state.last_esc.elapsed()
                                     < std::time::Duration::from_millis(400)
                                 {
@@ -7215,6 +7691,17 @@ pub fn run() {
                                 if overlay_keyboard_capture_should_handle_current_cursor() {
                                     append_runtime_log_line(
                                         "rdev_delete_skipped_overlay_keyboard_capture",
+                                    );
+                                    return;
+                                }
+                                let app_has_focus = overlay_webview_has_foreground_focus();
+                                if !rdev_should_dispatch_app_scoped_shortcut(
+                                    RdevAppScopedShortcut::Delete,
+                                    app_has_focus,
+                                    false,
+                                ) {
+                                    append_runtime_log_line(
+                                        "rdev_delete_skipped_unfocused_app_scope",
                                     );
                                     return;
                                 }
@@ -7685,6 +8172,47 @@ mod app_cli_tests {
             file_url_from_path(&path),
             "file:///C:/Users/Public/Hook%20Cache/long%231%25.png"
         );
+    }
+
+    #[test]
+    fn remote_image_cache_extension_prefers_actual_image_bytes() {
+        let image =
+            image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(1, 1, Rgb([1, 2, 3])));
+        let mut bytes = Vec::new();
+        image
+            .write_to(
+                &mut std::io::Cursor::new(&mut bytes),
+                image::ImageFormat::Png,
+            )
+            .expect("encode png bytes");
+
+        assert_eq!(
+            remote_image_cache_extension(
+                "https://example.com/photo.jpg?format=jpeg",
+                &bytes,
+                Some("image/jpeg"),
+            ),
+            "png"
+        );
+    }
+
+    #[test]
+    fn find_cached_remote_image_path_matches_url_hash_prefix() {
+        let root = std::env::temp_dir().join(format!(
+            "hook-remote-image-cache-test-{}-{}",
+            std::process::id(),
+            file_timestamp_component()
+        ));
+        std::fs::create_dir_all(&root).expect("create cache test dir");
+        let url = "https://example.com/images/cat.png?size=small";
+        let expected = root.join(format!("remote_{}.webp", remote_image_cache_key(url)));
+        std::fs::write(&expected, [1u8, 2, 3]).expect("write cached remote file");
+
+        let found =
+            find_cached_remote_image_path(&root, url).expect("remote cache lookup succeeds");
+
+        let _ = std::fs::remove_dir_all(&root);
+        assert_eq!(found, Some(expected));
     }
 
     #[test]

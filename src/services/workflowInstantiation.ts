@@ -76,8 +76,9 @@ export const buildWorkflowInstantiation = (
 
     const instantiatedUnits: Unit[] = incomingNodes.map((node) => {
         const localId = idMap.get(node.id)!;
-        const nodeType: "sticker" | "art" = node.type === "sticker" ? "sticker" : "art";
         const artId = node.data?.artId || node.data?.art_id || undefined;
+        const nodeType: "sticker" | "art" =
+            artId || node.type !== "sticker" ? "art" : "sticker";
         const capability = deps.capabilities.find((item) => item.id === artId);
         const { inputs, outputs } = buildUnitPortsFromCapability(nodeType, capability);
         const executionConfig = deriveUnitExecutionConfig({

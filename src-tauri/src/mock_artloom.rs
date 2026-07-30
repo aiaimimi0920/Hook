@@ -3,7 +3,7 @@ use base64::Engine as _;
 use image::{Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 use shared_memory::ShmemConf;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::io::Cursor;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -99,6 +99,26 @@ pub struct ArtParameter {
     pub disabled: bool,
     #[serde(default)]
     pub data_type: Option<String>, // Added to match ArtLoom JSON schema
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct LoomMcpServerConfig {
+    id: String,
+    name: String,
+    #[serde(default)]
+    description: String,
+    command: String,
+    #[serde(default)]
+    args: Vec<String>,
+    #[serde(default)]
+    env: BTreeMap<String, String>,
+    #[serde(default = "default_mcp_server_enabled")]
+    enabled: bool,
+}
+
+fn default_mcp_server_enabled() -> bool {
+    true
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -260,6 +280,21 @@ fn load_arts_from_disk() -> Option<Vec<ArtDefinition>> {
     None
 }
 
+fn parse_local_mcp_servers_json(body: &str) -> Option<Vec<LoomMcpServerConfig>> {
+    serde_json::from_str::<Vec<LoomMcpServerConfig>>(body).ok()
+}
+
+fn load_mcp_servers_from_disk() -> Vec<LoomMcpServerConfig> {
+    let Some(config_dir) = dirs::config_dir() else {
+        return Vec::new();
+    };
+    let path = config_dir.join("ArtNexus").join("mcp_servers.json");
+    let Some(content) = std::fs::read_to_string(path).ok() else {
+        return Vec::new();
+    };
+    parse_local_mcp_servers_json(&content).unwrap_or_default()
+}
+
 // Map a Loom `/v1/artloom-compat/arts` response body into Hook art definitions.
 // Each art that fails to deserialize is skipped (defensive) rather than failing
 // the whole list. Separated from the network call so it can be unit-tested.
@@ -316,15 +351,123 @@ async fn load_arts_from_loom() -> Option<Vec<ArtDefinition>> {
     Some(arts)
 }
 
-// Merge local arts with the arts already registered in Loom, keyed by id (local
-// wins on conflict). Keeps Loom-side compat tools (e.g. wrapped hook-wf-*) so a
-// full-replace sync doesn't clobber them. Pure/testable.
+async fn sync_mcp_servers_to_loom(local: &[LoomMcpServerConfig]) {
+    if local.is_empty() {
+        return;
+    }
+
+    let Ok(manifest) = crate::loom_connector::read_default_loom_manifest() else {
+        return;
+    };
+    let base = manifest
+        .transport
+        .base_url
+        .trim_end_matches('/')
+        .to_string();
+
+    let client = match reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_millis(3000))
+        .build()
+    {
+        Ok(client) => client,
+        Err(_) => return,
+    };
+
+    for server in local {
+        let endpoint = format!("{base}/v1/mcp/servers/{}", server.id);
+        let mut request = client.put(&endpoint).json(server);
+        if manifest
+            .transport
+            .auth
+            .as_deref()
+            .unwrap_or("none")
+            .eq_ignore_ascii_case("bearer")
+        {
+            if let Some(token) = manifest
+                .transport
+                .auth_token
+                .as_deref()
+                .map(str::trim)
+                .filter(|token| !token.is_empty())
+            {
+                request = request.bearer_auth(token);
+            }
+        }
+
+        match request.send().await {
+            Ok(response) if response.status().is_success() => {
+                println!(
+                    "Synced MCP server '{}' to Loom (status {}).",
+                    server.id,
+                    response.status()
+                );
+            }
+            Ok(response) => {
+                let status = response.status();
+                let body = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "<body unavailable>".to_string());
+                println!(
+                    "Sync MCP server '{}' to Loom failed with status {}: {}",
+                    server.id, status, body
+                );
+            }
+            Err(error) => {
+                println!("Sync MCP server '{}' to Loom failed: {}", server.id, error);
+            }
+        }
+    }
+}
+
+fn normalize_path_for_match(value: &str) -> String {
+    value.replace('\\', "/").to_ascii_lowercase()
+}
+
+fn loom_control_plane_arts_prefix() -> Option<String> {
+    let root = dirs::config_dir()?
+        .join("Loom")
+        .join("control-plane")
+        .join("arts");
+    Some(normalize_path_for_match(&root.to_string_lossy()))
+}
+
+fn is_loom_control_plane_art(art: &ArtDefinition) -> bool {
+    let Some(path) = art
+        .execution
+        .as_ref()
+        .and_then(|execution| execution.get("artPath"))
+        .and_then(serde_json::Value::as_str)
+    else {
+        return false;
+    };
+
+    let normalized = normalize_path_for_match(path);
+    if let Some(prefix) = loom_control_plane_arts_prefix() {
+        normalized.starts_with(&prefix)
+    } else {
+        normalized.contains("/loom/control-plane/arts/")
+    }
+}
+
+// Merge local arts with the arts already registered in Loom. Local arts keep
+// priority by default, but a Loom-installed control-plane Art is allowed to
+// replace a colliding legacy local definition so Hook uses the currently
+// installed Art payload (for example a Loom-managed python_art package).
 fn merge_arts_by_id(local: &[ArtDefinition], existing: &[ArtDefinition]) -> Vec<ArtDefinition> {
     let mut merged: Vec<ArtDefinition> = local.to_vec();
-    let local_ids: std::collections::HashSet<String> =
-        local.iter().map(|art| art.id.clone()).collect();
+    let local_indexes: std::collections::HashMap<String, usize> = merged
+        .iter()
+        .enumerate()
+        .map(|(index, art)| (art.id.clone(), index))
+        .collect();
     for art in existing {
-        if !local_ids.contains(&art.id) {
+        if let Some(index) = local_indexes.get(&art.id) {
+            if is_loom_control_plane_art(art) {
+                merged[*index] = art.clone();
+            }
+        } else {
             merged.push(art.clone());
         }
     }
@@ -396,6 +539,39 @@ fn extract_artloom_error_message(json: &serde_json::Value) -> String {
         .unwrap_or_else(|| format!("ArtLoom execution failed: {}", json))
 }
 
+fn extract_artloom_image_search_delivery(json: &serde_json::Value) -> Option<serde_json::Value> {
+    json.get("data")
+        .and_then(|data| data.get("loomMetadata"))
+        .and_then(|metadata| metadata.get("imageSearch"))
+        .or_else(|| {
+            json.get("loomMetadata")
+                .and_then(|metadata| metadata.get("imageSearch"))
+        })
+        .or_else(|| {
+            json.get("result")
+                .and_then(|result| result.get("loomMetadata"))
+                .and_then(|metadata| metadata.get("imageSearch"))
+        })
+        .filter(|metadata| metadata.is_object())
+        .cloned()
+}
+
+fn attach_image_search_delivery(
+    payload: &mut serde_json::Value,
+    image_search: Option<&serde_json::Value>,
+) {
+    let Some(image_search) = image_search else {
+        return;
+    };
+    let Some(delivery) = payload
+        .get_mut("delivery")
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        return;
+    };
+    delivery.insert("imageSearch".to_owned(), image_search.clone());
+}
+
 fn utf8_snippet(value: &str, max_bytes: usize) -> &str {
     if value.len() <= max_bytes {
         return value;
@@ -409,25 +585,33 @@ fn utf8_snippet(value: &str, max_bytes: usize) -> &str {
     &value[..end]
 }
 
-fn emit_art_error(app_handle: &AppHandle, node_id: &str, error: impl AsRef<str>) {
+fn emit_art_error_with_image_search(
+    app_handle: &AppHandle,
+    node_id: &str,
+    error: impl AsRef<str>,
+    image_search: Option<&serde_json::Value>,
+) {
     let message = error.as_ref().trim();
     let message = if message.is_empty() {
         "Art execution failed"
     } else {
         message
     };
+    let mut payload = serde_json::json!({
+        "art_id": node_id,
+        "status": 500,
+        "error": message,
+        "delivery": {
+            "type": "base64"
+        }
+    });
+    attach_image_search_delivery(&mut payload, image_search);
 
-    let _ = app_handle.emit(
-        "art/ready",
-        serde_json::json!({
-            "art_id": node_id,
-            "status": 500,
-            "error": message,
-            "delivery": {
-                "type": "base64"
-            }
-        }),
-    );
+    let _ = app_handle.emit("art/ready", payload);
+}
+
+fn emit_art_error(app_handle: &AppHandle, node_id: &str, error: impl AsRef<str>) {
+    emit_art_error_with_image_search(app_handle, node_id, error, None);
 }
 
 // Background Listener Function
@@ -531,22 +715,24 @@ pub async fn artloom_handshake(
         println!("No arts found on disk.");
         vec![]
     });
+    let local_mcp_servers = load_mcp_servers_from_disk();
+
+    // Legacy ArtNexus MCP arts often reference UUID-based server ids stored in
+    // ArtNexus/mcp_servers.json. Sync those server definitions first so Loom
+    // can resolve the just-synced MCP arts immediately.
+    sync_mcp_servers_to_loom(&local_mcp_servers).await;
 
     // Register the local arts into Loom's tool registry so Loom can resolve and
     // execute them when Hook forwards art/process (best-effort; no-op if Loom is
     // down). Merges with Loom's existing compat tools to avoid clobbering them.
     sync_arts_to_loom(&local_arts).await;
 
-    // Build the display list: local arts first, then Loom arts (deduped by id).
+    // Build the display list with the same precedence rules used for sync:
+    // local arts win by default, but a Loom-installed control-plane Art can
+    // replace a colliding legacy local entry.
     let mut arts = local_arts;
     if let Some(loom_arts) = load_arts_from_loom().await {
-        let existing: std::collections::HashSet<String> =
-            arts.iter().map(|art| art.id.clone()).collect();
-        for art in loom_arts {
-            if !existing.contains(&art.id) {
-                arts.push(art);
-            }
-        }
+        arts = merge_arts_by_id(&arts, &loom_arts);
     }
 
     // Cache loaded arts for prefetch_shader
@@ -717,17 +903,9 @@ pub async fn artloom_dispatch_action(
                     _node_id, _params
                 );
 
-                let mut img = if let Some(b64) = input_image {
-                    // Decode Base64 Input
-                    use base64::Engine as _;
-                    let clean_b64 = b64.split(",").last().unwrap_or(&b64);
-                    if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(clean_b64) {
-                        image::load_from_memory(&bytes)
-                            .map(|i| i.to_rgba8())
-                            .unwrap_or_else(|_| RgbaImage::new(512, 512))
-                    } else {
-                        RgbaImage::new(512, 512)
-                    }
+                let mut img = if input_image.is_some() {
+                    load_input_rgba_image(input_image.as_ref())
+                        .unwrap_or_else(|| RgbaImage::new(512, 512))
                 } else {
                     // Fallback to checkerboard
                     let mut blank = RgbaImage::new(512, 512);
@@ -745,6 +923,7 @@ pub async fn artloom_dispatch_action(
                 // Determine Art Type
                 let art_type = art_id.as_deref().unwrap_or("unknown");
                 let mut direct_delivery: Option<serde_json::Value> = None;
+                let mut image_search_delivery: Option<serde_json::Value> = None;
 
                 if art_type == "core.image.pixelate" {
                     // Simulate Pixelate -> Add YELLOW tint based on strength
@@ -931,6 +1110,10 @@ pub async fn artloom_dispatch_action(
                                                         if json["request_id"].as_str()
                                                             == Some(&request_id)
                                                         {
+                                                            image_search_delivery =
+                                                                extract_artloom_image_search_delivery(
+                                                                    &json,
+                                                                );
                                                             let is_success = json["status"]
                                                                 .as_u64()
                                                                 == Some(200)
@@ -942,26 +1125,45 @@ pub async fn artloom_dispatch_action(
                                                                     ["output"]
                                                                     .as_object()
                                                                 {
-                                                                    if let Some(handle) =
-                                                                        output["handle"].as_str()
+                                                                    // Index with `.get()` not `output[key]`: a
+                                                                    // serde_json::Map panics ("no entry found for
+                                                                    // key") on a missing key via the Index impl,
+                                                                    // unlike Value. cloud_api (e.g. RemoveBG) returns
+                                                                    // a base64 output object with NO `handle` field,
+                                                                    // so `output["handle"]` aborted the whole app.
+                                                                    if let Some(handle) = output
+                                                                        .get("handle")
+                                                                        .and_then(|v| v.as_str())
                                                                     {
-                                                                        app_handle.emit("art/ready", serde_json::json!({
-                                                                               "art_id": _node_id,
-                                                                               "status": 200,
-                                                                               "delivery": {
-                                                                                   "type": "shared_memory",
-                                                                                   "handle": handle,
-                                                                                   "size": output["size"].as_u64().unwrap_or(0),
-                                                                                   "width": output["width"].as_u64().unwrap_or(0),
-                                                                                   "height": output["height"].as_u64().unwrap_or(0)
-                                                                               }
-                                                                           })).ok();
+                                                                        let mut payload = serde_json::json!({
+                                                                            "art_id": _node_id,
+                                                                            "status": 200,
+                                                                            "delivery": {
+                                                                                "type": "shared_memory",
+                                                                                "handle": handle,
+                                                                                "size": output.get("size").and_then(|v| v.as_u64()).unwrap_or(0),
+                                                                                "width": output.get("width").and_then(|v| v.as_u64()).unwrap_or(0),
+                                                                                "height": output.get("height").and_then(|v| v.as_u64()).unwrap_or(0)
+                                                                            }
+                                                                        });
+                                                                        attach_image_search_delivery(
+                                                                            &mut payload,
+                                                                            image_search_delivery
+                                                                                .as_ref(),
+                                                                        );
+                                                                        app_handle
+                                                                            .emit(
+                                                                                "art/ready",
+                                                                                payload,
+                                                                            )
+                                                                            .ok();
                                                                         println!("[MOCK_ARTLOOM] Passed through shared memory: {}", handle);
                                                                         return;
                                                                     }
 
-                                                                    if let Some(img_data) =
-                                                                        output["data"].as_str()
+                                                                    if let Some(img_data) = output
+                                                                        .get("data")
+                                                                        .and_then(|v| v.as_str())
                                                                     {
                                                                         let clean = img_data
                                                                             .split(",")
@@ -1013,10 +1215,11 @@ pub async fn artloom_dispatch_action(
                                                                     "[MOCK_ARTLOOM] ArtLoom returned error: {}",
                                                                     message
                                                                 );
-                                                                emit_art_error(
+                                                                emit_art_error_with_image_search(
                                                                     &app_handle,
                                                                     &_node_id,
                                                                     message,
+                                                                    image_search_delivery.as_ref(),
                                                                 );
                                                                 let _ = socket.close(None);
                                                                 return;
@@ -1051,10 +1254,11 @@ pub async fn artloom_dispatch_action(
                                             return;
                                         }
                                         if !received_processed_output {
-                                            emit_art_error(
+                                            emit_art_error_with_image_search(
                                                 &app_handle,
                                                 &_node_id,
                                                 "ArtLoom did not return an image output",
+                                                image_search_delivery.as_ref(),
                                             );
                                             return;
                                         }
@@ -1213,6 +1417,8 @@ pub async fn artloom_dispatch_action(
                          "height": height
                     }
                 });
+                let mut payload = payload;
+                attach_image_search_delivery(&mut payload, image_search_delivery.as_ref());
 
                 let _ = app_handle.emit("art/ready", payload);
                 println!("Emitted art/ready for {}", _node_id);
@@ -1291,6 +1497,117 @@ fn resolve_image_path(uuid: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn decode_hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn percent_decode_lossy(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut decoded: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+
+    while index < bytes.len() {
+        if bytes[index] == b'%' && index + 2 < bytes.len() {
+            if let (Some(high), Some(low)) = (
+                decode_hex_nibble(bytes[index + 1]),
+                decode_hex_nibble(bytes[index + 2]),
+            ) {
+                decoded.push((high << 4) | low);
+                index += 3;
+                continue;
+            }
+        }
+
+        decoded.push(bytes[index]);
+        index += 1;
+    }
+
+    String::from_utf8_lossy(&decoded).into_owned()
+}
+
+fn decode_asset_localhost_path(raw: &str) -> Option<String> {
+    let url = reqwest::Url::parse(raw).ok()?;
+    let is_asset_host = matches!(url.host_str(), Some("asset.localhost") | Some("localhost"));
+    let is_asset_scheme = matches!(url.scheme(), "asset" | "http" | "https");
+    if !is_asset_host || !is_asset_scheme {
+        return None;
+    }
+
+    let encoded_path = url.path().trim_start_matches('/');
+    if encoded_path.is_empty() {
+        return None;
+    }
+
+    Some(percent_decode_lossy(encoded_path))
+}
+
+fn decode_file_url_path(raw: &str) -> Option<String> {
+    let url = reqwest::Url::parse(raw).ok()?;
+    if url.scheme() != "file" {
+        return None;
+    }
+    let path = url.to_file_path().ok()?;
+    Some(path.to_string_lossy().to_string())
+}
+
+fn load_rgba_image_from_path(path: &str) -> Option<RgbaImage> {
+    let bytes = std::fs::read(path).ok()?;
+    image::load_from_memory(&bytes)
+        .ok()
+        .map(|image| image.to_rgba8())
+}
+
+fn load_input_rgba_image(source: Option<&String>) -> Option<RgbaImage> {
+    let raw = source?.trim();
+    if raw.is_empty() {
+        return None;
+    }
+
+    if raw.starts_with("data:") {
+        let encoded = raw
+            .split_once(',')
+            .map(|(_, payload)| payload)
+            .unwrap_or(raw);
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .ok()?;
+        return image::load_from_memory(&bytes)
+            .ok()
+            .map(|image| image.to_rgba8());
+    }
+
+    if raw.len() == 36 && raw.matches('-').count() == 4 {
+        if let Some(path) = resolve_image_path(raw) {
+            if let Some(image) = load_rgba_image_from_path(&path) {
+                return Some(image);
+            }
+        }
+    }
+
+    if let Some(path) = decode_asset_localhost_path(raw).or_else(|| decode_file_url_path(raw)) {
+        if let Some(image) = load_rgba_image_from_path(&path) {
+            return Some(image);
+        }
+    }
+
+    let file_path = std::path::Path::new(raw);
+    if file_path.exists() {
+        if let Some(image) = load_rgba_image_from_path(raw) {
+            return Some(image);
+        }
+    }
+
+    let bytes = base64::engine::general_purpose::STANDARD.decode(raw).ok()?;
+    image::load_from_memory(&bytes)
+        .ok()
+        .map(|image| image.to_rgba8())
 }
 
 fn artloom_suffix(path: &PathBuf) -> Option<PathBuf> {
@@ -1440,6 +1757,88 @@ fn materialize_shader_image_input(value: Option<&String>, label: &str) -> Option
     Some(raw.to_string())
 }
 
+fn try_prefetch_shader_via_loom(
+    art_id: &str,
+    art_path: &std::path::Path,
+    input_path: Option<&str>,
+    reference_path: Option<&str>,
+) -> Result<Option<serde_json::Value>, String> {
+    let manifest = match crate::loom_connector::read_default_loom_manifest() {
+        Ok(manifest) => manifest,
+        Err(_) => return Ok(None),
+    };
+    let base = manifest.transport.base_url.trim_end_matches('/');
+    if base.is_empty() {
+        return Ok(None);
+    }
+
+    let art_path = art_path.to_string_lossy().to_string();
+    let client = reqwest::blocking::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(20))
+        .build()
+        .map_err(|error| format!("Failed to create Loom shader prefetch client: {error}"))?;
+
+    let endpoint = format!("{base}/v1/python-arts/shader/prefetch");
+    let body = serde_json::json!({
+        "artId": art_id,
+        "artPath": art_path,
+        "params": {
+            "output_mode": "shader",
+            "input_path": input_path.unwrap_or(""),
+            "reference_path": reference_path.unwrap_or(""),
+        }
+    });
+
+    let mut request = client.post(&endpoint).json(&body);
+    if manifest
+        .transport
+        .auth
+        .as_deref()
+        .unwrap_or("none")
+        .eq_ignore_ascii_case("bearer")
+    {
+        if let Some(token) = manifest
+            .transport
+            .auth_token
+            .as_deref()
+            .map(str::trim)
+            .filter(|token| !token.is_empty())
+        {
+            request = request.bearer_auth(token);
+        }
+    }
+
+    let response = match request.send() {
+        Ok(response) => response,
+        Err(error) => {
+            println!("[MockArtLoom] Loom shader prefetch unavailable: {}", error);
+            return Ok(None);
+        }
+    };
+
+    let status = response.status();
+    let text = response
+        .text()
+        .map_err(|error| format!("Failed to read Loom shader prefetch response: {error}"))?;
+    if !status.is_success() {
+        return Err(format!(
+            "Loom shader prefetch failed ({}): {}",
+            status,
+            utf8_snippet(&text, 400)
+        ));
+    }
+
+    let value: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|error| format!("Failed to parse Loom shader prefetch response: {error}"))?;
+    Ok(Some(
+        value
+            .get("result")
+            .cloned()
+            .unwrap_or_else(|| value.clone()),
+    ))
+}
+
 /// Prefetch shader code from a Python Art by executing it with output_mode='shader'
 /// input_path and reference_path are optional paths to source and reference images for LUT generation
 #[tauri::command]
@@ -1473,8 +1872,8 @@ fn prefetch_shader_blocking(
 ) -> Result<serde_json::Value, String> {
     println!("[MockArtLoom] Prefetching shader for Art: {}", art_id);
 
-    // 1. Find Art Definition to get script path.
-    let script_path_str = if let Some(path) = art_path {
+    // 1. Find the configured plugin root path.
+    let art_path_str = if let Some(path) = art_path {
         path
     } else {
         // Look up in loaded arts
@@ -1494,9 +1893,51 @@ fn prefetch_shader_blocking(
             .ok_or_else(|| "Art execution missing 'artPath'".to_string())?
     };
 
-    println!("[MockArtLoom] Script Path: {}", script_path_str);
-    // Correctly resolve script path
-    let mut script_path = PathBuf::from(&script_path_str);
+    println!("[MockArtLoom] Configured Art Path: {}", art_path_str);
+    let mut plugin_path = PathBuf::from(&art_path_str);
+    if !plugin_path.exists() {
+        if let Some(repaired) = repair_artloom_art_path(&plugin_path) {
+            println!(
+                "[MockArtLoom] Repaired art path from {:?} to {:?}",
+                plugin_path, repaired
+            );
+            plugin_path = repaired;
+        }
+    }
+    if plugin_path.is_file() {
+        plugin_path = plugin_path
+            .parent()
+            .map(std::path::Path::to_path_buf)
+            .ok_or_else(|| format!("Art path has no parent directory: {:?}", plugin_path))?;
+    }
+
+    // 2. Resolve UUID references and materialize data URI inputs to actual files.
+    let resolved_input_path = materialize_shader_image_input(input_path.as_ref(), "input");
+    let resolved_reference_path =
+        materialize_shader_image_input(reference_path.as_ref(), "reference");
+
+    println!(
+        "[MockArtLoom] Resolved paths: input={}, reference={}",
+        resolved_input_path.as_deref().unwrap_or("<none>"),
+        resolved_reference_path.as_deref().unwrap_or("<none>")
+    );
+
+    // Prefer the Loom python_art runtime when it is available, so installable
+    // framework-managed shader Arts use the same packaged runtime as the daemon.
+    if let Some(result) = try_prefetch_shader_via_loom(
+        &art_id,
+        &plugin_path,
+        resolved_input_path.as_deref(),
+        resolved_reference_path.as_deref(),
+    )? {
+        println!("[MockArtLoom] Loom shader prefetch succeeded.");
+        return Ok(result);
+    }
+
+    println!("[MockArtLoom] Falling back to local Python shader prefetch.");
+
+    // 3. Resolve the local script path for fallback execution.
+    let mut script_path = plugin_path;
     if !script_path.exists() {
         if let Some(repaired) = repair_artloom_art_path(&script_path) {
             println!(
@@ -1542,18 +1983,7 @@ fn prefetch_shader_blocking(
         return Err(format!("Script file not found: {:?}", script_path));
     }
 
-    // 2. Resolve UUID references and materialize data URI inputs to actual files.
-    let resolved_input_path = materialize_shader_image_input(input_path.as_ref(), "input");
-    let resolved_reference_path =
-        materialize_shader_image_input(reference_path.as_ref(), "reference");
-
-    println!(
-        "[MockArtLoom] Resolved paths: input={}, reference={}",
-        resolved_input_path.as_deref().unwrap_or("<none>"),
-        resolved_reference_path.as_deref().unwrap_or("<none>")
-    );
-
-    // 3. Prepare JSON arguments with resolved paths for LUT generation
+    // 4. Prepare JSON arguments with resolved paths for LUT generation
     let params = serde_json::json!({
         "output_mode": "shader",
         "input_path": resolved_input_path.as_ref().unwrap_or(&String::new()),
@@ -1567,7 +1997,7 @@ fn prefetch_shader_blocking(
         resolved_reference_path.as_deref().unwrap_or("<none>")
     );
 
-    // 3. Find Python Executable
+    // 5. Find Python Executable
     // Try 'python' first.
     let python_cmd = "python";
 
@@ -1576,12 +2006,12 @@ fn prefetch_shader_blocking(
         python_cmd, script_path, params_str
     );
 
-    // 4. Validate script path is a file
+    // 6. Validate script path is a file
     if !script_path.is_file() {
         return Err(format!("Script path is not a file: {:?}", script_path));
     }
 
-    // 5. Execute
+    // 7. Execute
     let mut command = Command::new(python_cmd);
     let output = configure_child_no_window(
         command
@@ -1607,7 +2037,7 @@ fn prefetch_shader_blocking(
         ));
     }
 
-    // 6. Parse Output (Expect JSON)
+    // 8. Parse Output (Expect JSON)
     let clean_stdout = stdout.trim();
     if clean_stdout.is_empty() {
         return Err("Python produced no output".to_string());
@@ -1686,6 +2116,191 @@ mod loom_arts_mapping {
 }
 
 #[cfg(test)]
+mod mcp_servers_mapping {
+    use super::*;
+
+    #[test]
+    fn parses_local_artnexus_mcp_servers() {
+        let body = r#"[
+          {
+            "id": "479008f0-bd4f-483e-8598-39fbae54a117",
+            "name": "Brave Search",
+            "description": "Web search capabilities via Brave",
+            "command": "npx",
+            "args": ["-y", "github:brave/brave-search-mcp-server"],
+            "env": { "BRAVE_API_KEY": "test-key" },
+            "enabled": true
+          }
+        ]"#;
+
+        let servers = parse_local_mcp_servers_json(body).expect("parse mcp servers");
+        assert_eq!(servers.len(), 1);
+        assert_eq!(servers[0].id, "479008f0-bd4f-483e-8598-39fbae54a117");
+        assert_eq!(servers[0].name, "Brave Search");
+        assert_eq!(servers[0].args[1], "github:brave/brave-search-mcp-server");
+        assert_eq!(
+            servers[0].env.get("BRAVE_API_KEY").map(String::as_str),
+            Some("test-key")
+        );
+        assert!(servers[0].enabled);
+    }
+
+    #[test]
+    fn rejects_non_array_mcp_server_payloads() {
+        assert!(parse_local_mcp_servers_json(r#"{"servers":[]}"#).is_none());
+    }
+}
+
+#[cfg(test)]
+mod mcp_server_sync {
+    use super::*;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::sync::{mpsc, Mutex};
+    use std::thread;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn request_header_end(buffer: &[u8]) -> Option<usize> {
+        buffer.windows(4).position(|window| window == b"\r\n\r\n")
+    }
+
+    fn request_content_length(headers: &str) -> usize {
+        headers
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                if name.eq_ignore_ascii_case("content-length") {
+                    value.trim().parse::<usize>().ok()
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0)
+    }
+
+    #[test]
+    fn syncs_mcp_servers_to_loom_via_put_requests() {
+        let _guard = ENV_LOCK.lock().expect("env lock");
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind listener");
+        listener
+            .set_nonblocking(true)
+            .expect("set listener nonblocking");
+        let port = listener.local_addr().expect("listener addr").port();
+        let (tx, rx) = mpsc::channel();
+
+        let server_handle = thread::spawn(move || {
+            let started = std::time::Instant::now();
+            let (mut stream, _) = loop {
+                match listener.accept() {
+                    Ok(connection) => break connection,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        if started.elapsed() > Duration::from_secs(10) {
+                            tx.send(None).expect("send timeout result");
+                            return;
+                        }
+                        thread::sleep(Duration::from_millis(20));
+                    }
+                    Err(error) => panic!("accept request: {error}"),
+                }
+            };
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .expect("set read timeout");
+
+            let mut buffer = Vec::new();
+            let mut chunk = [0_u8; 1024];
+            let mut total_len = None;
+            loop {
+                let read = stream.read(&mut chunk).expect("read request");
+                if read == 0 {
+                    break;
+                }
+                buffer.extend_from_slice(&chunk[..read]);
+                if total_len.is_none() {
+                    if let Some(header_end) = request_header_end(&buffer) {
+                        let headers = String::from_utf8_lossy(&buffer[..header_end + 4]);
+                        let content_length = request_content_length(&headers);
+                        total_len = Some(header_end + 4 + content_length);
+                    }
+                }
+                if let Some(expected_len) = total_len {
+                    if buffer.len() >= expected_len {
+                        break;
+                    }
+                }
+            }
+
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}",
+                )
+                .expect("write response");
+
+            tx.send(Some(String::from_utf8(buffer).expect("utf8 request")))
+                .expect("send request");
+        });
+
+        let temp_dir =
+            std::env::temp_dir().join(format!("hook-mcp-sync-manifest-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+        let manifest_path = temp_dir.join("loom.json");
+        let manifest = serde_json::json!({
+            "schemaVersion": 1,
+            "appId": "loom",
+            "displayName": "Loom",
+            "version": "test",
+            "pid": 1234,
+            "transport": {
+                "type": "http",
+                "baseUrl": format!("http://127.0.0.1:{port}"),
+                "auth": "none"
+            },
+            "capabilities": ["brain.plan"],
+            "startedAt": 1
+        });
+        std::fs::write(&manifest_path, manifest.to_string()).expect("write manifest");
+        std::env::set_var("LOOM_MANIFEST_PATH", &manifest_path);
+        let loaded_manifest =
+            crate::loom_connector::read_default_loom_manifest().expect("read test manifest");
+        assert_eq!(
+            loaded_manifest.transport.base_url,
+            format!("http://127.0.0.1:{port}")
+        );
+
+        let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+        let server = LoomMcpServerConfig {
+            id: "479008f0-bd4f-483e-8598-39fbae54a117".to_string(),
+            name: "Brave Search".to_string(),
+            description: "Web search capabilities via Brave".to_string(),
+            command: "npx".to_string(),
+            args: vec![
+                "-y".to_string(),
+                "github:brave/brave-search-mcp-server".to_string(),
+            ],
+            env: BTreeMap::from([("BRAVE_API_KEY".to_string(), "test-key".to_string())]),
+            enabled: true,
+        };
+
+        runtime.block_on(sync_mcp_servers_to_loom(&[server]));
+
+        let request = rx
+            .recv_timeout(Duration::from_secs(15))
+            .expect("receive request")
+            .expect("sync_mcp_servers_to_loom should issue a PUT request");
+        server_handle.join().expect("join server");
+        assert!(request
+            .starts_with("PUT /v1/mcp/servers/479008f0-bd4f-483e-8598-39fbae54a117 HTTP/1.1"));
+        assert!(request.contains("\"id\":\"479008f0-bd4f-483e-8598-39fbae54a117\""));
+        assert!(request.contains("\"command\":\"npx\""));
+        assert!(request.contains("\"BRAVE_API_KEY\":\"test-key\""));
+
+        std::env::remove_var("LOOM_MANIFEST_PATH");
+        let _ = std::fs::remove_dir_all(temp_dir);
+    }
+}
+
+#[cfg(test)]
 mod arts_merge {
     use super::*;
 
@@ -1726,5 +2341,132 @@ mod arts_merge {
         let merged = merge_arts_by_id(&local, &[]);
         assert_eq!(merged.len(), 1);
         assert_eq!(merged[0].id, "a");
+    }
+
+    #[test]
+    fn merge_prefers_loom_control_plane_art_over_legacy_local_collision() {
+        let mut local_art = art("custom-1770131241684", "本地旧版");
+        local_art.execution = Some(serde_json::json!({
+            "artPath": "\\\\192.168.15.200\\home\\project\\project\\ArtNexus\\ArtLoom\\python\\Arts\\Art_ColorTransfer"
+        }));
+
+        let mut loom_art = art("custom-1770131241684", "Loom安装版");
+        loom_art.execution = Some(serde_json::json!({
+            "artPath": "C:\\Users\\vmjcv\\AppData\\Roaming\\Loom\\control-plane\\arts\\custom-1770131241684\\python\\Arts\\Art_ColorTransfer"
+        }));
+
+        let merged = merge_arts_by_id(&[local_art], &[loom_art.clone()]);
+
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].label, "Loom安装版");
+        assert_eq!(
+            merged[0]
+                .execution
+                .as_ref()
+                .and_then(|execution| execution.get("artPath"))
+                .and_then(serde_json::Value::as_str),
+            Some("C:\\Users\\vmjcv\\AppData\\Roaming\\Loom\\control-plane\\arts\\custom-1770131241684\\python\\Arts\\Art_ColorTransfer")
+        );
+    }
+}
+
+#[cfg(test)]
+mod input_image_resolution {
+    use super::*;
+
+    fn write_test_png(path: &std::path::Path, width: u32, height: u32, rgba: [u8; 4]) {
+        let mut img = RgbaImage::new(width, height);
+        for pixel in img.pixels_mut() {
+            *pixel = Rgba(rgba);
+        }
+        img.save(path).expect("save test png");
+    }
+
+    fn asset_localhost_url_for(path: &std::path::Path) -> String {
+        let raw = path.to_string_lossy().to_string();
+        let encoded = raw
+            .replace('%', "%25")
+            .replace(':', "%3A")
+            .replace('\\', "%5C")
+            .replace(' ', "%20");
+        format!("http://asset.localhost/{encoded}")
+    }
+
+    #[test]
+    fn loads_asset_localhost_input_image_into_rgba_buffer() {
+        let temp_path =
+            std::env::temp_dir().join(format!("mock-artloom-input-{}.png", Uuid::new_v4()));
+        write_test_png(&temp_path, 3, 2, [12, 34, 56, 255]);
+
+        let asset_url = asset_localhost_url_for(&temp_path);
+        let img = load_input_rgba_image(Some(&asset_url)).expect("load asset input");
+
+        assert_eq!((img.width(), img.height()), (3, 2));
+        assert_eq!(img.get_pixel(0, 0).0, [12, 34, 56, 255]);
+
+        let _ = std::fs::remove_file(temp_path);
+    }
+
+    #[test]
+    fn loads_plain_file_path_input_image_into_rgba_buffer() {
+        let temp_path =
+            std::env::temp_dir().join(format!("mock-artloom-path-input-{}.png", Uuid::new_v4()));
+        write_test_png(&temp_path, 2, 4, [90, 80, 70, 255]);
+
+        let img = load_input_rgba_image(Some(&temp_path.to_string_lossy().to_string()))
+            .expect("load file path input");
+
+        assert_eq!((img.width(), img.height()), (2, 4));
+        assert_eq!(img.get_pixel(1, 3).0, [90, 80, 70, 255]);
+
+        let _ = std::fs::remove_file(temp_path);
+    }
+}
+
+#[cfg(test)]
+mod artloom_image_search_delivery {
+    use super::*;
+
+    #[test]
+    fn extracts_ahrp_image_search_metadata_from_success_responses() {
+        let response = serde_json::json!({
+            "request_id": "req-1",
+            "status": "Success",
+            "data": {
+                "type": "result",
+                "output": {
+                    "type": "base64",
+                    "data": "data:image/png;base64,AAA",
+                    "width": 1,
+                    "height": 1
+                },
+                "loomMetadata": {
+                    "imageSearch": {
+                        "selectedIndex": 1,
+                        "candidates": [
+                            {
+                                "index": 0,
+                                "title": "结果 1",
+                                "imageUrl": "https://example.com/a.png"
+                            },
+                            {
+                                "index": 1,
+                                "title": "结果 2",
+                                "imageUrl": "https://example.com/b.png"
+                            }
+                        ]
+                    }
+                }
+            }
+        });
+
+        let metadata =
+            extract_artloom_image_search_delivery(&response).expect("image search metadata");
+        assert_eq!(metadata["selectedIndex"], 1);
+        assert_eq!(metadata["candidates"].as_array().map(Vec::len), Some(2));
+        assert_eq!(
+            metadata["candidates"][1]["imageUrl"],
+            "https://example.com/b.png"
+        );
     }
 }

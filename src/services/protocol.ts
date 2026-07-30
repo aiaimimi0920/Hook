@@ -70,6 +70,25 @@ export interface PropChange {
     value: any;
 }
 
+export interface DeliveryImageSearchCandidate {
+    index: number;
+    title?: string;
+    imageUrl: string;
+    thumbnailUrl?: string;
+    sourcePageUrl?: string;
+    width?: number;
+    height?: number;
+    cachedImagePath?: string;
+    cachedImageSrc?: string;
+    cachedThumbnailPath?: string;
+    cachedThumbnailSrc?: string;
+}
+
+export interface DeliveryImageSearchMetadata {
+    candidates: DeliveryImageSearchCandidate[];
+    selectedIndex?: number;
+}
+
 export interface DeliveryPayload {
     type: 'shm' | 'shared_memory' | 'base64' | 'url' | 'socket' | 'shader' | 'file_path' | 'value' | 'json' | 'text' | 'number';
     handle?: string; // for shm
@@ -82,6 +101,7 @@ export interface DeliveryPayload {
     path?: string;   // for file_path
     value?: unknown; // for scalar/value outputs
     outputs?: Record<string, unknown>; // optional explicit port-value map
+    imageSearch?: DeliveryImageSearchMetadata;
 }
 
 // Shader response from Python Art (for real-time preview)

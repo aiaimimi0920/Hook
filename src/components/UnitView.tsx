@@ -25,11 +25,20 @@ import { StickerAnnotationLayer } from "./StickerAnnotationLayer";
 import { StickerTopStrip } from "./StickerTopStrip";
 import { DISABLED_PREFIX } from "../constants";
 import { isStickerSurfaceDoubleClickTarget } from "../services/stickerDoubleClick";
-import { resolveEffectiveNodeParams } from "../services/graphImageResolution";
+import {
+  resolveConnectedUnitImageForPort,
+  resolveEffectiveNodeParams
+} from "../services/graphImageResolution";
 import { normalizeImageSourceForDisplay } from "../services/imageSource";
 import { api, isTauriRuntimeAvailable } from "../services/api";
 import { stickerContextMenuController } from "../services/stickerContextMenuController";
 import { renderStickerComposite } from "../services/stickerExport";
+import {
+  resolveNativeDragDropPhysicalPointFromOverlay,
+  resolveNativeDragDropPhysicalPointFromPointer,
+  resolveNativeDragPreviewPointFromOverlay,
+  resolveUnitDragExportPlan,
+} from "../services/unitDragExport";
 
 interface Props {
   unit: Unit;
@@ -82,11 +91,16 @@ export const UnitView: Component<Props> = (props) => {
       width: number;
       height: number;
   } | null>(null);
+  const [baseImageIntrinsicSize, setBaseImageIntrinsicSize] = createSignal<{ w: number; h: number } | null>(null);
+  const [shaderImageIntrinsicSize, setShaderImageIntrinsicSize] = createSignal<{ w: number; h: number } | null>(null);
   type NativeDragPreflightOverlayPayload = {
       x?: number;
       y?: number;
       globalX?: number;
       globalY?: number;
+      scaleFactor?: number;
+      physicalOriginX?: number;
+      physicalOriginY?: number;
       shiftKey?: boolean;
   };
   const logWheelEvent = (phase: string, detail: string) => {
@@ -132,10 +146,14 @@ export const UnitView: Component<Props> = (props) => {
           : props.params;
   const getArtId = () => props.unit.artId;
   const getArtErrorMessage = () => liveUnit().data.errorMessage || "Art execution failed";
-  const getConnectedImageForPort = (portName: string) => {
-      const link = props.connectedLinks?.find((candidate) => candidate.toPortId === portName);
-      return link ? props.resolveUnitImage?.(link.fromUnitId) : undefined;
-  };
+  const getConnectedImageForPort = (portName: string) =>
+      resolveConnectedUnitImageForPort({
+          units: graphStore.units,
+          links: graphStore.links,
+          capabilities: graphStore.capabilities,
+          unitId: props.unit.id,
+          portId: portName,
+      });
   const getShaderInputSrc = () =>
       getConnectedImageForPort("input") ||
       getConnectedImageForPort("input_image") ||
@@ -207,9 +225,11 @@ export const UnitView: Component<Props> = (props) => {
   };
   const getMinifiedViewport = () =>
       computeMinifiedStickerViewport(
+          { w: liveUnit().w, h: liveUnit().h },
           liveUnit().data.savedRect,
           liveUnit().data.cropOffset,
           getImageEditState(),
+          shaderImageIntrinsicSize() || baseImageIntrinsicSize() || undefined,
       );
   const getMinifiedAnnotationViewport = () =>
       computeMinifiedStickerAnnotationViewport(
@@ -283,6 +303,26 @@ export const UnitView: Component<Props> = (props) => {
       liveUnit().data.rasterizedAnnotationLayerSrc
           ? normalizeImageSourceForDisplay(liveUnit().data.src || displaySrc()) || ""
           : displaySrc();
+  createEffect(() => {
+      void baseImageSrc();
+      setBaseImageIntrinsicSize(null);
+  });
+  createEffect(() => {
+      if (!isShaderArt()) {
+          setShaderImageIntrinsicSize(null);
+          return;
+      }
+      void getShaderInputSrc();
+      setShaderImageIntrinsicSize(null);
+  });
+  const handleBaseImageLoad = (event: Event) => {
+      const image = event.currentTarget;
+      if (!(image instanceof HTMLImageElement)) return;
+      const naturalWidth = image.naturalWidth || image.width;
+      const naturalHeight = image.naturalHeight || image.height;
+      if (naturalWidth <= 0 || naturalHeight <= 0) return;
+      setBaseImageIntrinsicSize({ w: naturalWidth, h: naturalHeight });
+  };
   const fileBackedFallbacksInFlight = new Set<string>();
   const handleFileBackedImageLoadError = async () => {
       const unit = liveUnit();
@@ -326,10 +366,7 @@ export const UnitView: Component<Props> = (props) => {
   };
 
   const overlayPayloadClientPoint = (detail: NativeDragPreflightOverlayPayload | undefined) => {
-      const x = detail?.x ?? detail?.globalX;
-      const y = detail?.y ?? detail?.globalY;
-      if (typeof x !== "number" || typeof y !== "number") return null;
-      return { x, y };
+      return resolveNativeDragPreviewPointFromOverlay(detail);
   };
 
   const pointTargetsThisUnit = (x: number, y: number) => {
@@ -357,47 +394,24 @@ export const UnitView: Component<Props> = (props) => {
       window.addEventListener("hook:overlay-native-drag-preflight-up", handlePendingNativeDragOverlayEnd as EventListener, true);
   };
 
+  const resolveCurrentUnitDragExportPlan = () =>
+      resolveUnitDragExportPlan({
+          unit: liveUnit(),
+          capabilityLabel: props.capability?.label,
+          displaySrc: baseImageSrc(),
+      });
+
   const beginPendingHookStickerExportDrag = (x: number, y: number, pointerId?: number) => {
-      if (nativeStickerDragInFlight) return;
+      const exportPlan = resolveCurrentUnitDragExportPlan();
+      if (!exportPlan || nativeStickerDragInFlight) return;
       void api.debugLogEvent(
           "sticker-export-drag-capture",
-          `unit=${props.unit.id} x=${x} y=${y} pathFirst=${!!resolveExistingNativeDragFilePath()}`,
+          `unit=${props.unit.id} x=${x} y=${y} pathFirst=${exportPlan.kind === "path"} exportKind=${exportPlan.kind}`,
       );
       nativeStickerDragStart = { x, y, pointerId, started: false };
       setNativeStickerExportPreview(null);
       void api.setNativeStickerDragPreflight(true);
       attachPendingNativeDragListeners();
-  };
-
-  const buildNativeStickerDragFilenameHint = () => {
-      let label = props.unit.type === "art" && props.capability?.label
-          ? props.capability.label
-          : "image";
-      label = label.toLowerCase().replace(/[^a-z0-9]/g, "");
-      const suffix = props.unit.id.slice(-4);
-      return `${label || "image"}_${suffix}`;
-  };
-
-  const resolveExistingNativeDragFilePath = () => {
-      const unit = liveUnit();
-      if (unit.data.dragOutFilePath) {
-          return unit.data.dragOutFilePath;
-      }
-      if (!unit.data.filePath) return false;
-      if (unit.data.rasterizedAnnotationLayerSrc) return false;
-      if ((unit.data.annotationState?.elements?.length || 0) > 0) return false;
-
-      const imageEditState = unit.data.imageEditState;
-      if (!imageEditState) return unit.data.filePath;
-
-      if ((imageEditState.contentEraseStrokes?.length || 0) > 0) return false;
-      if (imageEditState.cropRect) return false;
-      if (imageEditState.flippedX || imageEditState.flippedY) return false;
-      if ((imageEditState.borderWidth || 0) > 0) return false;
-      if ((imageEditState.cornerRadius || 0) > 0) return false;
-      if (imageEditState.beautify?.enabled) return false;
-
-      return unit.data.filePath;
   };
 
   const beginHookStickerExportDrag = async (globalX: number, globalY: number) => {
@@ -406,29 +420,44 @@ export const UnitView: Component<Props> = (props) => {
       nativeStickerDragInFlight = true;
       try {
           const unit = liveUnit();
-          const existingDragPath = resolveExistingNativeDragFilePath();
-          const useExistingPath = typeof existingDragPath === "string" && existingDragPath.length > 0;
+          const exportPlan = resolveCurrentUnitDragExportPlan();
+          if (!exportPlan) {
+              return;
+          }
           void api.debugLogEvent(
               "sticker-export-drag-request",
-              `unit=${props.unit.id} x=${globalX} y=${globalY} pathFirst=${useExistingPath} hasFilePath=${!!unit.data.filePath} hasDragOutFilePath=${!!unit.data.dragOutFilePath}`,
+              `unit=${props.unit.id} x=${globalX} y=${globalY} pathFirst=${exportPlan.kind === "path"} exportKind=${exportPlan.kind} hasFilePath=${!!unit.data.filePath} hasDragOutFilePath=${!!unit.data.dragOutFilePath}`,
           );
-          const path = useExistingPath
-               ? await api.saveStickerDragExportFromPath(
-                     existingDragPath as string,
-                     buildNativeStickerDragFilenameHint(),
-                     globalX,
-                     globalY,
-                 )
-               : await (async () => {
-                   const exportBase64 = await renderStickerComposite(unit);
-                   return api.saveStickerDragExport(
-                       exportBase64,
-                       buildNativeStickerDragFilenameHint(),
-                       globalX,
-                       globalY,
-                   );
-               })();
-          if (!useExistingPath) {
+          let path: string;
+          switch (exportPlan.kind) {
+              case "path":
+                  path = await api.saveStickerDragExportFromPath(
+                      exportPlan.path,
+                      exportPlan.filenameHint,
+                      globalX,
+                      globalY,
+                  );
+                  break;
+              case "data-url":
+                  path = await api.saveStickerDragExport(
+                      exportPlan.dataUrl,
+                      exportPlan.filenameHint,
+                      globalX,
+                      globalY,
+                  );
+                  break;
+              case "rendered-composite": {
+                  const exportBase64 = await renderStickerComposite(unit);
+                  path = await api.saveStickerDragExport(
+                      exportBase64,
+                      exportPlan.filenameHint,
+                      globalX,
+                      globalY,
+                  );
+                  break;
+              }
+          }
+          if (exportPlan.cacheSavedPath) {
               graphStore.actions.updateUnitData(props.unit.id, {
                   dragOutFilePath: path,
               });
@@ -496,7 +525,17 @@ export const UnitView: Component<Props> = (props) => {
       ) {
           return;
       }
-      const point = event ? { x: event.clientX, y: event.clientY } : null;
+      const point = event
+          ? resolveNativeDragDropPhysicalPointFromPointer(
+                {
+                    clientX: event.clientX,
+                    clientY: event.clientY,
+                    screenX: event.screenX,
+                    screenY: event.screenY,
+                },
+                window.devicePixelRatio || 1,
+            )
+          : null;
       const shouldExport = !!nativeStickerDragStart?.started && !!point;
       clearPendingNativeStickerDrag();
       if (shouldExport && point) {
@@ -505,17 +544,18 @@ export const UnitView: Component<Props> = (props) => {
   };
 
   const handlePendingNativeDragOverlayDown = (event: Event) => {
-      if (props.unit.type !== "sticker" || !isTauriRuntimeAvailable()) return;
+      if (!isTauriRuntimeAvailable()) return;
       const detail = (event as CustomEvent<NativeDragPreflightOverlayPayload>).detail;
       if (!detail?.shiftKey) return;
       const point = overlayPayloadClientPoint(detail);
       if (!point || !pointTargetsThisUnit(point.x, point.y)) return;
+      if (!resolveCurrentUnitDragExportPlan()) return;
       beginPendingHookStickerExportDrag(point.x, point.y);
   };
 
   const handlePendingNativeDragOverlayEnd = (event?: Event) => {
       const detail = (event as CustomEvent<NativeDragPreflightOverlayPayload> | undefined)?.detail;
-      const point = overlayPayloadClientPoint(detail);
+      const point = resolveNativeDragDropPhysicalPointFromOverlay(detail);
       const shouldExport = !!nativeStickerDragStart?.started && !!point;
       clearPendingNativeStickerDrag();
       if (shouldExport && point) {
@@ -524,14 +564,14 @@ export const UnitView: Component<Props> = (props) => {
   };
 
   const handleNativeStickerPointerDownCapture = (event: PointerEvent) => {
-      if (props.unit.type !== "sticker" || !isTauriRuntimeAvailable() || !event.shiftKey) return;
+      if (!isTauriRuntimeAvailable() || !event.shiftKey) return;
+      if (!resolveCurrentUnitDragExportPlan()) return;
       event.preventDefault();
       event.stopPropagation();
       beginPendingHookStickerExportDrag(event.clientX, event.clientY, event.pointerId);
   };
 
   createEffect(() => {
-      if (props.unit.type !== "sticker") return;
       unitContainerRef?.addEventListener("pointerdown", handleNativeStickerPointerDownCapture, true);
       window.addEventListener("hook:overlay-native-drag-preflight-down", handlePendingNativeDragOverlayDown as EventListener, true);
       onCleanup(() => {
@@ -844,19 +884,28 @@ export const UnitView: Component<Props> = (props) => {
                              "pointer-events": "auto"
                          };
                     }
-                    return { "width": "100%", "height": "100%" };
+                    return {
+                        "position": "absolute",
+                        "left": "0",
+                        "top": "0",
+                        "width": "100%",
+                        "height": "100%",
+                        "pointer-events": "auto",
+                    };
                 })()}>
                     <ShaderPreview
                         unitId={props.unit.id}
                         artId={getArtId()!}
                         params={effectiveParams()}
                         artPath={getCapabilityArtPath()}
+                        fallbackPreviewSrc={liveUnit().data.previewSrc || liveUnit().data.src}
                         inputImageSrc={getShaderInputSrc()}
                         referenceImageSrc={getShaderReferenceSrc()}
                         requiresReference={isContextualShader()}
                         width={isMinified() ? getMinifiedViewport().width : props.unit.w}
                         height={isMinified() ? getMinifiedViewport().height : props.unit.h}
                         opacity={1}
+                        onIntrinsicSizeChange={(size) => setShaderImageIntrinsicSize(size)}
                         resolveUnitImage={props.resolveUnitImage}
                         onRendered={(dataUrl) => props.onRendered(props.unit.id, dataUrl)}
                     />
@@ -867,6 +916,7 @@ export const UnitView: Component<Props> = (props) => {
             <Show when={!isShaderArt()}>
             <img
                 class="sticker-img"
+                data-sticker-base-image="true"
                 // Drag-Out to Save (HTML5 Drag)
                 draggable={!isTauriRuntimeAvailable()}
                 onDragStart={(e) => {
@@ -953,6 +1003,7 @@ export const UnitView: Component<Props> = (props) => {
                     }
                 }}
                 src={baseImageSrc()}
+                onLoad={handleBaseImageLoad}
                 onError={handleFileBackedImageLoadError}
                 style={(() => {
                     if (isMinified()) {
@@ -968,8 +1019,8 @@ export const UnitView: Component<Props> = (props) => {
                             "max-width": "none",
                             "max-height": "none",
 
-                            "left": `-${viewport.offsetX}px`,
-                            "top": `-${viewport.offsetY}px`,
+                            "left": `${-viewport.offsetX}px`,
+                            "top": `${-viewport.offsetY}px`,
 
                             "pointer-events": "auto",
                             "object-fit": "fill", // Use fill to force exact dimensions designated above
@@ -1023,8 +1074,8 @@ export const UnitView: Component<Props> = (props) => {
                             return {
                                 width: `${viewport.width}px`,
                                 height: `${viewport.height}px`,
-                                left: `-${viewport.offsetX}px`,
-                                top: `-${viewport.offsetY}px`,
+                                left: `${-viewport.offsetX}px`,
+                                top: `${-viewport.offsetY}px`,
                                 "pointer-events": "none",
                                 "z-index": 11,
                             };
@@ -1193,8 +1244,8 @@ export const UnitView: Component<Props> = (props) => {
                         return {
                             width: `${viewport.width}px`,
                             height: `${viewport.height}px`,
-                            left: `-${viewport.offsetX}px`,
-                            top: `-${viewport.offsetY}px`,
+                            left: `${-viewport.offsetX}px`,
+                            top: `${-viewport.offsetY}px`,
                         };
                     })()}
                 >

@@ -1,4 +1,5 @@
-import { Component, Show, createEffect, createSignal } from "solid-js";
+import { Component, Show, createEffect, createSignal, onCleanup } from "solid-js";
+import { api } from "../../../services/api";
 import { clampOptional, normalizePrecision } from "../../../utils/math";
 
 interface NumberControlProps {
@@ -26,9 +27,25 @@ const formatNumber = (value: number) => {
 export const NumberControl: Component<NumberControlProps> = (props) => {
   const [draftValue, setDraftValue] = createSignal("");
   const [isEditing, setIsEditing] = createSignal(false);
+  const [isSliderDragging, setIsSliderDragging] = createSignal(false);
+  const [isSliderHovered, setIsSliderHovered] = createSignal(false);
+  let sliderTrackRef: HTMLDivElement | undefined;
+  let sliderDragCleanup: (() => void) | undefined;
 
   const fallbackValue = () => finiteOr(props.default, props.min ?? 0);
   const currentValue = () => clampOptional(finiteOr(props.value, fallbackValue()), props.min, props.max);
+  const sliderMin = () => finiteOr(props.min, 0);
+  const sliderMax = () => {
+    const fallbackMax = Math.max(sliderMin() + effectiveStep(), currentValue(), 100);
+    const nextMax = finiteOr(props.max, fallbackMax);
+    return nextMax >= sliderMin() ? nextMax : sliderMin();
+  };
+  const sliderRange = () => Math.max(sliderMax() - sliderMin(), 0);
+  const sliderProgress = () => {
+    const range = sliderRange();
+    if (range <= 0) return 0;
+    return (currentValue() - sliderMin()) / range;
+  };
   const effectiveStep = () => {
     const step = finiteOr(props.step, 1);
     return step > 0 ? step : 1;
@@ -44,6 +61,31 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
     const parsed = Number(draftValue());
     if (!Number.isFinite(parsed)) return undefined;
     return normalizePrecision(clampOptional(parsed, props.min, props.max));
+  };
+
+  const parseDraftInputValue = (raw: string) => {
+    if (!raw.trim()) return undefined;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return undefined;
+    return normalizePrecision(clampOptional(parsed, props.min, props.max));
+  };
+
+  const stopInteractiveEvent = (event: Event) => {
+    event.stopPropagation();
+  };
+
+  const focusEditableTarget = (
+    event:
+      | (MouseEvent & { currentTarget: HTMLInputElement })
+      | (PointerEvent & { currentTarget: HTMLInputElement }),
+  ) => {
+    stopInteractiveEvent(event);
+    if (props.isDisabled) return;
+    const target = event.currentTarget;
+    target.focus();
+    void api.focusOverlayWindow().finally(() => {
+      requestAnimationFrame(() => target.focus());
+    });
   };
 
   const commitDraft = () => {
@@ -76,6 +118,72 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
     setDraftValue(formatNumber(next));
     props.onChange(next, isFinal);
   };
+
+  const quantizeSliderValue = (rawValue: number) => {
+    const min = sliderMin();
+    const range = sliderRange();
+    if (range <= 0) return normalizePrecision(min);
+    const unclamped = min + Math.max(0, Math.min(1, rawValue)) * range;
+    const step = effectiveStep();
+    const stepped = step > 0 ? min + Math.round((unclamped - min) / step) * step : unclamped;
+    return normalizePrecision(clampOptional(stepped, props.min, props.max));
+  };
+
+  const resolveSliderValueFromClientX = (clientX: number) => {
+    const rect = sliderTrackRef?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) {
+      return currentValue();
+    }
+    const ratio = (clientX - rect.left) / rect.width;
+    return quantizeSliderValue(ratio);
+  };
+
+  const clearSliderDrag = () => {
+    sliderDragCleanup?.();
+    sliderDragCleanup = undefined;
+    setIsSliderDragging(false);
+  };
+
+  const startSliderDrag = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (props.isDisabled) return;
+
+    void api.focusOverlayWindow();
+    setIsEditing(false);
+    setIsSliderDragging(true);
+
+    const applyFromClientX = (clientX: number, isFinal: boolean) => {
+      const next = resolveSliderValueFromClientX(clientX);
+      setDraftValue(formatNumber(next));
+      handleSliderInput(String(next), isFinal);
+    };
+
+    applyFromClientX(event.clientX, false);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      moveEvent.preventDefault();
+      applyFromClientX(moveEvent.clientX, false);
+    };
+
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      upEvent.preventDefault();
+      applyFromClientX(upEvent.clientX, true);
+      clearSliderDrag();
+    };
+
+    clearSliderDrag();
+    window.addEventListener("mousemove", handleMouseMove, true);
+    window.addEventListener("mouseup", handleMouseUp, true);
+    sliderDragCleanup = () => {
+      window.removeEventListener("mousemove", handleMouseMove, true);
+      window.removeEventListener("mouseup", handleMouseUp, true);
+    };
+  };
+
+  onCleanup(() => {
+    clearSliderDrag();
+  });
 
   const label = (
     <label
@@ -113,7 +221,12 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
         disabled={props.isDisabled}
         onInput={(event) => {
           setIsEditing(true);
-          setDraftValue(event.currentTarget.value);
+          const nextDraft = event.currentTarget.value;
+          setDraftValue(nextDraft);
+          if (props.isDisabled) return;
+          const next = parseDraftInputValue(nextDraft);
+          if (next === undefined) return;
+          props.onChange(next, false);
         }}
         onChange={(event) => {
           setDraftValue(event.currentTarget.value);
@@ -131,7 +244,13 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
             setDraftValue(formatNumber(currentValue()));
           }
         }}
-        onContextMenu={(event) => props.onContextMenu(event)}
+        onPointerDown={focusEditableTarget}
+        onMouseDown={focusEditableTarget}
+        onClick={stopInteractiveEvent}
+        onContextMenu={(event) => {
+          stopInteractiveEvent(event);
+          props.onContextMenu(event);
+        }}
       />
       <button
         type="button"
@@ -165,20 +284,78 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
             {label}
             {stepper}
           </div>
-          <div data-param-slider-row class="w-full min-w-0">
-            <input
-              type="range"
-              data-param-slider
-              min={props.min ?? 0}
-              max={props.max ?? 100}
-              step={props.step ?? "any"}
-              value={currentValue()}
-              disabled={props.isDisabled}
-              class="w-full min-w-0 accent-violet-400 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-              onInput={(event) => handleSliderInput(event.currentTarget.value, false)}
-              onChange={(event) => handleSliderInput(event.currentTarget.value, true)}
+          <div
+            data-param-slider-row
+            class="w-full min-w-0"
+            style={{
+              "padding-left": "14px",
+              "padding-right": "6px",
+            }}
+          >
+            <div
+              ref={sliderTrackRef}
+              data-param-slider-track
+              aria-disabled={props.isDisabled}
+              class="param-slider-track relative w-full min-w-0 rounded-full"
+              style={{
+                height: "18px",
+                cursor: props.isDisabled ? "not-allowed" : "ew-resize",
+                opacity: props.isDisabled ? 0.5 : 1,
+              }}
+              onMouseDown={startSliderDrag}
               onContextMenu={(event) => props.onContextMenu(event)}
-            />
+            >
+              <div
+                class="absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-full bg-white/12"
+                style={{ height: "6px" }}
+              />
+              <div
+                class="absolute left-0 top-1/2 -translate-y-1/2 rounded-full bg-violet-400/80"
+                style={{
+                  height: "6px",
+                  width: `${sliderProgress() * 100}%`,
+                }}
+              />
+              <div
+                data-param-slider-thumb
+                class="absolute"
+                onMouseDown={startSliderDrag}
+                onMouseEnter={() => setIsSliderHovered(true)}
+                onMouseLeave={() => setIsSliderHovered(false)}
+                style={{
+                  left: `${sliderProgress() * 100}%`,
+                  top: "-9px",
+                  width: "20px",
+                  height: "18px",
+                  cursor: props.isDisabled ? "not-allowed" : "ew-resize",
+                  "pointer-events": props.isDisabled ? "none" : "auto",
+                  transform: "translateX(-50%)",
+                }}
+              >
+                <div
+                  data-param-slider-thumb-visual
+                  class="absolute left-1/2"
+                  style={{
+                    bottom: "2px",
+                    width: "12px",
+                    height: "8px",
+                    background:
+                      isSliderDragging() || isSliderHovered()
+                        ? "rgba(196, 181, 253, 1)"
+                        : "rgba(167, 139, 250, 0.96)",
+                    "clip-path": "polygon(50% 100%, 0 0, 100% 0)",
+                    "transform-origin": "50% 100%",
+                    filter:
+                      isSliderDragging() || isSliderHovered()
+                        ? "drop-shadow(0 0 1px rgba(255,255,255,0.98)) drop-shadow(0 0 8px rgba(167,139,250,0.75))"
+                        : "drop-shadow(0 0 0.5px rgba(255,255,255,0.85)) drop-shadow(0 1px 3px rgba(139,92,246,0.45))",
+                    transform: `translateX(-50%) scale(${
+                      isSliderDragging() ? 1.12 : isSliderHovered() ? 1.08 : 1
+                    })`,
+                  }}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </Show>

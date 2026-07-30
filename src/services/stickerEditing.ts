@@ -469,6 +469,35 @@ export const scaleStickerFrame = (
     };
 };
 
+export const computeContainFitPlacement = (
+    container: { width: number; height: number },
+    source: { width: number; height: number },
+) => {
+    if (
+        container.width <= 0
+        || container.height <= 0
+        || source.width <= 0
+        || source.height <= 0
+    ) {
+        return {
+            left: 0,
+            top: 0,
+            width: container.width,
+            height: container.height,
+        };
+    }
+
+    const scale = Math.min(container.width / source.width, container.height / source.height);
+    const width = source.width * scale;
+    const height = source.height * scale;
+    return {
+        left: (container.width - width) / 2,
+        top: (container.height - height) / 2,
+        width,
+        height,
+    };
+};
+
 export const computeMinifiedStickerWindow = (
     frame: { x: number; y: number; w: number; h: number },
     relX: number,
@@ -518,9 +547,11 @@ export const computeRestoredMinifiedStickerWindow = (
 };
 
 export const computeMinifiedStickerViewport = (
+    currentMiniFrame: { w: number; h: number },
     savedRect: { w: number; h: number } | undefined,
     cropOffset: { x: number; y: number } | undefined,
     imageEditState: Pick<StickerImageEditState, "cropRect" | "sourceSize"> | undefined,
+    intrinsicSourceSize?: { w: number; h: number },
 ) => {
     const baseOffsetX = cropOffset?.x ?? 0;
     const baseOffsetY = cropOffset?.y ?? 0;
@@ -533,6 +564,29 @@ export const computeMinifiedStickerViewport = (
             height: sourceSize.h,
             offsetX: cropRect.x + baseOffsetX,
             offsetY: cropRect.y + baseOffsetY,
+        };
+    }
+
+    if (savedRect && intrinsicSourceSize) {
+        const placement = computeContainFitPlacement(
+            { width: savedRect.w, height: savedRect.h },
+            { width: intrinsicSourceSize.w, height: intrinsicSourceSize.h },
+        );
+        const visibleCropWidth = Math.max(1, currentMiniFrame.w);
+        const visibleCropHeight = Math.max(1, currentMiniFrame.h);
+        const offsetX = Math.min(
+            Math.max(baseOffsetX - placement.left, 0),
+            Math.max(0, placement.width - visibleCropWidth),
+        );
+        const offsetY = Math.min(
+            Math.max(baseOffsetY - placement.top, 0),
+            Math.max(0, placement.height - visibleCropHeight),
+        );
+        return {
+            width: placement.width,
+            height: placement.height,
+            offsetX,
+            offsetY,
         };
     }
 

@@ -4,6 +4,7 @@ import type {
     StickerGroup,
     StickerImageEditState,
 } from "./stickerEditing";
+import type { DeliveryImageSearchCandidate } from "../services/protocol";
 
 export interface OcrBlock {
     text: string;
@@ -62,6 +63,9 @@ export interface UnitData {
     filePath?: string; // Local File Path (for Drag-Out optimization)
     dragOutFilePath?: string; // Composite snapshot path used for fast Shift-drag export
     outputs?: Record<string, unknown>; // Port-value map for scalar/image outputs that can drive downstream params
+    resultCandidates?: DeliveryImageSearchCandidate[];
+    selectedResultIndex?: number;
+    imageSearchRecoveryPending?: boolean;
 
     // Reference Sync
     originWorkflowId?: string;

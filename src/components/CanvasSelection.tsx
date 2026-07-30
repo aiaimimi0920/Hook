@@ -12,7 +12,7 @@ export const CanvasSelection: Component = () => {
     return (
       <>
       <Show when={isSelecting()}>
-        <div class="absolute inset-0 z-[100] pointer-events-none">
+        <div class="absolute inset-0 z-[2147483646] pointer-events-none">
             <Show when={selectionRect()}>
                 <div
                     class="absolute border-2 border-primary"
@@ -33,7 +33,7 @@ export const CanvasSelection: Component = () => {
 
                 <Show when={preciseRect()}>
                      <div
-                        class="absolute border-2 border-dashed z-[101] pointer-events-none"
+                        class="absolute border-2 border-dashed z-[2147483647] pointer-events-none"
                         style={{
                             left: `${preciseRect()!.x}px`,
                             top: `${preciseRect()!.y}px`,
@@ -51,7 +51,7 @@ export const CanvasSelection: Component = () => {
       <Show when={longCaptureSession()}>
         {(session) => (
             <div
-                class="absolute z-[110] pointer-events-none"
+                class="absolute z-[2147483646] pointer-events-none"
                 style={{
                     left: `${session().rect.x}px`,
                     top: `${session().rect.y}px`,
@@ -75,7 +75,7 @@ export const CanvasSelection: Component = () => {
 
       <Show when={isBoxSelecting() && selectionRect()}>
           <div
-              class="absolute border z-[100] pointer-events-none"
+              class="absolute border z-[2147483646] pointer-events-none"
               style={{
                   left: `${selectionRect()!.x}px`,
                   top: `${selectionRect()!.y}px`,

@@ -359,6 +359,10 @@ main {
   background: rgba(0, 0, 0, 0.28);
   color: var(--theme-text);
   border-radius: var(--radius-md);
+  cursor: text;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .hook-terminal-input:focus {
@@ -456,19 +460,14 @@ main {
     letter-spacing: 0.05em;
 }
 
-.param-row input[type="range"] {
-    width: 100%;
-    accent-color: var(--primary);
-    cursor: pointer;
-}
-
 .param-scroll-container {
-    scrollbar-width: thin;
+    scrollbar-width: none;
     scrollbar-color: rgba(217, 255, 56, 0.36) rgba(255, 255, 255, 0.06);
 }
 
 .param-scroll-container::-webkit-scrollbar {
-    width: 8px;
+    width: 0;
+    height: 0;
 }
 
 .param-scroll-container::-webkit-scrollbar-track {
@@ -484,6 +483,28 @@ main {
 
 .param-scroll-container::-webkit-scrollbar-thumb:hover {
     background: rgba(217, 255, 56, 0.56);
+}
+
+.param-slider-track {
+    background: transparent;
+    touch-action: none;
+    user-select: none;
+}
+
+.param-scrollbar-track {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    user-select: none;
+}
+
+.param-scrollbar-thumb {
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(217, 255, 56, 0.78), rgba(163, 230, 53, 0.58));
+    box-shadow:
+        0 0 0 1px rgba(11, 14, 18, 0.92),
+        0 3px 10px rgba(163, 230, 53, 0.18);
+    cursor: ns-resize;
 }
 
 .param-row span {

@@ -46,7 +46,7 @@ describe("UnitParamsPanel grouped scrolling contract", () => {
         expect(unitViewSource).not.toContain("params={props.unit.params}");
     });
 
-    it("keeps slider params editable with a slider plus a numeric stepper field", () => {
+    it("keeps slider params editable with an overlay-safe drag track plus a numeric stepper field", () => {
         const controlSource = readFileSync(
             resolve(process.cwd(), "src", "components", "params", "controls", "NumberControl.tsx"),
             "utf8",
@@ -58,11 +58,15 @@ describe("UnitParamsPanel grouped scrolling contract", () => {
 
         expect(dispatcherSource).toContain('widget={props.param.widget as "slider" | "number"}');
         expect(controlSource).toContain('props.widget === "slider"');
-        expect(controlSource).toContain('type="range"');
+        expect(controlSource).toContain('data-param-slider-track');
+        expect(controlSource).toContain('data-param-slider-thumb');
+        expect(controlSource).toContain('startSliderDrag');
+        expect(controlSource).toContain('onMouseDown={startSliderDrag}');
+        expect(controlSource).not.toContain('pointer-events-none');
         expect(controlSource).toContain('data-param-number-input');
         expect(controlSource).toContain('data-param-step-down');
         expect(controlSource).toContain('data-param-step-up');
-        expect(controlSource).not.toContain("appearance-textfield");
+        expect(controlSource).not.toContain('type="range"');
     });
 
     it("lays slider params out in two rows so the range track fits the narrow floating panel", () => {
@@ -88,5 +92,15 @@ describe("UnitParamsPanel grouped scrolling contract", () => {
         expect(panelSource).toContain('typeof value === "string" && value.startsWith("data:")');
         expect(panelSource).toContain("previewSrc().length");
         expect(panelSource).not.toContain("props.params[hoveringParam()!].length");
+    });
+
+    it("implements overlay-safe manual wheel and scrollbar dragging for long parameter panels", () => {
+        const panelSource = readFileSync(resolve(process.cwd(), "src", "components", "UnitParamsPanel.tsx"), "utf8");
+
+        expect(panelSource).toContain("data-param-scrollbar-track");
+        expect(panelSource).toContain("data-param-scrollbar-thumb");
+        expect(panelSource).toContain("applyManualScrollDelta");
+        expect(panelSource).toContain("startScrollThumbDrag");
+        expect(panelSource).toContain("onWheel={(event) => {");
     });
 });

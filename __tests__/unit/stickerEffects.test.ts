@@ -4,6 +4,7 @@ import {
     buildPrivacyMosaicTiles,
     computeEffectSourceProjection,
     computeMosaicPreviewCanvasSize,
+    paintMosaicGrid,
     renderMosaicToCanvas,
 } from "../../src/services/stickerEffects";
 
@@ -142,5 +143,30 @@ describe("stickerEffects", () => {
         const fills = new Set(tiles.map((tile) => tile.fill));
 
         expect(fills).toEqual(new Set(["#111111", "#eeeeee"]));
+    });
+
+    it("snaps exported mosaic cell fills to integer pixel bounds when the stroke box starts on fractional coordinates", () => {
+        const fillRects: Array<[number, number, number, number]> = [];
+        const context = {
+            fillRect: (x: number, y: number, w: number, h: number) => {
+                fillRects.push([x, y, w, h]);
+            },
+            set fillStyle(_value: string) {},
+            get fillStyle() {
+                return "";
+            },
+        } as unknown as CanvasRenderingContext2D;
+
+        paintMosaicGrid(context, 43, 27, 12, 5.5, 3.25);
+
+        expect(fillRects.length).toBeGreaterThan(0);
+        expect(
+            fillRects.every(([x, y, w, h]) =>
+                Number.isInteger(x)
+                && Number.isInteger(y)
+                && Number.isInteger(w)
+                && Number.isInteger(h),
+            ),
+        ).toBe(true);
     });
 });

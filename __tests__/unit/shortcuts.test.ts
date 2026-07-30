@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ShortcutManager } from "../../src/services/shortcuts";
+import { shouldIgnoreGlobalShortcut } from "../../src/hooks/useShortcuts";
 
 describe("ShortcutManager legacy Hook shortcuts", () => {
     it("dispatches Shift+1 to the selected unit actions menu", () => {
@@ -46,5 +47,16 @@ describe("ShortcutManager legacy Hook shortcuts", () => {
 
         expect(handled).toBe(false);
         expect(unitMenuCalls).toBe(0);
+    });
+
+    it("ignores Tab inside editable inputs so the parameter panel does not steal focus", () => {
+        const input = document.createElement("input");
+        const textarea = document.createElement("textarea");
+        const shell = document.createElement("div");
+        shell.contentEditable = "true";
+
+        expect(shouldIgnoreGlobalShortcut(input, "Tab")).toBe(true);
+        expect(shouldIgnoreGlobalShortcut(textarea, "a")).toBe(true);
+        expect(shouldIgnoreGlobalShortcut(shell, "Escape")).toBe(false);
     });
 });

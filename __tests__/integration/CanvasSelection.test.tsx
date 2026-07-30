@@ -3,6 +3,33 @@ import fs from "node:fs";
 import path from "node:path";
 
 describe("CanvasSelection capture overlay", () => {
+  it("keeps the capture guides above selected stickers during secondary capture", () => {
+    const selectionSourcePath = path.resolve(
+      process.cwd(),
+      "src/components/CanvasSelection.tsx",
+    );
+    const unitViewSourcePath = path.resolve(
+      process.cwd(),
+      "src/components/UnitView.tsx",
+    );
+    const selectionSource = fs.readFileSync(selectionSourcePath, "utf8");
+    const unitViewSource = fs.readFileSync(unitViewSourcePath, "utf8");
+
+    const selectionZValues = Array.from(
+      selectionSource.matchAll(/z-\[(\d+)\]/g),
+      (match) => Number(match[1]),
+    );
+    const selectedStickerZMatch = unitViewSource.match(
+      /"z-index":\s*props\.isSelected\s*\?\s*(\d+)\s*:\s*\d+/,
+    );
+
+    expect(selectionZValues.length).toBeGreaterThan(0);
+    expect(selectedStickerZMatch).not.toBeNull();
+    expect(Math.max(...selectionZValues)).toBeGreaterThan(
+      Number(selectedStickerZMatch![1]),
+    );
+  });
+
   it("does not render a select-area text prompt before the first drag point", () => {
     const sourcePath = path.resolve(
       process.cwd(),

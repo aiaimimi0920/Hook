@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolveUnitExecutionInputImage, resolveUnitImageFromGraph } from "../../src/services/graphImageResolution";
+import {
+    resolveConnectedUnitImageForPort,
+    resolveUnitExecutionInputImage,
+    resolveUnitImageFromGraph,
+} from "../../src/services/graphImageResolution";
 import type { Link, Unit } from "../../src/types/unit";
 
 const sticker = (id: string, data: Unit["data"]): Unit => ({
@@ -207,5 +211,56 @@ describe("graph image resolution", () => {
                 ],
             }),
         ).toBe("data:image/png;base64,right");
+    });
+
+    it("resolves a connected shader image port from the upstream execution image instead of a middle sticker's saved preview frame", () => {
+        const units: Unit[] = [
+            sticker("source", { src: "data:image/png;base64,source-100x100" }),
+            sticker("middle", {
+                src: "data:image/png;base64,middle-original",
+                previewSrc: "data:image/png;base64,middle-saved-200x100-preview",
+            }),
+            {
+                id: "color-transfer",
+                type: "art",
+                artId: "custom-1770131241684",
+                x: 0,
+                y: 0,
+                w: 200,
+                h: 100,
+                params: {},
+                inputs: [
+                    { id: "input", type: "image", direction: "input", label: "input" },
+                    { id: "reference", type: "image", direction: "input", label: "reference" },
+                ],
+                outputs: [{ id: "output", type: "image", direction: "output", label: "output" }],
+                data: {},
+            },
+        ];
+        const links: Link[] = [
+            {
+                id: "link-source-middle",
+                fromUnitId: "source",
+                fromPortId: "output",
+                toUnitId: "middle",
+                toPortId: "image",
+            },
+            {
+                id: "link-middle-color-transfer",
+                fromUnitId: "middle",
+                fromPortId: "output",
+                toUnitId: "color-transfer",
+                toPortId: "input",
+            },
+        ];
+
+        expect(
+            resolveConnectedUnitImageForPort({
+                units,
+                links,
+                unitId: "color-transfer",
+                portId: "input",
+            }),
+        ).toBe("data:image/png;base64,source-100x100");
     });
 });

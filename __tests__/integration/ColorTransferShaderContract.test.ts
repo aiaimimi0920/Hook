@@ -28,6 +28,7 @@ describe("Color Transfer shader node contract", () => {
     expect(unitViewSource).toContain("getShaderInputSrc");
     expect(unitViewSource).toContain("getShaderReferenceSrc");
     expect(unitViewSource).toContain("referenceImageSrc={getShaderReferenceSrc()}");
+    expect(unitViewSource).toContain("onIntrinsicSizeChange");
     expect(unitViewSource).toContain("onRendered={(dataUrl) => props.onRendered(props.unit.id, dataUrl)}");
     expect(canvasUnitsSource).toContain("onRendered: (id: string, dataUrl: string) => void");
     expect(appSource).toContain("propagateFromUnit(id)");
@@ -51,10 +52,30 @@ describe("Color Transfer shader node contract", () => {
     expect(rustSource).toContain("prefetch_shader_blocking");
   });
 
+  it("prefers the Loom python_art shader-prefetch route before falling back to local Python execution", () => {
+    const rustSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "mock_artloom.rs"), "utf8");
+
+    expect(rustSource).toContain("read_default_loom_manifest");
+    expect(rustSource).toContain("/v1/python-arts/shader/prefetch");
+    expect(rustSource).toContain("Loom shader prefetch");
+  });
+
   it("exports rendered shader output asynchronously instead of blocking on canvas.toDataURL", () => {
     const source = readFileSync(resolve(process.cwd(), "src", "components", "ShaderPreview.tsx"), "utf8");
 
     expect(source).toContain("canvas.toBlob");
     expect(source).not.toContain('renderer.toDataURL("image/png")');
+  });
+
+  it("keeps shader canvases positioned through contain-fit CSS instead of tying canvas attributes to the node frame size", () => {
+    const source = readFileSync(resolve(process.cwd(), "src", "components", "ShaderPreview.tsx"), "utf8");
+
+    expect(source).toContain("computeContainFitPlacement");
+    expect(source).toContain("onIntrinsicSizeChange");
+    expect(source).toContain('position: "absolute"');
+    expect(source).toContain('left: `${canvasPlacement().left}px`');
+    expect(source).toContain('top: `${canvasPlacement().top}px`');
+    expect(source).not.toContain("width={props.width}");
+    expect(source).not.toContain("height={props.height}");
   });
 });

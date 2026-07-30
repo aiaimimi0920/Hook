@@ -52,6 +52,12 @@ import {
 } from "./services/overlaySyntheticEvents";
 import { resolveCanvasDisplayImage } from "./services/graphImageResolution";
 import { extractArtDeliveryValueOutputs, mergeArtDeliveryOutputs } from "./services/artDeliveryOutputs";
+import { extractArtDeliveryImageSearchState } from "./services/artDeliveryImageSearch";
+import {
+    isRecoverableImageSearchExecutionFailure,
+    mergeImageSearchCandidateRuntimeState,
+    prefetchImageSearchCandidateAssets,
+} from "./services/imageSearchCandidateCache";
 import { resolveDeletionPlan } from "./services/deletionPlan";
 import { composeTeaTicketText, summarizeUnitsForTea } from "./services/teaTicketText";
 import type { BootProfile } from "./services/bootProfile";
@@ -75,6 +81,7 @@ import {
     mergeInstantiatedUnits,
 } from "./services/workflowInstantiation";
 import { refreshArtLoomCapabilitiesOnStartup } from "./services/artLoomStartup";
+import { restoredSessionNeedsCapabilityRefresh } from "./services/restoredSessionCapabilities";
 
 // Hooks
 import { useDraggable } from "./hooks/useDraggable";
@@ -339,13 +346,34 @@ export default function App() {
       const unitId = delivery.art_id;
       const unit = graphStore.units.find((item) => item.id === unitId);
       if (!unit) return;
+      const imageSearchState = extractArtDeliveryImageSearchState(
+          "imageSearch" in delivery.delivery ? delivery.delivery : {},
+      );
+      const mergedImageSearchCandidates = mergeImageSearchCandidateRuntimeState(
+          unit.data.resultCandidates,
+          imageSearchState.resultCandidates,
+      );
 
       if (delivery.status !== 200) {
+          const imageSearchRecoveryPending = isRecoverableImageSearchExecutionFailure(
+              delivery.error,
+              mergedImageSearchCandidates,
+          );
           graphStore.actions.updateUnitData(unitId, {
+              resultCandidates: mergedImageSearchCandidates,
+              selectedResultIndex: imageSearchState.selectedResultIndex,
               processing: false,
               nodeStatus: "error",
               errorMessage: delivery.error || "Art execution failed",
+              imageSearchRecoveryPending,
           });
+          if (imageSearchRecoveryPending) {
+              void prefetchImageSearchCandidateAssets({
+                  unitId,
+                  candidates: mergedImageSearchCandidates,
+                  selectedIndex: imageSearchState.selectedResultIndex,
+              });
+          }
           await syncService.performWorkflowSync();
           return;
       }
@@ -408,10 +436,18 @@ export default function App() {
           filePath,
           resultHandle,
           outputs: nextOutputs,
+          resultCandidates: mergedImageSearchCandidates,
+          selectedResultIndex: imageSearchState.selectedResultIndex,
           processing: false,
           progress: 1,
           nodeStatus: "completed",
           errorMessage: undefined,
+          imageSearchRecoveryPending: false,
+      });
+      void prefetchImageSearchCandidateAssets({
+          unitId,
+          candidates: mergedImageSearchCandidates,
+          selectedIndex: imageSearchState.selectedResultIndex,
       });
       propagateFromUnit(unitId);
       await syncService.performWorkflowSync();
@@ -1060,6 +1096,22 @@ export default function App() {
 
       await syncService.restoreSession(bootProfile || undefined);
 
+      // A restored session can already contain installed Art nodes even when the
+      // boot profile keeps ArtLoom's startup handshake disabled. Without a
+      // capability refresh those nodes still restore as `type: "art"`, but they
+      // boot without their catalog metadata and degrade into generic image nodes
+      // until the user manually opens the add-node menu. Reload the catalog
+      // immediately so restored shader/MCP/cloud Art nodes keep their true Hook
+      // behavior after restart.
+      if (restoredSessionNeedsCapabilityRefresh(graphStore.units, graphStore.capabilities)) {
+          try {
+              await refreshCapabilities();
+              await syncService.restoreSession(bootProfile || undefined);
+          } catch (error) {
+              console.warn("Failed to refresh restored-session art capabilities:", error);
+          }
+      }
+
       // Load persisted color/screenshot history (best-effort; never blocks boot).
       try {
           const rawHistory = await api.loadHistory();
@@ -1376,7 +1428,7 @@ export default function App() {
 
         <Show when={longCaptureSession()}>
             {(session) => (
-                <div class="hook-terminal-shell hook-terminal-shell--strong hook-capture-status-shell absolute right-5 top-5 z-[120] px-4 py-3 text-xs pointer-events-none">
+                <div class="hook-terminal-shell hook-terminal-shell--strong hook-capture-status-shell absolute right-5 top-5 z-[2147483646] px-4 py-3 text-xs pointer-events-none">
                     <div class="hook-capture-status-title mb-1 text-sm font-semibold">长截图录制中</div>
                     <div>已保留 {session().frameCount} 帧</div>
                     <div>已忽略 {session().duplicateCount ?? 0} 张重复画面</div>

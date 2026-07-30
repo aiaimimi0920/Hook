@@ -1,5 +1,5 @@
 
-import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { Unit, Link } from "../types/unit";
 import { ArtCapability, ArtParam } from "../services/protocol";
 import { updatePortOffset, addOrUpdateRect, removeRect } from "../services/uiRegistry";
@@ -15,6 +15,11 @@ import { getCapabilityInputsForPorts } from "../services/artPorts";
 import { normalizeImageSourceForDisplay } from "../services/imageSource";
 import { resolveEffectiveNodeParams } from "../services/graphImageResolution";
 import { syncService } from "../services/syncService";
+import { api } from "../services/api";
+import {
+    buildOptimisticImageSearchSelectionPatch,
+    resolveImageSearchCandidateCardPreviewSrc,
+} from "../services/imageSearchCandidateCache";
 import {
     DISABLED_PREFIX,
     PARAM_ui_resize,
@@ -55,12 +60,20 @@ const globalScrollRegistry: Record<string, number> = {};
 export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
   let paramContainerRef: HTMLDivElement | undefined;
   let scrollContainerRef: HTMLDivElement | undefined;
+  let scrollTrackRef: HTMLDivElement | undefined;
   let settingsPanelRef: HTMLDivElement | undefined;
 
   const [editingTextId, setEditingTextId] = createSignal<string | null>(null);
   const [tempText, setTempText] = createSignal<string>("");
   const [hoveringParam, setHoveringParam] = createSignal<string | null>(null);
   const [draggingSlider, setDraggingSlider] = createSignal<{ id: string; value: number } | null>(null);
+  const [scrollMetrics, setScrollMetrics] = createSignal({
+      scrollTop: 0,
+      scrollHeight: 0,
+      clientHeight: 0,
+      trackHeight: 0,
+  });
+  let scrollThumbDragCleanup: (() => void) | undefined;
 
   const isArt = () => props.unit.type === 'art';
   const acceptsUpstreamStickerEditPropagation = () =>
@@ -150,6 +163,82 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
       }
       return normalizeImageSourceForDisplay(resolvedSrc) || "";
   };
+  const imageSearchCandidates = () => props.unit.data.resultCandidates || [];
+  const imageSearchCandidateSetSignature = createMemo(() =>
+      imageSearchCandidates()
+          .map((candidate) => `${candidate.index}:${candidate.imageUrl}:${candidate.thumbnailUrl || ""}`)
+          .join("|"),
+  );
+  const [imageSearchCandidateFallbackSrcs, setImageSearchCandidateFallbackSrcs] =
+      createSignal<Record<number, string>>({});
+  const candidatePreviewFallbacksInFlight = new Set<number>();
+  createEffect(() => {
+      imageSearchCandidateSetSignature();
+      candidatePreviewFallbacksInFlight.clear();
+      setImageSearchCandidateFallbackSrcs({});
+  });
+  const selectedImageSearchResultIndex = () => {
+      const runtimeSelected = props.unit.data.selectedResultIndex;
+      if (typeof runtimeSelected === "number" && Number.isFinite(runtimeSelected)) {
+          return runtimeSelected;
+      }
+      const paramSelected = props.params.result_index;
+      return typeof paramSelected === "number" && Number.isFinite(paramSelected)
+          ? Math.floor(paramSelected)
+          : undefined;
+  };
+  const selectImageSearchCandidate = (candidate: ReturnType<typeof imageSearchCandidates>[number]) => {
+      graphStore.actions.updateUnitData(
+          props.unit.id,
+          buildOptimisticImageSearchSelectionPatch(props.unit, candidate),
+      );
+      props.onParamChange("result_index", candidate.index, false);
+      props.onParamChange("force_update", Date.now(), true);
+  };
+  const setImageSearchCandidateFallbackSrc = (candidateIndex: number, src: string) => {
+      setImageSearchCandidateFallbackSrcs((prev) =>
+          prev[candidateIndex] === src
+              ? prev
+              : {
+                    ...prev,
+                    [candidateIndex]: src,
+                },
+      );
+  };
+  const resolveImageSearchCandidateFallbackPath = (
+      candidate: ReturnType<typeof imageSearchCandidates>[number],
+  ) => candidate.cachedThumbnailPath || candidate.cachedImagePath;
+  const handleImageSearchCandidatePreviewError = async (
+      candidate: ReturnType<typeof imageSearchCandidates>[number],
+  ) => {
+      const candidateIndex = candidate.index;
+      const selectedPreviewSrc =
+          candidateIndex === selectedImageSearchResultIndex()
+              ? normalizeImageSourceForDisplay(props.unit.data.previewSrc)
+              : undefined;
+      if (selectedPreviewSrc) {
+          setImageSearchCandidateFallbackSrc(candidateIndex, selectedPreviewSrc);
+      }
+
+      const fallbackPath = resolveImageSearchCandidateFallbackPath(candidate);
+      if (!fallbackPath || candidatePreviewFallbacksInFlight.has(candidateIndex)) {
+          return;
+      }
+
+      candidatePreviewFallbacksInFlight.add(candidateIndex);
+      try {
+          const fallbackSrc = await api.readImageFromPath(fallbackPath);
+          setImageSearchCandidateFallbackSrc(candidateIndex, fallbackSrc);
+      } catch (error) {
+          console.warn(
+              "[UnitParamsPanel] Failed to load image-search candidate thumbnail fallback",
+              candidateIndex,
+              error,
+          );
+      } finally {
+          candidatePreviewFallbacksInFlight.delete(candidateIndex);
+      }
+  };
 
   const isPortVisible = (portName: string) => {
       const userVis = props.unit.data.portVisibility?.[portName];
@@ -189,6 +278,118 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
   const openTextEditor = (param: ArtParam) => {
       setTempText(String(getParamValue(param.id, param.default) ?? ""));
       setEditingTextId(param.id);
+  };
+
+  const focusOverlayFromPointerEvent = (event: PointerEvent | MouseEvent) => {
+      event.stopPropagation();
+      void api.focusOverlayWindow();
+  };
+
+  const syncScrollMetrics = () => {
+      if (!scrollContainerRef) return;
+      const trackHeight =
+          scrollTrackRef?.clientHeight ||
+          scrollTrackRef?.getBoundingClientRect().height ||
+          scrollContainerRef.clientHeight;
+      setScrollMetrics({
+          scrollTop: scrollContainerRef.scrollTop,
+          scrollHeight: scrollContainerRef.scrollHeight,
+          clientHeight: scrollContainerRef.clientHeight,
+          trackHeight,
+      });
+  };
+
+  const getMaxScrollTop = () =>
+      Math.max(0, scrollMetrics().scrollHeight - scrollMetrics().clientHeight);
+
+  const setManualScrollTop = (nextScrollTop: number) => {
+      if (!scrollContainerRef) return;
+      const maxScrollTop = Math.max(0, scrollContainerRef.scrollHeight - scrollContainerRef.clientHeight);
+      const clampedScrollTop = Math.max(0, Math.min(nextScrollTop, maxScrollTop));
+      scrollContainerRef.scrollTop = clampedScrollTop;
+      globalScrollRegistry[props.unit.id] = clampedScrollTop;
+      syncScrollMetrics();
+  };
+
+  const applyManualScrollDelta = (deltaY: number) => {
+      const currentScrollTop = scrollContainerRef?.scrollTop ?? scrollMetrics().scrollTop;
+      setManualScrollTop(currentScrollTop + deltaY);
+  };
+
+  const hasScrollableOverflow = () => scrollMetrics().scrollHeight > scrollMetrics().clientHeight + 1;
+
+  const getScrollTrackHeight = () => {
+      const metrics = scrollMetrics();
+      return metrics.trackHeight > 0 ? metrics.trackHeight : metrics.clientHeight;
+  };
+
+  const getScrollThumbHeight = () => {
+      const metrics = scrollMetrics();
+      const trackHeight = getScrollTrackHeight();
+      if (trackHeight <= 0 || metrics.clientHeight <= 0 || metrics.scrollHeight <= 0) return 0;
+      if (!hasScrollableOverflow()) return trackHeight;
+      return Math.min(
+          trackHeight,
+          Math.max(18, (metrics.clientHeight / metrics.scrollHeight) * trackHeight),
+      );
+  };
+
+  const getScrollThumbTravel = () =>
+      Math.max(0, getScrollTrackHeight() - getScrollThumbHeight());
+
+  const getScrollThumbTop = () => {
+      const maxScrollTop = getMaxScrollTop();
+      if (maxScrollTop <= 0) return 0;
+      return (scrollMetrics().scrollTop / maxScrollTop) * getScrollThumbTravel();
+  };
+
+  const clearScrollThumbDrag = () => {
+      scrollThumbDragCleanup?.();
+      scrollThumbDragCleanup = undefined;
+  };
+
+  const startScrollThumbDrag = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void api.focusOverlayWindow();
+
+      const dragStartClientY = event.clientY;
+      const dragStartScrollTop = scrollContainerRef?.scrollTop ?? scrollMetrics().scrollTop;
+      const maxScrollTop = getMaxScrollTop();
+      const thumbTravel = getScrollThumbTravel();
+      if (!scrollContainerRef || maxScrollTop <= 0 || thumbTravel <= 0) {
+          return;
+      }
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+          moveEvent.preventDefault();
+          const deltaY = moveEvent.clientY - dragStartClientY;
+          const scrollDelta = (deltaY / thumbTravel) * maxScrollTop;
+          setManualScrollTop(dragStartScrollTop + scrollDelta);
+      };
+
+      const handleMouseUp = () => {
+          clearScrollThumbDrag();
+      };
+
+      clearScrollThumbDrag();
+      window.addEventListener("mousemove", handleMouseMove, true);
+      window.addEventListener("mouseup", handleMouseUp, true);
+      scrollThumbDragCleanup = () => {
+          window.removeEventListener("mousemove", handleMouseMove, true);
+          window.removeEventListener("mouseup", handleMouseUp, true);
+      };
+  };
+
+  const handleScrollTrackMouseDown = (event: MouseEvent & { currentTarget: HTMLDivElement }) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void api.focusOverlayWindow();
+      if (!scrollContainerRef) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      if (rect.height <= 0) return;
+      const ratio = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+      setManualScrollTop(ratio * getMaxScrollTop());
   };
 
   const handleParamChange = (id: string, val: any, isFinal: boolean = true) => {
@@ -260,6 +461,13 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
       setTempText(String(getParamValue(id, param?.default) ?? ""));
   });
 
+  createEffect(() => {
+      derivedParams().length;
+      paramGroups().length;
+      imageSearchCandidateSetSignature();
+      requestAnimationFrame(() => syncScrollMetrics());
+  });
+
   // Rect Registration for Panel
   createEffect(() => {
        const u = props.unit;
@@ -284,13 +492,53 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
        updateParamsRect();
        let observer: ResizeObserver | null = null;
        if (paramContainerRef) {
-           observer = new ResizeObserver(() => updateParamsRect());
+           observer = new ResizeObserver(() => {
+               updateParamsRect();
+               syncScrollMetrics();
+           });
            observer.observe(paramContainerRef);
        }
        onCleanup(() => {
            observer?.disconnect();
            removeRect(`params-${u.id}`);
        });
+  });
+
+  onMount(() => {
+      syncScrollMetrics();
+      const rafId = requestAnimationFrame(() => syncScrollMetrics());
+
+      let scrollContainerObserver: ResizeObserver | null = null;
+      let scrollContentObserver: ResizeObserver | null = null;
+      let scrollTrackObserver: ResizeObserver | null = null;
+
+      if (typeof ResizeObserver !== "undefined" && scrollContainerRef) {
+          scrollContainerObserver = new ResizeObserver(() => syncScrollMetrics());
+          scrollContainerObserver.observe(scrollContainerRef);
+
+          const scrollContent = scrollContainerRef.firstElementChild;
+          if (scrollContent instanceof HTMLElement) {
+              scrollContentObserver = new ResizeObserver(() => syncScrollMetrics());
+              scrollContentObserver.observe(scrollContent);
+          }
+
+          if (scrollTrackRef) {
+              scrollTrackObserver = new ResizeObserver(() => syncScrollMetrics());
+              scrollTrackObserver.observe(scrollTrackRef);
+          }
+      }
+
+      const handleWindowResize = () => syncScrollMetrics();
+      window.addEventListener("resize", handleWindowResize);
+
+      onCleanup(() => {
+          cancelAnimationFrame(rafId);
+          window.removeEventListener("resize", handleWindowResize);
+          scrollContainerObserver?.disconnect();
+          scrollContentObserver?.disconnect();
+          scrollTrackObserver?.disconnect();
+          clearScrollThumbDrag();
+      });
   });
 
 
@@ -406,7 +654,8 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
             "z-index": 100,
             "pointer-events": "auto"
         }}
-        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={focusOverlayFromPointerEvent}
+        onMouseDown={focusOverlayFromPointerEvent}
         onMouseUp={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onDblClick={(e) => e.stopPropagation()}
@@ -430,6 +679,88 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                 props.onParamChange(EXEC_manualTrigger, Date.now());
             }}
         />
+
+        <Show when={isArt() && imageSearchCandidates().length > 1}>
+            <div class="flex-shrink-0 px-4 pb-3">
+                <div class="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.12em] text-white/55">
+                    <span>搜索结果</span>
+                    <span>
+                        当前
+                        {" "}
+                        #
+                        {(selectedImageSearchResultIndex() ?? 0) + 1}
+                    </span>
+                </div>
+                <div
+                    class="mt-2 grid gap-2"
+                    style={{
+                        "grid-template-columns": "repeat(auto-fit, minmax(68px, 1fr))",
+                    }}
+                >
+                    <For each={imageSearchCandidates()}>
+                        {(candidate) => {
+                            const selected = () =>
+                                candidate.index === selectedImageSearchResultIndex();
+                            const previewSrc = () =>
+                                imageSearchCandidateFallbackSrcs()[candidate.index] ||
+                                resolveImageSearchCandidateCardPreviewSrc(candidate, {
+                                    isSelected: selected(),
+                                    selectedPreviewSrc: props.unit.data.previewSrc,
+                                });
+                            return (
+                                <button
+                                    type="button"
+                                    data-image-search-candidate-index={candidate.index}
+                                    class="flex flex-col gap-1 rounded-lg border bg-white/[0.03] p-1.5 text-left transition-colors hover:bg-white/[0.08]"
+                                    style={{
+                                        border: selected()
+                                            ? "1px solid rgba(163, 230, 53, 0.9)"
+                                            : "1px solid rgba(255, 255, 255, 0.1)",
+                                        "box-shadow": selected()
+                                            ? "0 0 0 1px rgba(163, 230, 53, 0.25)"
+                                            : "none",
+                                    }}
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        selectImageSearchCandidate(candidate);
+                                    }}
+                                >
+                                    <span
+                                        class="overflow-hidden rounded-md border border-white/10 bg-black/25"
+                                        style={{
+                                            width: "100%",
+                                            height: "54px",
+                                        }}
+                                    >
+                                        <img
+                                            src={previewSrc()}
+                                            alt={candidate.title || `结果 ${candidate.index + 1}`}
+                                            loading="lazy"
+                                            onError={() => {
+                                                void handleImageSearchCandidatePreviewError(candidate);
+                                            }}
+                                            style={{
+                                                width: "100%",
+                                                height: "100%",
+                                                "object-fit": "cover",
+                                                display: "block",
+                                            }}
+                                        />
+                                    </span>
+                                    <span class="truncate text-[10px] font-semibold text-white/85">
+                                        {candidate.title || `结果 ${candidate.index + 1}`}
+                                    </span>
+                                    <span class="text-[9px] text-white/45">
+                                        #{candidate.index + 1}
+                                    </span>
+                                </button>
+                            );
+                        }}
+                    </For>
+                </div>
+                <div class="mt-2 h-px bg-white/5" />
+            </div>
+        </Show>
 
         {/* Inputs */}
         <Show when={getInputs().length > 0}>
@@ -537,46 +868,87 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
 
         {/* Params Scroll Container */}
         <div
-             ref={(el) => {
-                 scrollContainerRef = el;
-                 if (globalScrollRegistry[props.unit.id]) {
-                     requestAnimationFrame(() => {
-                         if (scrollContainerRef) scrollContainerRef.scrollTop = globalScrollRegistry[props.unit.id];
-                     });
-                 }
-             }}
-             onScroll={(e) => { globalScrollRegistry[props.unit.id] = e.currentTarget.scrollTop; }}
-             class="param-scroll-container bg-transparent w-full"
-             style={{
-                 "flex": "1",
-                 "min-height": "0",
-                 "overflow-y": "auto",
-                 "overflow-x": "hidden",
-                 "max-height": "min(360px, calc(100vh - 300px))",
-                 "padding-right": "2px",
-             }}
+            class="relative flex w-full flex-1 min-h-0"
+            style={{
+                "max-height": "min(360px, calc(100vh - 300px))",
+            }}
         >
-             <div class="flex flex-col gap-3 p-4 pt-0">
-                  <Show
-                      when={shouldGroupArtParams(derivedParams())}
-                      fallback={<For each={derivedParams()}>{(param) => renderParamControl(param)}</For>}
-                  >
-                      <For each={paramGroups()}>
-                          {(group) => (
-                              <div class="param-group flex flex-col gap-3" data-param-group={group.id}>
-                                  <div
-                                      class="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/65"
-                                      data-param-group-header={group.id}
-                                  >
-                                      <span class="truncate">{group.label}</span>
-                                      <span class="text-white/40">{group.params.length}</span>
+            <div
+                 ref={(el) => {
+                     scrollContainerRef = el;
+                     const savedScrollTop = globalScrollRegistry[props.unit.id];
+                     requestAnimationFrame(() => {
+                         if (typeof savedScrollTop === "number") {
+                             setManualScrollTop(savedScrollTop);
+                         } else {
+                             syncScrollMetrics();
+                         }
+                     });
+                 }}
+                 onScroll={(e) => {
+                     globalScrollRegistry[props.unit.id] = e.currentTarget.scrollTop;
+                     syncScrollMetrics();
+                 }}
+                 onWheel={(event) => {
+                     event.preventDefault();
+                     event.stopPropagation();
+                     void api.focusOverlayWindow();
+                     applyManualScrollDelta(event.deltaY);
+                 }}
+                 class="param-scroll-container bg-transparent w-full"
+                 style={{
+                     "flex": "1",
+                     "min-height": "0",
+                     "overflow-y": "auto",
+                     "overflow-x": "hidden",
+                     "max-height": "min(360px, calc(100vh - 300px))",
+                     "padding-right": "12px",
+                 }}
+            >
+                 <div class="flex flex-col gap-3 p-4 pt-0">
+                      <Show
+                          when={shouldGroupArtParams(derivedParams())}
+                          fallback={<For each={derivedParams()}>{(param) => renderParamControl(param)}</For>}
+                      >
+                          <For each={paramGroups()}>
+                              {(group) => (
+                                  <div class="param-group flex flex-col gap-3" data-param-group={group.id}>
+                                      <div
+                                          class="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/65"
+                                          data-param-group-header={group.id}
+                                      >
+                                          <span class="truncate">{group.label}</span>
+                                          <span class="text-white/40">{group.params.length}</span>
+                                      </div>
+                                      <For each={group.params}>{(param) => renderParamControl(param)}</For>
                                   </div>
-                                  <For each={group.params}>{(param) => renderParamControl(param)}</For>
-                              </div>
-                          )}
-                      </For>
-                  </Show>
-             </div>
+                              )}
+                          </For>
+                      </Show>
+                 </div>
+            </div>
+            <div
+                ref={scrollTrackRef}
+                data-param-scrollbar-track
+                class="param-scrollbar-track absolute bottom-3 right-1 top-3"
+                style={{
+                    width: "8px",
+                    opacity: hasScrollableOverflow() ? 1 : 0.35,
+                }}
+                onMouseDown={handleScrollTrackMouseDown}
+            >
+                <div
+                    data-param-scrollbar-thumb
+                    class="param-scrollbar-thumb absolute left-0 right-0"
+                    style={{
+                        height: `${getScrollThumbHeight()}px`,
+                        top: `${getScrollThumbTop()}px`,
+                        opacity: hasScrollableOverflow() ? 1 : 0.45,
+                        "pointer-events": hasScrollableOverflow() ? "auto" : "none",
+                    }}
+                    onMouseDown={startScrollThumbDrag}
+                />
+            </div>
         </div>
     </div>
 
@@ -591,7 +963,8 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                 width: "180px",
                 "padding": "12px",
             }}
-            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={focusOverlayFromPointerEvent}
+            onMouseDown={focusOverlayFromPointerEvent}
             onClick={(e) => e.stopPropagation()}
             onDblClick={(e) => e.stopPropagation()}
         >
@@ -683,7 +1056,10 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                      "padding": "12px",
                      "color": "var(--text-primary)"
                  }}
-                 onMouseDown={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} onDblClick={(e) => e.stopPropagation()}
+                 onPointerDown={focusOverlayFromPointerEvent}
+                 onMouseDown={focusOverlayFromPointerEvent}
+                 onClick={(e) => e.stopPropagation()}
+                 onDblClick={(e) => e.stopPropagation()}
              >
                  <div class="flex items-center justify-between mb-2">
                      <span class="text-xs font-bold text-white/90 uppercase tracking-wider">Edit Text</span>
@@ -692,8 +1068,8 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                  <textarea class="hook-terminal-input w-full h-[150px] p-3 text-[11px] leading-relaxed resize-y min-h-[100px] scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent font-mono mb-3"
                      value={tempText()}
                      onInput={(e) => setTempText(e.currentTarget.value)}
-                     onMouseDown={(e) => e.stopPropagation()}
-                     onPointerDown={(e) => e.stopPropagation()}
+                     onPointerDown={focusOverlayFromPointerEvent}
+                     onMouseDown={focusOverlayFromPointerEvent}
                      onClick={(e) => e.stopPropagation()}
                      placeholder="Enter text..."
                      autofocus
