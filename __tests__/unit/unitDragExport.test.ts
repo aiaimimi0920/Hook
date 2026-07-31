@@ -101,6 +101,29 @@ describe("unit drag export planning", () => {
         });
     });
 
+    it("exports a sticker's current upstream display instead of its stale stored paths", () => {
+        const unit = mkUnit({
+            id: "sticker-2",
+            type: "sticker",
+            data: {
+                src: "asset://localhost/C:/temp/original.png",
+                filePath: "C:\\temp\\original.png",
+                dragOutFilePath: "C:\\temp\\previous-export.png",
+            },
+        });
+
+        expect(
+            resolveUnitDragExportPlan({
+                unit,
+                displaySrc: "data:image/png;base64,CURRENT_ART_RESULT",
+            }),
+        ).toEqual({
+            kind: "rendered-composite",
+            filenameHint: "image_er-2",
+            cacheSavedPath: true,
+        });
+    });
+
     it("does not arm drag export for an art node that has no produced image yet", () => {
         const unit = mkUnit({
             id: "art-3",

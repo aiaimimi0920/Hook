@@ -160,7 +160,14 @@ export const resolveUnitDragExportPlan = (input: {
     displaySrc?: string;
 }): UnitDragExportPlan | null => {
     const filenameHint = buildUnitDragExportFilenameHint(input.unit, input.capabilityLabel);
-    const existingPath = resolveExistingUnitDragFilePath(input.unit);
+    const displayOverridesStoredStickerImage =
+        input.unit.type !== "art" &&
+        isNonEmptyString(input.displaySrc) &&
+        input.displaySrc !== input.unit.data.src &&
+        input.displaySrc !== input.unit.data.filePath;
+    const existingPath = displayOverridesStoredStickerImage
+        ? undefined
+        : resolveExistingUnitDragFilePath(input.unit);
     if (existingPath) {
         return {
             kind: "path",
