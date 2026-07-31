@@ -81,7 +81,10 @@ import {
     mergeInstantiatedUnits,
 } from "./services/workflowInstantiation";
 import { refreshArtLoomCapabilitiesOnStartup } from "./services/artLoomStartup";
-import { restoredSessionNeedsCapabilityRefresh } from "./services/restoredSessionCapabilities";
+import {
+    restoredSessionNeedsCapabilityRefresh,
+    sessionSnapshotNeedsCapabilityRefresh,
+} from "./services/restoredSessionCapabilities";
 
 // Hooks
 import { useDraggable } from "./hooks/useDraggable";
@@ -363,6 +366,7 @@ export default function App() {
               resultCandidates: mergedImageSearchCandidates,
               selectedResultIndex: imageSearchState.selectedResultIndex,
               processing: false,
+              restoredPreviewLocked: false,
               nodeStatus: "error",
               errorMessage: delivery.error || "Art execution failed",
               imageSearchRecoveryPending,
@@ -408,6 +412,7 @@ export default function App() {
           case "shader":
               graphStore.actions.updateUnitData(unitId, {
                   processing: false,
+                  restoredPreviewLocked: false,
                   nodeStatus: "completed",
                   progress: 1,
                   errorMessage: undefined,
@@ -440,6 +445,7 @@ export default function App() {
           selectedResultIndex: imageSearchState.selectedResultIndex,
           processing: false,
           progress: 1,
+          restoredPreviewLocked: false,
           nodeStatus: "completed",
           errorMessage: undefined,
           imageSearchRecoveryPending: false,
@@ -1094,7 +1100,22 @@ export default function App() {
           console.warn("ArtLoom bridge unavailable during startup; continuing in standalone mode.", e);
       }
 
-      await syncService.restoreSession(bootProfile || undefined);
+      let preloadedSession: Awaited<ReturnType<typeof api.loadSession>> | null = null;
+      try {
+          const preloadedSessionData = await api.loadSession();
+          preloadedSession = preloadedSessionData;
+          if (sessionSnapshotNeedsCapabilityRefresh(preloadedSessionData?.stickers, graphStore.capabilities)) {
+              try {
+                  await refreshCapabilities();
+              } catch (error) {
+                  console.warn("Failed to preflight restored-session art capabilities:", error);
+              }
+          }
+      } catch (error) {
+          console.warn("Failed to preflight persisted session before restore:", error);
+      }
+
+      await syncService.restoreSession(bootProfile || undefined, preloadedSession);
 
       // A restored session can already contain installed Art nodes even when the
       // boot profile keeps ArtLoom's startup handshake disabled. Without a
@@ -1412,6 +1433,7 @@ export default function App() {
                     previewSrc: dataUrl,
                     processing: false,
                     progress: 1,
+                    restoredPreviewLocked: false,
                     nodeStatus: "completed",
                     errorMessage: undefined,
                 });

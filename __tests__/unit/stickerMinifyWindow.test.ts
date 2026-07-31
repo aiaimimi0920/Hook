@@ -240,4 +240,30 @@ describe("sticker minify window", () => {
             offsetY: 0,
         });
     });
+
+    it("matches ordinary sticker behavior for a wide art-node frame: the mini sticker stays near the full-frame click while the viewport clamps onto the visible image", () => {
+        const minified = computeMinifiedStickerWindow(
+            { x: 100, y: 200, w: 400, h: 100 },
+            0.975,
+            0.5,
+        );
+
+        expect(minified.frame).toEqual({ x: 400, y: 200, w: 100, h: 100 });
+        expect(minified.cropOffset).toEqual({ x: 300, y: 0 });
+
+        const viewport = computeMinifiedStickerViewport(
+            { w: minified.frame.w, h: minified.frame.h },
+            { w: 400, h: 100 },
+            minified.cropOffset,
+            undefined,
+            { w: 200, h: 100 },
+        );
+
+        expect(viewport).toEqual({
+            width: 200,
+            height: 100,
+            offsetX: 100,
+            offsetY: 0,
+        });
+    });
 });

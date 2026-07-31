@@ -149,7 +149,18 @@ class ShaderCacheService {
         // Check if we already have a renderer for this unit
         let renderer = cached.renderers.get(unitId);
         if (renderer) {
-            return renderer;
+            const boundCanvas =
+                typeof (renderer as ShaderRenderer & { getCanvas?: () => HTMLCanvasElement }).getCanvas === "function"
+                    ? (renderer as ShaderRenderer & { getCanvas: () => HTMLCanvasElement }).getCanvas()
+                    : null;
+            if (boundCanvas && boundCanvas !== canvas) {
+                renderer.dispose();
+                cached.renderers.delete(unitId);
+                console.log(`[ShaderCache] Recreating renderer for unit ${unitId} because the canvas changed`);
+                renderer = undefined;
+            } else {
+                return renderer;
+            }
         }
 
         // Create new renderer

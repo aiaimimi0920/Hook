@@ -7,7 +7,7 @@ describe("Hook AHRP cloud output contract", () => {
     const source = readFileSync(resolve(process.cwd(), "src-tauri", "src", "mock_artloom.rs"), "utf8");
 
     expect(source).toMatch(/json\["data"\]\s*\["output"\]\s*\.as_object\(\)/);
-    expect(source).toMatch(/output\["data"\]\s*\.as_str\(\)/);
+    expect(source).toMatch(/output\s*\.get\("data"\)\s*\.and_then\(\|v\| v\.as_str\(\)\)/);
     expect(source).toContain("Successfully received base64 output from ArtLoom");
   });
 

@@ -3,6 +3,19 @@ import type { ArtCapability, ArtParam } from "./protocol";
 import type { Link, Unit } from "../types/unit";
 
 const DEFAULT_IMAGE_INPUTS = ["image", "input_image", "input"];
+const LEGACY_AUXILIARY_IMAGE_INPUTS = new Set([
+    "reference",
+    "ref",
+    "mask",
+    "alpha",
+    "matte",
+    "foreground",
+    "background",
+    "overlay",
+    "style",
+    "guide",
+    "target",
+]);
 
 const isImageLikePort = (name?: string, type?: string) => {
     const normalizedName = (name || "").toLowerCase();
@@ -142,6 +155,17 @@ export const resolveConnectedUnitImageForPort = (input: {
     return typeof directValue === "string" && directValue.length > 0 ? directValue : undefined;
 };
 
+const isPrimaryImageInputName = (name: string) => DEFAULT_IMAGE_INPUTS.includes(name.toLowerCase());
+
+const isLegacyAuxiliaryImageInputName = (name: string) => {
+    const normalizedName = name.toLowerCase();
+    return (
+        LEGACY_AUXILIARY_IMAGE_INPUTS.has(normalizedName) ||
+        normalizedName.endsWith("_image") ||
+        normalizedName.endsWith("_file")
+    );
+};
+
 const toFiniteNumber = (value: unknown) => {
     const numeric = typeof value === "number" ? value : Number(value);
     return Number.isFinite(numeric) ? numeric : undefined;
@@ -246,6 +270,187 @@ export const resolveEffectiveNodeParams = (input: {
         });
 
     return resolved;
+};
+
+export const resolveAuxiliaryUnitExecutionInputImages = (input: {
+    units: readonly Unit[];
+    links: readonly Link[];
+    unitId: string;
+    capabilities?: readonly ArtCapability[];
+    manualParams?: Record<string, unknown>;
+}): Record<string, string> => {
+    const unit = input.units.find((item) => item.id === input.unitId);
+    if (!unit) return {};
+
+    const capability = findCapability(unit, input.capabilities);
+    const manual = input.manualParams || unit.params || {};
+    const auxiliaryImageInputs =
+        capability?.inputs?.filter(
+            (port) =>
+                isNonEmptyString(port.name) &&
+                isImageLikePort(port.name, port.type) &&
+                !isPrimaryImageInputName(port.name),
+        ) || [];
+
+    const resolved: Record<string, string> = {};
+
+    for (const port of auxiliaryImageInputs) {
+        const connected = resolveConnectedUnitImageForPort({
+            units: input.units,
+            links: input.links,
+            capabilities: input.capabilities,
+            unitId: input.unitId,
+            portId: port.name,
+        });
+        if (connected) {
+            resolved[port.name] = connected;
+            continue;
+        }
+
+        const manualValue = manual[port.name];
+        if (typeof manualValue === "string" && manualValue.length > 0) {
+            resolved[port.name] = manualValue;
+        }
+    }
+
+    if (capability && auxiliaryImageInputs.length > 0) {
+        return resolved;
+    }
+
+    const legacyFallbackPorts = new Set<string>();
+    input.links
+        .filter((link) => link.toUnitId === input.unitId)
+        .forEach((link) => {
+            if (isPrimaryImageInputName(link.toPortId) || !isLegacyAuxiliaryImageInputName(link.toPortId)) {
+                return;
+            }
+            legacyFallbackPorts.add(link.toPortId);
+        });
+    Object.keys(manual).forEach((key) => {
+        if (!isPrimaryImageInputName(key) && isLegacyAuxiliaryImageInputName(key)) {
+            legacyFallbackPorts.add(key);
+        }
+    });
+
+    for (const portId of legacyFallbackPorts) {
+        if (resolved[portId]) continue;
+
+        const connected = resolveConnectedUnitImageForPort({
+            units: input.units,
+            links: input.links,
+            capabilities: input.capabilities,
+            unitId: input.unitId,
+            portId,
+        });
+        if (connected) {
+            resolved[portId] = connected;
+            continue;
+        }
+
+        const manualValue = manual[portId];
+        if (typeof manualValue === "string" && manualValue.length > 0) {
+            resolved[portId] = manualValue;
+        }
+    }
+
+    return resolved;
+};
+
+const collectDeclaredExecutionImagePorts = (input: {
+    unit: Unit;
+    links: readonly Link[];
+    manualParams: Record<string, unknown>;
+    capabilities?: readonly ArtCapability[];
+}) => {
+    const capability = findCapability(input.unit, input.capabilities);
+    const declared = new Set<string>();
+
+    const capabilityImagePorts =
+        capability?.inputs
+            ?.filter((port) => isNonEmptyString(port.name) && isImageLikePort(port.name, port.type))
+            .map((port) => port.name)
+            .filter(isNonEmptyString) || [];
+    capabilityImagePorts.forEach((port) => declared.add(port));
+
+    if (declared.size === 0) {
+        input.unit.inputs
+            ?.filter((port) => isImageLikePort(port.id || port.label, port.type))
+            .map((port) => port.id || port.label)
+            .filter(isNonEmptyString)
+            .forEach((port) => declared.add(port));
+        input.links
+            .filter((link) => link.toUnitId === input.unit.id)
+            .map((link) => link.toPortId)
+            .filter((portId) => isPrimaryImageInputName(portId) || isLegacyAuxiliaryImageInputName(portId))
+            .forEach((portId) => declared.add(portId));
+        Object.keys(input.manualParams)
+            .filter((key) => isPrimaryImageInputName(key) || isLegacyAuxiliaryImageInputName(key))
+            .forEach((key) => declared.add(key));
+    }
+
+    const ports = Array.from(declared);
+    const primaryPortId =
+        ports.find((port) => isPrimaryImageInputName(port)) ||
+        ports.find((port) => !isLegacyAuxiliaryImageInputName(port)) ||
+        ports[0];
+    const auxiliaryPortIds = ports.filter((port) => port !== primaryPortId);
+
+    return {
+        primaryPortId,
+        auxiliaryPortIds,
+    };
+};
+
+export const resolveMissingUnitExecutionImagePorts = (input: {
+    units: readonly Unit[];
+    links: readonly Link[];
+    unitId: string;
+    capabilities?: readonly ArtCapability[];
+    manualParams?: Record<string, unknown>;
+}): string[] => {
+    const unit = input.units.find((item) => item.id === input.unitId);
+    if (!unit) return [];
+
+    const manual = input.manualParams || unit.params || {};
+    const declared = collectDeclaredExecutionImagePorts({
+        unit,
+        links: input.links,
+        manualParams: manual,
+        capabilities: input.capabilities,
+    });
+    if (!declared.primaryPortId && declared.auxiliaryPortIds.length === 0) {
+        return [];
+    }
+
+    const missing: string[] = [];
+    if (declared.primaryPortId) {
+        const primaryValue = isPrimaryImageInputName(declared.primaryPortId)
+            ? resolveUnitExecutionInputImage({
+                  units: input.units,
+                  links: input.links,
+                  unitId: input.unitId,
+                  capabilities: input.capabilities,
+              })
+            : resolveConnectedUnitImageForPort({
+                  units: input.units,
+                  links: input.links,
+                  unitId: input.unitId,
+                  portId: declared.primaryPortId,
+                  capabilities: input.capabilities,
+              });
+        if (!primaryValue) {
+            missing.push(declared.primaryPortId);
+        }
+    }
+
+    const auxiliaryValues = resolveAuxiliaryUnitExecutionInputImages(input);
+    declared.auxiliaryPortIds.forEach((portId) => {
+        if (!auxiliaryValues[portId]) {
+            missing.push(portId);
+        }
+    });
+
+    return missing;
 };
 
 export const resolveUnitImageFromGraph = (input: {

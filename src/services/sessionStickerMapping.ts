@@ -83,6 +83,10 @@ export const mapSessionStickerToUnit = (
             opacityNormal: sticker.opacityNormal ?? 1,
             opacityMini: sticker.opacityMini ?? 0.9,
             previewSrc: sticker.previewSrc && sticker.previewSrc !== sticker.src ? sticker.previewSrc : undefined,
+            restoredPreviewLocked:
+                unitType === "art" &&
+                !!sticker.previewSrc &&
+                sticker.previewSrc !== sticker.src,
             filePath: sticker.filePath || undefined,
             rasterizedAnnotationLayerSrc: sticker.rasterizedAnnotationLayerSrc || undefined,
             outputs: sticker.outputs || undefined,

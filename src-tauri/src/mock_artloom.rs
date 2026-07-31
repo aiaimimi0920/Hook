@@ -76,6 +76,12 @@ pub struct ArtDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution: Option<serde_json::Value>,
 
+    #[serde(default)]
+    pub inputs: Vec<ArtInputDefinition>,
+
+    #[serde(default)]
+    pub outputs: Vec<ArtOutputDefinition>,
+
     // Legacy fields - made optional for compatibility
     #[serde(default)]
     pub input_schema: Option<HashMap<String, String>>,
@@ -99,6 +105,38 @@ pub struct ArtParameter {
     pub disabled: bool,
     #[serde(default)]
     pub data_type: Option<String>, // Added to match ArtLoom JSON schema
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ArtInputDefinition {
+    pub name: String,
+    pub label: String,
+    #[serde(default)]
+    pub r#type: String,
+    #[serde(default)]
+    pub default: Option<serde_json::Value>,
+    #[serde(default, rename = "defaultVisible")]
+    pub default_visible: Option<bool>,
+    #[serde(default, rename = "exposePort")]
+    pub expose_port: Option<bool>,
+    #[serde(default)]
+    pub execution_type: Option<String>,
+    #[serde(default)]
+    pub data_type: Option<String>,
+    #[serde(default)]
+    pub widget: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ArtOutputDefinition {
+    pub name: String,
+    pub label: String,
+    #[serde(default)]
+    pub r#type: String,
+    #[serde(default, rename = "defaultVisible")]
+    pub default_visible: Option<bool>,
+    #[serde(default)]
+    pub execution_type: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -137,6 +175,8 @@ pub enum ArtLoomAction {
         param_key: String,
         value: serde_json::Value,
         input_image: Option<String>,
+        #[serde(default)]
+        input_images: Option<HashMap<String, String>>,
         art_id: Option<String>, // Added art_id to identify effect type
         #[serde(default)]
         all_params: Option<HashMap<String, serde_json::Value>>, // All params for complete state
@@ -793,14 +833,31 @@ pub async fn artloom_dispatch_action(
             param_key,
             art_id,
             input_image,
+            input_images,
             ..
         } => {
+            crate::append_runtime_log_line(&format!(
+                "artloom_dispatch_action_update_node_param :: node_id={} param_key={} art_id={} has_input_image={} aux_keys={}",
+                node_id,
+                param_key,
+                art_id.as_deref().unwrap_or(""),
+                input_image.as_ref().map(|value| !value.trim().is_empty()).unwrap_or(false),
+                input_images
+                    .as_ref()
+                    .map(|images| {
+                        let mut keys = images.keys().cloned().collect::<Vec<_>>();
+                        keys.sort();
+                        if keys.is_empty() { "none".to_string() } else { keys.join(",") }
+                    })
+                    .unwrap_or_else(|| "none".to_string())
+            ));
             println!(
-                "AHRP Action: UpdateNodeParam node_id={}, param_key={}, art_id={:?}, has_image={}",
+                "AHRP Action: UpdateNodeParam node_id={}, param_key={}, art_id={:?}, has_image={}, aux_images={}",
                 node_id,
                 param_key,
                 art_id,
-                input_image.is_some()
+                input_image.is_some(),
+                input_images.as_ref().map(|images| images.len()).unwrap_or(0)
             );
         }
         ArtLoomAction::SyncWorkflow { workflow_id, .. } => {
@@ -814,6 +871,7 @@ pub async fn artloom_dispatch_action(
             param_key,
             value,
             input_image,
+            input_images,
             art_id,
             all_params,
             disabled_params,
@@ -888,6 +946,7 @@ pub async fn artloom_dispatch_action(
             let _node_id = node_id.clone();
             let state_arc = state.state.clone();
             let _disabled_params = disabled_params.clone(); // Clone for thread
+            let _input_images = input_images.clone();
             let loaded_arts = state.loaded_arts.lock().map_err(|e| e.to_string())?.clone();
             let _params = {
                 let s = state.state.lock().map_err(|e| e.to_string())?;
@@ -1024,6 +1083,19 @@ pub async fn artloom_dispatch_action(
                                 }
                             }
 
+                            let mut resolved_input_images = _input_images.unwrap_or_default();
+                            for (k, value) in resolved_input_images.iter_mut() {
+                                if value.len() == 36 && value.matches('-').count() == 4 {
+                                    if let Some(path) = resolve_image_path(value) {
+                                        println!(
+                                            "[MOCK_ARTLOOM] Auto-resolved input image '{}' (UUID) to: {}",
+                                            k, path
+                                        );
+                                        *value = path;
+                                    }
+                                }
+                            }
+
                             // Build AHRP Request - matching ArtLoom's InputData schema!
                             let request_id = uuid::Uuid::new_v4().to_string();
                             let ahrp_request = serde_json::json!({
@@ -1039,9 +1111,22 @@ pub async fn artloom_dispatch_action(
                                         "format": "rgba8"
                                     },
                                     "params": resolved_params,
+                                    "input_images": resolved_input_images,
                                     "disabled_params": _disabled_params.clone().unwrap_or_default()
                                 }
                             });
+
+                            crate::append_runtime_log_line(&format!(
+                                "mock_artloom_forward_art_process :: art_id={} request_id={} input_type=base64 has_reference_input_image={} param_keys={}",
+                                art_type,
+                                request_id,
+                                resolved_input_images.contains_key("reference"),
+                                {
+                                    let mut keys = resolved_params.keys().cloned().collect::<Vec<_>>();
+                                    keys.sort();
+                                    if keys.is_empty() { "none".to_string() } else { keys.join(",") }
+                                }
+                            ));
 
                             println!(
                                 "[MOCK_ARTLOOM] AHRP Request: art_id={}, request_id={}",
@@ -1709,6 +1794,10 @@ fn materialize_shader_image_input(value: Option<&String>, label: &str) -> Option
         return None;
     }
 
+    if let Some(path) = decode_asset_localhost_path(raw).or_else(|| decode_file_url_path(raw)) {
+        return Some(path);
+    }
+
     if raw.len() == 36 && raw.matches('-').count() == 4 {
         return resolve_image_path(raw).or_else(|| Some(raw.to_string()));
     }
@@ -2099,6 +2188,47 @@ mod loom_arts_mapping {
         assert_eq!(arts[0].params[0].id, "input");
         assert_eq!(arts[0].params[0].param_type, "image_link");
         assert_eq!(arts[0].params[1].id, "a_width");
+        assert_eq!(arts[0].inputs.len(), 0);
+        assert_eq!(arts[0].outputs.len(), 0);
+    }
+
+    #[test]
+    fn preserves_image_inputs_and_outputs_from_loom_art_responses() {
+        let body = r#"{
+          "arts": [
+            {
+              "id": "custom-image-blend-script",
+              "label": "图片混合",
+              "description": "script blend",
+              "icon": null,
+              "enabled": true,
+              "auto_process": false,
+              "params": [
+                {"id": "reference", "label": "参考图", "widget": "image_link", "default": ""},
+                {"id": "mix_ratio", "label": "混合比例", "widget": "slider", "default": 50}
+              ],
+              "defaults": {},
+              "inputs": [
+                {"name": "input", "label": "源图", "type": "image", "execution_type": "image_buffer"},
+                {"name": "reference", "label": "参考图", "type": "image", "execution_type": "image_buffer", "exposePort": true}
+              ],
+              "outputs": [
+                {"name": "output", "label": "结果", "type": "image", "execution_type": "image_buffer"}
+              ]
+            }
+          ]
+        }"#;
+
+        let arts = map_loom_arts_response(body).expect("map arts");
+        assert_eq!(arts.len(), 1);
+        assert_eq!(arts[0].inputs.len(), 2);
+        assert_eq!(arts[0].inputs[0].name, "input");
+        assert_eq!(arts[0].inputs[0].r#type, "image");
+        assert_eq!(arts[0].inputs[1].name, "reference");
+        assert_eq!(arts[0].inputs[1].expose_port, Some(true));
+        assert_eq!(arts[0].outputs.len(), 1);
+        assert_eq!(arts[0].outputs[0].name, "output");
+        assert_eq!(arts[0].outputs[0].r#type, "image");
     }
 
     #[test]
@@ -2316,6 +2446,8 @@ mod arts_merge {
             defaults: HashMap::new(),
             execution_type: None,
             execution: None,
+            inputs: vec![],
+            outputs: vec![],
             input_schema: None,
             output_schema: None,
         }
@@ -2403,6 +2535,42 @@ mod input_image_resolution {
 
         assert_eq!((img.width(), img.height()), (3, 2));
         assert_eq!(img.get_pixel(0, 0).0, [12, 34, 56, 255]);
+
+        let _ = std::fs::remove_file(temp_path);
+    }
+
+    #[test]
+    fn materializes_asset_localhost_shader_input_back_to_local_path() {
+        let temp_path = std::env::temp_dir().join(format!(
+            "mock-artloom-materialize-asset-{}.png",
+            Uuid::new_v4()
+        ));
+        write_test_png(&temp_path, 4, 3, [44, 55, 66, 255]);
+
+        let asset_url = asset_localhost_url_for(&temp_path);
+        let materialized = materialize_shader_image_input(Some(&asset_url), "reference")
+            .expect("materialize asset-localhost shader input");
+
+        assert_eq!(PathBuf::from(materialized), temp_path);
+
+        let _ = std::fs::remove_file(temp_path);
+    }
+
+    #[test]
+    fn materializes_file_url_shader_input_back_to_local_path() {
+        let temp_path = std::env::temp_dir().join(format!(
+            "mock-artloom-materialize-file-url-{}.png",
+            Uuid::new_v4()
+        ));
+        write_test_png(&temp_path, 5, 1, [77, 88, 99, 255]);
+
+        let file_url = reqwest::Url::from_file_path(&temp_path)
+            .expect("file url")
+            .to_string();
+        let materialized = materialize_shader_image_input(Some(&file_url), "input")
+            .expect("materialize file-url shader input");
+
+        assert_eq!(PathBuf::from(materialized), temp_path);
 
         let _ = std::fs::remove_file(temp_path);
     }

@@ -75,8 +75,8 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Shell::{
-    IShellWindows, IWebBrowser2, ShellWindows, SHChangeNotify, SHCNE_UPDATEDIR,
-    SHCNE_UPDATEITEM, SHCNF_FLUSHNOWAIT, SHCNF_PATHW,
+    IShellWindows, IWebBrowser2, SHChangeNotify, ShellWindows, SHCNE_UPDATEDIR, SHCNE_UPDATEITEM,
+    SHCNF_FLUSHNOWAIT, SHCNF_PATHW,
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{

@@ -57,6 +57,7 @@ export interface UnitData {
     processing?: boolean;
     progress?: number;
     previewSrc?: string; // Result from Art Node (Shared Memory)
+    restoredPreviewLocked?: boolean; // Restored shader art keeps persisted preview until a real invalidation occurs
     errorMessage?: string;
     rasterizedAnnotationLayerSrc?: string; // Transparent flattened annotation layer above src
     resultHandle?: string; // SHM Handle

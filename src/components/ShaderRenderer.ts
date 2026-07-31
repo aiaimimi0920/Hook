@@ -48,6 +48,7 @@ export class ShaderRenderer {
     private program: WebGLProgram | null = null;
     private vao: WebGLVertexArrayObject | null = null;
     private textures: Map<string, WebGLTexture> = new Map();
+    private requiredTextureNames: Set<string> = new Set();
     private textureUnits: Map<string, number> = new Map();
     private nextTextureUnit: number = 0;
     private currentUniforms: ShaderUniforms = {};
@@ -74,6 +75,7 @@ export class ShaderRenderer {
      */
     initFromShaderResponse(response: ShaderSuccessResponse): boolean {
         const gl = this.gl;
+        this.requiredTextureNames.clear();
 
         // Compile shaders from Python code
         this.program = this.createProgram(
@@ -105,6 +107,8 @@ export class ShaderRenderer {
         // Load textures from response (Async)
         if (response.textures) {
             Object.entries(response.textures).forEach(([name, src]) => {
+                if (!src) return;
+                this.requiredTextureNames.add(name);
                 this.loadTextureFromSrc(name, src);
             });
         }
@@ -281,6 +285,53 @@ export class ShaderRenderer {
     }
 
     /**
+     * Check whether every texture required by the shader response has
+     * finished loading, so the preview can safely replace any persisted
+     * fallback image without flashing a blank frame.
+     */
+    canPresentOutput(): boolean {
+        if (!this.isReady()) return false;
+        for (const textureName of this.requiredTextureNames) {
+            if (!this.textures.has(textureName)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Returns true when the current WebGL framebuffer contains at least one
+     * pixel with visible alpha. This is used during restored-session shader
+     * rehydration so an all-transparent first render does not replace the last
+     * persisted preview image.
+     */
+    hasVisibleContent(): boolean {
+        if (this.canvasWidth <= 0 || this.canvasHeight <= 0) {
+            return false;
+        }
+
+        const gl = this.gl;
+        const pixels = new Uint8Array(this.canvasWidth * this.canvasHeight * 4);
+        gl.readPixels(
+            0,
+            0,
+            this.canvasWidth,
+            this.canvasHeight,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            pixels,
+        );
+
+        for (let index = 3; index < pixels.length; index += 4) {
+            if (pixels[index] > 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Dispose of all WebGL resources
      */
     dispose(): void {
@@ -290,6 +341,7 @@ export class ShaderRenderer {
             gl.deleteTexture(texture);
         }
         this.textures.clear();
+        this.requiredTextureNames.clear();
         this.textureUnits.clear();
 
         if (this.program) gl.deleteProgram(this.program);

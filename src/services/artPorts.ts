@@ -28,6 +28,9 @@ const isImageLikeInput = (input: ArtInputPort): boolean => {
 const isPrimaryImageInput = (input: ArtInputPort): boolean =>
     ["input", "input_image", "image"].includes(lowerString(input.name));
 
+const keepsDuplicatedImagePort = (input: ArtInputPort): boolean =>
+    getInputMeta(input, "exposePort") === true;
+
 /**
  * ArtLoom capabilities can expose the same node variables in both `inputs`
  * and `params`. The duplicated scalar values are parameter controls, not
@@ -42,7 +45,7 @@ export const isCapabilityInputPort = (
     const matchingParam = params.find((param) => param.id === input.name);
     if (!matchingParam) return true;
 
-    return isImageLikeInput(input) && isPrimaryImageInput(input);
+    return isImageLikeInput(input) && (isPrimaryImageInput(input) || keepsDuplicatedImagePort(input));
 };
 
 export const getCapabilityInputsForPorts = (

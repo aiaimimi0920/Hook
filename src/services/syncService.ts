@@ -1,4 +1,4 @@
-import { api } from "./api";
+import { api, type SessionData } from "./api";
 import { graphStore } from "../store/graphStore";
 import { Unit, Link, WorkflowAssetArchiveHints } from "../types/unit";
 import { extraRects } from "./uiRegistry";
@@ -410,9 +410,12 @@ export const syncService = {
         }
     },
 
-    restoreSession: async (bootProfile?: BootProfile) => {
+    restoreSession: async (
+        bootProfile?: BootProfile,
+        preloadedSessionData?: SessionData | null,
+    ) => {
         try {
-            const sessionData = await api.loadSession();
+            const sessionData = preloadedSessionData ?? await api.loadSession();
             if (sessionData) {
                  const rawStickers = sessionData.stickers || [];
                  const loadedUnits = rawStickers.map((s) =>

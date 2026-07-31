@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("String parameter commit contract", () => {
-    it("keeps single-line text edits as drafts and commits only on Enter or blur", () => {
+    it("publishes single-line drafts as non-final and commits only on Enter or blur", () => {
         const source = readFileSync(
             resolve(process.cwd(), "src", "components", "params", "controls", "StringControl.tsx"),
             "utf8",
@@ -14,7 +14,8 @@ describe("String parameter commit contract", () => {
         expect(source).toContain("onInput={(e) =>");
         expect(source).not.toContain("onInput={(e) => props.onChange(e.currentTarget.value)}");
         const inputHandler = source.slice(source.indexOf("onInput={(e) =>"), source.indexOf("onBlur={commitDraft}"));
-        expect(inputHandler).not.toContain("props.onChange");
+        expect(inputHandler).toContain("props.onChange(next, false)");
+        expect(inputHandler).not.toContain("props.onChange(next, true)");
         expect(source).toContain("stopInteractiveEvent");
         expect(source).toContain('event.key === "Enter"');
         expect(source).toContain("onBlur={commitDraft}");

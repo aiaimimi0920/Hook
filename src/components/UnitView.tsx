@@ -172,6 +172,9 @@ export const UnitView: Component<Props> = (props) => {
       const artPath = props.capability?.execution?.artPath;
       return typeof artPath === "string" && artPath.length > 0 ? artPath : undefined;
   };
+  const shouldHoldRestoredShaderPreview = () =>
+      !!liveUnit().data.restoredPreviewLocked &&
+      !!(liveUnit().data.previewSrc || liveUnit().data.src);
   const isContextualShader = () =>
       !!props.capability?.params?.some((param) => param.widget === "image_link" || param.id === "reference") ||
       !!props.capability?.inputs?.some((input) => input.name === "reference");
@@ -303,16 +306,25 @@ export const UnitView: Component<Props> = (props) => {
       liveUnit().data.rasterizedAnnotationLayerSrc
           ? normalizeImageSourceForDisplay(liveUnit().data.src || displaySrc()) || ""
           : displaySrc();
+  const shaderViewportSourceKey = () =>
+      isShaderArt()
+          ? `${getArtId() || ""}|${getShaderInputSrc()}|${getShaderReferenceSrc() || ""}`
+          : "";
+  let lastShaderViewportSourceKey = "";
   createEffect(() => {
       void baseImageSrc();
       setBaseImageIntrinsicSize(null);
   });
   createEffect(() => {
-      if (!isShaderArt()) {
+      const nextShaderViewportSourceKey = shaderViewportSourceKey();
+      if (nextShaderViewportSourceKey === lastShaderViewportSourceKey) {
+          return;
+      }
+      lastShaderViewportSourceKey = nextShaderViewportSourceKey;
+      if (!nextShaderViewportSourceKey) {
           setShaderImageIntrinsicSize(null);
           return;
       }
-      void getShaderInputSrc();
       setShaderImageIntrinsicSize(null);
   });
   const handleBaseImageLoad = (event: Event) => {
@@ -898,6 +910,7 @@ export const UnitView: Component<Props> = (props) => {
                         artId={getArtId()!}
                         params={effectiveParams()}
                         artPath={getCapabilityArtPath()}
+                        holdFallbackPreview={shouldHoldRestoredShaderPreview()}
                         fallbackPreviewSrc={liveUnit().data.previewSrc || liveUnit().data.src}
                         inputImageSrc={getShaderInputSrc()}
                         referenceImageSrc={getShaderReferenceSrc()}

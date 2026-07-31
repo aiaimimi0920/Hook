@@ -2,7 +2,12 @@ import { api } from "../services/api";
 import { graphStore } from "../store/graphStore";
 import { shaderCache } from "../services/shaderCache";
 import { syncService } from "../services/syncService";
-import { resolveEffectiveNodeParams, resolveUnitExecutionInputImage } from "../services/graphImageResolution";
+import {
+    resolveAuxiliaryUnitExecutionInputImages,
+    resolveEffectiveNodeParams,
+    resolveMissingUnitExecutionImagePorts,
+    resolveUnitExecutionInputImage,
+} from "../services/graphImageResolution";
 import { deriveUnitExecutionConfig } from "../services/nodeExecutionConfig";
 import {
     DISABLED_PREFIX,
@@ -156,6 +161,20 @@ export function useNodeParameters() {
         const unit = graphStore.units.find(u => u.id === unitId);
         if (!unit) return;
 
+        const shouldUnlockRestoredPreview =
+            unit.type === "art" &&
+            unit.data.restoredPreviewLocked &&
+            (
+                triggerSource === "upstream" ||
+                triggerSource === "manual" ||
+                paramId === "force_update" ||
+                paramId === EXEC_manualTrigger ||
+                (!paramId.startsWith(EXEC_PREFIX) && paramId !== PARAM_ui_resize)
+            );
+        if (shouldUnlockRestoredPreview) {
+            graphStore.actions.updateUnitData(unitId, { restoredPreviewLocked: false });
+        }
+
         const artId = unit.artId;
         const caps = graphStore.capabilities;
         const artCapability = caps.find(c => c.id === artId);
@@ -190,6 +209,9 @@ export function useNodeParameters() {
              }
         }
 
+          // 5. Resolve the current full parameter/image state from the graph.
+          const manualParams = graphStore.unitParams[unitId] || {};
+
           // 4. Find Source Image (for Mock Processing)
           const inputImage = resolveUnitExecutionInputImage({
               units: graphStore.units,
@@ -197,9 +219,36 @@ export function useNodeParameters() {
               capabilities: graphStore.capabilities,
               unitId,
           }) ?? null;
+          const auxiliaryInputImages = resolveAuxiliaryUnitExecutionInputImages({
+              units: graphStore.units,
+              links: graphStore.links,
+              capabilities: graphStore.capabilities,
+              unitId,
+              manualParams,
+          });
+          const missingExecutionImagePorts = resolveMissingUnitExecutionImagePorts({
+              units: graphStore.units,
+              links: graphStore.links,
+              capabilities: graphStore.capabilities,
+              unitId,
+              manualParams,
+          });
 
-          // 5. Dispatch to Backend
-          const manualParams = graphStore.unitParams[unitId] || {};
+          if (!isManualTrigger && missingExecutionImagePorts.length > 0) {
+              void api.debugLogEvent(
+                  "art-dispatch-skipped-missing-images",
+                  [
+                      `unit=${unitId}`,
+                      `art=${artId || "none"}`,
+                      `param=${paramId}`,
+                      `trigger=${triggerSource}`,
+                      `missing=${missingExecutionImagePorts.join(",")}`,
+                  ].join(" "),
+              );
+              return;
+          }
+
+          // 6. Dispatch to Backend
           const fullParams = resolveEffectiveNodeParams({
               units: graphStore.units,
               links: graphStore.links,
@@ -260,6 +309,17 @@ export function useNodeParameters() {
 
           // Dispatch Action
           try {
+            void api.debugLogEvent(
+                "art-dispatch-update-node-param",
+                [
+                    `unit=${unitId}`,
+                    `art=${artId || "none"}`,
+                    `param=${paramId}`,
+                    `trigger=${triggerSource}`,
+                    `hasInput=${inputImage ? "true" : "false"}`,
+                    `auxKeys=${Object.keys(auxiliaryInputImages).join(",") || "none"}`,
+                ].join(" "),
+            );
             await api.dispatchAction({
                      action: "update_node_param",
                      payload: {
@@ -267,6 +327,10 @@ export function useNodeParameters() {
                          param_key: paramId,
                          value: effectiveValue,
                          input_image: inputImage,
+                         input_images:
+                             Object.keys(auxiliaryInputImages).length > 0
+                                 ? auxiliaryInputImages
+                                 : undefined,
                          art_id: artId,
                          all_params: activeParams,
                          disabled_params: disabledParams,

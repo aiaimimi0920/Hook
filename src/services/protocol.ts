@@ -41,6 +41,7 @@ export interface ArtCapability {
         type: string;
         default?: unknown;
         defaultVisible?: boolean;
+        exposePort?: boolean;
         execution_type?: string;
         data_type?: string;
         widget?: string;

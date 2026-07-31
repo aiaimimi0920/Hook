@@ -41,4 +41,20 @@ describe("Art capability port filtering", () => {
             "reference",
         ]);
     });
+
+    it("keeps an explicitly opted-in secondary image input even when a matching image-link param exists", () => {
+        const capability = {
+            ...createColorTransferCapability(),
+            inputs: createColorTransferCapability().inputs?.map((input) =>
+                input.name === "reference"
+                    ? { ...input, exposePort: true }
+                    : input,
+            ),
+        } as ArtCapability;
+
+        expect(getCapabilityInputsForPorts(capability).map((input) => input.name)).toEqual([
+            "input",
+            "reference",
+        ]);
+    });
 });

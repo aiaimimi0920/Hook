@@ -114,4 +114,27 @@ describe("standalone ArtNode factory", () => {
 
         expect(ports.inputs.map((input) => input.id)).toEqual(["input_image"]);
     });
+
+    it("preserves an opted-in reference image port for true two-image script arts", () => {
+        const imageBlendCapability: ArtCapability = {
+            id: "custom-image-blend-script",
+            label: "图片混合",
+            description: "",
+            supported_transports: ["shared_memory"],
+            execution_type: "script",
+            params: [
+                { id: "reference", label: "参考图", widget: "image_link", default: "" },
+                { id: "mix_ratio", label: "混合比例", widget: "slider", default: 50, min: 0, max: 100 },
+            ],
+            inputs: [
+                { name: "input", label: "源图", type: "image" },
+                { name: "reference", label: "参考图", type: "image", exposePort: true } as any,
+            ],
+            outputs: [{ name: "output", label: "结果", type: "image" }],
+        };
+
+        const ports = buildUnitPortsFromCapability("art", imageBlendCapability);
+
+        expect(ports.inputs.map((input) => input.id)).toEqual(["input", "reference"]);
+    });
 });
