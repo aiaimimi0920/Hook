@@ -33,6 +33,7 @@ import { normalizeImageSourceForDisplay } from "../services/imageSource";
 import { api, isTauriRuntimeAvailable } from "../services/api";
 import { stickerContextMenuController } from "../services/stickerContextMenuController";
 import { renderStickerComposite } from "../services/stickerExport";
+import { supportsShaderPreview } from "../services/artCapabilities";
 import {
   resolveNativeDragDropPhysicalPointFromOverlay,
   resolveNativeDragDropPhysicalPointFromPointer,
@@ -133,7 +134,7 @@ export const UnitView: Component<Props> = (props) => {
       props.onDoubleTap(event);
   };
   const showSelectionBorder = () => true;
-  const isShaderArt = () => isArt() && props.capability?.execution_type === 'shader';
+  const isShaderArt = () => isArt() && supportsShaderPreview(props.capability);
   const effectiveParams = () =>
       isArt()
           ? resolveEffectiveNodeParams({

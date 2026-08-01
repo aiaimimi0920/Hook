@@ -34,6 +34,11 @@ export interface ArtCapability {
     auto_process?: boolean;
     execution_type?: ArtExecutionType;
     execution?: Record<string, unknown>;
+    capabilities?: ArtCapabilityMetadata;
+    metadata?: {
+        capabilities?: ArtCapabilityMetadata;
+        [key: string]: unknown;
+    };
     defaultVisibility?: Record<string, boolean>;
     inputs?: {
         name: string;
@@ -47,6 +52,21 @@ export interface ArtCapability {
         widget?: string;
     }[];
     outputs?: { name: string; label: string; type: string; defaultVisible?: boolean; }[];
+}
+
+/**
+ * Optional behavior advertised by an installed Art package.
+ *
+ * The host must not infer these behaviors from an Art id or from a framework
+ * implementation detail. execution_type remains a compatibility fallback
+ * for older Loom daemons.
+ */
+export interface ArtCapabilityMetadata {
+    preview?: string;
+    requiresLiveInputs?: boolean;
+    parameterEditor?: string;
+    shader?: boolean;
+    [key: string]: unknown;
 }
 
 export interface HandshakeRequest {
@@ -71,10 +91,12 @@ export interface PropChange {
     value: any;
 }
 
-export interface DeliveryImageSearchCandidate {
+export interface ArtResultCandidate {
     index: number;
     title?: string;
     imageUrl: string;
+    thumbnail?: string;
+    preview?: string;
     thumbnailUrl?: string;
     sourcePageUrl?: string;
     width?: number;
@@ -85,8 +107,20 @@ export interface DeliveryImageSearchCandidate {
     cachedThumbnailSrc?: string;
 }
 
+export interface ArtResultCandidateMetadata {
+    kind?: string;
+    items: ArtResultCandidate[];
+    selectedIndex?: number;
+}
+
+/**
+ * Compatibility aliases for the pre-pluginized image-search response shape.
+ * New code should use ArtResultCandidate and ArtResultCandidateMetadata.
+ */
+export type DeliveryImageSearchCandidate = ArtResultCandidate;
+
 export interface DeliveryImageSearchMetadata {
-    candidates: DeliveryImageSearchCandidate[];
+    candidates: ArtResultCandidate[];
     selectedIndex?: number;
 }
 
@@ -102,6 +136,7 @@ export interface DeliveryPayload {
     path?: string;   // for file_path
     value?: unknown; // for scalar/value outputs
     outputs?: Record<string, unknown>; // optional explicit port-value map
+    candidates?: ArtResultCandidateMetadata;
     imageSearch?: DeliveryImageSearchMetadata;
 }
 

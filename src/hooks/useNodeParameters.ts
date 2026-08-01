@@ -9,6 +9,7 @@ import {
     resolveUnitExecutionInputImage,
 } from "../services/graphImageResolution";
 import { deriveUnitExecutionConfig } from "../services/nodeExecutionConfig";
+import { supportsShaderPreview } from "../services/artCapabilities";
 import {
     DISABLED_PREFIX,
     PARAM_ui_resize,
@@ -94,7 +95,7 @@ export function useNodeParameters() {
                     const caps = graphStore.capabilities;
                     const artCap = unit && caps.find(c => c.id === unit.artId);
 
-                    if (artCap?.execution_type === 'shader') {
+                    if (supportsShaderPreview(artCap)) {
                          console.log(`[Execution] Shader Art Manual Trigger intercepted for ${unitId}`);
                          const executeShader = async () => {
                              if (!unit || !unit.artId) return;
@@ -204,7 +205,7 @@ export function useNodeParameters() {
         // If param-driven but NOT final (dragging slider), SKIP backend execution
         // UNLESS it's a shader art
         if (!isFinal && !isManualTrigger && !isUpstreamTrigger) {
-             if (artCapability?.execution_type !== 'shader') {
+             if (!supportsShaderPreview(artCapability)) {
                 return;
              }
         }
@@ -274,7 +275,7 @@ export function useNodeParameters() {
           });
 
           // === SHADER ART LOCAL EXECUTION ===
-          if (artCapability?.execution_type === 'shader' && artId) {
+          if (artCapability && supportsShaderPreview(artCapability) && artId) {
                 const isLutParam = ['reference', 'recalculate'].includes(paramId);
                 if (isManualTrigger || isLutParam) {
                     // Contextual shaders are refreshed by ShaderPreview with the current

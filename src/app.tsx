@@ -52,12 +52,13 @@ import {
 } from "./services/overlaySyntheticEvents";
 import { resolveCanvasDisplayImage } from "./services/graphImageResolution";
 import { extractArtDeliveryValueOutputs, mergeArtDeliveryOutputs } from "./services/artDeliveryOutputs";
-import { extractArtDeliveryImageSearchState } from "./services/artDeliveryImageSearch";
+import { extractArtDeliveryCandidatesState } from "./services/artDeliveryCandidates";
 import {
-    isRecoverableImageSearchExecutionFailure,
-    mergeImageSearchCandidateRuntimeState,
-    prefetchImageSearchCandidateAssets,
-} from "./services/imageSearchCandidateCache";
+    isRecoverableCandidateExecutionFailure,
+    mergeCandidateRuntimeState,
+    prefetchCandidateAssets,
+} from "./services/artCandidateCache";
+import { supportsShaderPreview } from "./services/artCapabilities";
 import { resolveDeletionPlan } from "./services/deletionPlan";
 import { composeTeaTicketText, summarizeUnitsForTea } from "./services/teaTicketText";
 import type { BootProfile } from "./services/bootProfile";
@@ -186,7 +187,7 @@ export default function App() {
   });
 
   const isContextualShaderArt = (art: ArtCapability) =>
-      art.execution_type === "shader" &&
+      supportsShaderPreview(art) &&
       ((art.params || []).some((param) => param.widget === "image_link" || param.id === "reference") ||
           (art.inputs || []).some((input) => input.name === "reference"));
 
@@ -298,7 +299,7 @@ export default function App() {
       const arts = handshake.capabilities?.art_definitions || [];
       graphStore.setCapabilities(arts);
 
-      const shaderArts = arts.filter((art: ArtCapability) => art.execution_type === "shader");
+      const shaderArts = arts.filter((art: ArtCapability) => supportsShaderPreview(art));
       shaderArts
           .filter((art) => !isContextualShaderArt(art))
           .forEach((art: ArtCapability) => {
@@ -349,33 +350,31 @@ export default function App() {
       const unitId = delivery.art_id;
       const unit = graphStore.units.find((item) => item.id === unitId);
       if (!unit) return;
-      const imageSearchState = extractArtDeliveryImageSearchState(
-          "imageSearch" in delivery.delivery ? delivery.delivery : {},
-      );
-      const mergedImageSearchCandidates = mergeImageSearchCandidateRuntimeState(
+      const candidateState = extractArtDeliveryCandidatesState(delivery.delivery);
+      const mergedCandidates = mergeCandidateRuntimeState(
           unit.data.resultCandidates,
-          imageSearchState.resultCandidates,
+          candidateState.resultCandidates,
       );
 
       if (delivery.status !== 200) {
-          const imageSearchRecoveryPending = isRecoverableImageSearchExecutionFailure(
+          const candidateRecoveryPending = isRecoverableCandidateExecutionFailure(
               delivery.error,
-              mergedImageSearchCandidates,
+              mergedCandidates,
           );
           graphStore.actions.updateUnitData(unitId, {
-              resultCandidates: mergedImageSearchCandidates,
-              selectedResultIndex: imageSearchState.selectedResultIndex,
+              resultCandidates: mergedCandidates,
+              selectedResultIndex: candidateState.selectedResultIndex,
               processing: false,
               restoredPreviewLocked: false,
               nodeStatus: "error",
               errorMessage: delivery.error || "Art execution failed",
-              imageSearchRecoveryPending,
+              imageSearchRecoveryPending: candidateRecoveryPending,
           });
-          if (imageSearchRecoveryPending) {
-              void prefetchImageSearchCandidateAssets({
+          if (candidateRecoveryPending) {
+              void prefetchCandidateAssets({
                   unitId,
-                  candidates: mergedImageSearchCandidates,
-                  selectedIndex: imageSearchState.selectedResultIndex,
+                  candidates: mergedCandidates,
+                  selectedIndex: candidateState.selectedResultIndex,
               });
           }
           await syncService.performWorkflowSync();
@@ -441,8 +440,8 @@ export default function App() {
           filePath,
           resultHandle,
           outputs: nextOutputs,
-          resultCandidates: mergedImageSearchCandidates,
-          selectedResultIndex: imageSearchState.selectedResultIndex,
+          resultCandidates: mergedCandidates,
+          selectedResultIndex: candidateState.selectedResultIndex,
           processing: false,
           progress: 1,
           restoredPreviewLocked: false,
@@ -450,10 +449,10 @@ export default function App() {
           errorMessage: undefined,
           imageSearchRecoveryPending: false,
       });
-      void prefetchImageSearchCandidateAssets({
+      void prefetchCandidateAssets({
           unitId,
-          candidates: mergedImageSearchCandidates,
-          selectedIndex: imageSearchState.selectedResultIndex,
+          candidates: mergedCandidates,
+          selectedIndex: candidateState.selectedResultIndex,
       });
       propagateFromUnit(unitId);
       await syncService.performWorkflowSync();

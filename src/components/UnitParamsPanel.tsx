@@ -17,9 +17,9 @@ import { resolveEffectiveNodeParams } from "../services/graphImageResolution";
 import { syncService } from "../services/syncService";
 import { api } from "../services/api";
 import {
-    buildOptimisticImageSearchSelectionPatch,
-    resolveImageSearchCandidateCardPreviewSrc,
-} from "../services/imageSearchCandidateCache";
+    buildOptimisticCandidateSelectionPatch,
+    resolveCandidateCardPreviewSrc,
+} from "../services/artCandidateCache";
 import {
     DISABLED_PREFIX,
     PARAM_ui_resize,
@@ -163,21 +163,24 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
       }
       return normalizeImageSourceForDisplay(resolvedSrc) || "";
   };
-  const imageSearchCandidates = () => props.unit.data.resultCandidates || [];
-  const imageSearchCandidateSetSignature = createMemo(() =>
-      imageSearchCandidates()
-          .map((candidate) => `${candidate.index}:${candidate.imageUrl}:${candidate.thumbnailUrl || ""}`)
+  const resultCandidates = () => props.unit.data.resultCandidates || [];
+  const candidateSetSignature = createMemo(() =>
+      resultCandidates()
+          .map(
+              (candidate) =>
+                  `${candidate.index}:${candidate.imageUrl}:${candidate.thumbnail || ""}:${candidate.preview || ""}:${candidate.thumbnailUrl || ""}`,
+          )
           .join("|"),
   );
-  const [imageSearchCandidateFallbackSrcs, setImageSearchCandidateFallbackSrcs] =
+  const [candidateFallbackSrcs, setCandidateFallbackSrcs] =
       createSignal<Record<number, string>>({});
   const candidatePreviewFallbacksInFlight = new Set<number>();
   createEffect(() => {
-      imageSearchCandidateSetSignature();
+      candidateSetSignature();
       candidatePreviewFallbacksInFlight.clear();
-      setImageSearchCandidateFallbackSrcs({});
+      setCandidateFallbackSrcs({});
   });
-  const selectedImageSearchResultIndex = () => {
+  const selectedResultIndex = () => {
       const runtimeSelected = props.unit.data.selectedResultIndex;
       if (typeof runtimeSelected === "number" && Number.isFinite(runtimeSelected)) {
           return runtimeSelected;
@@ -187,16 +190,16 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
           ? Math.floor(paramSelected)
           : undefined;
   };
-  const selectImageSearchCandidate = (candidate: ReturnType<typeof imageSearchCandidates>[number]) => {
+  const selectCandidate = (candidate: ReturnType<typeof resultCandidates>[number]) => {
       graphStore.actions.updateUnitData(
           props.unit.id,
-          buildOptimisticImageSearchSelectionPatch(props.unit, candidate),
+          buildOptimisticCandidateSelectionPatch(props.unit, candidate),
       );
       props.onParamChange("result_index", candidate.index, false);
       props.onParamChange("force_update", Date.now(), true);
   };
-  const setImageSearchCandidateFallbackSrc = (candidateIndex: number, src: string) => {
-      setImageSearchCandidateFallbackSrcs((prev) =>
+  const setCandidateFallbackSrc = (candidateIndex: number, src: string) => {
+      setCandidateFallbackSrcs((prev) =>
           prev[candidateIndex] === src
               ? prev
               : {
@@ -205,22 +208,22 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                 },
       );
   };
-  const resolveImageSearchCandidateFallbackPath = (
-      candidate: ReturnType<typeof imageSearchCandidates>[number],
+  const resolveCandidateFallbackPath = (
+      candidate: ReturnType<typeof resultCandidates>[number],
   ) => candidate.cachedThumbnailPath || candidate.cachedImagePath;
-  const handleImageSearchCandidatePreviewError = async (
-      candidate: ReturnType<typeof imageSearchCandidates>[number],
+  const handleCandidatePreviewError = async (
+      candidate: ReturnType<typeof resultCandidates>[number],
   ) => {
       const candidateIndex = candidate.index;
       const selectedPreviewSrc =
-          candidateIndex === selectedImageSearchResultIndex()
+          candidateIndex === selectedResultIndex()
               ? normalizeImageSourceForDisplay(props.unit.data.previewSrc)
               : undefined;
       if (selectedPreviewSrc) {
-          setImageSearchCandidateFallbackSrc(candidateIndex, selectedPreviewSrc);
+          setCandidateFallbackSrc(candidateIndex, selectedPreviewSrc);
       }
 
-      const fallbackPath = resolveImageSearchCandidateFallbackPath(candidate);
+      const fallbackPath = resolveCandidateFallbackPath(candidate);
       if (!fallbackPath || candidatePreviewFallbacksInFlight.has(candidateIndex)) {
           return;
       }
@@ -228,10 +231,10 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
       candidatePreviewFallbacksInFlight.add(candidateIndex);
       try {
           const fallbackSrc = await api.readImageFromPath(fallbackPath);
-          setImageSearchCandidateFallbackSrc(candidateIndex, fallbackSrc);
+          setCandidateFallbackSrc(candidateIndex, fallbackSrc);
       } catch (error) {
           console.warn(
-              "[UnitParamsPanel] Failed to load image-search candidate thumbnail fallback",
+              "[UnitParamsPanel] Failed to load candidate thumbnail fallback",
               candidateIndex,
               error,
           );
@@ -464,7 +467,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
   createEffect(() => {
       derivedParams().length;
       paramGroups().length;
-      imageSearchCandidateSetSignature();
+      candidateSetSignature();
       requestAnimationFrame(() => syncScrollMetrics());
   });
 
@@ -680,15 +683,15 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
             }}
         />
 
-        <Show when={isArt() && imageSearchCandidates().length > 1}>
+        <Show when={isArt() && resultCandidates().length > 1}>
             <div class="flex-shrink-0 px-4 pb-3">
                 <div class="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.12em] text-white/55">
-                    <span>搜索结果</span>
+                    <span>候选</span>
                     <span>
                         当前
                         {" "}
                         #
-                        {(selectedImageSearchResultIndex() ?? 0) + 1}
+                        {(selectedResultIndex() ?? 0) + 1}
                     </span>
                 </div>
                 <div
@@ -697,19 +700,20 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                         "grid-template-columns": "repeat(auto-fit, minmax(68px, 1fr))",
                     }}
                 >
-                    <For each={imageSearchCandidates()}>
+                    <For each={resultCandidates()}>
                         {(candidate) => {
                             const selected = () =>
-                                candidate.index === selectedImageSearchResultIndex();
+                                candidate.index === selectedResultIndex();
                             const previewSrc = () =>
-                                imageSearchCandidateFallbackSrcs()[candidate.index] ||
-                                resolveImageSearchCandidateCardPreviewSrc(candidate, {
+                                candidateFallbackSrcs()[candidate.index] ||
+                                resolveCandidateCardPreviewSrc(candidate, {
                                     isSelected: selected(),
                                     selectedPreviewSrc: props.unit.data.previewSrc,
                                 });
                             return (
                                 <button
                                     type="button"
+                                    data-art-candidate-index={candidate.index}
                                     data-image-search-candidate-index={candidate.index}
                                     class="flex flex-col gap-1 rounded-lg border bg-white/[0.03] p-1.5 text-left transition-colors hover:bg-white/[0.08]"
                                     style={{
@@ -722,7 +726,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                                     }}
                                     onClick={(event) => {
                                         event.stopPropagation();
-                                        selectImageSearchCandidate(candidate);
+                                        selectCandidate(candidate);
                                     }}
                                 >
                                     <span
@@ -734,10 +738,10 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                                     >
                                         <img
                                             src={previewSrc()}
-                                            alt={candidate.title || `结果 ${candidate.index + 1}`}
+                                            alt={candidate.title || `候选 ${candidate.index + 1}`}
                                             loading="lazy"
                                             onError={() => {
-                                                void handleImageSearchCandidatePreviewError(candidate);
+                                                void handleCandidatePreviewError(candidate);
                                             }}
                                             style={{
                                                 width: "100%",
@@ -748,7 +752,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                                         />
                                     </span>
                                     <span class="truncate text-[10px] font-semibold text-white/85">
-                                        {candidate.title || `结果 ${candidate.index + 1}`}
+                                        {candidate.title || `候选 ${candidate.index + 1}`}
                                     </span>
                                     <span class="text-[9px] text-white/45">
                                         #{candidate.index + 1}

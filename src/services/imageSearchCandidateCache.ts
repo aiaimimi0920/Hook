@@ -25,6 +25,7 @@ const unitPrefetchGeneration = new Map<string, number>();
 const candidateFullImageDisplaySrc = (candidate: DeliveryImageSearchCandidate) =>
     candidate.cachedImageSrc ||
     normalizeImageSourceForDisplay(candidate.cachedImagePath) ||
+    normalizeImageSourceForDisplay(candidate.preview) ||
     normalizeImageSourceForDisplay(candidate.imageUrl) ||
     candidate.imageUrl;
 
@@ -130,8 +131,12 @@ export const resolveImageSearchCandidateCardPreviewSrc = (
     (options?.isSelected
         ? normalizeCandidatePreviewSrc(options.selectedPreviewSrc)
         : undefined) ||
+    normalizeCandidatePreviewSrc(candidate.preview) ||
+    normalizeCandidatePreviewSrc(candidate.thumbnail) ||
     normalizeCandidatePreviewSrc(candidate.thumbnailUrl) ||
     normalizeCandidatePreviewSrc(candidate.imageUrl) ||
+    candidate.preview ||
+    candidate.thumbnail ||
     candidate.thumbnailUrl ||
     candidate.imageUrl;
 
@@ -277,7 +282,11 @@ const prefetchSingleCandidate = async (
         graphStore.units.find((item) => item.id === unitId)?.data.resultCandidates,
         candidate.index,
     );
-    const thumbnailUrl = liveCandidateBeforeThumb?.thumbnailUrl || candidate.thumbnailUrl;
+    const thumbnailUrl =
+        liveCandidateBeforeThumb?.thumbnailUrl ||
+        liveCandidateBeforeThumb?.thumbnail ||
+        candidate.thumbnailUrl ||
+        candidate.thumbnail;
     const referer = liveCandidateBeforeThumb?.sourcePageUrl || candidate.sourcePageUrl;
     if (
         isPrefetchGenerationCurrent(unitId, generation) &&
