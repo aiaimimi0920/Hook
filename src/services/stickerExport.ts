@@ -409,6 +409,45 @@ const computeContainPlacement = (
     };
 };
 
+const renderImageContentCanvas = (
+    frameCanvas: HTMLCanvasElement,
+    placement: { left: number; top: number; width: number; height: number },
+    sourceSize: { width: number; height: number },
+) => {
+    const outputWidth = Math.max(1, Math.round(sourceSize.width || placement.width));
+    const outputHeight = Math.max(1, Math.round(sourceSize.height || placement.height));
+    const alreadyMatchesImageContent =
+        Math.abs(placement.left) < 0.001 &&
+        Math.abs(placement.top) < 0.001 &&
+        Math.abs(placement.width - frameCanvas.width) < 0.001 &&
+        Math.abs(placement.height - frameCanvas.height) < 0.001 &&
+        outputWidth === frameCanvas.width &&
+        outputHeight === frameCanvas.height;
+    if (alreadyMatchesImageContent) {
+        return frameCanvas;
+    }
+
+    const outputCanvas = document.createElement("canvas");
+    outputCanvas.width = outputWidth;
+    outputCanvas.height = outputHeight;
+    const outputContext = outputCanvas.getContext("2d");
+    if (!outputContext) {
+        throw new Error("Canvas context unavailable");
+    }
+    outputContext.drawImage(
+        frameCanvas,
+        placement.left,
+        placement.top,
+        placement.width,
+        placement.height,
+        0,
+        0,
+        outputWidth,
+        outputHeight,
+    );
+    return outputCanvas;
+};
+
 export const resolveStickerCompositeBaseImageSrc = (input: {
     unit: Unit;
     units: readonly Unit[];
@@ -443,6 +482,7 @@ export const renderStickerCompositeWithAnnotations = async (
     options?: {
         includeRasterizedAnnotationLayer?: boolean;
         baseImageSrcOverride?: string;
+        outputMode?: "frame" | "image-content";
     },
 ): Promise<string> => {
     const baseSrc =
@@ -459,6 +499,16 @@ export const renderStickerCompositeWithAnnotations = async (
     const cropRect = unit.data.imageEditState?.cropRect;
     const renderWidth = Math.max(1, Math.round(unit.w));
     const renderHeight = Math.max(1, Math.round(unit.h));
+    const sourceSize = {
+        width: image.naturalWidth || image.width,
+        height: image.naturalHeight || image.height,
+    };
+    let baseImagePlacement = {
+        left: 0,
+        top: 0,
+        width: renderWidth,
+        height: renderHeight,
+    };
 
     const canvas = document.createElement("canvas");
     canvas.width = renderWidth;
@@ -496,19 +546,16 @@ export const renderStickerCompositeWithAnnotations = async (
             renderHeight,
         );
     } else {
-        const placement = computeContainPlacement(
+        baseImagePlacement = computeContainPlacement(
             { width: renderWidth, height: renderHeight },
-            {
-                width: image.naturalWidth || image.width,
-                height: image.naturalHeight || image.height,
-            },
+            sourceSize,
         );
         context.drawImage(
             image,
-            placement.left,
-            placement.top,
-            placement.width,
-            placement.height,
+            baseImagePlacement.left,
+            baseImagePlacement.top,
+            baseImagePlacement.width,
+            baseImagePlacement.height,
         );
     }
     context.restore();
@@ -551,13 +598,27 @@ export const renderStickerCompositeWithAnnotations = async (
         context.restore();
     }
 
-    return canvas.toDataURL("image/png");
+    const drawsRasterizedAnnotationLayer =
+        options?.includeRasterizedAnnotationLayer !== false &&
+        !!unit.data.rasterizedAnnotationLayerSrc;
+    const canUseImageContentSize =
+        options?.outputMode === "image-content" &&
+        !cropRect &&
+        annotationsOverride.length === 0 &&
+        !drawsRasterizedAnnotationLayer &&
+        borderWidth <= 0;
+    const outputCanvas = canUseImageContentSize
+        ? renderImageContentCanvas(canvas, baseImagePlacement, sourceSize)
+        : canvas;
+
+    return outputCanvas.toDataURL("image/png");
 };
 
 export const renderStickerComposite = async (unit: Unit): Promise<string> => {
     const composite = await renderStickerCompositeWithAnnotations(
         unit,
         unit.data.annotationState?.elements || [],
+        { outputMode: "image-content" },
     );
     return applyBeautify(composite, unit);
 };

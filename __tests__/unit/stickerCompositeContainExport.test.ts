@@ -94,11 +94,12 @@ describe("sticker composite export base-image placement", () => {
 
     it("uses the same upstream-resolved base image that the sticker is visibly showing before compositing effects", async () => {
         const drawCalls: Array<[string, ...unknown[]]> = [];
+        const canvases: Array<{ width: number; height: number }> = [];
 
         vi.stubGlobal("document", {
             createElement: (tagName: string) => {
                 expect(tagName).toBe("canvas");
-                return {
+                const canvas = {
                     width: 0,
                     height: 0,
                     getContext: () => ({
@@ -123,6 +124,8 @@ describe("sticker composite export base-image placement", () => {
                     }),
                     toDataURL: () => "data:image/png;base64,OUT",
                 };
+                canvases.push(canvas);
+                return canvas;
             },
         });
 
@@ -189,7 +192,12 @@ describe("sticker composite export base-image placement", () => {
                 && typeof call[4] === "number"
                 && typeof call[5] === "number",
         );
+        const imageContentCropDraw = drawCalls.find(
+            (call) => call[0] === "drawImage" && call.length === 10,
+        );
 
         expect(baseImageDraw?.slice(2)).toEqual([50, 0, 100, 100]);
+        expect(imageContentCropDraw?.slice(2)).toEqual([50, 0, 100, 100, 0, 0, 100, 100]);
+        expect(canvases[canvases.length - 1]).toMatchObject({ width: 100, height: 100 });
     });
 });
