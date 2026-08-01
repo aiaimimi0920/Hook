@@ -981,7 +981,6 @@ pub async fn artloom_dispatch_action(
 
                 // Determine Art Type
                 let art_type = art_id.as_deref().unwrap_or("unknown");
-                let mut direct_delivery: Option<serde_json::Value> = None;
                 let mut image_search_delivery: Option<serde_json::Value> = None;
 
                 if art_type == "core.image.pixelate" {
@@ -1053,6 +1052,8 @@ pub async fn artloom_dispatch_action(
                             || et == "shader"
                             || et == "mcp"
                             || et == "workflow"
+                            || et == "cli_wrapper"
+                            || et == "cli"
                         {
                             println!("[MOCK_ARTLOOM] Forwarding execution request ({}) to ArtLoom via WebSocket...", et);
 
@@ -1262,6 +1263,30 @@ pub async fn artloom_dispatch_action(
                                                                             }
                                                                         }
                                                                     }
+                                                                    if !received_processed_output {
+                                                                        if let Some(path) = [
+                                                                            "path",
+                                                                            "filePath",
+                                                                            "file_path",
+                                                                        ]
+                                                                        .into_iter()
+                                                                        .find_map(|key| {
+                                                                            output
+                                                                                .get(key)
+                                                                                .and_then(|value| {
+                                                                                    value.as_str()
+                                                                                })
+                                                                        }) {
+                                                                            if let Ok(decoded) =
+                                                                                image::open(path)
+                                                                            {
+                                                                                img = decoded
+                                                                                    .to_rgba8();
+                                                                                received_processed_output = true;
+                                                                                println!("[MOCK_ARTLOOM] Successfully loaded file-path output from Loom");
+                                                                            }
+                                                                        }
+                                                                    }
                                                                 }
 
                                                                 // 2. Try Standard Outputs Array (Base64)
@@ -1288,6 +1313,26 @@ pub async fn artloom_dispatch_action(
                                                                                        println!("[MOCK_ARTLOOM] Successfully received processed image from ArtLoom!");
                                                                                    }
                                                                                }
+                                                                        }
+                                                                        if !received_processed_output {
+                                                                            if let Some(path) = [
+                                                                                "path",
+                                                                                "filePath",
+                                                                                "file_path",
+                                                                            ]
+                                                                            .into_iter()
+                                                                            .find_map(|key| {
+                                                                                first
+                                                                                    .get(key)
+                                                                                    .and_then(|value| value.as_str())
+                                                                            })
+                                                                            {
+                                                                                if let Ok(decoded) = image::open(path) {
+                                                                                    img = decoded.to_rgba8();
+                                                                                    received_processed_output = true;
+                                                                                    println!("[MOCK_ARTLOOM] Successfully loaded file-path array output from Loom");
+                                                                                }
+                                                                            }
                                                                         }
                                                                     }
                                                                 }
@@ -1359,85 +1404,6 @@ pub async fn artloom_dispatch_action(
                                     return;
                                 }
                             }
-                        } else if et == "cli_wrapper" || et == "cli" {
-                            // === CLI WRAPPER: Execute locally via CliEngine ===
-                            println!("[MOCK_ARTLOOM] CLI Wrapper Art detected, executing via CliEngine...");
-
-                            // Get command and args from execution config
-                            if let Some(exec) = &def.execution {
-                                let command =
-                                    exec.get("command").and_then(|v| v.as_str()).unwrap_or("");
-                                let args = exec.get("args").and_then(|v| v.as_str()).unwrap_or("");
-
-                                // Combine command and args as full template
-                                let full_cmd = format!("{} {}", command, args);
-                                println!("[MOCK_ARTLOOM] CLI Template: {}", full_cmd);
-
-                                // Convert ArtParameter to serde_json::Value for CliEngine
-                                let param_defs: Vec<serde_json::Value> = def
-                                    .params
-                                    .iter()
-                                    .filter_map(|p| serde_json::to_value(p).ok())
-                                    .collect();
-
-                                // Convert DynamicImage to the expected format for CliEngine
-                                let dyn_img = image::DynamicImage::ImageRgba8(img.clone());
-
-                                // Execute via CliEngine
-                                let engine = crate::cli_engine::CliEngine::new();
-                                let result = engine.process_image(
-                                    &dyn_img,
-                                    &full_cmd,
-                                    &_params,
-                                    &param_defs,
-                                );
-
-                                if result.success {
-                                    println!("[MOCK_ARTLOOM] CLI execution succeeded, loading output image...");
-                                    // Decode output_base64 back to RgbaImage
-                                    if let Some(b64_data) = &result.output_base64 {
-                                        // Strip data URI prefix if present
-                                        let clean = b64_data.split(",").last().unwrap_or(b64_data);
-                                        if let Ok(bytes) =
-                                            base64::engine::general_purpose::STANDARD.decode(clean)
-                                        {
-                                            if let Ok(decoded) = image::load_from_memory(&bytes) {
-                                                img = decoded.to_rgba8();
-                                                println!("[MOCK_ARTLOOM] CLI output image loaded successfully!");
-
-                                                // OPTIMIZATION: If output path exists, use it directly (skip SHM re-encode)
-                                                if let Some(path) = &result.output_path {
-                                                    direct_delivery = Some(serde_json::json!({
-                                                       "art_id": _node_id,
-                                                       "status": 200,
-                                                       "delivery": {
-                                                            "type": "file_path",
-                                                            "path": path,
-                                                            "width": img.width(),
-                                                            "height": img.height()
-                                                       }
-                                                    }));
-                                                }
-                                            } else {
-                                                println!("[MOCK_ARTLOOM] Failed to decode CLI output as image");
-                                            }
-                                        } else {
-                                            println!("[MOCK_ARTLOOM] Failed to decode base64 from CLI result");
-                                        }
-                                    } else {
-                                        println!("[MOCK_ARTLOOM] CLI result missing output_base64");
-                                    }
-                                } else {
-                                    println!(
-                                        "[MOCK_ARTLOOM] CLI execution failed: {}",
-                                        result.error.unwrap_or_default()
-                                    );
-                                }
-                            } else {
-                                println!(
-                                    "[MOCK_ARTLOOM] CLI Art missing 'execution' config, skipping."
-                                );
-                            }
                         } else {
                             println!(
                                 "[MOCK_ARTLOOM] Art execution_type '{}' unknown, passing through.",
@@ -1449,14 +1415,7 @@ pub async fn artloom_dispatch_action(
                     }
                 }
 
-                // 2. CHECK DIRECT DELIVERY (Optimization)
-                if let Some(payload) = direct_delivery {
-                    let _ = app_handle.emit("art/ready", payload);
-                    println!("Emitted art/ready via file_path for {}", _node_id);
-                    return; // Skip Shared Memory
-                }
-
-                // 3. Use Raw RGBA (Compatible with lib.rs expectations)
+                // 2. Use Raw RGBA (Compatible with lib.rs expectations)
                 let width = img.width();
                 let height = img.height();
                 let buffer = img.into_raw();

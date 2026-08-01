@@ -417,8 +417,7 @@ If a bug crosses desktop runtime boundaries, `lib.rs` is usually involved.
 - **`tea_client.rs`**
   - Tea ticket bridge
 
-- **`cli_engine.rs`**
-  - CLI-oriented execution support
+- CLI-backed package Arts are forwarded by `mock_artloom.rs` to Loom over AHRP; Hook has no Art-specific local command executor.
 
 ### 5.5 Voice subsystem (`src-tauri/src/voice/`)
 

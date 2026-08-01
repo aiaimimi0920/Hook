@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -51,5 +51,20 @@ describe("plugin Art capability boundary", () => {
     expect(parameters).toContain("supportsShaderPreview");
     expect(parameters).not.toContain("artCapability?.execution_type === 'shader'");
     expect(protocol).toContain("capabilities?: ArtCapabilityMetadata");
+  });
+
+  it("delegates CLI-backed package Arts to Loom instead of spawning them in Hook", () => {
+    const backend = source("src-tauri/src/mock_artloom.rs");
+    const tauriEntry = source("src-tauri/src/lib.rs");
+
+    expect(backend).toContain('|| et == "cli_wrapper"');
+    expect(backend).toContain('|| et == "cli"');
+    expect(backend).toContain('"method": "art/process"');
+    expect(backend).toContain('"filePath"');
+    expect(backend).toContain("image::open(path)");
+    expect(backend).not.toContain("crate::cli_engine");
+    expect(tauriEntry).not.toContain("native_cli_execute");
+    expect(tauriEntry).not.toContain("mod cli_engine;");
+    expect(existsSync(resolve(process.cwd(), "src-tauri", "src", "cli_engine.rs"))).toBe(false);
   });
 });

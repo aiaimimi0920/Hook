@@ -65,7 +65,7 @@ The current visual baseline is the Hook terminal-style yellow/green theme, not t
 - **`capture.rs` / `screenshot.rs`**: region capture and low-level screenshot handling
 - **`long_capture.rs`**: long screenshot analysis, overlap detection, frame stitching
 - **`mock_artloom.rs`**: workflow-oriented backend integration surface and ArtLoom-style command handling
-- **`cli_engine.rs`**: CLI-oriented execution helper
+- CLI-backed Arts are delegated to Loom through the same AHRP execution path as other package Arts; Hook does not spawn Art commands directly.
 - **`loom_connector.rs`**: local Loom capability invocation
 - **`talk_connector.rs`**: local Talk voice capture invocation
 - **`tea_client.rs`**: local Tea ticket creation bridge

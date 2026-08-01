@@ -1,6 +1,5 @@
 mod capture;
 mod capture_coords;
-mod cli_engine;
 mod long_capture;
 mod loom_config;
 pub mod loom_connector;
@@ -3994,8 +3993,6 @@ async fn cache_remote_image_asset(
     Ok(target_path.to_string_lossy().to_string())
 }
 
-// function moved to cli_engine.rs
-
 // --- Persistence ---
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -7429,8 +7426,7 @@ pub fn run() {
             read_image_from_path,
             cache_remote_image_asset,
             open_image_for_edit,
-            read_clipboard_image,
-            cli_engine::native_cli_execute
+            read_clipboard_image
         ])
         .setup(|app| {
             #[cfg(target_os = "windows")]
