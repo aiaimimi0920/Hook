@@ -8,6 +8,7 @@ describe("plugin Art capability boundary", () => {
   it("keeps sample Art ids out of Hook production source", () => {
     const sampleIds = [
       "custom-1770146354922",
+      "custom-remove-bg-cloud",
       "custom-image-search",
       "custom-1770131241684",
       "custom-image-blend-script",
