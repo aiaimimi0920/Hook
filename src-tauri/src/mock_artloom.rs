@@ -1217,25 +1217,26 @@ pub async fn artloom_dispatch_action(
                             // _params is HashMap, so we iterate directly
                             for (k, v) in resolved_params.iter_mut() {
                                 if let Some(s) = v.as_str() {
-                                    if s.len() == 36 && s.matches('-').count() == 4 {
-                                        if let Some(path) = resolve_image_path(s) {
-                                            println!("[MOCK_ARTLOOM] Auto-resolved param '{}' (UUID) to: {}", k, path);
-                                            *v = serde_json::Value::String(path);
-                                        }
+                                    let normalized = normalize_loom_image_reference(s);
+                                    if normalized != s {
+                                        println!(
+                                            "[MOCK_ARTLOOM] Resolved param '{}' image reference to: {}",
+                                            k, normalized
+                                        );
+                                        *v = serde_json::Value::String(normalized);
                                     }
                                 }
                             }
 
                             let mut resolved_input_images = _input_images.unwrap_or_default();
                             for (k, value) in resolved_input_images.iter_mut() {
-                                if value.len() == 36 && value.matches('-').count() == 4 {
-                                    if let Some(path) = resolve_image_path(value) {
-                                        println!(
-                                            "[MOCK_ARTLOOM] Auto-resolved input image '{}' (UUID) to: {}",
-                                            k, path
-                                        );
-                                        *value = path;
-                                    }
+                                let normalized = normalize_loom_image_reference(value);
+                                if normalized != value.as_str() {
+                                    println!(
+                                        "[MOCK_ARTLOOM] Resolved input image '{}' to: {}",
+                                        k, normalized
+                                    );
+                                    *value = normalized;
                                 }
                             }
 
@@ -1747,6 +1748,29 @@ fn decode_file_url_path(raw: &str) -> Option<String> {
     }
     let path = url.to_file_path().ok()?;
     Some(path.to_string_lossy().to_string())
+}
+
+fn normalize_loom_image_reference(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() || trimmed.starts_with("data:") {
+        return trimmed.to_string();
+    }
+
+    if let Some(path) =
+        decode_asset_localhost_path(trimmed).or_else(|| decode_file_url_path(trimmed))
+    {
+        if std::path::Path::new(&path).is_file() {
+            return path;
+        }
+    }
+
+    if trimmed.len() == 36 && trimmed.matches('-').count() == 4 {
+        if let Some(path) = resolve_image_path(trimmed) {
+            return path;
+        }
+    }
+
+    trimmed.to_string()
 }
 
 fn load_rgba_image_from_path(path: &str) -> Option<RgbaImage> {
@@ -2798,6 +2822,27 @@ mod input_image_resolution {
         assert_eq!(img.get_pixel(0, 0).0, [12, 34, 56, 255]);
 
         let _ = std::fs::remove_file(temp_path);
+    }
+
+    #[test]
+    fn normalizes_asset_localhost_reference_for_loom_process_framework() {
+        let temp_path = std::env::temp_dir().join(format!(
+            "mock-artloom-process-reference-{}.png",
+            Uuid::new_v4()
+        ));
+        write_test_png(&temp_path, 3, 3, [21, 43, 65, 255]);
+
+        let asset_url = asset_localhost_url_for(&temp_path);
+        let normalized = normalize_loom_image_reference(&asset_url);
+
+        assert_eq!(PathBuf::from(normalized), temp_path);
+        let _ = std::fs::remove_file(temp_path);
+    }
+
+    #[test]
+    fn keeps_data_url_reference_for_loom_process_framework() {
+        let data_url = "data:image/png;base64,iVBORw0KGgo=";
+        assert_eq!(normalize_loom_image_reference(data_url), data_url);
     }
 
     #[test]
