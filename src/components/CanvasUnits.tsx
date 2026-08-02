@@ -9,6 +9,7 @@ import {
     uiActions,
 } from "../store/uiStore";
 import { syncService } from "../services/syncService";
+import { findArtCapability } from "../services/artCapabilityLookup";
 
 // Define Props for callbacks that are still managed by parent or complex flows
 interface CanvasUnitsProps {
@@ -93,7 +94,7 @@ export const CanvasUnits: Component<CanvasUnitsProps> = (props) => {
               showParams={(unitUiState[u.id]?.showParams || false) && !u.data.minified}
 
               // Capabilities
-              capability={u.type === 'art' ? graphStore.capabilities.find(c => c.id === u.artId) : undefined}
+              capability={u.type === 'art' ? findArtCapability(graphStore.capabilities, u.artId) : undefined}
               availableArts={graphStore.capabilities}
 
               // Setup

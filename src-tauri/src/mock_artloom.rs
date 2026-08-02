@@ -54,33 +54,65 @@ where
     Ok(opt.unwrap_or_default())
 }
 
+fn null_tolerant_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    let opt: Option<Vec<T>> = Option::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_default())
+}
+
+fn default_art_enabled() -> bool {
+    true
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ArtDefinition {
+    #[serde(default)]
     pub id: String, // e.g. "core.image.pixelate"
+    #[serde(default, deserialize_with = "null_tolerant_string")]
     pub label: String,
     #[serde(default, deserialize_with = "null_tolerant_string")]
     pub description: String,
     #[serde(default, deserialize_with = "null_tolerant_string")]
     pub icon: String,
+    #[serde(default, deserialize_with = "null_tolerant_vec")]
     pub params: Vec<ArtParameter>,
-    #[serde(default)]
+    #[serde(default, alias = "autoProcess")]
     pub auto_process: bool,
-    #[serde(default)]
+    #[serde(default = "default_art_enabled")]
     pub enabled: bool,
     #[serde(default)]
     pub defaults: HashMap<String, serde_json::Value>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        alias = "executionType",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub execution_type: Option<String>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub execution: Option<serde_json::Value>,
 
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_tolerant_vec")]
     pub inputs: Vec<ArtInputDefinition>,
 
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_tolerant_vec")]
     pub outputs: Vec<ArtOutputDefinition>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<serde_json::Value>,
+
+    #[serde(default, alias = "supportedTransports")]
+    pub supported_transports: Vec<String>,
+
+    #[serde(default, rename = "defaultVisibility", alias = "default_visibility")]
+    pub default_visibility: HashMap<String, bool>,
 
     // Legacy fields - made optional for compatibility
     #[serde(default)]
@@ -91,52 +123,120 @@ pub struct ArtDefinition {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ArtParameter {
+    #[serde(default)]
     pub id: String,
+    #[serde(default)]
     pub label: String,
-    #[serde(rename = "widget")] // ArtLoom uses "widget", matches JSON
+    #[serde(default, rename = "widget")] // ArtLoom uses "widget", matches JSON
     pub param_type: String,
-    pub default: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default: Option<serde_json::Value>,
+    #[serde(default, alias = "minimum")]
     pub min: Option<f64>,
+    #[serde(default, alias = "maximum")]
     pub max: Option<f64>,
+    #[serde(default)]
     pub step: Option<f64>,
-    pub options: Option<Vec<String>>,
+    #[serde(default)]
+    pub options: Option<Vec<serde_json::Value>>,
+    #[serde(default)]
     pub multiline: Option<bool>,
     #[serde(default)]
     pub disabled: bool,
     #[serde(default)]
     pub data_type: Option<String>, // Added to match ArtLoom JSON schema
+    #[serde(default)]
+    pub group: Option<String>,
+    #[serde(default)]
+    pub required: bool,
+    #[serde(default)]
+    pub secret: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ArtInputDefinition {
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub label: String,
     #[serde(default)]
     pub r#type: String,
     #[serde(default)]
     pub default: Option<serde_json::Value>,
-    #[serde(default, rename = "defaultVisible")]
+    #[serde(default, rename = "defaultVisible", alias = "default_visible")]
     pub default_visible: Option<bool>,
-    #[serde(default, rename = "exposePort")]
+    #[serde(default, rename = "exposePort", alias = "expose_port")]
     pub expose_port: Option<bool>,
-    #[serde(default)]
+    #[serde(default, alias = "executionType")]
     pub execution_type: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "dataType")]
     pub data_type: Option<String>,
     #[serde(default)]
     pub widget: Option<String>,
+    #[serde(default)]
+    pub required: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ArtOutputDefinition {
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub label: String,
     #[serde(default)]
     pub r#type: String,
-    #[serde(default, rename = "defaultVisible")]
+    #[serde(default, rename = "defaultVisible", alias = "default_visible")]
     pub default_visible: Option<bool>,
-    #[serde(default)]
+    #[serde(default, alias = "executionType")]
     pub execution_type: Option<String>,
+    #[serde(default, alias = "dataType")]
+    pub data_type: Option<String>,
+    #[serde(default)]
+    pub widget: Option<String>,
+    #[serde(default)]
+    pub required: bool,
+}
+
+impl ArtDefinition {
+    fn qualified_id(&self) -> Option<String> {
+        let metadata = self.metadata.as_ref()?;
+        for pointer in [
+            "/art/qualifiedId",
+            "/art/qualified_id",
+            "/artPackage/qualifiedId",
+            "/artPackage/qualified_id",
+        ] {
+            if let Some(value) = metadata
+                .pointer(pointer)
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                return Some(value.to_string());
+            }
+        }
+
+        let publisher = metadata
+            .pointer("/packageSecurity/publisher/id")
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())?;
+        (!self.id.trim().is_empty()).then(|| format!("{publisher}/{}", self.id.trim()))
+    }
+
+    fn identity_key(&self) -> String {
+        self.qualified_id().unwrap_or_else(|| self.id.clone())
+    }
+
+    fn matches_runtime_id(&self, id: &str) -> bool {
+        self.id == id || self.qualified_id().as_deref() == Some(id)
+    }
+
+    fn effective_execution_type(&self) -> Option<&str> {
+        self.execution_type
+            .as_deref()
+            .or_else(|| self.execution.as_ref()?.get("type")?.as_str())
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -338,12 +438,33 @@ fn load_mcp_servers_from_disk() -> Vec<LoomMcpServerConfig> {
 // Map a Loom `/v1/artloom-compat/arts` response body into Hook art definitions.
 // Each art that fails to deserialize is skipped (defensive) rather than failing
 // the whole list. Separated from the network call so it can be unit-tested.
+fn parse_art_definition_value(mut value: serde_json::Value) -> Option<ArtDefinition> {
+    let object = value.as_object_mut()?;
+    if !object.contains_key("id") {
+        if let Some(id) = object
+            .get("art_id")
+            .or_else(|| object.get("artId"))
+            .cloned()
+        {
+            object.insert("id".to_string(), id);
+        }
+    }
+    if !object.contains_key("label") {
+        if let Some(label) = object.get("name").cloned() {
+            object.insert("label".to_string(), label);
+        }
+    }
+
+    let art = serde_json::from_value::<ArtDefinition>(value).ok()?;
+    (!art.id.trim().is_empty()).then_some(art)
+}
+
 fn map_loom_arts_response(body: &str) -> Option<Vec<ArtDefinition>> {
     let value: serde_json::Value = serde_json::from_str(body).ok()?;
     let arts = value.get("arts")?.as_array()?;
     let mapped: Vec<ArtDefinition> = arts
         .iter()
-        .filter_map(|art| serde_json::from_value::<ArtDefinition>(art.clone()).ok())
+        .filter_map(|art| parse_art_definition_value(art.clone()))
         .collect();
     Some(mapped)
 }
@@ -474,6 +595,17 @@ fn loom_control_plane_arts_prefix() -> Option<String> {
 }
 
 fn is_loom_control_plane_art(art: &ArtDefinition) -> bool {
+    if art
+        .metadata
+        .as_ref()
+        .and_then(|metadata| metadata.pointer("/artPackage/dir"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .is_some_and(|path| !path.is_empty())
+    {
+        return true;
+    }
+
     let Some(path) = art
         .execution
         .as_ref()
@@ -494,22 +626,33 @@ fn is_loom_control_plane_art(art: &ArtDefinition) -> bool {
 // Merge local arts with the arts already registered in Loom. Local arts keep
 // priority by default, but a Loom-installed control-plane Art is allowed to
 // replace a colliding legacy local definition so Hook uses the currently
-// installed Art payload (for example a Loom-managed python_art package).
+// installed publisher-qualified package payload.
 fn merge_arts_by_id(local: &[ArtDefinition], existing: &[ArtDefinition]) -> Vec<ArtDefinition> {
     let mut merged: Vec<ArtDefinition> = local.to_vec();
-    let local_indexes: std::collections::HashMap<String, usize> = merged
-        .iter()
-        .enumerate()
-        .map(|(index, art)| (art.id.clone(), index))
-        .collect();
     for art in existing {
-        if let Some(index) = local_indexes.get(&art.id) {
+        let identity = art.identity_key();
+        if let Some(index) = merged
+            .iter()
+            .position(|candidate| candidate.identity_key() == identity)
+        {
             if is_loom_control_plane_art(art) {
-                merged[*index] = art.clone();
+                merged[index] = art.clone();
             }
-        } else {
-            merged.push(art.clone());
+            continue;
         }
+
+        let legacy_matches = merged
+            .iter()
+            .enumerate()
+            .filter(|(_, candidate)| candidate.qualified_id().is_none() && candidate.id == art.id)
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        if is_loom_control_plane_art(art) && legacy_matches.len() == 1 {
+            merged[legacy_matches[0]] = art.clone();
+            continue;
+        }
+
+        merged.push(art.clone());
     }
     merged
 }
@@ -519,6 +662,10 @@ fn merge_arts_by_id(local: &[ArtDefinition], existing: &[ArtDefinition]) -> Vec<
 // Merges with Loom's existing compat tools first so the full-replace sync keeps
 // previously wrapped tools. Best-effort: silently no-ops if Loom is unreachable.
 async fn sync_arts_to_loom(local: &[ArtDefinition]) {
+    if local.is_empty() {
+        return;
+    }
+
     let Ok(manifest) = crate::loom_connector::read_default_loom_manifest() else {
         return;
     };
@@ -1042,19 +1189,14 @@ pub async fn artloom_dispatch_action(
                         art_type
                     );
 
-                    let art_def = loaded_arts.iter().find(|a| a.id == art_type).cloned();
+                    let art_def = loaded_arts
+                        .iter()
+                        .find(|art| art.matches_runtime_id(art_type))
+                        .cloned();
 
                     if let Some(def) = art_def {
-                        let et = def.execution_type.as_deref().unwrap_or("");
-                        if et == "cloud_api"
-                            || et == "script"
-                            || et == "python"
-                            || et == "shader"
-                            || et == "mcp"
-                            || et == "workflow"
-                            || et == "cli_wrapper"
-                            || et == "cli"
-                        {
+                        let et = def.effective_execution_type().unwrap_or("unknown");
+                        if def.enabled {
                             println!("[MOCK_ARTLOOM] Forwarding execution request ({}) to ArtLoom via WebSocket...", et);
 
                             // Get image dimensions
@@ -1406,9 +1548,15 @@ pub async fn artloom_dispatch_action(
                             }
                         } else {
                             println!(
-                                "[MOCK_ARTLOOM] Art execution_type '{}' unknown, passing through.",
-                                et
+                                "[MOCK_ARTLOOM] Art '{}' is disabled; skipping Loom execution.",
+                                art_type
                             );
+                            emit_art_error(
+                                &app_handle,
+                                &_node_id,
+                                format!("Art '{}' is disabled", art_type),
+                            );
+                            return;
                         }
                     } else {
                         println!("[MOCK_ARTLOOM] Art definition not found in loaded arts cache, passing through.");
@@ -1927,7 +2075,7 @@ fn prefetch_shader_blocking(
         // Look up in loaded arts
         let art = loaded_arts
             .iter()
-            .find(|a| a.id == art_id)
+            .find(|art| art.matches_runtime_id(&art_id))
             .ok_or_else(|| format!("Art not found: {}", art_id))?;
 
         let exec = art
@@ -1999,7 +2147,9 @@ fn prefetch_shader_blocking(
     // If it's a directory, we need to find the entry point
     if script_path.is_dir() {
         // Try to get 'entry' from definition first
-        let art = loaded_arts.iter().find(|a| a.id == art_id);
+        let art = loaded_arts
+            .iter()
+            .find(|art| art.matches_runtime_id(&art_id));
 
         let mut entry_file = "main.py".to_string(); // Default
 
@@ -2191,7 +2341,7 @@ mod loom_arts_mapping {
     }
 
     #[test]
-    fn skips_unparseable_arts_but_keeps_valid_ones() {
+    fn keeps_parameterless_arts_and_defaults_optional_fields() {
         let body = r#"{
           "arts": [
             {"id": "bad", "label": "no params"},
@@ -2199,8 +2349,74 @@ mod loom_arts_mapping {
           ]
         }"#;
         let arts = map_loom_arts_response(body).expect("map");
+        assert_eq!(arts.len(), 2);
+        assert_eq!(arts[0].id, "bad");
+        assert!(arts[0].params.is_empty());
+        assert!(arts[0].enabled);
+        assert_eq!(arts[1].id, "good");
+    }
+
+    #[test]
+    fn preserves_current_loom_framework_art_schema() {
+        let body = r#"{
+          "arts": [
+            {
+              "id": "custom-layout-form-stress-test",
+              "name": "属性布局测试",
+              "enabled": true,
+              "execution": {"type": "framework_art", "framework": "process"},
+              "params": [
+                {
+                  "id": "render_mode",
+                  "label": "渲染模式",
+                  "widget": "select",
+                  "required": true,
+                  "default": "preview",
+                  "options": [
+                    {"value": "preview", "label": "预览"},
+                    {"value": "quality", "label": "质量"}
+                  ],
+                  "data_type": "enum",
+                  "group": "基础"
+                }
+              ],
+              "outputs": [
+                {
+                  "name": "output",
+                  "label": "测试结果",
+                  "type": "image",
+                  "executionType": "image_buffer"
+                }
+              ],
+              "metadata": {
+                "art": {
+                  "qualifiedId": "neuro.official/custom-layout-form-stress-test"
+                },
+                "artPackage": {
+                  "dir": "C:\\\\Users\\\\test\\\\Loom\\\\control-plane\\\\arts\\\\layout"
+                }
+              }
+            }
+          ]
+        }"#;
+
+        let arts = map_loom_arts_response(body).expect("map current Loom Art");
         assert_eq!(arts.len(), 1);
-        assert_eq!(arts[0].id, "good");
+        let art = &arts[0];
+        assert_eq!(art.label, "属性布局测试");
+        assert_eq!(
+            art.qualified_id().as_deref(),
+            Some("neuro.official/custom-layout-form-stress-test")
+        );
+        assert_eq!(art.effective_execution_type(), Some("framework_art"));
+        assert_eq!(art.params[0].param_type, "select");
+        assert_eq!(art.params[0].options.as_ref().map(Vec::len), Some(2));
+        assert!(art.params[0].required);
+        assert_eq!(art.params[0].group.as_deref(), Some("基础"));
+        assert_eq!(
+            art.outputs[0].execution_type.as_deref(),
+            Some("image_buffer")
+        );
     }
 }
 
@@ -2422,6 +2638,10 @@ mod arts_merge {
             execution: None,
             inputs: vec![],
             outputs: vec![],
+            metadata: None,
+            capabilities: None,
+            supported_transports: vec![],
+            default_visibility: HashMap::new(),
             input_schema: None,
             output_schema: None,
         }
@@ -2483,6 +2703,62 @@ mod arts_merge {
                 .and_then(|execution| execution.get("artPath"))
                 .and_then(serde_json::Value::as_str),
             Some(loom_art_path.as_str())
+        );
+    }
+
+    #[test]
+    fn merge_recognizes_current_art_package_metadata_and_preserves_qualified_identity() {
+        let local_art = art("shared-art", "本地旧版");
+        let mut loom_art = art("shared-art", "Loom 安装版");
+        loom_art.execution_type = Some("framework_art".to_string());
+        loom_art.execution = Some(serde_json::json!({
+            "type": "framework_art",
+            "framework": "process"
+        }));
+        loom_art.metadata = Some(serde_json::json!({
+            "art": { "qualifiedId": "publisher.alpha/shared-art" },
+            "artPackage": {
+                "qualifiedId": "publisher.alpha/shared-art",
+                "dir": "C:\\Users\\test\\Loom\\control-plane\\arts\\publisher.alpha\\shared-art"
+            }
+        }));
+
+        let merged = merge_arts_by_id(&[local_art], &[loom_art]);
+
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].label, "Loom 安装版");
+        assert_eq!(
+            merged[0].qualified_id().as_deref(),
+            Some("publisher.alpha/shared-art")
+        );
+        assert!(merged[0].matches_runtime_id("publisher.alpha/shared-art"));
+    }
+
+    #[test]
+    fn merge_keeps_same_local_id_from_different_publishers() {
+        let mut alpha = art("shared-art", "Alpha");
+        alpha.metadata = Some(serde_json::json!({
+            "art": { "qualifiedId": "publisher.alpha/shared-art" },
+            "artPackage": { "dir": "C:\\alpha" }
+        }));
+        let mut beta = art("shared-art", "Beta");
+        beta.metadata = Some(serde_json::json!({
+            "art": { "qualifiedId": "publisher.beta/shared-art" },
+            "artPackage": { "dir": "C:\\beta" }
+        }));
+
+        let merged = merge_arts_by_id(&[], &[alpha, beta]);
+        let identities = merged
+            .iter()
+            .map(ArtDefinition::identity_key)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            identities,
+            vec![
+                "publisher.alpha/shared-art".to_string(),
+                "publisher.beta/shared-art".to_string()
+            ]
         );
     }
 }

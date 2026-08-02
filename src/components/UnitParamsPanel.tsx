@@ -21,6 +21,10 @@ import {
     resolveCandidateCardPreviewSrc,
 } from "../services/artCandidateCache";
 import {
+    formatArtParamTextValue,
+    parseArtParamTextValue,
+} from "../services/artParamTextValue";
+import {
     DISABLED_PREFIX,
     PARAM_ui_resize,
     EXEC_expanded,
@@ -65,6 +69,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
 
   const [editingTextId, setEditingTextId] = createSignal<string | null>(null);
   const [tempText, setTempText] = createSignal<string>("");
+  const [textEditorError, setTextEditorError] = createSignal<string | null>(null);
   const [hoveringParam, setHoveringParam] = createSignal<string | null>(null);
   const [draggingSlider, setDraggingSlider] = createSignal<{ id: string; value: number } | null>(null);
   const [scrollMetrics, setScrollMetrics] = createSignal({
@@ -279,8 +284,33 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
   };
 
   const openTextEditor = (param: ArtParam) => {
-      setTempText(String(getParamValue(param.id, param.default) ?? ""));
+      setTempText(formatArtParamTextValue(param, getParamValue(param.id, param.default)));
+      setTextEditorError(null);
       setEditingTextId(param.id);
+  };
+
+  const closeTextEditor = () => {
+      setEditingTextId(null);
+      setTextEditorError(null);
+  };
+
+  const commitTextEditor = () => {
+      const id = editingTextId();
+      if (!id) return;
+      const param = derivedParams().find((item) => item.id === id);
+      if (!param) {
+          closeTextEditor();
+          return;
+      }
+
+      const parsed = parseArtParamTextValue(param, tempText());
+      if (!parsed.ok) {
+          setTextEditorError(parsed.error);
+          return;
+      }
+
+      props.onParamChange(id, parsed.value, true);
+      closeTextEditor();
   };
 
   const focusOverlayFromPointerEvent = (event: PointerEvent | MouseEvent) => {
@@ -461,7 +491,8 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
       const id = editingTextId();
       if (!id) return;
       const param = derivedParams().find((item) => item.id === id);
-      setTempText(String(getParamValue(id, param?.default) ?? ""));
+      if (!param) return;
+      setTempText(formatArtParamTextValue(param, getParamValue(id, param.default)));
   });
 
   createEffect(() => {
@@ -1067,21 +1098,24 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
              >
                  <div class="flex items-center justify-between mb-2">
                      <span class="text-xs font-bold text-white/90 uppercase tracking-wider">Edit Text</span>
-                      <button class="text-white/40 hover:text-white transition-colors" onClick={() => setEditingTextId(null)}><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                      <button class="text-white/40 hover:text-white transition-colors" onClick={closeTextEditor}><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
                  </div>
                  <textarea class="hook-terminal-input w-full h-[150px] p-3 text-[11px] leading-relaxed resize-y min-h-[100px] scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent font-mono mb-3"
                      value={tempText()}
-                     onInput={(e) => setTempText(e.currentTarget.value)}
+                     onInput={(e) => { setTempText(e.currentTarget.value); setTextEditorError(null); }}
                      onPointerDown={focusOverlayFromPointerEvent}
                      onMouseDown={focusOverlayFromPointerEvent}
                      onClick={(e) => e.stopPropagation()}
                      placeholder="Enter text..."
                      autofocus
                  />
+                 <Show when={textEditorError()}>
+                     {(message) => <div class="mb-2 text-[10px] leading-4 text-red-300">JSON 格式错误：{message()}</div>}
+                 </Show>
                  <div class="flex justify-between items-center mt-auto">
                      <span class="text-[10px] text-white/30 font-mono self-center">{tempText().length} chars</span>
                      <button class="hook-terminal-btn hook-terminal-btn--success px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
-                         onClick={(e) => { e.stopPropagation(); props.onParamChange(editingTextId()!, tempText()); setEditingTextId(null); }}>Save Text</button>
+                         onClick={(e) => { e.stopPropagation(); commitTextEditor(); }}>Save Text</button>
                  </div>
              </div>
     </Show>

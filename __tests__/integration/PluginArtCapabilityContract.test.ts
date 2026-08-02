@@ -53,12 +53,14 @@ describe("plugin Art capability boundary", () => {
     expect(protocol).toContain("capabilities?: ArtCapabilityMetadata");
   });
 
-  it("delegates CLI-backed package Arts to Loom instead of spawning them in Hook", () => {
+  it("delegates every enabled package Art to Loom instead of maintaining an execution whitelist", () => {
     const backend = source("src-tauri/src/mock_artloom.rs");
     const tauriEntry = source("src-tauri/src/lib.rs");
 
-    expect(backend).toContain('|| et == "cli_wrapper"');
-    expect(backend).toContain('|| et == "cli"');
+    expect(backend).toContain("let et = def.effective_execution_type().unwrap_or(\"unknown\")");
+    expect(backend).toContain("if def.enabled");
+    expect(backend).not.toContain('|| et == "cli_wrapper"');
+    expect(backend).not.toContain('|| et == "framework_art"');
     expect(backend).toContain('"method": "art/process"');
     expect(backend).toContain('"filePath"');
     expect(backend).toContain("image::open(path)");

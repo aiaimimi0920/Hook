@@ -2,12 +2,13 @@ import { api } from "./api";
 
 import { listen } from "@tauri-apps/api/event";
 import { logger } from "./logger";
-import { HandshakeRequest, HandshakeResponse, TransportMode, ArtDelivery } from "./protocol";
+import { HandshakeRequest, HandshakeResponse, TransportMode, ArtDelivery, ArtCapability } from "./protocol";
+import { normalizeArtCapabilities } from "./artCapabilityNormalization";
 
 export class ArtLoomClient {
     private sessionId: string | null = null;
     private negotiatedTransport: TransportMode | null = null;
-    private capabilities: any[] = [];
+    private capabilities: ArtCapability[] = [];
 
     async connect(): Promise<HandshakeResponse> {
         logger.debug("[ArtLoomClient] Connecting...");
@@ -18,7 +19,17 @@ export class ArtLoomClient {
         };
 
         try {
-            const res = await api.handshake(req);
+            const rawResponse = await api.handshake(req);
+            const capabilities = normalizeArtCapabilities(
+                rawResponse.capabilities?.art_definitions ?? [],
+            );
+            const res: HandshakeResponse = {
+                ...rawResponse,
+                capabilities: {
+                    ...rawResponse.capabilities,
+                    art_definitions: capabilities,
+                },
+            };
 
             logger.debug("[ArtLoomClient] Handshake Success:", res);
             this.sessionId = res.session_id;

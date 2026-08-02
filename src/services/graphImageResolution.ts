@@ -1,6 +1,7 @@
 import { DISABLED_PREFIX } from "../constants";
 import type { ArtCapability, ArtParam } from "./protocol";
 import type { Link, Unit } from "../types/unit";
+import { findArtCapability } from "./artCapabilityLookup";
 
 const DEFAULT_IMAGE_INPUTS = ["image", "input_image", "input"];
 const LEGACY_AUXILIARY_IMAGE_INPUTS = new Set([
@@ -47,7 +48,7 @@ const mergeLegacyImageInputAliases = (imageInputs: string[], allInputs: string[]
 
 const getImageInputNames = (unit: Unit, capabilities?: readonly ArtCapability[]) => {
     if (unit.type === "art") {
-        const capability = capabilities?.find((item) => item.id === unit.artId);
+        const capability = capabilities ? findArtCapability(capabilities, unit.artId) : undefined;
         const allInputs = capability?.inputs?.map((input) => input.name).filter(isNonEmptyString) || [];
         const imageInputs =
             capability?.inputs
@@ -76,7 +77,9 @@ const imageOutputAliases = new Set(["output", "output_image", "image", "result",
 const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
 
 const findCapability = (unit: Unit, capabilities?: readonly ArtCapability[]) =>
-    unit.type === "art" ? capabilities?.find((item) => item.id === unit.artId) : undefined;
+    unit.type === "art" && capabilities
+        ? findArtCapability(capabilities, unit.artId)
+        : undefined;
 
 const isImageOutputPort = (unit: Unit, portId: string, capabilities?: readonly ArtCapability[]) => {
     const normalized = portId.toLowerCase();

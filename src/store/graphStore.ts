@@ -5,6 +5,7 @@ import type { StickerGroup } from "../types/stickerEditing";
 import type { StickerEditSnapshot } from "../services/stickerHistory";
 import type { FrozenStickerEntry } from "../services/stickerSnapshot";
 import { deriveUnitExecutionConfig } from "../services/nodeExecutionConfig";
+import { findArtCapability } from "../services/artCapabilityLookup";
 import {
     buildStickerEditPropagationPatches,
     markStickerEditPropagationLocally,
@@ -30,7 +31,7 @@ const [referenceLibrary, setReferenceLibrary] = createStore<FrozenStickerEntry[]
 
 // Actions
 const addUnit = (unit: Unit) => {
-    const capability = unit.artId ? capabilities.find((cap) => cap.id === unit.artId) : undefined;
+    const capability = findArtCapability(capabilities, unit.artId);
     const executionConfig = deriveUnitExecutionConfig({
         capability,
         explicitConfig: unit.data?.executionConfig,

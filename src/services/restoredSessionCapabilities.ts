@@ -4,7 +4,11 @@ import type { SessionSticker, Unit } from "../types/unit";
 const loadedCapabilityIds = (capabilities: readonly ArtCapability[]) =>
     new Set(
         capabilities
-            .map((capability) => capability.id)
+            .flatMap((capability) => [
+                capability.id,
+                capability.legacyId,
+                capability.qualifiedId,
+            ])
             .filter(
                 (capabilityId): capabilityId is string =>
                     typeof capabilityId === "string" && capabilityId.length > 0,

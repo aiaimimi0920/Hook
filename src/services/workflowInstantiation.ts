@@ -15,6 +15,7 @@ import type { Link, Unit } from "../types/unit";
 import type { WorkflowSnapshotPayload } from "./workflowPayload";
 import { buildUnitPortsFromCapability } from "./artNodeFactory";
 import { deriveUnitExecutionConfig } from "./nodeExecutionConfig";
+import { findArtCapability } from "./artCapabilityLookup";
 
 export interface WorkflowInstantiationDeps {
     /** Current graph units, used to reuse ids for reference-mode re-instantiation. */
@@ -79,7 +80,7 @@ export const buildWorkflowInstantiation = (
         const artId = node.data?.artId || node.data?.art_id || undefined;
         const nodeType: "sticker" | "art" =
             artId || node.type !== "sticker" ? "art" : "sticker";
-        const capability = deps.capabilities.find((item) => item.id === artId);
+        const capability = findArtCapability(deps.capabilities, artId);
         const { inputs, outputs } = buildUnitPortsFromCapability(nodeType, capability);
         const executionConfig = deriveUnitExecutionConfig({
             capability,
@@ -89,7 +90,7 @@ export const buildWorkflowInstantiation = (
         return {
             id: localId,
             type: nodeType,
-            artId,
+            artId: capability?.id ?? artId,
             x: node.position?.x ?? 0,
             y: node.position?.y ?? 0,
             w: node.data?.w ?? node.measured?.width ?? 240,

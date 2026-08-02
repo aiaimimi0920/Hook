@@ -13,6 +13,7 @@ import { DEFAULT_EXECUTION_CONFIG, type Unit } from "../types/unit";
 import { resolveUnitImageFromGraph } from "../services/graphImageResolution";
 import { getCapabilityInputsForPorts } from "../services/artPorts";
 import { deriveUnitExecutionConfig } from "../services/nodeExecutionConfig";
+import { findArtCapability } from "../services/artCapabilityLookup";
 
 const getSourceImageFrame = (unit: Unit): { w: number; h: number } => {
     const savedRect = unit.data.savedRect;
@@ -29,7 +30,7 @@ export function useUnitActions() {
     const { handleParamChange } = useNodeParameters();
 
     const getPrimaryImageInputPort = (artId: string) => {
-        const capability = graphStore.capabilities.find((item) => item.id === artId);
+        const capability = findArtCapability(graphStore.capabilities, artId);
         const inputs = getCapabilityInputsForPorts(capability);
         const imageInput = inputs.find((input) =>
             (input.type || "").toLowerCase().includes("image") ||
@@ -50,7 +51,7 @@ export function useUnitActions() {
 
             if (childUnit.type === 'art') {
                 const childCapability = childUnit.artId
-                    ? graphStore.capabilities.find((item) => item.id === childUnit.artId)
+                    ? findArtCapability(graphStore.capabilities, childUnit.artId)
                     : undefined;
                 const childExecConfig = deriveUnitExecutionConfig({
                     capability: childCapability,
@@ -188,10 +189,11 @@ export function useUnitActions() {
          const u = graphStore.units.find(u => u.id === fromId);
          if (u) {
              const sourceFrame = getSourceImageFrame(u);
-             const capability = graphStore.capabilities.find((item) => item.id === artId);
+             const capability = findArtCapability(graphStore.capabilities, artId);
+             const canonicalArtId = capability?.id ?? artId;
              const newId = crypto.randomUUID();
              graphStore.actions.addUnit({
-                 id: newId, type: 'art', artId,
+                 id: newId, type: 'art', artId: canonicalArtId,
                  x: u.x + u.w + 50, y: u.y, w: sourceFrame.w, h: sourceFrame.h,
                  params: {}, inputs: [], outputs: [],
                  data: {

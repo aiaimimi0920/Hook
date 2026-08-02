@@ -1,5 +1,6 @@
 import { Unit } from "../types/unit";
 import { ArtCapability } from "../services/protocol";
+import { findArtCapability } from "../services/artCapabilityLookup";
 
 /**
  * Calculates the Y position of a port on a unit.
@@ -16,7 +17,7 @@ export const calculatePortY = (
     let count = 1;
 
     if (u.type === 'art') {
-         const cap = capabilities.find(c => c.id === u.artId);
+         const cap = findArtCapability(capabilities, u.artId);
          if (cap) {
              const ports = isInput ? cap.inputs : cap.outputs;
              const found = ports?.findIndex(p => p.name === portName);

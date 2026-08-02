@@ -30,7 +30,7 @@ describe("String parameter commit contract", () => {
         );
 
         expect(source).toContain("const openTextEditor = (param: ArtParam) => {");
-        expect(source).toContain('setTempText(String(getParamValue(param.id, param.default) ?? ""));');
+        expect(source).toContain("setTempText(formatArtParamTextValue(param, getParamValue(param.id, param.default)));");
         expect(source).toContain("onEditStart={() => openTextEditor(param)}");
         expect(source).not.toContain("onEditStart={() => setEditingTextId(param.id)}");
     });
@@ -41,7 +41,9 @@ describe("String parameter commit contract", () => {
             "utf8",
         );
 
-        const textBranch = source.match(/<Match when=\{props\.param\.widget === "text"\}>([\s\S]*?)<\/Match>/)?.[1] ?? "";
+        const textBranchStart = source.indexOf('props.param.widget === "text"');
+        const textBranchEnd = source.indexOf("</Match>", textBranchStart);
+        const textBranch = source.slice(textBranchStart, textBranchEnd);
         expect(textBranch).toContain("onChange={(val, isFinal) => props.onChange(props.param.id, val, isFinal)}");
         expect(textBranch).not.toContain("onChange={(val) => props.onChange(props.param.id, val)}");
     });

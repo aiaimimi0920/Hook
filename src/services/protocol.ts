@@ -3,6 +3,7 @@ export type ArtExecutionType =
     | 'script'
     | 'python'
     | 'cloud_api'
+    | 'framework_art'
     | 'shader'
     | 'mcp'
     | 'workflow'
@@ -11,18 +12,39 @@ export type ArtExecutionType =
     | 'native'
     | 'filter';
 
+export interface ArtParamOption {
+    value: string | number | boolean;
+    label: string;
+}
+
 export interface ArtParam {
     id: string;
     label: string;
     widget: string; // "slider" | "checkbox" | "radio" | "select" | "color" | "text" | "file" | "image_link"
     min?: number;
     max?: number;
-    default: any; // Can be number, boolean, string, null
+    default: unknown;
     step?: number;
-    options?: string[]; // For radio/select widgets
+    options?: ArtParamOption[];
     multiline?: boolean; // For text widget
     group?: string; // Optional UI grouping label for large parameter panels
     data_type?: string;
+    required?: boolean;
+    secret?: boolean;
+    disabled?: boolean;
+}
+
+export interface ArtPortDefinition {
+    name: string;
+    label: string;
+    type: string;
+    default?: unknown;
+    defaultVisible?: boolean;
+    exposePort?: boolean;
+    execution_type?: string;
+    data_type?: string;
+    widget?: string;
+    required?: boolean;
 }
 
 export interface ArtCapability {
@@ -31,27 +53,21 @@ export interface ArtCapability {
     description: string;
     supported_transports: TransportMode[];
     params: ArtParam[];
+    enabled?: boolean;
     auto_process?: boolean;
     execution_type?: ArtExecutionType;
     execution?: Record<string, unknown>;
+    defaults?: Record<string, unknown>;
+    qualifiedId?: string;
+    legacyId?: string;
     capabilities?: ArtCapabilityMetadata;
     metadata?: {
         capabilities?: ArtCapabilityMetadata;
         [key: string]: unknown;
     };
     defaultVisibility?: Record<string, boolean>;
-    inputs?: {
-        name: string;
-        label: string;
-        type: string;
-        default?: unknown;
-        defaultVisible?: boolean;
-        exposePort?: boolean;
-        execution_type?: string;
-        data_type?: string;
-        widget?: string;
-    }[];
-    outputs?: { name: string; label: string; type: string; defaultVisible?: boolean; }[];
+    inputs?: ArtPortDefinition[];
+    outputs?: ArtPortDefinition[];
 }
 
 /**

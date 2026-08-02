@@ -6,6 +6,8 @@ import { StringControl } from "./controls/StringControl";
 import { BoolControl } from "./controls/BoolControl";
 import { ColorControl } from "./controls/ColorControl";
 import { ImageControl } from "./controls/ImageControl";
+import { SelectControl } from "./controls/SelectControl";
+import { formatArtParamTextValue } from "../../services/artParamTextValue";
 
 interface UnitParamControlProps {
   param: ArtParam;
@@ -104,16 +106,32 @@ export const UnitParamControl: Component<UnitParamControlProps> = (props) => {
             />
         </Match>
 
-        <Match when={props.param.widget === "text"}>
+        <Match when={
+            props.param.widget === "text" ||
+            props.param.widget === "path" ||
+            props.param.widget === "textarea"
+        }>
             <StringControl
                 id={props.param.id}
                 label={props.param.label}
-                value={String(props.value ?? getDefault() ?? "")}
-                multiline={props.param.multiline}
+                value={formatArtParamTextValue(props.param, props.value ?? getDefault())}
+                multiline={props.param.multiline || props.param.widget === "textarea"}
                 isDisabled={props.isDisabled}
                 onChange={(val, isFinal) => props.onChange(props.param.id, val, isFinal)}
                 onEditStart={() => props.onEditStart?.(props.param.id)}
                 onContextMenu={(e) => handleReset(e, getDefault() ?? "")}
+            />
+        </Match>
+
+        <Match when={props.param.widget === "select" || props.param.widget === "radio"}>
+            <SelectControl
+                id={props.param.id}
+                label={props.param.label}
+                value={props.value ?? getDefault()}
+                options={props.param.options || []}
+                isDisabled={props.isDisabled}
+                onChange={(value) => props.onChange(props.param.id, value, true)}
+                onContextMenu={(event) => handleReset(event, getDefault())}
             />
         </Match>
 

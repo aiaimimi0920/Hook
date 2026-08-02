@@ -10,6 +10,7 @@ import {
 } from "../services/graphImageResolution";
 import { deriveUnitExecutionConfig } from "../services/nodeExecutionConfig";
 import { supportsShaderPreview } from "../services/artCapabilities";
+import { findArtCapability } from "../services/artCapabilityLookup";
 import {
     DISABLED_PREFIX,
     PARAM_ui_resize,
@@ -60,7 +61,7 @@ export function useNodeParameters() {
             // Initialize executionConfig if not present
             if (!graphStore.unitExecConfig[unitId]) {
                 const unit = graphStore.units.find(u => u.id === unitId);
-                const artCap = unit && graphStore.capabilities.find(c => c.id === unit.artId);
+                const artCap = unit && findArtCapability(graphStore.capabilities, unit.artId);
                 const existingConfig = unit?.data?.executionConfig;
 
                 graphStore.setUnitExecConfig(unitId, deriveUnitExecutionConfig({
@@ -93,16 +94,17 @@ export function useNodeParameters() {
                     // CHECK IF SHADER ART BEFORE CONTINUING
                     const unit = graphStore.units.find(u => u.id === unitId);
                     const caps = graphStore.capabilities;
-                    const artCap = unit && caps.find(c => c.id === unit.artId);
+                    const artCap = unit && findArtCapability(caps, unit.artId);
 
                     if (supportsShaderPreview(artCap)) {
                          console.log(`[Execution] Shader Art Manual Trigger intercepted for ${unitId}`);
                          const executeShader = async () => {
                              if (!unit || !unit.artId) return;
+                             const shaderArtId = artCap?.id ?? unit.artId;
 
-                             if (!shaderCache.hasShaderCode(unit.artId)) {
+                             if (!shaderCache.hasShaderCode(shaderArtId)) {
                                  try {
-                                     await shaderCache.prefetchShader(unit.artId);
+                                     await shaderCache.prefetchShader(shaderArtId);
                                  } catch (e) {
                                      console.error(`[Execution] Prefetch failed:`, e);
                                      return;
@@ -111,7 +113,7 @@ export function useNodeParameters() {
 
                              const canvas = document.getElementById(`shader-canvas-${unitId}`) as HTMLCanvasElement;
                              if (canvas) {
-                                 const renderer = shaderCache.getRenderer(unit.artId, unitId, canvas);
+                                 const renderer = shaderCache.getRenderer(shaderArtId, unitId, canvas);
                                  if (renderer) {
                                      renderer.render();
                                      return;
@@ -178,7 +180,8 @@ export function useNodeParameters() {
 
         const artId = unit.artId;
         const caps = graphStore.capabilities;
-        const artCapability = caps.find(c => c.id === artId);
+        const artCapability = findArtCapability(caps, artId);
+        const runtimeArtId = artCapability?.id ?? artId;
 
         // 4. Check execution config to decide if we should execute
         const execConfig = deriveUnitExecutionConfig({
@@ -275,7 +278,7 @@ export function useNodeParameters() {
           });
 
           // === SHADER ART LOCAL EXECUTION ===
-          if (artCapability && supportsShaderPreview(artCapability) && artId) {
+          if (artCapability && supportsShaderPreview(artCapability) && runtimeArtId) {
                 const isLutParam = ['reference', 'recalculate'].includes(paramId);
                 if (isManualTrigger || isLutParam) {
                     // Contextual shaders are refreshed by ShaderPreview with the current
@@ -285,7 +288,7 @@ export function useNodeParameters() {
 
                 const canvas = document.getElementById(`shader-canvas-${unitId}`) as HTMLCanvasElement;
                 if (canvas) {
-                    const renderer = shaderCache.getRenderer(artId, unitId, canvas);
+                    const renderer = shaderCache.getRenderer(runtimeArtId, unitId, canvas);
                     if (renderer) {
                         if (isManualTrigger) {
                      renderer.render(); return;
@@ -332,7 +335,7 @@ export function useNodeParameters() {
                              Object.keys(auxiliaryInputImages).length > 0
                                  ? auxiliaryInputImages
                                  : undefined,
-                         art_id: artId,
+                         art_id: runtimeArtId,
                          all_params: activeParams,
                          disabled_params: disabledParams,
                          origin_workflow_id: unit.data?.originWorkflowId,

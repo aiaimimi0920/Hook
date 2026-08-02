@@ -13,6 +13,7 @@ import type { Unit, SessionSticker } from "../types/unit";
 import type { ArtCapability } from "./protocol";
 import { getCapabilityInputsForPorts } from "./artPorts";
 import { deriveUnitExecutionConfig } from "./nodeExecutionConfig";
+import { findArtCapability } from "./artCapabilityLookup";
 
 export interface SessionStickerMappingDeps {
     /** Art capabilities used to resolve node ports and execution defaults. */
@@ -31,7 +32,7 @@ const buildUnitPorts = (
         };
     }
 
-    const capability = capabilities.find((cap) => cap.id === artId);
+    const capability = findArtCapability(capabilities, artId);
     const inputs = getCapabilityInputsForPorts(capability, [{ name: "input_image", label: "Input", type: "image" }]).map((port) => ({
         id: port.name,
         label: port.label,
@@ -54,7 +55,7 @@ export const mapSessionStickerToUnit = (
 ): Unit => {
     const unitType: "sticker" | "art" = sticker.type === "art" || sticker.artId ? "art" : "sticker";
     const { inputs, outputs } = buildUnitPorts(unitType, sticker.artId ?? undefined, deps.capabilities);
-    const capability = deps.capabilities.find((cap) => cap.id === sticker.artId);
+    const capability = findArtCapability(deps.capabilities, sticker.artId);
     const executionConfig = deriveUnitExecutionConfig({
         capability,
         explicitConfig: sticker.executionConfig,
@@ -63,7 +64,7 @@ export const mapSessionStickerToUnit = (
     return {
         id: sticker.id,
         type: unitType,
-        artId: sticker.artId || undefined,
+        artId: capability?.id || sticker.artId || undefined,
         x: sticker.x,
         y: sticker.y,
         w: sticker.w,

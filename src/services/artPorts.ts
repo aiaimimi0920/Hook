@@ -5,11 +5,10 @@ export type ArtInputPort = NonNullable<ArtCapability["inputs"]>[number];
 const lowerString = (value: unknown): string =>
     typeof value === "string" ? value.toLowerCase() : "";
 
-const getInputMeta = (input: ArtInputPort, key: string): unknown => {
-    // ArtInputPort may have extra metadata fields beyond the typed interface
-    const record = input as Record<string, unknown>;
-    return record[key];
-};
+const getInputMeta = (
+    input: ArtInputPort,
+    key: "execution_type" | "data_type" | "exposePort",
+): unknown => input[key];
 
 const isImageLikeInput = (input: ArtInputPort): boolean => {
     const type = lowerString(input.type);

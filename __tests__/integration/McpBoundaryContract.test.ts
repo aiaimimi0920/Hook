@@ -13,7 +13,9 @@ describe("Hook MCP boundary contract", () => {
   });
 
   it("keeps MCP art execution routed through ArtLoom AHRP instead of local execution", () => {
-    expect(mockArtLoomSource).toContain('|| et == "mcp"');
+    expect(mockArtLoomSource).toContain("let et = def.effective_execution_type().unwrap_or(\"unknown\")");
+    expect(mockArtLoomSource).toContain("if def.enabled");
+    expect(mockArtLoomSource).not.toContain('|| et == "mcp"');
     expect(mockArtLoomSource).toContain('"method": "art/process"');
     expect(mockArtLoomSource).toContain("Connected to ArtLoom WebSocket");
   });
