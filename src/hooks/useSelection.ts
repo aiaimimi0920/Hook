@@ -238,7 +238,14 @@ export function useSelection() {
                 opacityNormal: 1.0,
                 opacityMini: 0.9,
                 minified: false,
-                captureMeta: createCaptureMeta(mode, rect, scrollAxis),
+                captureMeta: {
+                    ...createCaptureMeta(mode, rect, scrollAxis),
+                    dynamicRange: response.dynamicRange,
+                    bitDepth: response.bitDepth,
+                    colorSpace: response.colorSpace,
+                    captureBackend: response.captureBackend,
+                    downgradedFromHdr: response.downgradedFromHdr,
+                },
             }
         };
 

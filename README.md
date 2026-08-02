@@ -46,6 +46,7 @@ Hook focuses on the gap between a screenshot utility and a heavier design tool:
 
 - **Capture and long capture**
   - region capture
+  - HDR-aware region capture with automatic SDR fallback
   - long-capture sessions
   - file-backed capture payloads for desktop performance
 - **Sticker and annotation workspace**

@@ -33,6 +33,11 @@ export interface CaptureResponse {
     height: number;
     filePath?: string | null;
     fileUrl?: string | null;
+    dynamicRange?: "sdr" | "hdr";
+    bitDepth?: 8 | 16;
+    colorSpace?: "srgb" | "bt2020-pq";
+    captureBackend?: string;
+    downgradedFromHdr?: boolean;
 }
 
 export interface CaptureRegionOptions {

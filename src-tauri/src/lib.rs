@@ -13,7 +13,7 @@ pub mod talk_connector;
 pub mod tea_client;
 pub mod voice;
 
-use capture::CaptureResponse;
+use capture::{CaptureMetadata, CaptureResponse};
 use capture_coords::{normalize_global_physical_to_local_logical, CaptureWindowMetrics};
 use mock_artloom::MockArtLoom;
 use single_instance::{single_instance_name, try_acquire_single_instance};
@@ -324,6 +324,7 @@ pub fn hook_help_text() -> &'static str {
         "  HOOK_LOOM_BRAIN_PLAN_OUTPUT    Optional file path for --loom-brain-plan-smoke JSON output\n",
         "  HOOK_TALK_VOICE_CAPTURE_OUTPUT Optional file path for --talk-voice-capture-smoke JSON output\n",
         "  HOOK_CLI_OUTPUT                 Optional file path for --help/--version text output\n",
+        "  HOOK_CAPTURE_DYNAMIC_RANGE      Region capture mode: auto (default), hdr, or sdr\n",
     )
 }
 
@@ -6085,6 +6086,7 @@ async fn capture_vertical_long_region(
         height,
         file_path: None,
         file_url: None,
+        metadata: CaptureMetadata::sdr("long-capture", false),
     })
 }
 
@@ -6134,6 +6136,7 @@ async fn stitch_vertical_long_capture_frames(
         height,
         file_path: None,
         file_url: None,
+        metadata: CaptureMetadata::sdr("long-capture-stitch", false),
     })
 }
 
@@ -6231,6 +6234,7 @@ async fn stitch_long_capture_frames(
         height,
         file_path: None,
         file_url: None,
+        metadata: CaptureMetadata::sdr("long-capture-stitch", false),
     })
 }
 
@@ -8407,6 +8411,7 @@ fn encode_rgb_image_as_capture_response(
         height,
         file_path: None,
         file_url: None,
+        metadata: CaptureMetadata::sdr("test-encoder", false),
     })
 }
 
@@ -8433,6 +8438,16 @@ fn file_url_from_path(path: &Path) -> String {
 
 pub(crate) fn encode_rgb_image_as_file_capture_response(
     rgb_image: image::RgbImage,
+) -> Result<CaptureResponse, String> {
+    encode_rgb_image_as_file_capture_response_with_metadata(
+        rgb_image,
+        CaptureMetadata::sdr("long-capture-stitch", false),
+    )
+}
+
+pub(crate) fn encode_rgb_image_as_file_capture_response_with_metadata(
+    rgb_image: image::RgbImage,
+    metadata: CaptureMetadata,
 ) -> Result<CaptureResponse, String> {
     let started_at = Instant::now();
     let width = rgb_image.width();
@@ -8482,6 +8497,110 @@ pub(crate) fn encode_rgb_image_as_file_capture_response(
         height,
         file_path: Some(file_path_string),
         file_url: Some(file_url),
+        metadata,
+    })
+}
+
+fn scaled_png_luminance(nits: f32) -> u32 {
+    if !nits.is_finite() {
+        return 0;
+    }
+    (nits.clamp(0.0, 10_000.0) * 10_000.0)
+        .round()
+        .clamp(0.0, u32::MAX as f32) as u32
+}
+
+fn write_hdr_png(writer: impl Write, image: &screenshot::HdrPqImage) -> Result<(), String> {
+    let mut info = png::Info::with_size(image.width, image.height);
+    info.color_type = png::ColorType::Rgb;
+    info.bit_depth = png::BitDepth::Sixteen;
+    info.source_chromaticities = Some(png::SourceChromaticities::new(
+        (0.3127, 0.3290),
+        (0.7080, 0.2920),
+        (0.1700, 0.7970),
+        (0.1310, 0.0460),
+    ));
+    let mut encoder = png::Encoder::with_info(writer, info).map_err(|error| error.to_string())?;
+    encoder.set_compression(png::Compression::Fast);
+    encoder.set_filter(png::Filter::NoFilter);
+    let mut png_writer = encoder.write_header().map_err(|error| error.to_string())?;
+
+    png_writer
+        .write_chunk(png::chunk::cICP, &[9, 16, 0, 1])
+        .map_err(|error| error.to_string())?;
+
+    let chromaticity = |value: f32| (value * 50_000.0).round().clamp(0.0, u16::MAX as f32) as u16;
+    let mut mastering_display = Vec::with_capacity(24);
+    for value in [
+        0.7080, 0.2920, // BT.2020 red
+        0.1700, 0.7970, // BT.2020 green
+        0.1310, 0.0460, // BT.2020 blue
+        0.3127, 0.3290, // D65 white point
+    ] {
+        mastering_display.extend_from_slice(&chromaticity(value).to_be_bytes());
+    }
+    mastering_display
+        .extend_from_slice(&scaled_png_luminance(image.mastering_max_luminance_nits).to_be_bytes());
+    mastering_display
+        .extend_from_slice(&scaled_png_luminance(image.mastering_min_luminance_nits).to_be_bytes());
+    png_writer
+        .write_chunk(png::chunk::mDCV, &mastering_display)
+        .map_err(|error| error.to_string())?;
+
+    let mut content_light = Vec::with_capacity(8);
+    content_light
+        .extend_from_slice(&scaled_png_luminance(image.max_content_light_level_nits).to_be_bytes());
+    content_light.extend_from_slice(
+        &scaled_png_luminance(image.max_frame_average_light_level_nits).to_be_bytes(),
+    );
+    png_writer
+        .write_chunk(png::chunk::cLLI, &content_light)
+        .map_err(|error| error.to_string())?;
+
+    png_writer
+        .write_image_data(&image.rgb16_be)
+        .map_err(|error| error.to_string())?;
+    png_writer.finish().map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+pub(crate) fn encode_hdr_image_as_file_capture_response(
+    hdr_image: screenshot::HdrPqImage,
+    metadata: CaptureMetadata,
+) -> Result<CaptureResponse, String> {
+    let started_at = Instant::now();
+    let cache_dir = ensure_clipboard_cache_dir()?;
+    let file_path = cache_dir.join(format!(
+        "Hook_hdr_capture_{}.png",
+        file_timestamp_component()
+    ));
+    let file =
+        File::create(&file_path).map_err(|error| format!("Failed to create HDR PNG: {error}"))?;
+    let mut writer = BufWriter::new(file);
+    write_hdr_png(&mut writer, &hdr_image)?;
+    writer
+        .flush()
+        .map_err(|error| format!("Failed to flush HDR PNG: {error}"))?;
+
+    let file_url = file_url_from_path(&file_path);
+    let file_path_string = file_path.to_string_lossy().to_string();
+    append_runtime_log_line(&format!(
+        "encode_hdr_image_as_file_capture_response :: width={} height={} png_bytes={} max_cll_nits={} total_ms={} path={}",
+        hdr_image.width,
+        hdr_image.height,
+        fs::metadata(&file_path).map(|metadata| metadata.len()).unwrap_or(0),
+        hdr_image.max_content_light_level_nits,
+        started_at.elapsed().as_millis(),
+        cache_file_name_for_log(&file_path),
+    ));
+
+    Ok(CaptureResponse {
+        base64: String::new(),
+        width: hdr_image.width,
+        height: hdr_image.height,
+        file_path: Some(file_path_string),
+        file_url: Some(file_url),
+        metadata,
     })
 }
 
@@ -10125,6 +10244,40 @@ mod app_cli_tests {
         assert_eq!(response.width, image.width());
         assert_eq!(response.height, image.height());
         assert_eq!(decoded, image);
+    }
+
+    #[test]
+    fn hdr_png_encoder_writes_16_bit_bt2020_pq_metadata() {
+        let image = screenshot::HdrPqImage {
+            width: 1,
+            height: 1,
+            rgb16_be: vec![0x80, 0x00, 0x40, 0x00, 0x20, 0x00],
+            max_content_light_level_nits: 1_000.0,
+            max_frame_average_light_level_nits: 250.0,
+            mastering_min_luminance_nits: 0.001,
+            mastering_max_luminance_nits: 1_000.0,
+        };
+        let mut bytes = Vec::new();
+        write_hdr_png(&mut bytes, &image).expect("HDR PNG encode succeeds");
+
+        let decoder = png::Decoder::new(std::io::BufReader::new(std::io::Cursor::new(bytes)));
+        let reader = decoder.read_info().expect("HDR PNG metadata decodes");
+        let info = reader.info();
+        assert_eq!(info.bit_depth, png::BitDepth::Sixteen);
+        assert_eq!(info.color_type, png::ColorType::Rgb);
+        let cicp = info
+            .coding_independent_code_points
+            .expect("HDR PNG must contain cICP");
+        assert_eq!(cicp.color_primaries, 9);
+        assert_eq!(cicp.transfer_function, 16);
+        assert_eq!(cicp.matrix_coefficients, 0);
+        assert!(cicp.is_video_full_range_image);
+        assert_eq!(
+            info.content_light_level
+                .expect("HDR PNG must contain cLLI")
+                .max_content_light_level,
+            10_000_000,
+        );
     }
 
     #[test]

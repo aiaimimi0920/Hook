@@ -40,6 +40,8 @@ hound = "3"
 async-trait = "0.1"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 image = "0.25.9"
+half = "2.7"
+png = "0.18"
 base64 = "0.22.1"
 arboard = "3.6.1"
 tauri-plugin-global-shortcut = "2.3.1"
@@ -71,6 +73,7 @@ windows = { version = "0.60.0", features = [
     "Graphics_DirectX_Direct3D11",
     "Foundation_Metadata",
     "Win32_Foundation",
+    "Win32_Devices_Display",
     "Win32_Graphics_Gdi",
     "Win32_Graphics_Dwm",
     "Win32_Graphics_Direct3D",

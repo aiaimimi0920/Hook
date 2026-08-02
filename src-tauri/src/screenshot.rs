@@ -1,4 +1,6 @@
 use anyhow::anyhow;
+#[cfg(target_os = "windows")]
+use half::f16;
 use image::RgbImage;
 use std::sync::OnceLock;
 
@@ -9,12 +11,31 @@ use scap_targets::Display;
 #[cfg(target_os = "windows")]
 use scap_direct3d::{Capturer, Frame, PixelFormat, Settings};
 #[cfg(target_os = "windows")]
+use windows::core::Interface;
+#[cfg(target_os = "windows")]
+use windows::Win32::Devices::Display::{
+    DisplayConfigGetDeviceInfo, GetDisplayConfigBufferSizes, QueryDisplayConfig,
+    DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO,
+    DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL, DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME,
+    DISPLAYCONFIG_DEVICE_INFO_HEADER, DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO,
+    DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_PATH_INFO, DISPLAYCONFIG_SDR_WHITE_LEVEL,
+    DISPLAYCONFIG_SOURCE_DEVICE_NAME, QDC_ONLY_ACTIVE_PATHS,
+};
+#[cfg(target_os = "windows")]
 use windows::Win32::Foundation::HMODULE;
 #[cfg(target_os = "windows")]
 use windows::Win32::Graphics::Direct3D::D3D_DRIVER_TYPE_HARDWARE;
 #[cfg(target_os = "windows")]
 use windows::Win32::Graphics::Direct3D11::{
     D3D11CreateDevice, ID3D11Device, D3D11_BOX, D3D11_SDK_VERSION,
+};
+#[cfg(target_os = "windows")]
+use windows::Win32::Graphics::Dxgi::Common::{
+    DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020, DXGI_COLOR_SPACE_RGB_STUDIO_G2084_NONE_P2020,
+};
+#[cfg(target_os = "windows")]
+use windows::Win32::Graphics::Dxgi::{
+    CreateDXGIFactory1, IDXGIFactory1, IDXGIOutput6, DXGI_OUTPUT_DESC1,
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::Graphics::Gdi::{
@@ -26,6 +47,78 @@ use windows::Win32::Graphics::Gdi::{
 pub enum CaptureWorkloadProfile {
     StandardRegion,
     LongCapture,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CaptureBackend {
+    WgcHdr,
+    WgcSdr,
+    Gdi,
+}
+
+impl CaptureBackend {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::WgcHdr => "wgc-hdr-transient",
+            Self::WgcSdr => "wgc-sdr",
+            Self::Gdi => "gdi-sdr",
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct HdrPqImage {
+    pub width: u32,
+    pub height: u32,
+    pub rgb16_be: Vec<u8>,
+    pub max_content_light_level_nits: f32,
+    pub max_frame_average_light_level_nits: f32,
+    pub mastering_min_luminance_nits: f32,
+    pub mastering_max_luminance_nits: f32,
+}
+
+#[derive(Debug)]
+pub enum DynamicCapturePixels {
+    Sdr(RgbImage),
+    Hdr(HdrPqImage),
+}
+
+#[derive(Debug)]
+pub struct DynamicCaptureResult {
+    pub pixels: DynamicCapturePixels,
+    pub backend: CaptureBackend,
+    pub downgraded_from_hdr: bool,
+    pub overlay_compensated: bool,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum HdrCaptureMode {
+    Auto,
+    Hdr,
+    Sdr,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Clone, Copy, Debug)]
+struct HdrDisplayInfo {
+    enabled: bool,
+    sdr_white_level_nits: f32,
+    min_luminance_nits: f32,
+    max_luminance_nits: f32,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Clone, Copy, Debug)]
+struct HdrFrameAnalysis {
+    max_content_light_level_nits: f32,
+    frame_average_light_level_nits: f32,
+}
+
+#[cfg(target_os = "windows")]
+enum HdrFrameDecision {
+    Sdr(RgbImage),
+    Hdr(HdrPqImage),
 }
 #[cfg(target_os = "windows")]
 // use windows::Win32::Storage::Xps::{PRINT_WINDOW_FLAGS, PrintWindow};
@@ -167,6 +260,268 @@ fn windows_fast_path_available() -> bool {
 }
 
 #[cfg(target_os = "windows")]
+fn hdr_capture_mode_for(value: Option<&str>) -> HdrCaptureMode {
+    match value.map(|value| value.trim().to_ascii_lowercase()) {
+        Some(value) if value == "hdr" => HdrCaptureMode::Hdr,
+        Some(value) if value == "sdr" => HdrCaptureMode::Sdr,
+        _ => HdrCaptureMode::Auto,
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn hdr_capture_mode() -> HdrCaptureMode {
+    hdr_capture_mode_for(std::env::var("HOOK_CAPTURE_DYNAMIC_RANGE").ok().as_deref())
+}
+
+#[cfg(target_os = "windows")]
+fn should_attempt_hdr_capture(
+    mode: HdrCaptureMode,
+    profile: CaptureWorkloadProfile,
+    windows_11_or_newer: bool,
+    display_hdr_enabled: bool,
+) -> bool {
+    profile == CaptureWorkloadProfile::StandardRegion
+        && mode != HdrCaptureMode::Sdr
+        && windows_11_or_newer
+        && display_hdr_enabled
+}
+
+#[cfg(target_os = "windows")]
+fn content_exceeds_sdr_white(max_content_nits: f32, sdr_white_level_nits: f32) -> bool {
+    max_content_nits.is_finite()
+        && sdr_white_level_nits.is_finite()
+        && max_content_nits > sdr_white_level_nits.max(1.0) + 5.0
+}
+
+#[cfg(target_os = "windows")]
+fn normalized_overlay_gain(gain: f32) -> f32 {
+    if gain.is_finite() {
+        gain.clamp(1.0, 8.0)
+    } else {
+        1.0
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn read_scrgb_pixel(src: &[u8], gain: f32) -> Option<[f32; 3]> {
+    if src.len() < 8 {
+        return None;
+    }
+    let gain = normalized_overlay_gain(gain);
+    let channel = |offset: usize| {
+        let value = f16::from_le_bytes([src[offset], src[offset + 1]]).to_f32();
+        if value.is_finite() {
+            value.max(0.0) * gain
+        } else {
+            0.0
+        }
+    };
+    Some([channel(0), channel(2), channel(4)])
+}
+
+#[cfg(target_os = "windows")]
+fn analyze_scrgb_buffer(
+    data: &[u8],
+    width: usize,
+    height: usize,
+    bytes_per_row: usize,
+    gain: f32,
+) -> Option<HdrFrameAnalysis> {
+    const SCRGB_REFERENCE_WHITE_NITS: f32 = 80.0;
+    let row_bytes = width.checked_mul(8)?;
+    if bytes_per_row < row_bytes || data.len() < height.checked_mul(bytes_per_row)? {
+        return None;
+    }
+
+    let mut max_luminance = 0.0f32;
+    let mut luminance_sum = 0.0f64;
+    let mut pixel_count = 0u64;
+    for y in 0..height {
+        let row_start = y.checked_mul(bytes_per_row)?;
+        let row = data.get(row_start..row_start.checked_add(row_bytes)?)?;
+        for src in row.chunks_exact(8) {
+            let [r, g, b] = read_scrgb_pixel(src, gain)?;
+            let luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b).max(0.0);
+            max_luminance = max_luminance.max(luminance);
+            luminance_sum += luminance as f64;
+            pixel_count += 1;
+        }
+    }
+
+    let average_luminance = if pixel_count > 0 {
+        (luminance_sum / pixel_count as f64) as f32
+    } else {
+        0.0
+    };
+    Some(HdrFrameAnalysis {
+        max_content_light_level_nits: (max_luminance * SCRGB_REFERENCE_WHITE_NITS)
+            .clamp(0.0, 10_000.0),
+        frame_average_light_level_nits: (average_luminance * SCRGB_REFERENCE_WHITE_NITS)
+            .clamp(0.0, 10_000.0),
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn srgb_oetf(linear: f32) -> f32 {
+    let linear = linear.clamp(0.0, 1.0);
+    if linear <= 0.003_130_8 {
+        12.92 * linear
+    } else {
+        1.055 * linear.powf(1.0 / 2.4) - 0.055
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn scrgb_buffer_to_sdr_rgb(
+    data: &[u8],
+    width: usize,
+    height: usize,
+    bytes_per_row: usize,
+    sdr_white_level_nits: f32,
+    gain: f32,
+) -> Option<RgbImage> {
+    const SCRGB_REFERENCE_WHITE_NITS: f32 = 80.0;
+    let row_bytes = width.checked_mul(8)?;
+    if bytes_per_row < row_bytes || data.len() < height.checked_mul(bytes_per_row)? {
+        return None;
+    }
+    let white = if sdr_white_level_nits.is_finite() {
+        sdr_white_level_nits.max(SCRGB_REFERENCE_WHITE_NITS)
+    } else {
+        203.0
+    };
+    let to_sdr = SCRGB_REFERENCE_WHITE_NITS / white;
+    let rgb_len = width.checked_mul(height)?.checked_mul(3)?;
+    let mut rgb = Vec::with_capacity(rgb_len);
+    for y in 0..height {
+        let row_start = y.checked_mul(bytes_per_row)?;
+        let row = data.get(row_start..row_start.checked_add(row_bytes)?)?;
+        for src in row.chunks_exact(8) {
+            let channels = read_scrgb_pixel(src, gain)?;
+            for channel in channels {
+                rgb.push((srgb_oetf(channel * to_sdr) * 255.0).round() as u8);
+            }
+        }
+    }
+    RgbImage::from_raw(width as u32, height as u32, rgb)
+}
+
+#[cfg(target_os = "windows")]
+fn pq_oetf_from_nits(nits: f32) -> f32 {
+    const M1: f32 = 2610.0 / 16_384.0;
+    const M2: f32 = 2523.0 / 32.0;
+    const C1: f32 = 3424.0 / 4096.0;
+    const C2: f32 = 2413.0 / 128.0;
+    const C3: f32 = 2392.0 / 128.0;
+    let normalized = (nits / 10_000.0).clamp(0.0, 1.0);
+    let powered = normalized.powf(M1);
+    ((C1 + C2 * powered) / (1.0 + C3 * powered)).powf(M2)
+}
+
+#[cfg(target_os = "windows")]
+fn scrgb_to_bt2020_linear(rgb: [f32; 3]) -> [f32; 3] {
+    let [r, g, b] = rgb;
+    [
+        0.627_404 * r + 0.329_282 * g + 0.043_313_6 * b,
+        0.069_097 * r + 0.919_54 * g + 0.011_361_2 * b,
+        0.016_391_6 * r + 0.088_013_2 * g + 0.895_595 * b,
+    ]
+}
+
+#[cfg(target_os = "windows")]
+fn scrgb_buffer_to_hdr_pq(
+    data: &[u8],
+    width: usize,
+    height: usize,
+    bytes_per_row: usize,
+    analysis: HdrFrameAnalysis,
+    display_info: HdrDisplayInfo,
+    gain: f32,
+) -> Option<HdrPqImage> {
+    const SCRGB_REFERENCE_WHITE_NITS: f32 = 80.0;
+    let row_bytes = width.checked_mul(8)?;
+    if bytes_per_row < row_bytes || data.len() < height.checked_mul(bytes_per_row)? {
+        return None;
+    }
+    let output_len = width.checked_mul(height)?.checked_mul(6)?;
+    let mut rgb16_be = Vec::with_capacity(output_len);
+    for y in 0..height {
+        let row_start = y.checked_mul(bytes_per_row)?;
+        let row = data.get(row_start..row_start.checked_add(row_bytes)?)?;
+        for src in row.chunks_exact(8) {
+            let bt2020 = scrgb_to_bt2020_linear(read_scrgb_pixel(src, gain)?);
+            for channel in bt2020 {
+                let pq = pq_oetf_from_nits(channel.max(0.0) * SCRGB_REFERENCE_WHITE_NITS);
+                rgb16_be.extend_from_slice(&((pq * u16::MAX as f32).round() as u16).to_be_bytes());
+            }
+        }
+    }
+
+    Some(HdrPqImage {
+        width: width as u32,
+        height: height as u32,
+        rgb16_be,
+        max_content_light_level_nits: analysis.max_content_light_level_nits,
+        max_frame_average_light_level_nits: analysis.frame_average_light_level_nits,
+        mastering_min_luminance_nits: display_info.min_luminance_nits.max(0.0),
+        mastering_max_luminance_nits: display_info
+            .max_luminance_nits
+            .max(analysis.max_content_light_level_nits)
+            .clamp(1.0, 10_000.0),
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn frame_to_hdr_decision(
+    frame: &Frame,
+    display_info: HdrDisplayInfo,
+    mode: HdrCaptureMode,
+    overlay_gain: f32,
+) -> anyhow::Result<HdrFrameDecision> {
+    let buffer = frame
+        .as_buffer()
+        .map_err(|error| anyhow!("Failed to map HDR frame buffer: {error:?}"))?;
+    if buffer.pixel_format() != PixelFormat::R16G16B16A16Float {
+        return Err(anyhow!("HDR capture returned an unexpected pixel format"));
+    }
+    let width = buffer.width() as usize;
+    let height = buffer.height() as usize;
+    let stride = buffer.stride() as usize;
+    let analysis = analyze_scrgb_buffer(buffer.data(), width, height, stride, overlay_gain)
+        .ok_or_else(|| anyhow!("Failed to analyze HDR frame"))?;
+
+    if mode == HdrCaptureMode::Auto
+        && !content_exceeds_sdr_white(
+            analysis.max_content_light_level_nits,
+            display_info.sdr_white_level_nits,
+        )
+    {
+        let image = scrgb_buffer_to_sdr_rgb(
+            buffer.data(),
+            width,
+            height,
+            stride,
+            display_info.sdr_white_level_nits,
+            overlay_gain,
+        )
+        .ok_or_else(|| anyhow!("Failed to convert SDR-only scRGB content"))?;
+        return Ok(HdrFrameDecision::Sdr(image));
+    }
+
+    let image = scrgb_buffer_to_hdr_pq(
+        buffer.data(),
+        width,
+        height,
+        stride,
+        analysis,
+        display_info,
+        overlay_gain,
+    )
+    .ok_or_else(|| anyhow!("Failed to convert scRGB content to HDR PNG pixels"))?;
+    Ok(HdrFrameDecision::Hdr(image))
+}
+
+#[cfg(target_os = "windows")]
 fn frame_to_rgb(frame: &Frame) -> anyhow::Result<RgbImage> {
     let buffer = frame
         .as_buffer()
@@ -175,6 +530,11 @@ fn frame_to_rgb(frame: &Frame) -> anyhow::Result<RgbImage> {
     let order = match buffer.pixel_format() {
         PixelFormat::R8G8B8A8Unorm => ChannelOrder::Rgba,
         PixelFormat::B8G8R8A8Unorm => ChannelOrder::Bgra,
+        PixelFormat::R16G16B16A16Float => {
+            return Err(anyhow!(
+                "HDR frame cannot be converted through the SDR path"
+            ));
+        }
     };
 
     rgb_from_rgba(
@@ -307,12 +667,174 @@ fn select_wgc_timeout_fallback_frame(
     }
 }
 
-// Simplified capture settings just for Full Screen or Area
 #[cfg(target_os = "windows")]
-fn windows_capture_settings(rect: Option<D3D11_BOX>) -> Settings {
+fn dxgi_output_desc_for_monitor(
+    monitor: windows::Win32::Graphics::Gdi::HMONITOR,
+) -> Option<DXGI_OUTPUT_DESC1> {
+    let factory: IDXGIFactory1 = unsafe { CreateDXGIFactory1().ok()? };
+    let mut adapter_index = 0u32;
+    loop {
+        let Ok(adapter) = (unsafe { factory.EnumAdapters1(adapter_index) }) else {
+            break;
+        };
+        let mut output_index = 0u32;
+        loop {
+            let Ok(output) = (unsafe { adapter.EnumOutputs(output_index) }) else {
+                break;
+            };
+            if let Ok(output6) = output.cast::<IDXGIOutput6>() {
+                if let Ok(desc) = unsafe { output6.GetDesc1() } {
+                    if desc.Monitor == monitor {
+                        return Some(desc);
+                    }
+                }
+            }
+            output_index += 1;
+        }
+        adapter_index += 1;
+    }
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn null_terminated_utf16_eq(left: &[u16], right: &[u16]) -> bool {
+    let left_len = left
+        .iter()
+        .position(|value| *value == 0)
+        .unwrap_or(left.len());
+    let right_len = right
+        .iter()
+        .position(|value| *value == 0)
+        .unwrap_or(right.len());
+    left_len == right_len
+        && left[..left_len]
+            .iter()
+            .zip(&right[..right_len])
+            .all(|(left, right)| {
+                let fold_ascii = |value: u16| {
+                    if (b'A' as u16..=b'Z' as u16).contains(&value) {
+                        value + (b'a' - b'A') as u16
+                    } else {
+                        value
+                    }
+                };
+                fold_ascii(*left) == fold_ascii(*right)
+            })
+}
+
+#[cfg(target_os = "windows")]
+fn display_config_hdr_state(device_name: &[u16; 32]) -> Option<(bool, f32)> {
+    let mut path_count = 0u32;
+    let mut mode_count = 0u32;
+    if unsafe {
+        GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &mut path_count, &mut mode_count)
+    }
+    .0 != 0
+    {
+        return None;
+    }
+    let mut paths = vec![DISPLAYCONFIG_PATH_INFO::default(); path_count as usize];
+    let mut modes = vec![DISPLAYCONFIG_MODE_INFO::default(); mode_count as usize];
+    if unsafe {
+        QueryDisplayConfig(
+            QDC_ONLY_ACTIVE_PATHS,
+            &mut path_count,
+            paths.as_mut_ptr(),
+            &mut mode_count,
+            modes.as_mut_ptr(),
+            None,
+        )
+    }
+    .0 != 0
+    {
+        return None;
+    }
+    paths.truncate(path_count as usize);
+
+    for path in paths {
+        let mut source_name = DISPLAYCONFIG_SOURCE_DEVICE_NAME {
+            header: DISPLAYCONFIG_DEVICE_INFO_HEADER {
+                r#type: DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME,
+                size: std::mem::size_of::<DISPLAYCONFIG_SOURCE_DEVICE_NAME>() as u32,
+                adapterId: path.sourceInfo.adapterId,
+                id: path.sourceInfo.id,
+            },
+            ..Default::default()
+        };
+        if unsafe { DisplayConfigGetDeviceInfo(&mut source_name.header) } != 0
+            || !null_terminated_utf16_eq(&source_name.viewGdiDeviceName, device_name)
+        {
+            continue;
+        }
+
+        let target_header = |r#type, size| DISPLAYCONFIG_DEVICE_INFO_HEADER {
+            r#type,
+            size,
+            adapterId: path.targetInfo.adapterId,
+            id: path.targetInfo.id,
+        };
+        let mut advanced = DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO {
+            header: target_header(
+                DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO,
+                std::mem::size_of::<DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO>() as u32,
+            ),
+            ..Default::default()
+        };
+        if unsafe { DisplayConfigGetDeviceInfo(&mut advanced.header) } != 0 {
+            return None;
+        }
+        let advanced_value = unsafe { advanced.Anonymous.value };
+        let hdr_enabled = advanced_value & (1 << 1) != 0;
+
+        let mut white_level = DISPLAYCONFIG_SDR_WHITE_LEVEL {
+            header: target_header(
+                DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL,
+                std::mem::size_of::<DISPLAYCONFIG_SDR_WHITE_LEVEL>() as u32,
+            ),
+            ..Default::default()
+        };
+        let sdr_white_nits = if unsafe { DisplayConfigGetDeviceInfo(&mut white_level.header) } == 0
+        {
+            (80.0 * white_level.SDRWhiteLevel as f32 / 1_000.0).max(80.0)
+        } else {
+            203.0
+        };
+        return Some((hdr_enabled, sdr_white_nits));
+    }
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn hdr_display_info_for(display: &Display) -> Option<HdrDisplayInfo> {
+    let desc = dxgi_output_desc_for_monitor(display.raw_handle().inner())?;
+    let fallback_enabled = matches!(
+        desc.ColorSpace,
+        DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020 | DXGI_COLOR_SPACE_RGB_STUDIO_G2084_NONE_P2020
+    );
+    let (advanced_color_enabled, sdr_white_level_nits) =
+        display_config_hdr_state(&desc.DeviceName).unwrap_or((fallback_enabled, 203.0));
+    Some(HdrDisplayInfo {
+        enabled: advanced_color_enabled && fallback_enabled,
+        sdr_white_level_nits,
+        min_luminance_nits: if desc.MinLuminance.is_finite() {
+            desc.MinLuminance.max(0.0)
+        } else {
+            0.0
+        },
+        max_luminance_nits: if desc.MaxLuminance.is_finite() {
+            desc.MaxLuminance.clamp(1.0, 10_000.0)
+        } else {
+            1_000.0
+        },
+    })
+}
+
+// Simplified capture settings just for Full Screen or Area.
+#[cfg(target_os = "windows")]
+fn windows_capture_settings_for(rect: Option<D3D11_BOX>, pixel_format: PixelFormat) -> Settings {
     let mut settings = Settings {
         is_cursor_capture_enabled: Some(false),
-        pixel_format: PixelFormat::B8G8R8A8Unorm,
+        pixel_format,
         ..Default::default()
     };
 
@@ -324,6 +846,11 @@ fn windows_capture_settings(rect: Option<D3D11_BOX>) -> Settings {
     settings.crop = rect;
 
     settings
+}
+
+#[cfg(target_os = "windows")]
+fn windows_capture_settings(rect: Option<D3D11_BOX>) -> Settings {
+    windows_capture_settings_for(rect, PixelFormat::B8G8R8A8Unorm)
 }
 
 #[cfg(target_os = "windows")]
@@ -699,6 +1226,65 @@ fn try_fast_capture_transient(
 }
 
 #[cfg(target_os = "windows")]
+fn try_hdr_capture_transient(
+    display_id: scap_targets::DisplayId,
+    crop_rect: D3D11_BOX,
+    display_info: HdrDisplayInfo,
+    mode: HdrCaptureMode,
+    overlay_gain: f32,
+) -> Option<HdrFrameDecision> {
+    use std::sync::mpsc::sync_channel;
+    use std::time::Duration;
+
+    if !windows_fast_path_available() {
+        return None;
+    }
+
+    let started_at = std::time::Instant::now();
+    let display = scap_targets::Display::from_id(&display_id)?;
+    let item = display.raw_handle().try_as_capture_item().ok()?;
+    let settings = windows_capture_settings_for(Some(crop_rect), PixelFormat::R16G16B16A16Float);
+    let device = shared_d3d_device().ok().cloned();
+    let (tx, rx) = sync_channel(1);
+    let mut capturer = Capturer::new(
+        item,
+        settings,
+        move |frame| {
+            let result = frame_to_hdr_decision(&frame, display_info, mode, overlay_gain);
+            let _ = tx.try_send(result);
+            Ok(())
+        },
+        || Ok(()),
+        device,
+    )
+    .ok()?;
+
+    capturer.start().ok()?;
+    let result = rx.recv_timeout(Duration::from_millis(800));
+    let _ = capturer.stop();
+
+    match result {
+        Ok(Ok(frame)) => {
+            if capture_area_verbose_logging_enabled() {
+                crate::append_runtime_log_line(&format!(
+                    "capture_area hdr_elapsed :: mode=transient elapsed_ms={}",
+                    started_at.elapsed().as_millis()
+                ));
+            }
+            Some(frame)
+        }
+        Ok(Err(error)) => {
+            crate::append_runtime_log_line(&format!("capture_area hdr_frame_failure :: {error}"));
+            None
+        }
+        Err(error) => {
+            crate::append_runtime_log_line(&format!("capture_area hdr_timeout :: {error}"));
+            None
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
 fn try_fast_capture(
     display_id: scap_targets::DisplayId,
     crop_rect: Option<D3D11_BOX>,
@@ -853,6 +1439,142 @@ fn try_fast_capture(
 
 // --- Public API ---
 
+#[cfg(target_os = "windows")]
+struct PrimaryCapturePlan {
+    display: Display,
+    display_id: scap_targets::DisplayId,
+    crop: D3D11_BOX,
+}
+
+#[cfg(target_os = "windows")]
+struct SdrCaptureResult {
+    image: RgbImage,
+    backend: CaptureBackend,
+}
+
+#[cfg(target_os = "windows")]
+fn primary_capture_plan(x: i32, y: i32, w: u32, h: u32) -> anyhow::Result<PrimaryCapturePlan> {
+    let verbose_log = capture_area_verbose_logging_enabled();
+    if verbose_log {
+        crate::append_runtime_log_line(&format!(
+            "capture_area enter :: x={} y={} w={} h={}",
+            x, y, w, h
+        ));
+    }
+
+    let display = Display::primary();
+    let display_id = display.id();
+    let physical = display
+        .physical_size()
+        .ok_or_else(|| anyhow!("No physical size"))?;
+    let logical = display
+        .logical_size()
+        .ok_or_else(|| anyhow!("No logical size"))?;
+    if logical.width() <= 0.0 || physical.width() <= 0.0 {
+        return Err(anyhow!("Invalid display dimensions"));
+    }
+
+    let scale = physical.width() / logical.width();
+    if verbose_log {
+        crate::append_runtime_log_line(&format!(
+            "capture_area display :: logical={}x{} physical={}x{} scale={}",
+            logical.width(),
+            logical.height(),
+            physical.width(),
+            physical.height(),
+            scale
+        ));
+    }
+
+    let left = (x as f64 * scale).floor();
+    let top = (y as f64 * scale).floor();
+    let right = (left + w as f64 * scale).ceil();
+    let bottom = (top + h as f64 * scale).ceil();
+    let crop = D3D11_BOX {
+        left: left.max(0.0) as u32,
+        top: top.max(0.0) as u32,
+        right: right.min(physical.width()).max(left) as u32,
+        bottom: bottom.min(physical.height()).max(top) as u32,
+        front: 0,
+        back: 1,
+    };
+    if crop.right <= crop.left || crop.bottom <= crop.top {
+        return Err(anyhow!("Capture rectangle is outside the primary display"));
+    }
+    if verbose_log {
+        crate::append_runtime_log_line(&format!(
+            "capture_area crop :: left={} top={} right={} bottom={}",
+            crop.left, crop.top, crop.right, crop.bottom
+        ));
+    }
+
+    Ok(PrimaryCapturePlan {
+        display,
+        display_id,
+        crop,
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn capture_sdr_from_plan(
+    plan: &PrimaryCapturePlan,
+    profile: CaptureWorkloadProfile,
+) -> anyhow::Result<SdrCaptureResult> {
+    let verbose_log = capture_area_verbose_logging_enabled();
+    let backend_mode = capture_backend_mode();
+    if verbose_log {
+        crate::append_runtime_log_line(&format!(
+            "capture_area dispatch :: mode={} profile={:?}",
+            backend_mode, profile
+        ));
+    }
+    if backend_mode == "auto" {
+        if let Some(image) = try_fast_capture(plan.display_id.clone(), Some(plan.crop), profile) {
+            wgc_note_success();
+            if verbose_log {
+                crate::append_runtime_log_line(&format!(
+                    "capture_area fast_success :: width={} height={}",
+                    image.width(),
+                    image.height()
+                ));
+            }
+            return Ok(SdrCaptureResult {
+                image,
+                backend: CaptureBackend::WgcSdr,
+            });
+        }
+        wgc_note_failure();
+        if verbose_log {
+            crate::append_runtime_log_line("capture_area fast_path_none :: falling_back_to_gdi");
+        }
+    } else if verbose_log {
+        crate::append_runtime_log_line(&format!(
+            "capture_area fast_path_skipped :: mode={}",
+            backend_mode
+        ));
+    }
+
+    let width = plan.crop.right - plan.crop.left;
+    let height = plan.crop.bottom - plan.crop.top;
+    let image = capture_area_gdi(
+        plan.crop.left as i32,
+        plan.crop.top as i32,
+        width as i32,
+        height as i32,
+    )?;
+    if verbose_log {
+        crate::append_runtime_log_line(&format!(
+            "capture_area gdi_capture_success :: width={} height={}",
+            image.width(),
+            image.height()
+        ));
+    }
+    Ok(SdrCaptureResult {
+        image,
+        backend: CaptureBackend::Gdi,
+    })
+}
+
 pub fn capture_area_with_profile(
     x: i32,
     y: i32,
@@ -862,130 +1584,94 @@ pub fn capture_area_with_profile(
 ) -> anyhow::Result<RgbImage> {
     #[cfg(target_os = "windows")]
     {
-        let verbose_log = capture_area_verbose_logging_enabled();
-        if verbose_log {
-            crate::append_runtime_log_line(&format!(
-                "capture_area enter :: x={} y={} w={} h={}",
-                x, y, w, h
-            ));
-        }
-        // 1. Find Primary Display & Scale Info
-        let display = Display::primary();
-        let display_id = display.id();
-
-        let physical = display
-            .physical_size()
-            .ok_or_else(|| anyhow!("No physical size"))?;
-        let logical = display
-            .logical_size()
-            .ok_or_else(|| anyhow!("No logical size"))?;
-
-        if logical.width() <= 0.0 || physical.width() <= 0.0 {
-            return Err(anyhow!("Invalid display dimensions"));
-        }
-
-        // 2. Calculate Scale Factor (Physical / Logical)
-        // Cap uses: logical.width() / physical.width().
-        // Wait, if logical is 1920 (at 150%) and physical is 2880...
-        // A point at 100 logical is 150 physical.
-        // So scale = physical / logical = 1.5.
-        // Cap's screenshot.rs:
-        // let logical = display.logical_size()?;
-        // let physical = display.physical_size()?;
-        // let scale = physical.width() / logical.width();
-
-        // However, Cap's "logical_size" might return the *Points* size on macOS, but on Windows:
-        // scap-targets implementation uses monitor info.
-
-        let scale = physical.width() / logical.width();
-        if verbose_log {
-            crate::append_runtime_log_line(&format!(
-                "capture_area display :: logical={}x{} physical={}x{} scale={}",
-                logical.width(),
-                logical.height(),
-                physical.width(),
-                physical.height(),
-                scale
-            ));
-        }
-
-        // 3. Scale the input rect (assumed logical) to physical pixels
-        let left = (x as f64 * scale).floor();
-        let top = (y as f64 * scale).floor();
-        let right = (left + w as f64 * scale).ceil();
-        let bottom = (top + h as f64 * scale).ceil();
-
-        let clamped_right = right.min(physical.width()).max(left);
-        let clamped_bottom = bottom.min(physical.height()).max(top);
-
-        let d3d_box = D3D11_BOX {
-            left: left.max(0.0) as u32,
-            top: top.max(0.0) as u32,
-            right: clamped_right as u32,
-            bottom: clamped_bottom as u32,
-            front: 0,
-            back: 1,
-        };
-        if verbose_log {
-            crate::append_runtime_log_line(&format!(
-                "capture_area crop :: left={} top={} right={} bottom={}",
-                d3d_box.left, d3d_box.top, d3d_box.right, d3d_box.bottom
-            ));
-        }
-
-        let crop_x = d3d_box.left;
-        let crop_y = d3d_box.top;
-        let crop_w = d3d_box.right - d3d_box.left;
-        let crop_h = d3d_box.bottom - d3d_box.top;
-
-        let backend_mode = capture_backend_mode();
-        if verbose_log {
-            crate::append_runtime_log_line(&format!(
-                "capture_area dispatch :: mode={} profile={:?}",
-                backend_mode, profile
-            ));
-        }
-        if backend_mode == "auto" {
-            if let Some(image) = try_fast_capture(display_id.clone(), Some(d3d_box), profile) {
-                wgc_note_success();
-                if verbose_log {
-                    crate::append_runtime_log_line(&format!(
-                        "capture_area fast_success :: width={} height={}",
-                        image.width(),
-                        image.height()
-                    ));
-                }
-                return Ok(image);
-            }
-            wgc_note_failure();
-            if verbose_log {
-                crate::append_runtime_log_line(
-                    "capture_area fast_path_none :: falling_back_to_gdi",
-                );
-            }
-        } else {
-            if verbose_log {
-                crate::append_runtime_log_line(&format!(
-                    "capture_area fast_path_skipped :: mode={}",
-                    backend_mode
-                ));
-            }
-        }
-
-        let gdi_image =
-            capture_area_gdi(crop_x as i32, crop_y as i32, crop_w as i32, crop_h as i32)?;
-        if verbose_log {
-            crate::append_runtime_log_line(&format!(
-                "capture_area gdi_capture_success :: width={} height={}",
-                gdi_image.width(),
-                gdi_image.height()
-            ));
-        }
-        return Ok(gdi_image);
+        let plan = primary_capture_plan(x, y, w, h)?;
+        return capture_sdr_from_plan(&plan, profile).map(|result| result.image);
     }
 
     #[cfg(not(target_os = "windows"))]
     Err(anyhow!("Only Windows is supported"))
+}
+
+pub fn capture_region_with_dynamic_range(
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+    overlay_gain: f32,
+) -> anyhow::Result<DynamicCaptureResult> {
+    #[cfg(target_os = "windows")]
+    {
+        let profile = CaptureWorkloadProfile::StandardRegion;
+        let plan = primary_capture_plan(x, y, w, h)?;
+        let mode = hdr_capture_mode();
+        let display_info = hdr_display_info_for(&plan.display).unwrap_or(HdrDisplayInfo {
+            enabled: false,
+            sdr_white_level_nits: 203.0,
+            min_luminance_nits: 0.0,
+            max_luminance_nits: 1_000.0,
+        });
+        let windows_11_or_newer = scap_direct3d::WindowsVersion::detect()
+            .map(|version| version.is_windows_11())
+            .unwrap_or(false);
+        let attempt_hdr =
+            should_attempt_hdr_capture(mode, profile, windows_11_or_newer, display_info.enabled);
+
+        if attempt_hdr {
+            crate::append_runtime_log_line(&format!(
+                "capture_area hdr_attempt :: mode={mode:?} sdr_white_nits={} max_luminance_nits={}",
+                display_info.sdr_white_level_nits, display_info.max_luminance_nits
+            ));
+            if let Some(frame) = try_hdr_capture_transient(
+                plan.display_id.clone(),
+                plan.crop,
+                display_info,
+                mode,
+                overlay_gain,
+            ) {
+                wgc_note_success();
+                return Ok(match frame {
+                    HdrFrameDecision::Hdr(image) => DynamicCaptureResult {
+                        pixels: DynamicCapturePixels::Hdr(image),
+                        backend: CaptureBackend::WgcHdr,
+                        downgraded_from_hdr: false,
+                        overlay_compensated: true,
+                    },
+                    HdrFrameDecision::Sdr(image) => DynamicCaptureResult {
+                        pixels: DynamicCapturePixels::Sdr(image),
+                        backend: CaptureBackend::WgcHdr,
+                        downgraded_from_hdr: true,
+                        overlay_compensated: true,
+                    },
+                });
+            }
+            crate::append_runtime_log_line(
+                "capture_area hdr_failed :: falling_back_to_sdr_wgc_then_gdi",
+            );
+        }
+
+        let sdr = capture_sdr_from_plan(&plan, profile)?;
+        let downgraded_from_hdr = attempt_hdr
+            || (mode == HdrCaptureMode::Hdr && !display_info.enabled)
+            || (mode != HdrCaptureMode::Sdr && display_info.enabled && !windows_11_or_newer);
+        return Ok(DynamicCaptureResult {
+            pixels: DynamicCapturePixels::Sdr(sdr.image),
+            backend: sdr.backend,
+            downgraded_from_hdr,
+            overlay_compensated: false,
+        });
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let image = capture_area_with_profile(x, y, w, h, CaptureWorkloadProfile::StandardRegion)?;
+        let _ = overlay_gain;
+        Ok(DynamicCaptureResult {
+            pixels: DynamicCapturePixels::Sdr(image),
+            backend: CaptureBackend::Gdi,
+            downgraded_from_hdr: false,
+            overlay_compensated: false,
+        })
+    }
 }
 
 #[allow(dead_code)]
@@ -1021,6 +1707,128 @@ mod tests {
         std::env::remove_var("HOOK_CAPTURE_AREA_VERBOSE_LOG");
 
         assert!(!capture_area_verbose_logging_enabled());
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn dynamic_range_mode_defaults_to_auto_and_accepts_explicit_overrides() {
+        assert_eq!(hdr_capture_mode_for(None), HdrCaptureMode::Auto);
+        assert_eq!(hdr_capture_mode_for(Some("")), HdrCaptureMode::Auto);
+        assert_eq!(
+            hdr_capture_mode_for(Some("unexpected")),
+            HdrCaptureMode::Auto
+        );
+        assert_eq!(hdr_capture_mode_for(Some(" HDR ")), HdrCaptureMode::Hdr);
+        assert_eq!(hdr_capture_mode_for(Some("sdr")), HdrCaptureMode::Sdr);
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn hdr_is_transient_region_only_and_requires_windows_11_with_hdr_enabled() {
+        assert!(should_attempt_hdr_capture(
+            HdrCaptureMode::Auto,
+            CaptureWorkloadProfile::StandardRegion,
+            true,
+            true,
+        ));
+        assert!(!should_attempt_hdr_capture(
+            HdrCaptureMode::Auto,
+            CaptureWorkloadProfile::LongCapture,
+            true,
+            true,
+        ));
+        assert!(!should_attempt_hdr_capture(
+            HdrCaptureMode::Auto,
+            CaptureWorkloadProfile::StandardRegion,
+            false,
+            true,
+        ));
+        assert!(!should_attempt_hdr_capture(
+            HdrCaptureMode::Sdr,
+            CaptureWorkloadProfile::StandardRegion,
+            true,
+            true,
+        ));
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn hdr_content_detection_uses_the_windows_sdr_white_level() {
+        assert!(!content_exceeds_sdr_white(205.0, 203.0));
+        assert!(content_exceeds_sdr_white(209.0, 203.0));
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn primary_display_hdr_probe_returns_sane_values_when_available() {
+        if let Some(info) = hdr_display_info_for(&Display::primary()) {
+            println!(
+                "primary display HDR probe: enabled={} sdr_white={} min={} max={}",
+                info.enabled,
+                info.sdr_white_level_nits,
+                info.min_luminance_nits,
+                info.max_luminance_nits,
+            );
+            assert!(info.sdr_white_level_nits.is_finite());
+            assert!(info.sdr_white_level_nits >= 80.0);
+            assert!(info.min_luminance_nits.is_finite());
+            assert!(info.max_luminance_nits.is_finite());
+            assert!(info.max_luminance_nits >= 1.0);
+        }
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn pq_encoding_matches_reference_luminance_points() {
+        assert!((pq_oetf_from_nits(100.0) - 0.508).abs() < 0.002);
+        assert!((pq_oetf_from_nits(1_000.0) - 0.752).abs() < 0.002);
+        assert!((pq_oetf_from_nits(10_000.0) - 1.0).abs() < 0.0001);
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn scrgb_float_pixels_convert_to_real_16_bit_bt2020_pq_payload() {
+        let mut data = Vec::new();
+        for value in [12.5f32, 0.0, 0.0, 1.0] {
+            data.extend_from_slice(&f16::from_f32(value).to_le_bytes());
+        }
+        let analysis =
+            analyze_scrgb_buffer(&data, 1, 1, 8, 1.0).expect("scRGB analysis should succeed");
+        assert!(analysis.max_content_light_level_nits > 200.0);
+
+        let image = scrgb_buffer_to_hdr_pq(
+            &data,
+            1,
+            1,
+            8,
+            analysis,
+            HdrDisplayInfo {
+                enabled: true,
+                sdr_white_level_nits: 203.0,
+                min_luminance_nits: 0.001,
+                max_luminance_nits: 1_000.0,
+            },
+            1.0,
+        )
+        .expect("HDR conversion should succeed");
+        assert_eq!(image.rgb16_be.len(), 6);
+        assert_ne!(image.rgb16_be, vec![0; 6]);
+        assert_eq!(image.width, 1);
+        assert_eq!(image.height, 1);
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn sdr_only_float_capture_maps_system_sdr_white_to_srgb_white() {
+        let mut data = Vec::new();
+        let scrgb_sdr_white = 203.0 / 80.0;
+        for value in [scrgb_sdr_white, scrgb_sdr_white, scrgb_sdr_white, 1.0] {
+            data.extend_from_slice(&f16::from_f32(value).to_le_bytes());
+        }
+
+        let image = scrgb_buffer_to_sdr_rgb(&data, 1, 1, 8, 203.0, 1.0)
+            .expect("SDR conversion should succeed");
+        assert_eq!(image.get_pixel(0, 0).0, [255, 255, 255]);
     }
 
     #[test]

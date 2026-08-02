@@ -241,6 +241,11 @@ export interface StickerCaptureMeta {
     kind?: "region" | "long";
     sourceRect?: { x: number; y: number; w: number; h: number };
     scrollAxis?: "vertical" | "horizontal";
+    dynamicRange?: "sdr" | "hdr";
+    bitDepth?: 8 | 16;
+    colorSpace?: "srgb" | "bt2020-pq";
+    captureBackend?: string;
+    downgradedFromHdr?: boolean;
 }
 
 export interface StickerGroup {

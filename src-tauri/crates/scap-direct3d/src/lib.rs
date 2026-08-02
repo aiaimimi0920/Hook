@@ -34,8 +34,8 @@ use windows::{
             },
             Dxgi::{
                 Common::{
-                    DXGI_FORMAT, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM,
-                    DXGI_SAMPLE_DESC,
+                    DXGI_FORMAT, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R16G16B16A16_FLOAT,
+                    DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_SAMPLE_DESC,
                 },
                 DXGI_ERROR_UNSUPPORTED, IDXGIDevice,
             },
@@ -47,12 +47,13 @@ use windows::{
     core::{HSTRING, IInspectable, Interface},
 };
 
-#[derive(Default, Clone, Copy, Debug)]
+#[derive(Default, Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(i32)]
 pub enum PixelFormat {
     #[default]
     R8G8B8A8Unorm,
     B8G8R8A8Unorm,
+    R16G16B16A16Float,
 }
 
 impl PixelFormat {
@@ -60,6 +61,7 @@ impl PixelFormat {
         match self {
             Self::R8G8B8A8Unorm => DirectXPixelFormat::R8G8B8A8UIntNormalized,
             Self::B8G8R8A8Unorm => DirectXPixelFormat::B8G8R8A8UIntNormalized,
+            Self::R16G16B16A16Float => DirectXPixelFormat::R16G16B16A16Float,
         }
     }
 
@@ -67,6 +69,7 @@ impl PixelFormat {
         match self {
             Self::R8G8B8A8Unorm => DXGI_FORMAT_R8G8B8A8_UNORM,
             Self::B8G8R8A8Unorm => DXGI_FORMAT_B8G8R8A8_UNORM,
+            Self::R16G16B16A16Float => DXGI_FORMAT_R16G16B16A16_FLOAT,
         }
     }
 }
