@@ -38,6 +38,18 @@ describe("sticker edit propagation contract", () => {
     expect(linkCreatedBlock).toContain("propagateFromUnit(sourceId)");
   });
 
+  it("renders and exports propagated image edits inside the current upstream content frame", () => {
+    const unitViewSource = readSource("src/components/UnitView.tsx");
+    const exportSource = readSource("src/services/stickerExport.ts");
+
+    expect(unitViewSource).toContain("resolveStickerContentFrame(unit)");
+    expect(unitViewSource).toContain('class="sticker-image-content-frame"');
+    expect(unitViewSource).toContain('overflow: "hidden"');
+    expect(exportSource).toContain("const contentFrame = resolveStickerContentFrame(unit);");
+    expect(exportSource).toContain("contentFrame.x");
+    expect(exportSource).toContain("contentFrame.w");
+  });
+
   it("exposes a sticker setting to stop accepting upstream edit propagation", () => {
     const paramsSource = readSource("src/components/UnitParamsPanel.tsx");
 

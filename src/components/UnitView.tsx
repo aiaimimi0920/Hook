@@ -53,6 +53,7 @@ import {
   unregisterStickerGpuWarmElement,
   updateStickerGpuWarmEstimate,
 } from "../services/stickerGpuWarmPool";
+import { resolveStickerContentFrame } from "../services/stickerEditPropagation";
 
 interface Props {
   unit: Unit;
@@ -261,9 +262,15 @@ export const UnitView: Component<Props> = (props) => {
   const getCornerRadius = () => getImageEditState()?.cornerRadius ?? 0;
   const getImageBorderWidth = () => getImageEditState()?.borderWidth ?? 0;
   const getImageBorderColor = () => getImageEditState()?.borderColor ?? "transparent";
+  const getImageContentFrame = () => {
+      const unit = liveUnit();
+      return isMinified()
+          ? { x: 0, y: 0, w: unit.w, h: unit.h }
+          : resolveStickerContentFrame(unit);
+  };
   const getCroppedImageViewport = () =>
       computeCroppedStickerImageViewport(
-          { w: liveUnit().w, h: liveUnit().h },
+          getImageContentFrame(),
           getImageEditState(),
       );
   const getTransform = () => {
@@ -944,7 +951,22 @@ export const UnitView: Component<Props> = (props) => {
 
             {/* Standard Image Layer (hidden for Shader Arts) */}
             <Show when={!isShaderArt()}>
-            <img
+            <div
+                class="sticker-image-content-frame"
+                style={(() => {
+                    const contentFrame = getImageContentFrame();
+                    return {
+                        position: "absolute",
+                        left: `${contentFrame.x}px`,
+                        top: `${contentFrame.y}px`,
+                        width: `${contentFrame.w}px`,
+                        height: `${contentFrame.h}px`,
+                        overflow: "hidden",
+                        "pointer-events": "auto",
+                    };
+                })()}
+            >
+              <img
                 class="sticker-img"
                 data-sticker-base-image="true"
                 // Drag-Out to Save (HTML5 Drag)
@@ -1084,7 +1106,8 @@ export const UnitView: Component<Props> = (props) => {
                         "transform": getTransform()
                     };
                 })()}
-            />
+              />
+            </div>
             </Show>
 
             <Show when={!isShaderArt() && liveUnit().data.rasterizedAnnotationLayerSrc}>

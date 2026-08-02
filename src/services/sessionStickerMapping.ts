@@ -95,6 +95,7 @@ export const mapSessionStickerToUnit = (
             executionConfig,
             annotationState: sticker.annotationState || undefined,
             imageEditState: sticker.imageEditState || undefined,
+            stickerEditPropagation: sticker.stickerEditPropagation || undefined,
             groupId: sticker.groupId || undefined,
             captureMeta: sticker.captureMeta || undefined,
         },
@@ -128,6 +129,7 @@ const KNOWN_SESSION_STICKER_KEYS = {
     executionConfig: true,
     annotationState: true,
     imageEditState: true,
+    stickerEditPropagation: true,
     groupId: true,
     captureMeta: true,
 } satisfies Record<keyof SessionSticker, true>;

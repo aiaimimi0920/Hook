@@ -29,6 +29,7 @@ export const mapUnitToSessionSticker = (unit: Unit): SessionSticker => ({
     executionConfig: unit.data.executionConfig || null,
     annotationState: unit.data.annotationState || null,
     imageEditState: unit.data.imageEditState || null,
+    stickerEditPropagation: unit.data.stickerEditPropagation || null,
     groupId: unit.data.groupId || null,
     captureMeta: unit.data.captureMeta || null,
 });

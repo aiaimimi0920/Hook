@@ -33,6 +33,7 @@ import {
     traceRoundedPolygonPath,
 } from "./stickerGeometry";
 import { loadImage, drawStrokePath, applyLineDash } from "./stickerCanvas";
+import { resolveStickerContentFrame } from "./stickerEditPropagation";
 
 // Render-order rank, mirrored from stickerAnnotationModel.annotationRenderRank
 // (kept inline to avoid a services→components dependency). Blur sits below
@@ -499,15 +500,16 @@ export const renderStickerCompositeWithAnnotations = async (
     const cropRect = unit.data.imageEditState?.cropRect;
     const renderWidth = Math.max(1, Math.round(unit.w));
     const renderHeight = Math.max(1, Math.round(unit.h));
+    const contentFrame = resolveStickerContentFrame(unit);
     const sourceSize = {
         width: image.naturalWidth || image.width,
         height: image.naturalHeight || image.height,
     };
     let baseImagePlacement = {
-        left: 0,
-        top: 0,
-        width: renderWidth,
-        height: renderHeight,
+        left: contentFrame.x,
+        top: contentFrame.y,
+        width: contentFrame.w,
+        height: contentFrame.h,
     };
 
     const canvas = document.createElement("canvas");
@@ -540,16 +542,22 @@ export const renderStickerCompositeWithAnnotations = async (
             cropRect.y,
             cropRect.w,
             cropRect.h,
-            0,
-            0,
-            renderWidth,
-            renderHeight,
+            contentFrame.x,
+            contentFrame.y,
+            contentFrame.w,
+            contentFrame.h,
         );
     } else {
-        baseImagePlacement = computeContainPlacement(
-            { width: renderWidth, height: renderHeight },
+        const containedPlacement = computeContainPlacement(
+            { width: contentFrame.w, height: contentFrame.h },
             sourceSize,
         );
+        baseImagePlacement = {
+            left: contentFrame.x + containedPlacement.left,
+            top: contentFrame.y + containedPlacement.top,
+            width: containedPlacement.width,
+            height: containedPlacement.height,
+        };
         context.drawImage(
             image,
             baseImagePlacement.left,

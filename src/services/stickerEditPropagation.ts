@@ -289,6 +289,32 @@ const getContainedFrameTransform = (
     };
 };
 
+const mapFrameToContainedFrame = (
+    frame: Pick<Unit, "x" | "y" | "w" | "h">,
+    sourceFrame: Pick<Unit, "w" | "h">,
+    targetFrame: Pick<Unit, "w" | "h">,
+) => {
+    const transform = getContainedFrameTransform(sourceFrame, targetFrame);
+    return {
+        x: frame.x * transform.scale + transform.offsetX,
+        y: frame.y * transform.scale + transform.offsetY,
+        w: frame.w * transform.scale,
+        h: frame.h * transform.scale,
+    };
+};
+
+export const resolveStickerContentFrame = (
+    unit: Pick<Unit, "w" | "h" | "data">,
+): { x: number; y: number; w: number; h: number } => {
+    const sourceFrame = unit.data.stickerEditPropagation?.upstreamSourceFrame;
+    const upstreamContentFrame = unit.data.stickerEditPropagation?.upstreamContentFrame;
+    if (!sourceFrame || !upstreamContentFrame || sourceFrame.w <= 0 || sourceFrame.h <= 0) {
+        return { x: 0, y: 0, w: unit.w, h: unit.h };
+    }
+
+    return mapFrameToContainedFrame(upstreamContentFrame, sourceFrame, unit);
+};
+
 export const mapStickerAnnotationStateToContainedFrame = (
     state: StickerAnnotationState | undefined,
     sourceFrame: Pick<Unit, "w" | "h">,
@@ -418,6 +444,7 @@ export const buildStickerEditPropagationPatches = ({
                 sourceUnit,
                 targetUnit,
             );
+            const sourceContentFrame = resolveStickerContentFrame(sourceUnit);
             const data: Partial<Unit["data"]> = {
                 annotationState,
                 imageEditState,
@@ -427,6 +454,8 @@ export const buildStickerEditPropagationPatches = ({
                     locallyEdited: false,
                     upstreamSourceUnitId: sourceUnit.id,
                     upstreamSourceRevision: sourceUnit.data.stickerEditPropagation?.revision ?? 0,
+                    upstreamSourceFrame: { w: sourceUnit.w, h: sourceUnit.h },
+                    upstreamContentFrame: sourceContentFrame,
                 },
             };
 

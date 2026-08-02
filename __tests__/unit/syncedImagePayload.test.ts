@@ -206,4 +206,39 @@ describe("synced image payload helpers", () => {
 
         expect(baseSignature).not.toEqual(changedSignature);
     });
+
+    it("invalidates baked previews when propagated sticker content geometry changes", () => {
+        const baseUnit = {
+            type: "sticker",
+            w: 200,
+            h: 100,
+            data: {
+                src: "data:image/png;base64,base",
+                imageEditState: {
+                    contentEraseStrokes: [],
+                    cropRect: { x: 25, y: 0, w: 50, h: 100 },
+                    sourceSize: { w: 100, h: 100 },
+                },
+                stickerEditPropagation: {
+                    upstreamSourceFrame: { w: 100, h: 100 },
+                    upstreamContentFrame: { x: 0, y: 0, w: 100, h: 100 },
+                },
+            },
+        } as any;
+
+        const baseSignature = buildSyncedImageSignature(baseUnit);
+        const croppedSourceSignature = buildSyncedImageSignature({
+            ...baseUnit,
+            data: {
+                ...baseUnit.data,
+                stickerEditPropagation: {
+                    ...baseUnit.data.stickerEditPropagation,
+                    upstreamSourceFrame: { w: 50, h: 100 },
+                    upstreamContentFrame: { x: 0, y: 0, w: 50, h: 100 },
+                },
+            },
+        });
+
+        expect(baseSignature).not.toEqual(croppedSourceSignature);
+    });
 });

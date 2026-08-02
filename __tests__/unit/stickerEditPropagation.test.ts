@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildStickerEditPropagationPatches,
   markStickerEditPropagationLocally,
+  resolveStickerContentFrame,
 } from "../../src/services/stickerEditPropagation";
 import type { Link, Unit } from "../../src/types/unit";
 
@@ -202,6 +203,83 @@ describe("sticker edit propagation", () => {
         { x: 100, y: 100 },
       ],
     });
+  });
+
+  it("updates the downstream contained image frame when the upstream sticker is cropped", () => {
+    const target = sticker("b", { w: 200, h: 100 });
+    const initialSource = sticker("a", { w: 100, h: 100 }, {
+      imageEditState: { contentEraseStrokes: [] },
+    });
+    const croppedSource = sticker("a", { w: 50, h: 100 }, {
+      imageEditState: {
+        contentEraseStrokes: [],
+        cropRect: { x: 25, y: 0, w: 50, h: 100 },
+        sourceSize: { w: 100, h: 100 },
+      },
+    });
+
+    const initialPatch = buildStickerEditPropagationPatches({
+      units: [initialSource, target],
+      links: [link("a", "b")],
+      sourceUnitId: "a",
+    })[0];
+    const croppedPatch = buildStickerEditPropagationPatches({
+      units: [croppedSource, target],
+      links: [link("a", "b")],
+      sourceUnitId: "a",
+    })[0];
+
+    const initialTarget: Unit = {
+      ...target,
+      data: { ...target.data, ...initialPatch.data },
+    };
+    const croppedTarget: Unit = {
+      ...target,
+      data: { ...target.data, ...croppedPatch.data },
+    };
+
+    expect(resolveStickerContentFrame(initialTarget)).toEqual({ x: 50, y: 0, w: 100, h: 100 });
+    expect(croppedPatch.data.imageEditState).toMatchObject({
+      cropRect: { x: 25, y: 0, w: 50, h: 100 },
+      sourceSize: { w: 100, h: 100 },
+    });
+    expect(croppedPatch.data.stickerEditPropagation).toMatchObject({
+      upstreamSourceFrame: { w: 50, h: 100 },
+      upstreamContentFrame: { x: 0, y: 0, w: 50, h: 100 },
+    });
+    expect(resolveStickerContentFrame(croppedTarget)).toEqual({ x: 75, y: 0, w: 50, h: 100 });
+  });
+
+  it("preserves the cropped content frame through multiple downstream stickers", () => {
+    const target = sticker("b", { w: 200, h: 100 });
+    const finalTarget = sticker("c", { w: 400, h: 200 });
+    const patches = buildStickerEditPropagationPatches({
+      units: [
+        sticker("a", { w: 50, h: 100 }, {
+          imageEditState: {
+            contentEraseStrokes: [],
+            cropRect: { x: 25, y: 0, w: 50, h: 100 },
+            sourceSize: { w: 100, h: 100 },
+          },
+        }),
+        target,
+        finalTarget,
+      ],
+      links: [link("a", "b"), link("b", "c")],
+      sourceUnitId: "a",
+    });
+
+    expect(patches.map((patch) => patch.unitId)).toEqual(["b", "c"]);
+    expect(patches[1].data.stickerEditPropagation).toMatchObject({
+      upstreamSourceFrame: { w: 200, h: 100 },
+      upstreamContentFrame: { x: 75, y: 0, w: 50, h: 100 },
+    });
+
+    const patchedFinalTarget: Unit = {
+      ...finalTarget,
+      data: { ...finalTarget.data, ...patches[1].data },
+    };
+    expect(resolveStickerContentFrame(patchedFinalTarget)).toEqual({ x: 150, y: 0, w: 100, h: 200 });
   });
 
   it("stops at a sticker that explicitly rejects upstream edit propagation", () => {

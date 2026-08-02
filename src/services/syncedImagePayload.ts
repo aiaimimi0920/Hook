@@ -82,6 +82,12 @@ export const buildSyncedImageSignature = (
         rasterizedAnnotationLayerSrc: unit.data.rasterizedAnnotationLayerSrc ?? null,
         annotationState: unit.data.annotationState ?? null,
         imageEditState: unit.data.imageEditState ?? null,
+        stickerContentGeometry: {
+            upstreamSourceFrame:
+                unit.data.stickerEditPropagation?.upstreamSourceFrame ?? null,
+            upstreamContentFrame:
+                unit.data.stickerEditPropagation?.upstreamContentFrame ?? null,
+        },
     });
 };
 

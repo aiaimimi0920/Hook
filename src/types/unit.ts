@@ -95,6 +95,10 @@ export interface StickerEditPropagationState {
     upstreamSourceUnitId?: string;
     /** The upstream revision observed when propagated. */
     upstreamSourceRevision?: number;
+    /** Immediate upstream sticker frame used to contain its visible image content. */
+    upstreamSourceFrame?: { w: number; h: number };
+    /** Visible image-content frame in immediate upstream sticker coordinates. */
+    upstreamContentFrame?: { x: number; y: number; w: number; h: number };
 }
 
 // ============================================================================
@@ -203,6 +207,7 @@ export interface SessionSticker {
     executionConfig?: NodeExecutionConfig | null;
     annotationState?: UnitData["annotationState"] | null;
     imageEditState?: UnitData["imageEditState"] | null;
+    stickerEditPropagation?: UnitData["stickerEditPropagation"] | null;
     groupId?: string | null;
     captureMeta?: UnitData["captureMeta"] | null;
 }

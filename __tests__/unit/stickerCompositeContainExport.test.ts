@@ -76,7 +76,13 @@ describe("sticker composite export base-image placement", () => {
         }
         vi.stubGlobal("Image", FakeImage);
 
-        await renderStickerCompositeWithAnnotations(makeUnit(), [], {
+        const unit = makeUnit();
+        unit.data.stickerEditPropagation = {
+            upstreamSourceFrame: { w: 100, h: 100 },
+            upstreamContentFrame: { x: 0, y: 0, w: 100, h: 100 },
+        };
+
+        await renderStickerCompositeWithAnnotations(unit, [], {
             baseImageSrcOverride: "data:image/png;base64,UPSTREAM_SQUARE",
         });
 
@@ -90,6 +96,72 @@ describe("sticker composite export base-image placement", () => {
         );
 
         expect(baseImageDraw?.slice(2)).toEqual([50, 0, 100, 100]);
+    });
+
+    it("exports a cropped upstream sticker inside its updated contained frame", async () => {
+        const drawCalls: Array<[string, ...unknown[]]> = [];
+
+        vi.stubGlobal("document", {
+            createElement: (tagName: string) => {
+                expect(tagName).toBe("canvas");
+                return {
+                    width: 0,
+                    height: 0,
+                    getContext: () => ({
+                        save: () => drawCalls.push(["save"]),
+                        restore: () => drawCalls.push(["restore"]),
+                        beginPath: () => drawCalls.push(["beginPath"]),
+                        closePath: () => drawCalls.push(["closePath"]),
+                        roundRect: () => drawCalls.push(["roundRect"]),
+                        clip: () => drawCalls.push(["clip"]),
+                        drawImage: (...args: unknown[]) => drawCalls.push(["drawImage", ...args]),
+                        fillRect: (...args: unknown[]) => drawCalls.push(["fillRect", ...args]),
+                        strokeRect: (...args: unknown[]) => drawCalls.push(["strokeRect", ...args]),
+                        set globalAlpha(value: number) {
+                            drawCalls.push(["globalAlpha", value]);
+                        },
+                        set strokeStyle(value: string) {
+                            drawCalls.push(["strokeStyle", value]);
+                        },
+                        set lineWidth(value: number) {
+                            drawCalls.push(["lineWidth", value]);
+                        },
+                    }),
+                    toDataURL: () => "data:image/png;base64,OUT",
+                };
+            },
+        });
+
+        class FakeImage {
+            onload: (() => void) | null = null;
+            onerror: (() => void) | null = null;
+            width = 100;
+            height = 100;
+            naturalWidth = 100;
+            naturalHeight = 100;
+            set src(_value: string) {
+                this.onload?.();
+            }
+        }
+        vi.stubGlobal("Image", FakeImage);
+
+        const unit = makeUnit();
+        unit.data.imageEditState = {
+            contentEraseStrokes: [],
+            cropRect: { x: 25, y: 0, w: 50, h: 100 },
+            sourceSize: { w: 100, h: 100 },
+        };
+        unit.data.stickerEditPropagation = {
+            upstreamSourceFrame: { w: 50, h: 100 },
+            upstreamContentFrame: { x: 0, y: 0, w: 50, h: 100 },
+        };
+
+        await renderStickerCompositeWithAnnotations(unit, [], {
+            baseImageSrcOverride: "data:image/png;base64,UPSTREAM_SQUARE",
+        });
+
+        const baseImageDraw = drawCalls.find((call) => call[0] === "drawImage" && call.length === 10);
+        expect(baseImageDraw?.slice(2)).toEqual([25, 0, 50, 100, 75, 0, 50, 100]);
     });
 
     it("uses the same upstream-resolved base image that the sticker is visibly showing before compositing effects", async () => {

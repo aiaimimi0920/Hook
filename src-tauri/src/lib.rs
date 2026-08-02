@@ -5553,6 +5553,8 @@ pub struct StickerData {
     pub annotation_state: Option<serde_json::Value>,
     #[serde(rename = "imageEditState")]
     pub image_edit_state: Option<serde_json::Value>,
+    #[serde(rename = "stickerEditPropagation")]
+    pub sticker_edit_propagation: Option<serde_json::Value>,
     #[serde(rename = "groupId")]
     pub group_id: Option<String>,
     #[serde(rename = "captureMeta")]
@@ -10221,6 +10223,7 @@ mod app_cli_tests {
             execution_config: None,
             annotation_state: None,
             image_edit_state: None,
+            sticker_edit_propagation: None,
             group_id: None,
             capture_meta: None,
         }];
@@ -10342,6 +10345,7 @@ mod app_cli_tests {
                 execution_config: None,
                 annotation_state: None,
                 image_edit_state: None,
+                sticker_edit_propagation: None,
                 group_id: None,
                 capture_meta: None,
             }],
@@ -10525,6 +10529,7 @@ mod app_cli_tests {
             execution_config: None,
             annotation_state: None,
             image_edit_state: None,
+            sticker_edit_propagation: None,
             group_id: None,
             capture_meta: None,
         }];

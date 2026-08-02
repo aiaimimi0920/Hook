@@ -59,6 +59,13 @@ describe("mapSessionStickerToUnit", () => {
                 triggerMode: { upstreamDriven: false, paramDriven: false },
                 propagation: { listenUpstream: false, notifyDownstream: false },
             },
+            stickerEditPropagation: {
+                acceptUpstream: true,
+                locallyEdited: false,
+                upstreamSourceUnitId: "source",
+                upstreamSourceFrame: { w: 50, h: 100 },
+                upstreamContentFrame: { x: 0, y: 0, w: 50, h: 100 },
+            },
             groupId: "g1",
             captureMeta: { source: "region" } as SessionSticker["captureMeta"],
         };
@@ -86,6 +93,11 @@ describe("mapSessionStickerToUnit", () => {
         expect(unit.data.originNodeId).toBe("n1");
         expect(unit.data.groupId).toBe("g1");
         expect(unit.data.captureMeta).toEqual({ source: "region" });
+        expect(unit.data.stickerEditPropagation).toMatchObject({
+            upstreamSourceUnitId: "source",
+            upstreamSourceFrame: { w: 50, h: 100 },
+            upstreamContentFrame: { x: 0, y: 0, w: 50, h: 100 },
+        });
         // Explicit config is honored (cloned), not replaced by defaults.
         expect(unit.data.executionConfig).toEqual({
             triggerMode: { upstreamDriven: false, paramDriven: false },
@@ -211,6 +223,13 @@ describe("mapSessionStickerToUnit", () => {
                 groupId: "grp",
                 originWorkflowId: "wf",
                 originNodeId: "node",
+                stickerEditPropagation: {
+                    acceptUpstream: true,
+                    locallyEdited: false,
+                    upstreamSourceUnitId: "source",
+                    upstreamSourceFrame: { w: 50, h: 100 },
+                    upstreamContentFrame: { x: 0, y: 0, w: 50, h: 100 },
+                },
                 executionConfig: {
                     triggerMode: { upstreamDriven: false, paramDriven: true },
                     propagation: { listenUpstream: true, notifyDownstream: false },
@@ -235,6 +254,7 @@ describe("mapSessionStickerToUnit", () => {
         expect(back.data.groupId).toBe("grp");
         expect(back.data.originWorkflowId).toBe("wf");
         expect(back.data.originNodeId).toBe("node");
+        expect(back.data.stickerEditPropagation).toEqual(unit.data.stickerEditPropagation);
         expect(back.data.executionConfig).toEqual(unit.data.executionConfig);
     });
 
