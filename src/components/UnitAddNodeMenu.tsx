@@ -43,7 +43,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                 <div
                     id={`actions-menu-${props.unit?.id ?? "global"}`}
                     data-hook-drag-follow-unit-id={props.unit?.id}
-                    class="hook-terminal-shell hook-terminal-shell--strong absolute flex flex-col pointer-events-auto overflow-hidden transition duration-200 ease-out animate-in fade-in zoom-in-95 text-white"
+                    class="absolute pointer-events-auto text-white"
                     onMouseDown={(e) => e.stopPropagation()}
                     onDblClick={(e) => e.stopPropagation()}
                     style={{
@@ -54,55 +54,57 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                         "margin-top": "-150px",
                         width: "250px",
                         height: "300px",
-                }}
-            >
-                {/* Header */}
-                <div
-                    class="hook-actions-shell h-[50px] min-h-[50px] border-b border-white/10 px-4 z-10 relative"
-                    style={{
-                        "display": "flex",
-                        "justify-content": "center",
-                        "align-items": "center",
-                        "width": "100%"
                     }}
                 >
-                    <div class="hook-actions-shell__title">
-                        <span class="hook-actions-shell__dot" />
-                        <span class="font-bold text-xs uppercase tracking-widest whitespace-nowrap">Add Art Node</span>
+                    <div class="hook-terminal-shell hook-terminal-shell--strong flex h-full w-full flex-col overflow-hidden transition duration-200 ease-out animate-in fade-in zoom-in-95">
+                        {/* Header */}
+                        <div
+                            class="hook-actions-shell h-[50px] min-h-[50px] border-b border-white/10 px-4 z-10 relative"
+                            style={{
+                                "display": "flex",
+                                "justify-content": "center",
+                                "align-items": "center",
+                                "width": "100%"
+                            }}
+                        >
+                            <div class="hook-actions-shell__title">
+                                <span class="hook-actions-shell__dot" />
+                                <span class="font-bold text-xs uppercase tracking-widest whitespace-nowrap">Add Art Node</span>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div class="flex-1 overflow-y-auto bg-transparent p-3 flex flex-col gap-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                            <Show when={props.availableArts && props.availableArts.length > 0} fallback={
+                                <div class="text-white/30 text-xs font-medium text-center py-8">
+                                    No available arts
+                                </div>
+                            }>
+                                <For each={props.availableArts}>
+                                    {(art) => (
+                                        <button
+                                            class="hook-terminal-list-item group relative overflow-hidden flex items-center w-full px-3 py-3 text-sm transition-all cursor-pointer active:scale-[0.98] text-white"
+                                            style={{ color: "white" }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                props.onAddNode(art.id);
+                                            }}
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                        >
+                                            <div class="hook-terminal-icon-tile flex h-8 w-8 items-center justify-center mr-3 transition-colors">
+                                                <span class="text-base">❖</span>
+                                            </div>
+                                            <div class="flex flex-col items-start z-10 min-w-0 flex-1">
+                                                <span class="font-medium text-gray-100 group-hover:text-white truncate w-full text-left">{art.label}</span>
+                                                <span class="text-[10px] text-gray-400 group-hover:text-gray-200 truncate w-full text-left">{art.description || "No description"}</span>
+                                            </div>
+                                        </button>
+                                    )}
+                                </For>
+                            </Show>
+                        </div>
                     </div>
                 </div>
-
-                {/* Body */}
-                <div class="flex-1 overflow-y-auto bg-transparent p-3 flex flex-col gap-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-                     <Show when={props.availableArts && props.availableArts.length > 0} fallback={
-                        <div class="text-white/30 text-xs font-medium text-center py-8">
-                            No available arts
-                        </div>
-                     }>
-                        <For each={props.availableArts}>
-                            {(art) => (
-                                <button
-                                    class="hook-terminal-list-item group relative overflow-hidden flex items-center w-full px-3 py-3 text-sm transition-all cursor-pointer active:scale-[0.98] text-white"
-                                    style={{ color: "white" }}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        props.onAddNode(art.id);
-                                    }}
-                                    onMouseDown={(e) => e.stopPropagation()}
-                                >
-                                    <div class="hook-terminal-icon-tile flex h-8 w-8 items-center justify-center mr-3 transition-colors">
-                                        <span class="text-base">❖</span>
-                                    </div>
-                                    <div class="flex flex-col items-start z-10 min-w-0 flex-1">
-                                        <span class="font-medium text-gray-100 group-hover:text-white truncate w-full text-left">{art.label}</span>
-                                        <span class="text-[10px] text-gray-400 group-hover:text-gray-200 truncate w-full text-left">{art.description || "No description"}</span>
-                                    </div>
-                                </button>
-                            )}
-                        </For>
-                     </Show>
-                </div>
-            </div>
             </Portal>
         </Show>
     );

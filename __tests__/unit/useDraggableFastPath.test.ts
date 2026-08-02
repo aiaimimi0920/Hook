@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createRoot } from "solid-js";
+import { createComponent, createRoot } from "solid-js";
+import { render } from "solid-js/web";
 
 vi.mock("../../src/services/syncService", () => ({
   syncService: {
@@ -29,6 +30,7 @@ import {
   registerStickerGpuWarmElement,
   setStickerGpuWarmSelected,
 } from "../../src/services/stickerGpuWarmPool";
+import { UnitAddNodeMenu } from "../../src/components/UnitAddNodeMenu";
 
 const unit = (overrides: Partial<Unit> = {}): Unit => ({
   id: "sticker-fast-path",
@@ -96,6 +98,47 @@ describe("useDraggable compositor fast path", () => {
     expect(follower.style.transform).toBe("scale(1)");
     expect(follower.style.willChange).toBe("");
     expect(follower.style.transitionProperty).toBe("opacity");
+  });
+
+  it("moves the Shift+1 Add Art Node shell while its inner opening animation remains active", async () => {
+    graphStore.setUnits([unit()]);
+    const host = document.createElement("div");
+    document.body.append(host);
+    const disposeMenu = render(
+      () => createComponent(UnitAddNodeMenu, {
+        get unit() {
+          return graphStore.units[0];
+        },
+        availableArts: [],
+        onAddNode: vi.fn(),
+        showActions: true,
+        get currentPos() {
+          const current = graphStore.units[0];
+          return { x: current?.x ?? 0, y: current?.y ?? 0 };
+        },
+      }),
+      host,
+    );
+    const menu = document.getElementById("actions-menu-sticker-fast-path");
+
+    expect(menu).toBeInstanceOf(HTMLDivElement);
+    expect(menu?.classList.contains("animate-in")).toBe(false);
+    expect(menu?.querySelector(":scope > .animate-in")).toBeInstanceOf(HTMLDivElement);
+
+    const draggable = createDraggable();
+    draggable.startDrag(new MouseEvent("mousedown", { clientX: 110, clientY: 220 }), "sticker-fast-path");
+    draggable.handleDragMove(new MouseEvent("mousemove", { clientX: 130, clientY: 250 }));
+
+    expect(menu?.style.transform).toBe("translate3d(20px, 30px, 0)");
+
+    await draggable.handleDragEnd();
+    await Promise.resolve();
+
+    expect(menu?.style.transform).toBe("");
+    expect(menu?.style.left).toBe("280px");
+    expect(menu?.style.top).toBe("320px");
+
+    disposeMenu();
   });
 
   it("restores the root follower to its warm-pool style after a drag", async () => {
