@@ -3,6 +3,7 @@ import {
     beginCaptureSelectionState,
     createCaptureMeta,
     createAutoLongCaptureOptions,
+    findCaptureWindowTargetAtPoint,
     resolveAutoLongCaptureBurstBudget,
     resolveAutoLongCaptureBurstPollInterval,
     resolveAutoLongCapturePollInterval,
@@ -13,6 +14,7 @@ import {
     resolveAutoLongCaptureWheelPollInterval,
     shouldLogAutoLongCaptureWheel,
     shouldDrainAutoLongCaptureBeforeFinish,
+    shouldConfirmCaptureWindowDoubleClick,
     shouldStartCanvasSelectionFromTarget,
     shouldUpdateAutoLongCaptureStatus,
 } from "../../src/services/captureState";
@@ -65,6 +67,41 @@ describe("capture state helpers", () => {
             releasedSinceCaptureStart: true,
             effectiveCtrlKey: true,
         });
+    });
+
+    it("selects the first Z-ordered capture window containing the pointer", () => {
+        const targets = [
+            { id: "top", x: 100, y: 100, w: 400, h: 300 },
+            { id: "back", x: 0, y: 0, w: 800, h: 600 },
+        ];
+
+        expect(findCaptureWindowTargetAtPoint(targets, 200, 200)?.id).toBe("top");
+        expect(findCaptureWindowTargetAtPoint(targets, 20, 20)?.id).toBe("back");
+        expect(findCaptureWindowTargetAtPoint(targets, 900, 700)).toBeNull();
+    });
+
+    it("confirms a window capture only for two clicks on the same target inside 450ms", () => {
+        expect(shouldConfirmCaptureWindowDoubleClick(null, "window-a", 1000)).toBe(false);
+        expect(shouldConfirmCaptureWindowDoubleClick(
+            { targetId: "window-a", at: 1000 },
+            "window-a",
+            1450,
+        )).toBe(true);
+        expect(shouldConfirmCaptureWindowDoubleClick(
+            { targetId: "window-a", at: 1000 },
+            "window-b",
+            1200,
+        )).toBe(false);
+        expect(shouldConfirmCaptureWindowDoubleClick(
+            { targetId: "window-a", at: 1000 },
+            "window-a",
+            1451,
+        )).toBe(false);
+        expect(shouldConfirmCaptureWindowDoubleClick(
+            { targetId: "window-a", at: 1000 },
+            "window-a",
+            999,
+        )).toBe(false);
     });
 
     it("resolves shortcut context with capture selection taking priority over sticker editing", () => {

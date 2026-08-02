@@ -24,6 +24,16 @@ export interface CaptureRect {
     h: number;
 }
 
+export interface CaptureWindowTarget extends CaptureRect {
+    id: string;
+    title?: string | null;
+}
+
+export interface CaptureWindowClickState {
+    targetId: string;
+    at: number;
+}
+
 export interface ManualLongCaptureFrame {
     base64: string;
     width: number;
@@ -113,6 +123,31 @@ export const resolveCaptureCtrlModifier = (
         effectiveCtrlKey: nextReleasedSinceCaptureStart && ctrlPressed,
     };
 };
+
+export const findCaptureWindowTargetAtPoint = (
+    targets: readonly CaptureWindowTarget[],
+    x: number,
+    y: number,
+): CaptureWindowTarget | null => targets.find((target) =>
+    target.w > 0
+    && target.h > 0
+    && x >= target.x
+    && y >= target.y
+    && x < target.x + target.w
+    && y < target.y + target.h,
+) ?? null;
+
+export const shouldConfirmCaptureWindowDoubleClick = (
+    previous: CaptureWindowClickState | null,
+    targetId: string,
+    now: number,
+    maxIntervalMs = 450,
+): boolean => Boolean(
+    previous
+    && previous.targetId === targetId
+    && now >= previous.at
+    && now - previous.at <= maxIntervalMs,
+);
 
 export const resolveShortcutContext = (input: {
     isSelecting: boolean;

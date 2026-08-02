@@ -3,6 +3,7 @@ import {
     isSelecting,
     isBoxSelecting,
     selectionRect,
+    startPos,
     preciseRect,
     captureMode,
     longCaptureSession,
@@ -13,6 +14,11 @@ export const CanvasSelection: Component = () => {
       <>
       <Show when={isSelecting()}>
         <div class="absolute inset-0 z-[2147483646] pointer-events-none">
+            <Show when={captureMode() === "region" && !startPos()}>
+                <div class="hook-capture-chip absolute left-1/2 top-5 -translate-x-1/2 px-3 py-1.5 text-[11px] font-semibold">
+                    悬浮窗口可自动选择；双击截图完整窗口；拖动可自由框选；Esc 取消
+                </div>
+            </Show>
             <Show when={selectionRect()}>
                 <div
                     class="absolute border-2 border-primary"
@@ -27,6 +33,9 @@ export const CanvasSelection: Component = () => {
                         <span>{Math.round(selectionRect()!.w)} x {Math.round(selectionRect()!.h)}</span>
                         <Show when={captureMode() === "long-vertical"}>
                             <span class="hook-capture-chip__tag px-1.5 py-[1px] text-[10px] font-semibold">长截图</span>
+                        </Show>
+                        <Show when={captureMode() === "region" && !startPos()}>
+                            <span class="hook-capture-chip__tag px-1.5 py-[1px] text-[10px] font-semibold">窗口</span>
                         </Show>
                      </div>
                 </div>

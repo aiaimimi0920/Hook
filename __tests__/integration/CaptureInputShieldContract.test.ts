@@ -127,7 +127,7 @@ describe("capture input shield contract", () => {
     const canvasSelectionSource = readSource("src/components/CanvasSelection.tsx");
 
     expect(appSource).toContain("setMousePos({ x: captureEvent.clientX, y: captureEvent.clientY });");
-    expect(appSource).toContain("await api.getCursorPosition()");
+    expect(appSource).toContain("await api.getCaptureCursorPosition()");
     expect(rustSource).toContain("set_capture_cursor_crosshair()");
     expect(rustSource).toContain("SetSystemCursor");
     expect(rustSource).toContain("SystemParametersInfoW(SPI_SETCURSORS");

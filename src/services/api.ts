@@ -11,6 +11,7 @@ import type {
     WorkflowAssetArchiveIndex,
 } from "../types/unit";
 import type {
+    CaptureWindowTarget,
     LongCaptureAxis,
     LongCaptureDirection,
     LongCaptureOverlapAnalysis,
@@ -699,6 +700,10 @@ export const api = {
             compositionOverlayAlpha: options?.compositionOverlayAlpha,
         });
     },
+    listCaptureWindowTargets: (): Promise<CaptureWindowTarget[]> =>
+        safeInvoke("list_capture_window_targets", undefined, () => [], false),
+    getCaptureCursorPosition: (): Promise<{ x: number; y: number }> =>
+        safeInvoke("get_capture_cursor_position", undefined, () => ({ x: 0, y: 0 }), false),
     captureVerticalLongRegion: (
         x: number,
         y: number,

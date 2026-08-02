@@ -164,6 +164,7 @@ export default function App() {
       finishAutoLongCaptureSession,
       cancelAutoLongCaptureSession,
       notifyAutoLongCaptureWheel,
+      prepareCaptureWindowTargets,
   } = useSelection();
   const { handleParamChange, handleDoubleClick, spawnConnectedNode, performOcrAction, toggleTranslationAction, propagateFromUnit } = useUnitActions();
   const { startLinking, handleLinkDrop, handleInputLinkDrag, handleLinkHover } = useLinking({
@@ -676,12 +677,15 @@ export default function App() {
       resetSelection();
       setCaptureMode(captureStart.captureMode);
       setIsSelecting(true);
+      let initialCapturePoint: { x: number; y: number } | null = null;
       try {
-          const cursor = await api.getCursorPosition();
-          setMousePos({ x: cursor.x, y: cursor.y });
+          const cursor = await api.getCaptureCursorPosition();
+          initialCapturePoint = { x: cursor.x, y: cursor.y };
+          setMousePos(initialCapturePoint);
       } catch {
           // Best-effort only; backend global mouse_move will refresh this immediately.
       }
+      await prepareCaptureWindowTargets(initialCapturePoint);
       await api.setMouseMonitorActive(false);
       await api.setCaptureInputActive(true);
       await api.setOverlayClickThrough(true);
@@ -943,7 +947,7 @@ export default function App() {
           const unlistenCaptureMove = await listen<NativeCaptureMousePayload>(
               "capture/global_mouse_move",
               (event) => {
-                  if (!isSelecting() || !nativeCapturePointerActive) return;
+                  if (!isSelecting()) return;
                   const captureEvent = toCaptureMouseEvent(event.payload);
                   setMousePos({ x: captureEvent.clientX, y: captureEvent.clientY });
                   handleSelectionMove(captureEvent);
