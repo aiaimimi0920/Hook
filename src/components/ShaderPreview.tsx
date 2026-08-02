@@ -2,7 +2,7 @@
  * ShaderPreview - WebGL canvas component for Shader Art real-time preview.
  */
 
-import { Component, createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { Component, createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { api, isTauriRuntimeAvailable } from "../services/api";
 import { isLikelyLocalFilePath } from "../services/imageSource";
@@ -14,7 +14,7 @@ interface Props {
     unitId: string;
     artId: string;
     artPath?: string;
-    params: Record<string, any>;
+    params: Record<string, unknown>;
     holdFallbackPreview?: boolean;
     fallbackPreviewSrc?: string;
     inputImageSrc?: string;
@@ -31,8 +31,12 @@ interface Props {
 export const ShaderPreview: Component<Props> = (props) => {
     let canvasRef: HTMLCanvasElement | undefined;
     let renderer: ShaderRenderer | null = null;
+    let rendererArtId = "";
+    let rendererUnitId = "";
+    let rendererGeneration = 0;
     let disposed = false;
     let rendererRequestSeq = 0;
+    let inputImageRequestSeq = 0;
     let renderExportSeq = 0;
     let lastShaderContextKey = "";
     let lastInputSrc = "";
@@ -41,6 +45,9 @@ export const ShaderPreview: Component<Props> = (props) => {
     let lastFallbackRecoveryAttemptSrc = "";
     let contextualPrefetchRetryTimer: number | null = null;
     let contextualPrefetchRetryAttempts = 0;
+    let paramsNeedFullReapply = true;
+    const parameterTextureRequestSeq = new Map<string, number>();
+    const prevParamsRef: { current: Record<string, unknown> } = { current: {} };
     const [inputImageSize, setInputImageSize] = createSignal<{ width: number; height: number } | null>(null);
     const [fallbackPreviewSize, setFallbackPreviewSize] = createSignal<{ width: number; height: number } | null>(null);
     const [fallbackPreviewSrcOverride, setFallbackPreviewSrcOverride] = createSignal<string | undefined>(undefined);
@@ -80,40 +87,175 @@ export const ShaderPreview: Component<Props> = (props) => {
     };
 
     const disposeRenderer = () => {
+        rendererRequestSeq++;
+        rendererGeneration++;
+        inputImageRequestSeq++;
         renderExportSeq++;
+        parameterTextureRequestSeq.clear();
+        paramsNeedFullReapply = true;
+        prevParamsRef.current = {};
+        lastInputSrc = "";
         setHasRenderedThisMount(false);
-        if (renderer && props.artId) {
-            shaderCache.disposeRenderer(props.artId, props.unitId);
-            renderer = null;
+        const rendererToDispose = renderer;
+        const artId = rendererArtId;
+        const unitId = rendererUnitId;
+        renderer = null;
+        rendererArtId = "";
+        rendererUnitId = "";
+        if (rendererToDispose) {
+            rendererToDispose.setTextureLoadHandler(undefined);
+            if (artId) {
+                shaderCache.disposeRenderer(artId, unitId, rendererToDispose);
+            } else {
+                rendererToDispose.dispose();
+            }
         }
     };
 
-    const loadInputImage = (src: string) => {
-        if (!renderer || src.length === 0 || src === lastInputSrc) return;
+    const isCurrentRenderer = (target: ShaderRenderer, generation: number) =>
+        !disposed && renderer === target && rendererGeneration === generation;
+
+    const loadInputImage = (
+        src: string,
+        targetRenderer: ShaderRenderer,
+        generation: number,
+    ) => {
+        if (!isCurrentRenderer(targetRenderer, generation) || src.length === 0 || src === lastInputSrc) {
+            return;
+        }
 
         lastInputSrc = src;
+        const requestSeq = ++inputImageRequestSeq;
         const img = new Image();
         img.crossOrigin = "anonymous";
         img.onload = () => {
-            if (disposed) return;
+            if (
+                !isCurrentRenderer(targetRenderer, generation)
+                || requestSeq !== inputImageRequestSeq
+                || (props.inputImageSrc || "") !== src
+            ) {
+                return;
+            }
             const width = img.naturalWidth || img.width;
             const height = img.naturalHeight || img.height;
             if (width > 0 && height > 0) {
                 setInputImageSize({ width, height });
                 props.onIntrinsicSizeChange?.({ w: width, h: height });
             }
-            renderer?.loadTexture("input", img);
-            render();
+            targetRenderer.loadTexture("input", img);
+            renderRenderer(targetRenderer, generation);
         };
         img.onerror = () => {
+            if (!isCurrentRenderer(targetRenderer, generation) || requestSeq !== inputImageRequestSeq) {
+                return;
+            }
             console.warn("[ShaderPreview] Failed to load input image for shader preview");
         };
         img.src = toBrowserImageUrl(src);
     };
 
+    const applyCurrentParamsToRenderer = (
+        targetRenderer: ShaderRenderer,
+        generation: number,
+        force: boolean,
+    ) => {
+        if (!isCurrentRenderer(targetRenderer, generation)) return;
+
+        const params = props.params;
+        const prevParams = prevParamsRef.current;
+        let shouldRender = false;
+
+        for (const key of Object.keys(prevParams)) {
+            if (!(key in params)) {
+                parameterTextureRequestSeq.set(key, (parameterTextureRequestSeq.get(key) ?? 0) + 1);
+                delete prevParams[key];
+            }
+        }
+
+        for (const [key, value] of Object.entries(params)) {
+            if (key.startsWith("__") || key === "reference") continue;
+            if (!force && Object.is(prevParams[key], value)) continue;
+
+            prevParams[key] = value;
+            const requestSeq = (parameterTextureRequestSeq.get(key) ?? 0) + 1;
+            parameterTextureRequestSeq.set(key, requestSeq);
+
+            if (typeof value === "number") {
+                targetRenderer.setUniform(key, value);
+                shouldRender = true;
+            } else if (typeof value === "boolean") {
+                targetRenderer.setUniform(key, value ? 1 : 0);
+                shouldRender = true;
+            } else if (typeof value === "string" && value.length > 0) {
+                const src = props.resolveUnitImage?.(value) || value;
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.onload = () => {
+                    const currentValue = props.params[key];
+                    const currentSrc = typeof currentValue === "string"
+                        ? props.resolveUnitImage?.(currentValue) || currentValue
+                        : "";
+                    if (
+                        !isCurrentRenderer(targetRenderer, generation)
+                        || parameterTextureRequestSeq.get(key) !== requestSeq
+                        || currentSrc !== src
+                    ) {
+                        return;
+                    }
+                    targetRenderer.loadTexture(key, img);
+                    renderRenderer(targetRenderer, generation);
+                };
+                img.onerror = () => {
+                    // Non-image string params are ignored.
+                };
+                img.src = toBrowserImageUrl(src);
+            }
+        }
+
+        if (shouldRender) {
+            renderRenderer(targetRenderer, generation);
+        }
+    };
+
+    const installRenderer = (
+        nextRenderer: ShaderRenderer,
+        artId: string,
+        unitId: string,
+        inputSrc: string,
+    ) => {
+        const rendererChanged = renderer !== nextRenderer;
+        if (rendererChanged && renderer) {
+            disposeRenderer();
+        }
+        if (rendererChanged) {
+            renderer = nextRenderer;
+            rendererArtId = artId;
+            rendererUnitId = unitId;
+            rendererGeneration++;
+            lastInputSrc = "";
+            prevParamsRef.current = {};
+            paramsNeedFullReapply = true;
+        }
+
+        const generation = rendererGeneration;
+        nextRenderer.setTextureLoadHandler(() => {
+            if (isCurrentRenderer(nextRenderer, generation)) {
+                renderRenderer(nextRenderer, generation);
+            }
+        });
+        loadInputImage(inputSrc, nextRenderer, generation);
+        applyCurrentParamsToRenderer(nextRenderer, generation, paramsNeedFullReapply);
+        if (isCurrentRenderer(nextRenderer, generation)) {
+            paramsNeedFullReapply = false;
+        }
+    };
+
     const ensureRenderer = async () => {
         if (disposed || !canvasRef) return;
 
+        const artId = props.artId;
+        const unitId = props.unitId;
+        const artPath = props.artPath;
         const inputSrc = props.inputImageSrc || "";
         const referenceSrc = props.referenceImageSrc || "";
         const requiresReference = !!props.requiresReference;
@@ -126,8 +268,8 @@ export const ShaderPreview: Component<Props> = (props) => {
 
         const seq = ++rendererRequestSeq;
         const shaderContextKey = [
-            props.artId,
-            props.artPath || "",
+            artId,
+            artPath || "",
             requiresReference ? inputSrc : "",
             requiresReference ? referenceSrc : "",
         ].join("|");
@@ -136,8 +278,8 @@ export const ShaderPreview: Component<Props> = (props) => {
         if (shouldRefreshContextualShader) {
             if (!isTauriRuntimeAvailable()) return;
             const shader = await shaderCache.prefetchShader(
-                props.artId,
-                props.artPath,
+                artId,
+                artPath,
                 true,
                 inputSrc,
                 referenceSrc,
@@ -157,18 +299,16 @@ export const ShaderPreview: Component<Props> = (props) => {
             lastShaderContextKey = shaderContextKey;
             lastInputSrc = "";
             lastRenderedDataUrl = "";
-        } else if (!shaderCache.hasShaderCode(props.artId)) {
+        } else if (!shaderCache.hasShaderCode(artId)) {
             if (!isTauriRuntimeAvailable()) return;
-            const shader = await shaderCache.prefetchShader(props.artId, props.artPath);
+            const shader = await shaderCache.prefetchShader(artId, artPath);
             if (disposed || seq !== rendererRequestSeq || !canvasRef || !shader) return;
         }
 
         if (disposed || !canvasRef) return;
-        renderer = shaderCache.getRenderer(props.artId, props.unitId, canvasRef);
-        if (!renderer) return;
-
-        renderer.setTextureLoadHandler(() => render());
-        loadInputImage(inputSrc);
+        const nextRenderer = shaderCache.getRenderer(artId, unitId, canvasRef);
+        if (!nextRenderer) return;
+        installRenderer(nextRenderer, artId, unitId, inputSrc);
     };
 
     const canvasPlacement = createMemo(() => {
@@ -186,11 +326,6 @@ export const ShaderPreview: Component<Props> = (props) => {
             { width: props.width, height: props.height },
             source,
         );
-    });
-
-    onMount(() => {
-        disposed = false;
-        void ensureRenderer();
     });
 
     onCleanup(() => {
@@ -225,6 +360,9 @@ export const ShaderPreview: Component<Props> = (props) => {
         lastReactiveResetKey = reactiveResetKey;
         clearContextualPrefetchRetry();
         contextualPrefetchRetryAttempts = 0;
+        rendererGeneration++;
+        inputImageRequestSeq++;
+        paramsNeedFullReapply = true;
         setHasRenderedThisMount(false);
         setInputImageSize(null);
         setFallbackPreviewSize(null);
@@ -246,59 +384,30 @@ export const ShaderPreview: Component<Props> = (props) => {
         () => fallbackPreviewSrcOverride() || props.fallbackPreviewSrc,
     );
 
-    const prevParamsRef: { current: Record<string, any> } = { current: {} };
-
     createEffect(() => {
-        const params = props.params;
-        if (!renderer) return;
-
-        const prevParams = prevParamsRef.current;
-        let shouldRender = false;
-
-        for (const [key, value] of Object.entries(params)) {
-            if (key.startsWith("__")) continue;
-            if (key === "reference") continue;
-            if (prevParams[key] === value) continue;
-
-            prevParams[key] = value;
-
-            if (typeof value === "number") {
-                renderer.setUniform(key, value);
-                shouldRender = true;
-            } else if (typeof value === "boolean") {
-                renderer.setUniform(key, value ? 1 : 0);
-                shouldRender = true;
-            } else if (typeof value === "string" && value.length > 0) {
-                const src = props.resolveUnitImage?.(value) || value;
-                const img = new Image();
-                img.crossOrigin = "anonymous";
-                img.onload = () => {
-                    renderer?.loadTexture(key, img);
-                    render();
-                };
-                img.onerror = () => {
-                    // Non-image string params are ignored.
-                };
-                img.src = toBrowserImageUrl(src);
-            }
-        }
-
-        if (shouldRender) {
-            render();
-        }
+        void props.params;
+        const targetRenderer = renderer;
+        if (!targetRenderer) return;
+        applyCurrentParamsToRenderer(targetRenderer, rendererGeneration, false);
     });
 
-    const emitRenderedAsync = () => {
-        if (!props.onRendered || !renderer) return;
+    const emitRenderedAsync = (targetRenderer: ShaderRenderer, generation: number) => {
+        if (!props.onRendered || !isCurrentRenderer(targetRenderer, generation)) return;
 
-        const canvas = renderer.getCanvas();
+        const canvas = targetRenderer.getCanvas();
         const seq = ++renderExportSeq;
         canvas.toBlob((blob) => {
-            if (!blob || seq !== renderExportSeq) return;
+            if (!blob || seq !== renderExportSeq || !isCurrentRenderer(targetRenderer, generation)) return;
 
             const reader = new FileReader();
             reader.onloadend = () => {
-                if (seq !== renderExportSeq || typeof reader.result !== "string") return;
+                if (
+                    seq !== renderExportSeq
+                    || !isCurrentRenderer(targetRenderer, generation)
+                    || typeof reader.result !== "string"
+                ) {
+                    return;
+                }
 
                 const dataUrl = reader.result;
                 if (dataUrl !== lastRenderedDataUrl) {
@@ -310,21 +419,21 @@ export const ShaderPreview: Component<Props> = (props) => {
         }, "image/png");
     };
 
-    const render = () => {
-        if (!renderer || !renderer.isReady()) return;
+    const renderRenderer = (targetRenderer: ShaderRenderer, generation: number) => {
+        if (!isCurrentRenderer(targetRenderer, generation) || !targetRenderer.isReady()) return;
 
         const canPresentOutput =
-            typeof (renderer as ShaderRenderer & { canPresentOutput?: () => boolean }).canPresentOutput === "function"
-                ? (renderer as ShaderRenderer & { canPresentOutput: () => boolean }).canPresentOutput()
-                : renderer.isReady();
+            typeof (targetRenderer as ShaderRenderer & { canPresentOutput?: () => boolean }).canPresentOutput === "function"
+                ? (targetRenderer as ShaderRenderer & { canPresentOutput: () => boolean }).canPresentOutput()
+                : targetRenderer.isReady();
         if (!canPresentOutput) return;
 
-        renderer.render();
+        targetRenderer.render();
         const shouldKeepFallbackForTransparentRestore =
             !!effectiveFallbackPreviewSrc() &&
             (!hasRenderedThisMount() || !!props.holdFallbackPreview) &&
-            typeof (renderer as ShaderRenderer & { hasVisibleContent?: () => boolean }).hasVisibleContent === "function" &&
-            !(renderer as ShaderRenderer & { hasVisibleContent: () => boolean }).hasVisibleContent();
+            typeof (targetRenderer as ShaderRenderer & { hasVisibleContent?: () => boolean }).hasVisibleContent === "function" &&
+            !(targetRenderer as ShaderRenderer & { hasVisibleContent: () => boolean }).hasVisibleContent();
         if (shouldKeepFallbackForTransparentRestore) {
             disposeRenderer();
             lastShaderContextKey = "";
@@ -336,10 +445,10 @@ export const ShaderPreview: Component<Props> = (props) => {
         clearContextualPrefetchRetry();
         contextualPrefetchRetryAttempts = 0;
         setHasRenderedThisMount(true);
-        emitRenderedAsync();
+        emitRenderedAsync(targetRenderer, generation);
     };
 
-        return (
+    return (
         <>
             <Show when={effectiveFallbackPreviewSrc() && (!hasRenderedThisMount() || !!props.holdFallbackPreview)}>
                 <img

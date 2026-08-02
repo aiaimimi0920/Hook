@@ -47,14 +47,18 @@ export class ShaderRenderer {
     private gl: WebGL2RenderingContext;
     private program: WebGLProgram | null = null;
     private vao: WebGLVertexArrayObject | null = null;
+    private vertexBuffer: WebGLBuffer | null = null;
     private textures: Map<string, WebGLTexture> = new Map();
     private requiredTextureNames: Set<string> = new Set();
     private textureUnits: Map<string, number> = new Map();
+    private textureLoadGenerations: Map<string, number> = new Map();
     private nextTextureUnit: number = 0;
     private currentUniforms: ShaderUniforms = {};
     private canvasWidth: number = 0;
     private canvasHeight: number = 0;
     private textureLoadHandler?: () => void;
+    private lifecycleGeneration: number = 0;
+    private disposed: boolean = false;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
@@ -74,8 +78,11 @@ export class ShaderRenderer {
      * Initialize shaders from Python-provided code
      */
     initFromShaderResponse(response: ShaderSuccessResponse): boolean {
+        if (this.disposed) return false;
+
         const gl = this.gl;
-        this.requiredTextureNames.clear();
+        this.lifecycleGeneration += 1;
+        this.releaseResources();
 
         // Compile shaders from Python code
         this.program = this.createProgram(
@@ -93,8 +100,8 @@ export class ShaderRenderer {
         this.vao = gl.createVertexArray();
         gl.bindVertexArray(this.vao);
 
-        const buffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        this.vertexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
 
         const posLoc = gl.getAttribLocation(this.program, 'a_position');
@@ -117,6 +124,7 @@ export class ShaderRenderer {
     }
 
     setTextureLoadHandler(handler?: () => void): void {
+        if (this.disposed) return;
         this.textureLoadHandler = handler;
     }
 
@@ -163,6 +171,8 @@ export class ShaderRenderer {
      * The texture will be bound to uniform 'u_<name>'
      */
     loadTexture(name: string, image: HTMLImageElement | HTMLCanvasElement | ImageBitmap): void {
+        if (this.disposed) return;
+
         const gl = this.gl;
 
         // Get or create texture
@@ -172,8 +182,10 @@ export class ShaderRenderer {
             this.textures.set(name, texture);
 
             // Assign texture unit
-            this.textureUnits.set(name, this.nextTextureUnit);
-            this.nextTextureUnit++;
+            if (!this.textureUnits.has(name)) {
+                this.textureUnits.set(name, this.nextTextureUnit);
+                this.nextTextureUnit++;
+            }
         }
 
         gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -197,8 +209,20 @@ export class ShaderRenderer {
      * Load a texture from a source string (URL or Data URI)
      */
     loadTextureFromSrc(name: string, src: string): void {
+        if (this.disposed) return;
+
+        const lifecycleGeneration = this.lifecycleGeneration;
+        const textureLoadGeneration = (this.textureLoadGenerations.get(name) ?? 0) + 1;
+        this.textureLoadGenerations.set(name, textureLoadGeneration);
         const img = new Image();
         img.onload = () => {
+            if (
+                this.disposed
+                || lifecycleGeneration !== this.lifecycleGeneration
+                || this.textureLoadGenerations.get(name) !== textureLoadGeneration
+            ) {
+                return;
+            }
             this.loadTexture(name, img);
             logger.debug(`[ShaderRenderer] Loaded texture '${name}' from response`);
             if (this.textureLoadHandler) {
@@ -208,6 +232,13 @@ export class ShaderRenderer {
             }
         };
         img.onerror = (e) => {
+            if (
+                this.disposed
+                || lifecycleGeneration !== this.lifecycleGeneration
+                || this.textureLoadGenerations.get(name) !== textureLoadGeneration
+            ) {
+                return;
+            }
             console.error(`[ShaderRenderer] Failed to load texture '${name}'`, e);
         };
         img.src = src;
@@ -218,6 +249,7 @@ export class ShaderRenderer {
      * Update a single uniform value (for real-time slider adjustment)
      */
     setUniform(name: string, value: number): void {
+        if (this.disposed) return;
         this.currentUniforms[name] = value;
     }
 
@@ -225,7 +257,7 @@ export class ShaderRenderer {
      * Render with current or provided uniforms
      */
     render(uniforms?: Partial<ShaderUniforms>): void {
-        if (!this.program || this.textures.size === 0) return;
+        if (this.disposed || !this.program || this.textures.size === 0) return;
 
         const gl = this.gl;
         const u = uniforms ? { ...this.currentUniforms, ...uniforms } : this.currentUniforms;
@@ -281,7 +313,7 @@ export class ShaderRenderer {
      * Check if the renderer is ready
      */
     isReady(): boolean {
-        return this.program !== null && this.textures.has('input');
+        return !this.disposed && this.program !== null && this.textures.has('input');
     }
 
     /**
@@ -306,7 +338,7 @@ export class ShaderRenderer {
      * persisted preview image.
      */
     hasVisibleContent(): boolean {
-        if (this.canvasWidth <= 0 || this.canvasHeight <= 0) {
+        if (this.disposed || this.canvasWidth <= 0 || this.canvasHeight <= 0) {
             return false;
         }
 
@@ -335,6 +367,15 @@ export class ShaderRenderer {
      * Dispose of all WebGL resources
      */
     dispose(): void {
+        if (this.disposed) return;
+
+        this.disposed = true;
+        this.lifecycleGeneration += 1;
+        this.textureLoadHandler = undefined;
+        this.releaseResources();
+    }
+
+    private releaseResources(): void {
         const gl = this.gl;
 
         for (const texture of this.textures.values()) {
@@ -343,12 +384,17 @@ export class ShaderRenderer {
         this.textures.clear();
         this.requiredTextureNames.clear();
         this.textureUnits.clear();
+        this.textureLoadGenerations.clear();
 
         if (this.program) gl.deleteProgram(this.program);
         if (this.vao) gl.deleteVertexArray(this.vao);
-
+        if (this.vertexBuffer) gl.deleteBuffer(this.vertexBuffer);
         this.program = null;
         this.vao = null;
+        this.vertexBuffer = null;
         this.nextTextureUnit = 0;
+        this.currentUniforms = {};
+        this.canvasWidth = 0;
+        this.canvasHeight = 0;
     }
 }

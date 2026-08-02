@@ -14,8 +14,9 @@ describe("Color Transfer shader node contract", () => {
     const source = readFileSync(resolve(process.cwd(), "src", "components", "ShaderPreview.tsx"), "utf8");
 
     expect(source).toContain("referenceImageSrc");
-    expect(source).toContain("props.artPath");
-    expect(source).toMatch(/prefetchShader\([\s\S]*props\.artId[\s\S]*props\.artPath[\s\S]*true[\s\S]*inputSrc[\s\S]*referenceSrc/);
+    expect(source).toContain("const artId = props.artId");
+    expect(source).toContain("const artPath = props.artPath");
+    expect(source).toMatch(/prefetchShader\([\s\S]*artId[\s\S]*artPath[\s\S]*true[\s\S]*inputSrc[\s\S]*referenceSrc/);
     expect(source).toContain('key === "reference"');
     expect(source).toContain("props.onRendered");
   });

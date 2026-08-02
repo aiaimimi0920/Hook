@@ -1135,18 +1135,17 @@ describe("ShaderPreview runtime layout", () => {
         const secondCanvas = host.querySelector("canvas") as HTMLCanvasElement | null;
         expect(secondCanvas).toBeInstanceOf(HTMLCanvasElement);
         expect(secondCanvas).not.toBe(firstCanvas);
-        expect(deferredResolves).toHaveLength(4);
+        expect(deferredResolves).toHaveLength(2);
 
-        // Each mount schedules ensureRenderer twice (onMount + reactive reset
-        // effect). The later request per mount is the one that would otherwise
-        // win the sequence check and attempt to attach a renderer.
-        deferredResolves[1]?.(completeShader);
+        // Each mount owns one contextual request. Resolving the unmounted
+        // generation must not attach its renderer to the remounted canvas.
+        deferredResolves[0]?.(completeShader);
         await Promise.resolve();
         await Promise.resolve();
 
         expect(getRenderer).not.toHaveBeenCalled();
 
-        deferredResolves[3]?.(completeShader);
+        deferredResolves[1]?.(completeShader);
         await Promise.resolve();
         await Promise.resolve();
 
