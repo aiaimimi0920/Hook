@@ -22,7 +22,8 @@ describe("overlay live drag shield contract", () => {
       "unsafe extern \"system\" fn capture_mouse_hook_proc",
       "fn install_capture_mouse_hook_thread",
     );
-    const downBlock = sourceBetween(hookProcBlock, "WM_LBUTTONDOWN => {", "WM_LBUTTONUP => {");
+    const overlayPath = hookProcBlock.slice(hookProcBlock.indexOf("let should_route_overlay_mouse ="));
+    const downBlock = sourceBetween(overlayPath, "WM_LBUTTONDOWN => {", "WM_LBUTTONUP => {");
     const shieldBlock = sourceBetween(
       rustSource,
       "fn sync_overlay_input_shield_region(",

@@ -648,6 +648,9 @@ export const api = {
     setCaptureInputActive: (active: boolean): Promise<void> =>
         safeInvoke("set_capture_input_active", { active }, () => undefined, false),
 
+    setDesktopColorPickerActive: (active: boolean): Promise<void> =>
+        safeInvoke("set_desktop_color_picker_active", { active }, () => undefined, false),
+
     debugLogEvent: (event: string, detail?: string): Promise<void> =>
         safeInvoke("append_runtime_log", { event, detail }, () => undefined, false),
 

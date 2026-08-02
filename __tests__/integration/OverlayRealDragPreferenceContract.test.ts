@@ -21,13 +21,14 @@ describe("overlay real drag preference contract", () => {
       "unsafe extern \"system\" fn capture_mouse_hook_proc",
       "fn install_capture_mouse_hook_thread",
     );
+    const overlayPath = hookProcBlock.slice(hookProcBlock.indexOf("let should_route_overlay_mouse ="));
     const downBlock = sourceBetween(
-      hookProcBlock,
+      overlayPath,
       "WM_LBUTTONDOWN => {",
       "WM_LBUTTONUP => {",
     );
     const moveBlock = sourceBetween(
-      hookProcBlock,
+      overlayPath,
       "WM_MOUSEMOVE => {",
       "WM_LBUTTONDOWN => {",
     );
@@ -48,7 +49,9 @@ describe("overlay real drag preference contract", () => {
     expect(downBlock).toContain("OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(true, Ordering::SeqCst);");
     expect(downBlock).toContain("CaptureMouseHookEvent::OverlayDown");
     expect(downBlock).toContain("return LRESULT(1);");
-    expect(moveBlock).toContain("if !capture_active && (should_route_overlay_mouse || native_drag_preflight_active) {");
+    expect(hookProcBlock).toContain("let overlay_drag_active = OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)");
+    expect(moveBlock).toContain("|| overlay_drag_active");
+    expect(moveBlock).toContain("&& !overlay_drag_active");
     expect(moveBlock).toContain("CaptureMouseHookEvent::OverlayMove");
     expect(moveBlock).toContain("OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);");
     expect(showOverlayBlock).toContain("OVERLAY_CLICK_THROUGH_ACTIVE.store(click_through, Ordering::SeqCst);");

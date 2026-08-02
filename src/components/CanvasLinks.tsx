@@ -43,58 +43,60 @@ export const CanvasLinks: Component = () => {
         // Dependency: Force re-calc on layout tick
         layoutTick();
 
-        const list = graphStore.units;
         const currentLinks = graphStore.links;
+        if (currentLinks.length === 0) {
+            return [];
+        }
+
+        const list = graphStore.units;
         const capabilities = graphStore.capabilities; // For port calculation
         const dPositions = multiDragPositions();
+        const unitById = new Map(list.map((unit) => [unit.id, unit]));
+        const allOffsets = portOffsets();
+        const cleanView = isCleanView();
+
+        const getPanelPortPos = (uId: string, portName: string, uX: number, uY: number) => {
+            const uOff = allOffsets[uId];
+            if (uOff && uOff[portName]) {
+                return { x: uX + uOff[portName].x, y: uY + uOff[portName].y };
+            }
+            return null;
+        };
 
         return currentLinks.flatMap(link => {
-             const sFrom = list.find(s => s.id === link.fromUnitId);
-             const sTo = list.find(s => s.id === link.toUnitId);
+             const sFrom = unitById.get(link.fromUnitId);
+             const sTo = unitById.get(link.toUnitId);
 
              if (!sFrom || !sTo) return [];
 
              const paths: LinkRenderPath[] = [];
 
              // TRANSIENT DRAG STATE OVERRIDE
-             const currFrom = (dPositions && dPositions[sFrom.id])
-                 ? { ...sFrom, x: dPositions[sFrom.id].x, y: dPositions[sFrom.id].y }
-                 : sFrom;
-
-             const currTo = (dPositions && dPositions[sTo.id])
-                 ? { ...sTo, x: dPositions[sTo.id].x, y: dPositions[sTo.id].y }
-                 : sTo;
+             const fromDragPosition = dPositions?.[sFrom.id];
+             const toDragPosition = dPositions?.[sTo.id];
+             const fromX = fromDragPosition?.x ?? sFrom.x;
+             const fromY = fromDragPosition?.y ?? sFrom.y;
+             const toX = toDragPosition?.x ?? sTo.x;
+             const toY = toDragPosition?.y ?? sTo.y;
 
              // --- 1. BODY LINK (Solid) ---
              // Always calculated from Body Ports
-             const bodyY1 = calculatePortY(currFrom, link.fromPortId, false, capabilities);
-             const bodyY2 = calculatePortY(currTo, link.toPortId, true, capabilities);
-             const bodyX1 = currFrom.x + currFrom.w + (currFrom.data.minified ? 4 : 6);
-             const bodyX2 = currTo.x - (currTo.data.minified ? 4 : 6);
+             const bodyY1 = calculatePortY(sFrom, link.fromPortId, false, capabilities, fromY);
+             const bodyY2 = calculatePortY(sTo, link.toPortId, true, capabilities, toY);
+             const bodyX1 = fromX + sFrom.w + (sFrom.data.minified ? 4 : 6);
+             const bodyX2 = toX - (sTo.data.minified ? 4 : 6);
 
              // Rule: Body Link exists in Normal View, Hidden in Clean View
-             if (!isCleanView()) {
+             if (!cleanView) {
                  paths.push({
                      x1: bodyX1, y1: bodyY1, x2: bodyX2, y2: bodyY2,
                      dashed: false, color: "#9CA3AF"
                  });
              }
 
-             // --- 2. PANEL LINK (Dashed) ---
-             // Helper to get Panel Port Positions
-             const getPanelPortPos = (uId: string, portName: string, uX: number, uY: number) => {
-                 // Try Registry (Fast)
-                 const allOffsets = portOffsets();
-                 const uOff = allOffsets[uId];
-                 if (uOff && uOff[portName]) {
-                     return { x: uX + uOff[portName].x, y: uY + uOff[portName].y };
-                 }
-                 return null;
-             };
-
              // Check if "Panel" is actually visible (Params enabled AND Not Minified)
-             const showFrom = unitUiState[currFrom.id]?.showParams && !currFrom.data.minified;
-             const showTo = unitUiState[currTo.id]?.showParams && !currTo.data.minified;
+             const showFrom = unitUiState[sFrom.id]?.showParams && !sFrom.data.minified;
+             const showTo = unitUiState[sTo.id]?.showParams && !sTo.data.minified;
 
              // Determine Effective Endpoints for the Dashed Line
              // If panel is open -> use panel coords. If closed -> fallback to body coords.
@@ -102,18 +104,18 @@ export const CanvasLinks: Component = () => {
              let pX2 = bodyX2, pY2 = bodyY2;
 
              if (showFrom) {
-                 const p1 = getPanelPortPos(sFrom.id, link.fromPortId, currFrom.x, currFrom.y);
+                 const p1 = getPanelPortPos(sFrom.id, link.fromPortId, fromX, fromY);
                  if (p1) { pX1 = p1.x; pY1 = p1.y; }
              }
              if (showTo) {
-                 const p2 = getPanelPortPos(sTo.id, link.toPortId, currTo.x, currTo.y);
+                 const p2 = getPanelPortPos(sTo.id, link.toPortId, toX, toY);
                  if (p2) { pX2 = p2.x; pY2 = p2.y; }
              }
 
              // Rule: Visibility of Dashed Link
              // - Clean View: visible ONLY if BOTH ends are Panels
              // - Normal View: visible if AT LEAST ONE end is a Panel
-             const showDashed = isCleanView()
+             const showDashed = cleanView
                  ? (showFrom && showTo)
                  : (showFrom || showTo);
 

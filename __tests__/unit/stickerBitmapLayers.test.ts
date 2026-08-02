@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     applyLiveContentEraseToStickerLayers,
     applyRasterizedContentErase,
+    createLiveStickerEraseSession,
     eraseRasterizedAnnotationLayer,
     flipRasterizedAnnotationLayer,
 } from "../../src/services/stickerBitmapLayers";
@@ -252,6 +253,205 @@ describe("stickerBitmapLayers", () => {
         expect(result.rasterizedAnnotationLayerSrc).toBe("data:image/png;base64,RESULT_2");
         expect(result.previewSrc).toBe("data:image/png;base64,RESULT_3");
         expect(calls).toContain("globalCompositeOperation:destination-out");
+    });
+
+    it("keeps live content erasing in decoded canvases until pointer-up and coalesces moves per frame", async () => {
+        const calls: string[] = [];
+        const scheduledFrames: FrameRequestCallback[] = [];
+        let imageLoadCount = 0;
+        let dataUrlCount = 0;
+        let nextFrameId = 0;
+
+        const createContext = (label: string) =>
+            ({
+                save: () => calls.push(`${label}:save`),
+                restore: () => calls.push(`${label}:restore`),
+                clearRect: () => calls.push(`${label}:clearRect`),
+                drawImage: () => calls.push(`${label}:drawImage`),
+                beginPath: () => calls.push(`${label}:beginPath`),
+                moveTo: () => calls.push(`${label}:moveTo`),
+                lineTo: () => calls.push(`${label}:lineTo`),
+                arc: () => calls.push(`${label}:arc`),
+                fill: () => calls.push(`${label}:fill`),
+                stroke: () => calls.push(`${label}:stroke`),
+                set fillStyle(_value: string) {},
+                set strokeStyle(_value: string) {},
+                set lineWidth(_value: number) {},
+                set lineCap(_value: CanvasLineCap) {},
+                set lineJoin(_value: CanvasLineJoin) {},
+                set globalAlpha(_value: number) {},
+                set globalCompositeOperation(value: GlobalCompositeOperation) {
+                    calls.push(`${label}:composite:${value}`);
+                },
+            }) satisfies Partial<CanvasRenderingContext2D>;
+
+        const createCanvas = (label: string): HTMLCanvasElement => {
+            const context = createContext(label);
+            return {
+                width: 0,
+                height: 0,
+                getContext: () => context as unknown as CanvasRenderingContext2D,
+                toDataURL: () => {
+                    dataUrlCount += 1;
+                    calls.push(`${label}:toDataURL`);
+                    return `data:image/png;base64,${label.toUpperCase()}`;
+                },
+            } as unknown as HTMLCanvasElement;
+        };
+
+        const baseCanvas = createCanvas("base");
+        const annotationCanvas = createCanvas("annotation");
+        const previewCanvas = createCanvas("preview");
+        const canvases = [baseCanvas, annotationCanvas];
+
+        vi.stubGlobal("document", {
+            createElement: (tagName: string) => {
+                expect(tagName).toBe("canvas");
+                return canvases.shift()!;
+            },
+        });
+        vi.stubGlobal(
+            "requestAnimationFrame",
+            vi.fn((callback: FrameRequestCallback) => {
+                scheduledFrames.push(callback);
+                nextFrameId += 1;
+                return nextFrameId;
+            }),
+        );
+        vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+        class FakeImage {
+            onload: (() => void) | null = null;
+            onerror: (() => void) | null = null;
+            set src(_value: string) {
+                imageLoadCount += 1;
+                queueMicrotask(() => this.onload?.());
+            }
+        }
+        vi.stubGlobal("Image", FakeImage);
+
+        const session = await createLiveStickerEraseSession({
+            mode: "content",
+            baseLayerSrc: "data:image/png;base64,BASE",
+            rasterizedAnnotationLayerSrc: "data:image/png;base64,ANNOTATION",
+            size: { w: 100, h: 80 },
+            previewCanvas,
+        });
+
+        expect(imageLoadCount).toBe(2);
+        expect(dataUrlCount).toBe(0);
+
+        session.queueErase(
+            [
+                { x: 10, y: 10 },
+                { x: 20, y: 20 },
+            ],
+            18,
+        );
+        session.queueErase(
+            [
+                { x: 20, y: 20 },
+                { x: 30, y: 30 },
+            ],
+            18,
+        );
+
+        expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
+        expect(dataUrlCount).toBe(0);
+
+        scheduledFrames[0](0);
+
+        expect(calls.filter((call) => call === "base:composite:destination-out")).toHaveLength(1);
+        expect(
+            calls.filter((call) => call === "annotation:composite:destination-out"),
+        ).toHaveLength(1);
+        expect(dataUrlCount).toBe(0);
+
+        expect(session.finish()).toEqual({
+            baseLayerSrc: "data:image/png;base64,BASE",
+            rasterizedAnnotationLayerSrc: "data:image/png;base64,ANNOTATION",
+            previewSrc: "data:image/png;base64,PREVIEW",
+        });
+        expect(dataUrlCount).toBe(3);
+    });
+
+    it("keeps the base bitmap untouched in annotation-only live erase mode", async () => {
+        const calls: string[] = [];
+        let dataUrlCount = 0;
+
+        const createContext = (label: string) =>
+            ({
+                save: () => {},
+                restore: () => {},
+                clearRect: () => {},
+                drawImage: () => {},
+                beginPath: () => {},
+                moveTo: () => {},
+                lineTo: () => {},
+                arc: () => {},
+                fill: () => {},
+                stroke: () => {},
+                set fillStyle(_value: string) {},
+                set strokeStyle(_value: string) {},
+                set lineWidth(_value: number) {},
+                set lineCap(_value: CanvasLineCap) {},
+                set lineJoin(_value: CanvasLineJoin) {},
+                set globalAlpha(_value: number) {},
+                set globalCompositeOperation(value: GlobalCompositeOperation) {
+                    calls.push(`${label}:${value}`);
+                },
+            }) satisfies Partial<CanvasRenderingContext2D>;
+
+        const createCanvas = (label: string): HTMLCanvasElement => {
+            const context = createContext(label);
+            return {
+                width: 0,
+                height: 0,
+                getContext: () => context as unknown as CanvasRenderingContext2D,
+                toDataURL: () => {
+                    dataUrlCount += 1;
+                    return `data:image/png;base64,${label.toUpperCase()}`;
+                },
+            } as unknown as HTMLCanvasElement;
+        };
+
+        const baseCanvas = createCanvas("base");
+        const annotationCanvas = createCanvas("annotation");
+        const previewCanvas = createCanvas("preview");
+        const canvases = [baseCanvas, annotationCanvas];
+
+        vi.stubGlobal("document", {
+            createElement: () => canvases.shift()!,
+        });
+        vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+        vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+        class FakeImage {
+            onload: (() => void) | null = null;
+            onerror: (() => void) | null = null;
+            set src(_value: string) {
+                queueMicrotask(() => this.onload?.());
+            }
+        }
+        vi.stubGlobal("Image", FakeImage);
+
+        const session = await createLiveStickerEraseSession({
+            mode: "annotations",
+            baseLayerSrc: "data:image/png;base64,ORIGINAL_BASE",
+            rasterizedAnnotationLayerSrc: "data:image/png;base64,ANNOTATION",
+            size: { w: 100, h: 80 },
+            previewCanvas,
+        });
+        session.queueErase([{ x: 20, y: 20 }], 18);
+
+        expect(session.finish()).toEqual({
+            baseLayerSrc: "data:image/png;base64,ORIGINAL_BASE",
+            rasterizedAnnotationLayerSrc: "data:image/png;base64,ANNOTATION",
+            previewSrc: "data:image/png;base64,PREVIEW",
+        });
+        expect(calls).not.toContain("base:destination-out");
+        expect(calls).toContain("annotation:destination-out");
+        expect(dataUrlCount).toBe(2);
     });
 
     it("flips a rasterized annotation bitmap layer across the requested axis", async () => {

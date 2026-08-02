@@ -40,9 +40,18 @@ import {
     isLongCaptureMode,
 } from "../services/captureState";
 
-let lastPreciseRequestTime = 0;
-let isPreciseRequestPending = false;
 let cachedUnitRects: {id: string, x: number, y: number, w: number, h: number}[] = [];
+const PRECISE_SELECTION_DEBOUNCE_MS = 80;
+
+const captureRectsMatch = (left: CaptureRect | null, right: CaptureRect | null) =>
+    Boolean(
+        left
+        && right
+        && left.x === right.x
+        && left.y === right.y
+        && left.w === right.w
+        && left.h === right.h,
+    );
 
 const resolveCaptureResponseSrc = (response: ManualLongCaptureFrame) => {
     if (response.filePath) {
@@ -52,6 +61,8 @@ const resolveCaptureResponseSrc = (response: ManualLongCaptureFrame) => {
 };
 
 export function useSelection() {
+    let captureSessionGeneration = 0;
+    let pendingCaptureTimer: number | null = null;
     let autoLongCaptureFrames: ManualLongCaptureFrame[] = [];
     let autoLongCaptureRect: CaptureRect | null = null;
     let autoLongCaptureOrigin: { x: number; y: number } | null = null;
@@ -72,16 +83,61 @@ export function useSelection() {
     let autoLongCaptureLastWheelLogAtMs = 0;
     let autoLongCaptureLastFrameLogAtMs = 0;
     let autoLongCaptureLastStatusUpdateAtMs = 0;
+    let preciseRequestGeneration = 0;
+    let preciseRequestTimer: number | null = null;
+    let preciseRequestSource: CaptureRect | null = null;
+    let preciseRectSource: CaptureRect | null = null;
+
+    const invalidatePreciseSelection = () => {
+        if (
+            preciseRequestTimer === null
+            && preciseRequestSource === null
+            && preciseRectSource === null
+            && preciseRect() === null
+        ) {
+            return;
+        }
+        if (preciseRequestTimer !== null) {
+            window.clearTimeout(preciseRequestTimer);
+            preciseRequestTimer = null;
+        }
+        preciseRequestGeneration += 1;
+        preciseRequestSource = null;
+        preciseRectSource = null;
+        setPreciseRect(null);
+    };
 
     const resetSelection = () => {
+        invalidatePreciseSelection();
         setStartPos(null);
         setSelectionRect(null);
-        setPreciseRect(null);
         setIsSelecting(false);
         setIsBoxSelecting(false);
         setCaptureMode("region");
         cachedUnitRects = [];
     };
+
+    const clearPendingCaptureTimer = () => {
+        if (pendingCaptureTimer !== null) {
+            window.clearTimeout(pendingCaptureTimer);
+            pendingCaptureTimer = null;
+        }
+    };
+
+    const beginCaptureSessionLifecycle = () => {
+        clearPendingCaptureTimer();
+        captureSessionGeneration += 1;
+        return captureSessionGeneration;
+    };
+
+    const invalidateCaptureSessionLifecycle = () => {
+        clearPendingCaptureTimer();
+        captureSessionGeneration += 1;
+        invalidatePreciseSelection();
+    };
+
+    const isCaptureSessionCurrent = (generation: number) =>
+        generation === captureSessionGeneration;
 
     const stopAutoLongCaptureTimer = () => {
         if (autoLongCaptureTimer !== null) {
@@ -623,6 +679,63 @@ export function useSelection() {
         return true;
     };
 
+    const schedulePreciseSelection = (sourceRect: CaptureRect) => {
+        if (captureRectsMatch(preciseRequestSource, sourceRect)) return;
+
+        if (preciseRequestTimer !== null) {
+            window.clearTimeout(preciseRequestTimer);
+            preciseRequestTimer = null;
+        }
+
+        const requestGeneration = preciseRequestGeneration + 1;
+        preciseRequestGeneration = requestGeneration;
+        preciseRequestSource = sourceRect;
+        preciseRectSource = null;
+        setPreciseRect(null);
+        const sessionGeneration = captureSessionGeneration;
+
+        preciseRequestTimer = window.setTimeout(async () => {
+            preciseRequestTimer = null;
+            try {
+                const dpr = window.devicePixelRatio || 1;
+                const rect = await api.getPreciseSelection(
+                    sourceRect.x * dpr,
+                    sourceRect.y * dpr,
+                    sourceRect.w * dpr,
+                    sourceRect.h * dpr,
+                );
+
+                if (
+                    requestGeneration !== preciseRequestGeneration
+                    || !isCaptureSessionCurrent(sessionGeneration)
+                    || !isSelecting()
+                    || !captureRectsMatch(selectionRect(), sourceRect)
+                    || !captureRectsMatch(preciseRequestSource, sourceRect)
+                ) {
+                    return;
+                }
+
+                if (rect) {
+                    preciseRectSource = sourceRect;
+                    setPreciseRect({
+                        x: rect.x / dpr,
+                        y: rect.y / dpr,
+                        w: rect.w / dpr,
+                        h: rect.h / dpr,
+                    });
+                } else {
+                    preciseRectSource = null;
+                    setPreciseRect(null);
+                }
+            } catch {
+                if (requestGeneration === preciseRequestGeneration) {
+                    preciseRectSource = null;
+                    setPreciseRect(null);
+                }
+            }
+        }, PRECISE_SELECTION_DEBOUNCE_MS);
+    };
+
     const handleSelectionStart = (e: Pick<MouseEvent, "clientX" | "clientY" | "shiftKey" | "ctrlKey">) => {
          // Mode 1: Capture (Explicitly triggered)
          if (isSelecting()) {
@@ -674,54 +787,21 @@ export function useSelection() {
             }
         }
 
-        // Ctrl-Precise Match (Backend)
-        if (e.ctrlKey && isSelecting() && w > 0 && h > 0) {
-            const now = Date.now();
-            if (now - lastPreciseRequestTime > 60 && !isPreciseRequestPending) {
-                isPreciseRequestPending = true;
-                lastPreciseRequestTime = now;
-
-                (async () => {
-                    try {
-                        const dpr = window.devicePixelRatio || 1;
-                        const absW = Math.abs(w);
-                        const absH = Math.abs(h);
-                        const topLeftX = isLeft ? start.x - absW : start.x;
-                        const topLeftY = isUp ? start.y - absH : start.y;
-
-                        const rect = await api.getPreciseSelection(
-                            topLeftX * dpr,
-                            topLeftY * dpr,
-                            absW * dpr,
-                            absH * dpr
-                        );
-
-
-                        if (rect) {
-                            setPreciseRect({
-                                x: rect.x / dpr,
-                                y: rect.y / dpr,
-                                w: rect.w / dpr,
-                                h: rect.h / dpr
-                            });
-                        } else {
-                            setPreciseRect(null);
-                        }
-                    } catch {
-                        // ignore
-                    } finally {
-                        isPreciseRequestPending = false;
-                    }
-                })();
-            }
-        } else {
-            if (preciseRect()) setPreciseRect(null);
-        }
-
         const x = isLeft ? start.x - snappedW : start.x;
         const y = isUp ? start.y - snappedH : start.y;
+        const nextSelectionRect = { x, y, w: snappedW, h: snappedH };
 
-        setSelectionRect({ x, y, w: snappedW, h: snappedH });
+        setSelectionRect(nextSelectionRect);
+
+        // Ctrl precise matching is intentionally idle-debounced. Ctrl+1 leaves
+        // Ctrl pressed for a short time after capture starts, and UIAutomation
+        // responses can arrive out of order. Never let an old precise result
+        // replace the live pointer rectangle.
+        if (e.ctrlKey && isSelecting() && snappedW > 0 && snappedH > 0) {
+            schedulePreciseSelection(nextSelectionRect);
+        } else {
+            invalidatePreciseSelection();
+        }
 
         // === BOX SELECTION LOGIC ===
         if (isBoxSelecting()) {
@@ -776,10 +856,20 @@ export function useSelection() {
         // Import check (handled by import in store/uiStore)
         // Need to import isCropping, selectedStickerId at top of file, or use accessor if available
         // Assuming they are imported below in the full file update
-        const rect = preciseRect() || selectionRect()!;
+        const currentSelectionRect = selectionRect()!;
+        const currentPreciseRect = preciseRect();
+        const rect = currentPreciseRect && captureRectsMatch(preciseRectSource, currentSelectionRect)
+            ? currentPreciseRect
+            : currentSelectionRect;
+        invalidatePreciseSelection();
+        const sessionGeneration = captureSessionGeneration;
 
         if (rect.w < 5 || rect.h < 5) {
             await api.setCaptureInputActive(false);
+            if (!isCaptureSessionCurrent(sessionGeneration)) {
+                void api.debugLogEvent("selection-end-small-stale", `generation=${sessionGeneration}`);
+                return;
+            }
             void api.debugLogEvent("selection-end-small", `w=${rect.w} h=${rect.h}`);
             resetSelection();
             await api.setOverlayClickThrough(true);
@@ -794,19 +884,31 @@ export function useSelection() {
         const activeCaptureMode = captureMode();
         const isLongCapture = isLongCaptureMode(activeCaptureMode);
         setIsSelecting(false);
-        void api.setCaptureInputActive(false);
+        await api.setCaptureInputActive(false);
+        if (!isCaptureSessionCurrent(sessionGeneration)) {
+            void api.debugLogEvent("selection-end-stale", `generation=${sessionGeneration}`);
+            return;
+        }
         void api.debugLogEvent("selection-end", `x=${rect.x} y=${rect.y} w=${rect.w} h=${rect.h}`);
 
         const startX = rect.x;
         const startY = rect.y;
 
         // Wait for UI repaint (remove grey box)
-        setTimeout(async () => {
-             logger.debug("[Selection] Executing Capture for rect:", rect);
+        pendingCaptureTimer = window.setTimeout(async () => {
+            pendingCaptureTimer = null;
+            if (!isCaptureSessionCurrent(sessionGeneration)) {
+                void api.debugLogEvent("selection-capture-timer-stale", `generation=${sessionGeneration}`);
+                return;
+            }
+
+            logger.debug("[Selection] Executing Capture for rect:", rect);
             try {
                 await api.debugLogEvent("selection-capture-request", `x=${rect.x} y=${rect.y} w=${rect.w} h=${rect.h}`);
+                if (!isCaptureSessionCurrent(sessionGeneration)) return;
                 if (isLongCapture) {
                     await api.debugLogEvent("selection-long-capture-prepare");
+                    if (!isCaptureSessionCurrent(sessionGeneration)) return;
                     await startAutoLongCaptureSession(rect, { x: startX, y: startY });
                     return;
                 }
@@ -818,13 +920,16 @@ export function useSelection() {
                     Math.round(rect.w),
                     Math.round(rect.h),
                 );
+                if (!isCaptureSessionCurrent(sessionGeneration)) {
+                    await api.debugLogEvent("selection-capture-response-stale", `generation=${sessionGeneration}`);
+                    return;
+                }
                 await addCaptureUnit(response, rect, { x: startX, y: startY }, activeCaptureMode);
 
             } catch (e) {
                 console.error("Capture Failed", e);
-                await api.setCaptureInputActive(false);
                 await api.debugLogEvent("selection-capture-failure", e instanceof Error ? e.message : String(e));
-                if (isLongCapture) {
+                if (isLongCapture && isCaptureSessionCurrent(sessionGeneration)) {
                     resetSelection();
                     await api.setOverlayClickThrough(true);
                     if (graphStore.units.length > 0) {
@@ -833,7 +938,7 @@ export function useSelection() {
                     }
                 }
             } finally {
-                if (!isLongCapture) {
+                if (!isLongCapture && isCaptureSessionCurrent(sessionGeneration)) {
                     resetSelection();
                     await api.setOverlayClickThrough(true);
                     await api.setMouseMonitorActive(true);
@@ -850,6 +955,8 @@ export function useSelection() {
         handleSelectionMove,
         handleSelectionEnd,
         resetSelection,
+        beginCaptureSessionLifecycle,
+        invalidateCaptureSessionLifecycle,
         finishAutoLongCaptureSession,
         cancelAutoLongCaptureSession,
         notifyAutoLongCaptureWheel,

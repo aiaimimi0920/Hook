@@ -546,6 +546,48 @@ export const computeRestoredMinifiedStickerWindow = (
     };
 };
 
+export const computeStickerWheelResizeFrame = (
+    frame: { x: number; y: number; w: number; h: number },
+    pointer: StickerPoint,
+    deltaY: number,
+    minimumSize = 24,
+) => {
+    const scaleFactor = Math.max(0.5, Math.min(1.5, Math.exp(-deltaY * 0.001)));
+    const nextW = Math.max(minimumSize, frame.w * scaleFactor);
+    const nextH = Math.max(minimumSize, frame.h * scaleFactor);
+    const effectiveScaleX = frame.w > 0 ? nextW / frame.w : 1;
+    const effectiveScaleY = frame.h > 0 ? nextH / frame.h : 1;
+    const relativeX = Math.max(0, Math.min(frame.w, pointer.x - frame.x));
+    const relativeY = Math.max(0, Math.min(frame.h, pointer.y - frame.y));
+
+    return {
+        x: frame.x + relativeX * (1 - effectiveScaleX),
+        y: frame.y + relativeY * (1 - effectiveScaleY),
+        w: nextW,
+        h: nextH,
+    };
+};
+
+export const computeCroppedStickerImageViewport = (
+    frame: { w: number; h: number },
+    imageEditState: Pick<StickerImageEditState, "cropRect" | "sourceSize"> | undefined,
+) => {
+    const cropRect = imageEditState?.cropRect;
+    const sourceSize = imageEditState?.sourceSize;
+    if (!cropRect || !sourceSize || cropRect.w <= 0 || cropRect.h <= 0) {
+        return null;
+    }
+
+    const scaleX = frame.w / cropRect.w;
+    const scaleY = frame.h / cropRect.h;
+    return {
+        width: sourceSize.w * scaleX,
+        height: sourceSize.h * scaleY,
+        offsetX: cropRect.x * scaleX,
+        offsetY: cropRect.y * scaleY,
+    };
+};
+
 export const computeMinifiedStickerViewport = (
     currentMiniFrame: { w: number; h: number },
     savedRect: { w: number; h: number } | undefined,

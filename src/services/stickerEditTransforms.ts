@@ -195,22 +195,34 @@ export const scaleStickerEditDataForFrame = (
 ): Partial<Unit["data"]> => {
     const updates: Partial<Unit["data"]> = {};
 
-    const annotationState = scaleStickerAnnotationState(
-        data.annotationState,
-        sourceFrame,
-        targetFrame,
-    );
-    if (annotationState) {
-        updates.annotationState = annotationState;
+    if (sourceFrame.w === targetFrame.w && sourceFrame.h === targetFrame.h) {
+        return updates;
     }
 
-    const imageEditState = scaleStickerImageEditState(
-        data.imageEditState,
-        sourceFrame,
-        targetFrame,
-    );
-    if (imageEditState) {
-        updates.imageEditState = imageEditState;
+    if ((data.annotationState?.elements.length ?? 0) > 0) {
+        const annotationState = scaleStickerAnnotationState(
+            data.annotationState,
+            sourceFrame,
+            targetFrame,
+        );
+        if (annotationState) {
+            updates.annotationState = annotationState;
+        }
+    }
+
+    const hasScalableImageEditState =
+        (data.imageEditState?.contentEraseStrokes.length ?? 0) > 0 ||
+        (data.imageEditState?.borderWidth ?? 0) > 0 ||
+        (data.imageEditState?.cornerRadius ?? 0) > 0;
+    if (hasScalableImageEditState) {
+        const imageEditState = scaleStickerImageEditState(
+            data.imageEditState,
+            sourceFrame,
+            targetFrame,
+        );
+        if (imageEditState) {
+            updates.imageEditState = imageEditState;
+        }
     }
 
     return updates;

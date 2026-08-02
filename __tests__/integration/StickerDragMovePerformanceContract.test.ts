@@ -40,16 +40,82 @@ describe("sticker drag move performance contract", () => {
     expect(handleGlobalMouseMoveBlock).toContain("setMousePos({ x: e.clientX, y: e.clientY });");
   });
 
-  it("does not wake every UnitView on drag start by making currentPos depend on draggingStickerId alone", () => {
+  it("moves drag followers through an imperative compositor fast path without a Solid position update", () => {
+    const dragSource = readSource("src/hooks/useDraggable.ts");
     const unitViewSource = readSource("src/components/UnitView.tsx");
-    const currentPosBlock = sourceBetween(
+    const canvasUnitsSource = readSource("src/components/CanvasUnits.tsx");
+    const uiStoreSource = readSource("src/store/uiStore.ts");
+    const portsSource = readSource("src/components/UnitPorts.tsx");
+    const topStripSource = readSource("src/components/StickerTopStrip.tsx");
+
+    expect(dragSource).toContain('const DRAG_FOLLOW_SELECTOR = "[data-hook-drag-follow-unit-id]";');
+    expect(dragSource).toContain("const applyDragVisualFastPath =");
+    expect(dragSource).toContain("prepareDragVisualFastPath();");
+    expect(dragSource).toContain("follower.element.style.transform = `translate3d(");
+    expect(dragSource).toContain('follower.element.style.willChange = "transform";');
+    expect(unitViewSource).toContain("data-hook-drag-follow-unit-id={props.unit.id}");
+    expect(portsSource).toContain("data-hook-drag-follow-unit-id={props.unit.id}");
+    expect(topStripSource).toContain("data-hook-drag-follow-unit-id={props.unitId}");
+    expect(uiStoreSource).not.toContain("multiDragPositionStore");
+    expect(canvasUnitsSource).not.toContain("dragPosition=");
+    expect(canvasUnitsSource).not.toContain("multiDragPositions={multiDragPositions()}");
+  });
+
+  it("keeps committed left/top static while the fast path owns transient transform styles", () => {
+    const dragSource = readSource("src/hooks/useDraggable.ts");
+    const unitViewSource = readSource("src/components/UnitView.tsx");
+    const styleBlock = sourceBetween(
       unitViewSource,
-      "const currentPos = () => {",
       "const style = () => {",
+      "const getOpacity = () =>",
     );
 
-    expect(currentPosBlock).toContain("if (props.multiDragPositions && props.multiDragPositions[props.unit.id]) {");
-    expect(currentPosBlock).not.toContain("draggingStickerId()");
+    expect(dragSource).toContain("applyDragVisualFastPath(nextPositions);");
+    expect(dragSource).toContain("clearDragVisualFastPath();");
+    expect(styleBlock).toContain("left: `${unit.x}px`");
+    expect(styleBlock).toContain("top: `${unit.y}px`");
+    expect(styleBlock).not.toContain("transform:");
+    expect(styleBlock).not.toContain("will-change");
+    expect(unitViewSource).toContain("const liveUnit = () => props.unit;");
+  });
+
+  it("does not publish reactive drag positions when no links need a preview", () => {
+    const dragSource = readSource("src/hooks/useDraggable.ts");
+    const linksSource = readSource("src/components/CanvasLinks.tsx");
+    const applyBlock = sourceBetween(
+      dragSource,
+      "const applyDragMoveSnapshot =",
+      "const flushPendingDragMove =",
+    );
+    const renderPathsBlock = sourceBetween(
+      linksSource,
+      "const renderPaths = createMemo(() => {",
+      "const selectedOverlayLinks = createMemo",
+    );
+
+    expect(applyBlock).toContain("graphStore.links.length > 0");
+    expect(applyBlock).toContain("LINK_PREVIEW_INTERVAL_MS");
+    expect(applyBlock).toContain("setMultiDragPositions(nextPositions);");
+    expect(renderPathsBlock).toContain("if (currentLinks.length === 0) {");
+    expect(renderPathsBlock.indexOf("if (currentLinks.length === 0) {")).toBeLessThan(
+      renderPathsBlock.indexOf("const dPositions = multiDragPositions();"),
+    );
+  });
+
+  it("indexes units and shared layout reads once before rebuilding links", () => {
+    const linksSource = readSource("src/components/CanvasLinks.tsx");
+    const renderPathsBlock = sourceBetween(
+      linksSource,
+      "const renderPaths = createMemo(() => {",
+      "const selectedOverlayLinks = createMemo",
+    );
+
+    expect(renderPathsBlock).toContain("const unitById = new Map(");
+    expect(renderPathsBlock).toContain("const allOffsets = portOffsets();");
+    expect(renderPathsBlock).toContain("const cleanView = isCleanView();");
+    expect(renderPathsBlock).not.toContain("list.find(");
+    expect(renderPathsBlock).not.toContain("{ ...sFrom");
+    expect(renderPathsBlock).not.toContain("{ ...sTo");
   });
 
   it("batches drag-start selection and toolbar state updates into one reactive flush", () => {

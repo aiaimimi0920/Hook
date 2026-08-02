@@ -67,6 +67,7 @@ import { removeAnnotationById } from "./services/stickerAnnotationMutations";
 import { stickerContextMenuController } from "./services/stickerContextMenuController";
 import {
     beginCaptureSelectionState,
+    resolveCaptureCtrlModifier,
     resolveShortcutContext,
     shouldStartCanvasSelectionFromTarget,
     type CaptureSelectionMode,
@@ -158,6 +159,8 @@ export default function App() {
       handleSelectionMove,
       handleSelectionEnd,
       resetSelection,
+      beginCaptureSessionLifecycle,
+      invalidateCaptureSessionLifecycle,
       finishAutoLongCaptureSession,
       cancelAutoLongCaptureSession,
       notifyAutoLongCaptureWheel,
@@ -174,17 +177,14 @@ export default function App() {
   const { handlePaste, handleCopy, handleSave, createImageUnit } = useClipboard(); // Assuming I implement Copy later if needed
   useFileDrop();
 
-  const STICKER_GLOBAL_DELETE_ARM_WINDOW_MS = 2500;
-  let lastStickerKeyboardDeleteArmAt = 0;
-  const armStickerKeyboardDelete = () => {
-      lastStickerKeyboardDeleteArmAt = Date.now();
-  };
   const overlaySynthetic = createOverlaySyntheticDispatcher({
       doc: document,
       isLinking: () => linkingState().isLinking,
       getDraggingStickerId: draggingStickerId,
       now: Date.now,
   });
+  let nativeCapturePointerActive = false;
+  let captureCtrlReleasedSinceStart = false;
 
   const isContextualShaderArt = (art: ArtCapability) =>
       supportsShaderPreview(art) &&
@@ -580,6 +580,9 @@ export default function App() {
           onRedoEdit: () => applyStickerHistorySnapshot("redo"),
           onDelete: deleteSelectedUnitOrAnnotation,
           onCancelSelection: async () => {
+              invalidateCaptureSessionLifecycle();
+              nativeCapturePointerActive = false;
+              captureCtrlReleasedSinceStart = false;
               await api.setCaptureInputActive(false);
               resetSelection();
               uiActions.setSelectedStickerAnnotation(null);
@@ -666,6 +669,9 @@ export default function App() {
           return;
       }
 
+      beginCaptureSessionLifecycle();
+      nativeCapturePointerActive = false;
+      captureCtrlReleasedSinceStart = false;
       overlaySynthetic.reset();
       resetSelection();
       setCaptureMode(captureStart.captureMode);
@@ -871,6 +877,9 @@ export default function App() {
                   return;
               }
               if (isSelecting()) {
+                  invalidateCaptureSessionLifecycle();
+                  nativeCapturePointerActive = false;
+                  captureCtrlReleasedSinceStart = false;
                   void (async () => {
                       await api.setCaptureInputActive(false);
                       resetSelection();
@@ -895,49 +904,60 @@ export default function App() {
               if (!selectedStickerId()) {
                   return;
               }
-              const elapsedMs = Date.now() - lastStickerKeyboardDeleteArmAt;
-              if (elapsedMs > STICKER_GLOBAL_DELETE_ARM_WINDOW_MS) {
-                  void api.debugLogEvent("trigger-delete-ignored-stale", `elapsedMs=${elapsedMs}`);
-                  return;
-              }
               deleteSelectedUnitOrAnnotation();
           });
 
           // Create a minimal MouseEvent-compatible object for capture events
-          const toCaptureMouseEvent = (payload: { x?: number; y?: number }): Pick<MouseEvent, "clientX" | "clientY" | "shiftKey" | "ctrlKey" | "target"> => ({
-              clientX: payload?.x ?? 0,
-              clientY: payload?.y ?? 0,
-              shiftKey: false,
-              ctrlKey: false,
-              target: document.getElementById("app-main") as HTMLElement,
-          });
+          type NativeCaptureMousePayload = {
+              x?: number;
+              y?: number;
+              shiftKey?: boolean;
+              ctrlKey?: boolean;
+          };
+          const toCaptureMouseEvent = (payload: NativeCaptureMousePayload): Pick<MouseEvent, "clientX" | "clientY" | "shiftKey" | "ctrlKey" | "target"> => {
+              const ctrlModifier = resolveCaptureCtrlModifier(
+                  captureCtrlReleasedSinceStart,
+                  !!payload?.ctrlKey,
+              );
+              captureCtrlReleasedSinceStart = ctrlModifier.releasedSinceCaptureStart;
+              return {
+                  clientX: payload?.x ?? 0,
+                  clientY: payload?.y ?? 0,
+                  shiftKey: !!payload?.shiftKey,
+                  ctrlKey: ctrlModifier.effectiveCtrlKey,
+                  target: document.getElementById("app-main") as HTMLElement,
+              };
+          };
 
-          const unlistenCaptureDown = await listen<{ x?: number; y?: number }>(
+          const unlistenCaptureDown = await listen<NativeCaptureMousePayload>(
               "capture/global_mouse_down",
               (event) => {
-                  if (!isSelecting()) return;
+                  if (!isSelecting() || nativeCapturePointerActive) return;
+                  nativeCapturePointerActive = true;
                   const captureEvent = toCaptureMouseEvent(event.payload);
                   setMousePos({ x: captureEvent.clientX, y: captureEvent.clientY });
                   handleSelectionStart(captureEvent);
               },
           );
 
-          const unlistenCaptureMove = await listen<{ x?: number; y?: number }>(
+          const unlistenCaptureMove = await listen<NativeCaptureMousePayload>(
               "capture/global_mouse_move",
               (event) => {
-                  if (!isSelecting()) return;
+                  if (!isSelecting() || !nativeCapturePointerActive) return;
                   const captureEvent = toCaptureMouseEvent(event.payload);
                   setMousePos({ x: captureEvent.clientX, y: captureEvent.clientY });
                   handleSelectionMove(captureEvent);
               },
           );
 
-          const unlistenCaptureUp = await listen<{ x?: number; y?: number }>("capture/global_mouse_up", (event) => {
-              if (!isSelecting()) return;
+          const unlistenCaptureUp = await listen<NativeCaptureMousePayload>("capture/global_mouse_up", (event) => {
+              if (!isSelecting() || !nativeCapturePointerActive) return;
+              nativeCapturePointerActive = false;
               const captureEvent = toCaptureMouseEvent(event.payload);
               setMousePos({ x: captureEvent.clientX, y: captureEvent.clientY });
               handleSelectionMove(captureEvent);
               handleSelectionEnd(captureEvent);
+              captureCtrlReleasedSinceStart = false;
           });
 
           const unlistenOverlayMouseDown = await listen<OverlaySyntheticMousePayload>(
@@ -1194,7 +1214,12 @@ export default function App() {
   });
 
   // Global Event Handlers
+  const handledGlobalMouseMoveEvents = new WeakSet<Event>();
+  const handledGlobalMouseUpEvents = new WeakSet<Event>();
+
   const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (handledGlobalMouseMoveEvents.has(e)) return;
+      handledGlobalMouseMoveEvents.add(e);
       if (!draggingStickerId()) {
           setMousePos({ x: e.clientX, y: e.clientY });
       }
@@ -1202,12 +1227,24 @@ export default function App() {
           overlaySynthetic.relayPointerMove(e);
       }
       handleDragMove(e);
-      handleSelectionMove(e);
+      if (!tauriRuntime || !isSelecting()) {
+          handleSelectionMove(e);
+      }
   };
 
   const handleGlobalMouseUp = (e: MouseEvent) => {
+      if (handledGlobalMouseUpEvents.has(e)) return;
+      handledGlobalMouseUpEvents.add(e);
+      // The reliable native Up carries the final cursor coordinates. Apply it
+      // before ending the drag so a fast release cannot strand the sticker at
+      // the previous coalesced/RAF move position.
+      handleDragMove(e);
       handleDragEnd();
-      handleSelectionEnd(e);
+      // Desktop capture has a dedicated native pointer stream. A stale overlay
+      // synthetic mouseup must not terminate the current capture selection.
+      if (!tauriRuntime || !isSelecting()) {
+          handleSelectionEnd(e);
+      }
       overlaySynthetic.reset();
 
       setLinkingState(prev => ({ ...prev, isLinking: false }));
@@ -1250,7 +1287,6 @@ export default function App() {
            return; // Allow native behavior (no preventDefault)
       }
 
-      armStickerKeyboardDelete();
       e.stopPropagation(); // Stop propagation to canvas
       e.preventDefault();  // Stop text selection
 

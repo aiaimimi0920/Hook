@@ -428,6 +428,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
         <Portal>
             <div
                 ref={stripRef}
+                data-hook-drag-follow-unit-id={props.unitId}
                 class="hook-terminal-shell hook-terminal-shell--strong pointer-events-none fixed z-[1210] box-border"
                 style={{
                     left: `${layout().container.left}px`,

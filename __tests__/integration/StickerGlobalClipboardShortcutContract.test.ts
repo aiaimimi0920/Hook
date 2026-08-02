@@ -132,4 +132,50 @@ describe("sticker global clipboard shortcut contract", () => {
     expect(appKeyboardCaptureEffect).toContain("!isSelecting()");
     expect(rdevEscapeDeleteBlock).toContain("overlay_keyboard_capture_should_handle_current_cursor()");
   });
+
+  it("fails open for Alt input owned by another foreground process", () => {
+    const rustSource = readSource("src-tauri/src/lib.rs");
+    const passthroughHelper = sourceBetween(
+      rustSource,
+      "fn should_passthrough_foreign_alt_input",
+      "// A sticker-selected DOM shortcut",
+    );
+    const keyboardHookBlock = sourceBetween(
+      rustSource,
+      "unsafe extern \"system\" fn overlay_keyboard_hook_proc",
+      "fn install_overlay_keyboard_hook_thread",
+    );
+    const mouseHookBlock = sourceBetween(
+      rustSource,
+      'unsafe extern "system" fn capture_mouse_hook_proc',
+      "fn install_capture_mouse_hook_thread",
+    );
+    const shieldRouteBlock = sourceBetween(
+      rustSource,
+      "fn route_overlay_input_shield_mouse_message(",
+      'unsafe extern "system" fn overlay_input_shield_wndproc',
+    );
+    const shieldBlock = sourceBetween(
+      rustSource,
+      "fn set_overlay_input_shield_alt_passthrough",
+      "struct OverlayMainWindowSearchState",
+    );
+
+    expect(passthroughHelper).toContain("alt_pressed");
+    expect(passthroughHelper).toContain("!capture_active");
+    expect(passthroughHelper).toContain("!drag_active");
+    expect(passthroughHelper).toContain("!native_drag_preflight_active");
+    expect(passthroughHelper).toContain("!hook_has_foreground_window");
+    expect(passthroughHelper).toContain("let routed_overlay_wheel = is_wheel_message && should_route_overlay_mouse;");
+    expect(passthroughHelper).toContain("&& !routed_overlay_wheel");
+    expect(keyboardHookBlock).toContain("should_passthrough_foreign_alt_input(");
+    expect(keyboardHookBlock).toContain("hook_process_has_foreground_window()");
+    expect(mouseHookBlock).toContain("should_passthrough_foreign_alt_mouse_input(");
+    expect(mouseHookBlock).toContain("message == WM_MOUSEWHEEL");
+    expect(mouseHookBlock).toContain("should_route_overlay_mouse");
+    expect(shieldRouteBlock).toContain("should_passthrough_foreign_alt_mouse_input(");
+    expect(shieldRouteBlock).toContain("message == WM_MOUSEWHEEL");
+    expect(mouseHookBlock).toContain("set_overlay_input_shield_alt_passthrough(true)");
+    expect(shieldBlock).toContain("WS_EX_TRANSPARENT");
+  });
 });

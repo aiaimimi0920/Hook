@@ -535,3 +535,7 @@ main {
 /* Group Hover Utilities */
 .group:hover .group-hover\:text-white { color: white !important; }
 .group:hover .group-hover\:text-gray-200 { color: #e5e7eb !important; }
+.unit-container[data-live-erase-preview="true"] .sticker-img,
+.unit-container[data-live-erase-preview="true"] .sticker-rasterized-annotation-layer-viewport {
+  visibility: hidden;
+}

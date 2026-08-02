@@ -15,7 +15,7 @@ describe("sticker edit transform contract", () => {
 
     expect(graphStoreSource).toContain("scaleStickerEditDataForFrame");
     expect(graphStoreSource).toContain("resizeStickerFrame");
-    expect(unitViewSource).toContain("props.onResize(nextFrame");
+    expect(unitViewSource).toContain("props.onResize(computeStickerWheelResizeFrame(");
     expect(canvasUnitsSource).toContain("graphStore.actions.resizeStickerFrame(u.id");
     expect(propertyBarSource).toContain("graphStore.actions.resizeStickerFrame(props.unitId");
     expect(nodeParametersSource).toContain("graphStore.actions.resizeStickerFrame(unitId");

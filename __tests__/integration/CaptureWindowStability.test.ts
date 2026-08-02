@@ -14,7 +14,7 @@ describe("capture overlay stability", () => {
     expect(selectionSource).toContain("if (event && isSelecting() && startPos()) {");
     expect(selectionSource).toContain("handleSelectionMove(event);");
 
-    const captureUpStart = appSource.indexOf('const unlistenCaptureUp = await listen<{ x?: number; y?: number }>("capture/global_mouse_up"');
+    const captureUpStart = appSource.indexOf('const unlistenCaptureUp = await listen<NativeCaptureMousePayload>("capture/global_mouse_up"');
     expect(captureUpStart).toBeGreaterThanOrEqual(0);
     const captureUpEnd = appSource.indexOf("const unlistenOverlayMouseDown", captureUpStart);
     expect(captureUpEnd).toBeGreaterThan(captureUpStart);
@@ -24,6 +24,18 @@ describe("capture overlay stability", () => {
     expect(captureUpBlock.indexOf("handleSelectionMove(captureEvent);")).toBeLessThan(
       captureUpBlock.indexOf("handleSelectionEnd(captureEvent);"),
     );
+  });
+
+  it("never lets an out-of-order precise-selection response replace the live pointer rectangle", () => {
+    const selectionPath = path.resolve(process.cwd(), "src/hooks/useSelection.ts");
+    const selectionSource = fs.readFileSync(selectionPath, "utf8");
+
+    expect(selectionSource).toContain("const PRECISE_SELECTION_DEBOUNCE_MS = 80;");
+    expect(selectionSource).toContain("let preciseRequestGeneration = 0;");
+    expect(selectionSource).toContain("requestGeneration !== preciseRequestGeneration");
+    expect(selectionSource).toContain("!captureRectsMatch(selectionRect(), sourceRect)");
+    expect(selectionSource).toContain("captureRectsMatch(preciseRectSource, currentSelectionRect)");
+    expect(selectionSource).toContain("const rect = currentPreciseRect &&");
   });
 
   it("keeps synchronous screen capture work off the hot IPC path and bounds region capture hangs", () => {

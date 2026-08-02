@@ -76,6 +76,11 @@ export type CaptureSelectionStartState =
           duplicateDebugEvent: CaptureDuplicateDebugEvent;
       };
 
+export interface CaptureCtrlModifierState {
+    releasedSinceCaptureStart: boolean;
+    effectiveCtrlKey: boolean;
+}
+
 export const isLongCaptureMode = (mode: CaptureSelectionMode) => mode === "long-vertical";
 
 export const getCaptureDuplicateDebugEvent = (mode: CaptureSelectionMode): CaptureDuplicateDebugEvent =>
@@ -95,6 +100,17 @@ export const beginCaptureSelectionState = (
     return {
         shouldStart: true,
         captureMode: requestedMode,
+    };
+};
+
+export const resolveCaptureCtrlModifier = (
+    releasedSinceCaptureStart: boolean,
+    ctrlPressed: boolean,
+): CaptureCtrlModifierState => {
+    const nextReleasedSinceCaptureStart = releasedSinceCaptureStart || !ctrlPressed;
+    return {
+        releasedSinceCaptureStart: nextReleasedSinceCaptureStart,
+        effectiveCtrlKey: nextReleasedSinceCaptureStart && ctrlPressed,
     };
 };
 

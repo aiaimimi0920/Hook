@@ -28,6 +28,7 @@ describe("Hook desktop color picker contract", () => {
         expect(rustSource).toContain("GetPixel");
 
         expect(annotationLayerSource).toContain('interactionEnabled() && stickerToolSettings.activeTool === "color-picker"');
+        expect(annotationLayerSource).toContain("api.setDesktopColorPickerActive(true)");
         expect(annotationLayerSource).toContain("api.setCaptureInputActive(true)");
         expect(annotationLayerSource).toContain('listen<GlobalColorPickerMousePayload>("capture/global_mouse_move"');
         expect(annotationLayerSource).toContain('listen<GlobalColorPickerMousePayload>("capture/global_mouse_down"');
@@ -36,8 +37,10 @@ describe("Hook desktop color picker contract", () => {
 
     it("updates desktop color preview directly from global mouse event payload without per-move IPC", () => {
         expect(rustSource).toContain("sample_screen_color_physical(global_x.round() as i32, global_y.round() as i32)");
-        expect(rustSource).toContain('"hex": sample.hex');
-        expect(rustSource).toContain('"rgb": sample.rgb');
+        expect(rustSource).toContain("DESKTOP_COLOR_PICKER_ACTIVE.load");
+        expect(rustSource).toContain('payload["hex"] = serde_json::json!(sample.hex)');
+        expect(rustSource).toContain('payload["rgb"] = serde_json::json!(sample.rgb)');
+        expect(apiSource).toContain('safeInvoke("set_desktop_color_picker_active"');
 
         expect(annotationModelSource).toContain("hex?: string");
         expect(annotationModelSource).toContain('rgb?: ScreenColorSample["rgb"]');
@@ -46,6 +49,7 @@ describe("Hook desktop color picker contract", () => {
         expect(annotationLayerSource).toContain("applyDesktopColorPickerSample(event.payload, false)");
         expect(annotationLayerSource).toContain("applyDesktopColorPickerSample(event.payload, true)");
         expect(annotationLayerSource).not.toContain("api.pickScreenColorAt(globalX, globalY)");
+        expect(annotationLayerSource).toContain("api.setDesktopColorPickerActive(false)");
     });
 
     it("shows a live preview swatch near the picked desktop point", () => {

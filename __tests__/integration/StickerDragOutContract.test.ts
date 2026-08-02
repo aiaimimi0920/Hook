@@ -191,8 +191,10 @@ describe("Hook sticker drag-out contract", () => {
     expect(nativeDragHelper).toContain("set_overlay_transparent_style(&window, true);");
     expect(nativeDragHelper).toContain("NATIVE_FILE_DRAG_ACTIVE.store(true, Ordering::SeqCst);");
     expect(nativeDragHelper).toContain("NATIVE_FILE_DRAG_ACTIVE.store(false, Ordering::SeqCst);");
-    expect(nativeDragHelper).toContain("OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(false, Ordering::SeqCst);");
-    expect(nativeDragHelper).toContain("OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(false, Ordering::SeqCst);");
+    expect(nativeDragHelper).toContain("reset_overlay_pointer_session();");
+    expect(rustSource).toContain("fn reset_overlay_pointer_session()");
+    expect(rustSource).toContain("OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(false, Ordering::SeqCst);");
+    expect(rustSource).toContain("OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(false, Ordering::SeqCst);");
     expect(nativeDragHelper).not.toContain("window.hide()");
     expect(nativeDragHelper).not.toContain("show_overlay_host_impl(&window, true);");
     expect(nativeDragHelper.indexOf("hide_overlay_input_shield_window();")).toBeLessThan(
@@ -307,7 +309,9 @@ describe("Hook sticker drag-out contract", () => {
 
     expect(rustSource).toContain("fn is_pointer_over_sticker_body_synthetic_rect(x: f64, y: f64) -> bool");
     expect(hookProcSection).toContain("let shift_sticker_native_drag_preflight =");
-    expect(hookProcSection).toContain("modifiers.shift_pressed && is_pointer_over_sticker_body_synthetic_rect(x, y)");
+    expect(hookProcSection).toMatch(
+      /modifiers\.shift_pressed\s*&&\s*is_pointer_over_sticker_body_synthetic_rect\(x, y\)/,
+    );
     expect(hookProcSection).toContain("OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE");
     expect(hookProcSection).toContain(".store(true, Ordering::SeqCst);");
     expect(hookProcSection).toContain("native_drag_preflight: true");
@@ -345,7 +349,8 @@ describe("Hook sticker drag-out contract", () => {
     expect(pendingOverlayMoveSection).toContain("updateHookStickerExportDragPreview(point.x, point.y);");
     expect(unitViewSource).toContain("Math.hypot(x - start.x, y - start.y) < 6");
     expect(rustSource).toContain("&& !native_drag_preflight_active");
-    expect(rustSource).toContain("should_route_overlay_mouse || native_drag_preflight_active");
+    expect(rustSource).toContain("|| overlay_drag_active");
+    expect(rustSource).toContain("|| native_drag_preflight_active");
     expect(rdevMouseMoveSection).toContain("if NATIVE_FILE_DRAG_ACTIVE.load(Ordering::SeqCst)");
     expect(rdevMouseMoveSection).toContain("|| NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst)");
     expect(rdevMouseMoveSection).toContain("input_state.is_ignoring_events = true;");

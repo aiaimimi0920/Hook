@@ -119,15 +119,31 @@ const resizeStickerFrame = (
         { w: unit.w, h: unit.h },
         frame,
     );
+    const hasEditUpdates = Object.keys(editUpdates).length > 0;
 
-    updateUnit(id, frame);
-
-    if (Object.keys(editUpdates).length > 0) {
-        updateStickerEditData(id, editUpdates);
+    if (hasEditUpdates) {
+        setUnits(
+            (candidate) => candidate.id === id,
+            (previous) => ({
+                ...previous,
+                ...frame,
+                data: {
+                    ...previous.data,
+                    ...editUpdates,
+                    dragOutFilePath: undefined,
+                    stickerEditPropagation: markStickerEditPropagationLocally(
+                        previous.data.stickerEditPropagation,
+                    ),
+                },
+            }),
+        );
         if (options.propagate !== false) {
             propagateStickerEditsFrom(id);
         }
+        return;
     }
+
+    updateUnit(id, frame);
 };
 
 const propagateStickerEditsFrom = (sourceUnitId: string) => {

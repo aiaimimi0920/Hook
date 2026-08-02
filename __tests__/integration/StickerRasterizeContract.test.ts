@@ -69,7 +69,7 @@ describe("Hook sticker rasterize contract", () => {
         expect(bitmapLayersSource).toContain("applyRasterizedContentErase");
         expect(bitmapLayersSource).toContain('globalCompositeOperation = "destination-out"');
         expect(annotationModelSource).toContain('mode: "line" | "polyline" | "arrow" | "brush" | "highlighter" | "content-eraser" | "mosaic" | "blur"');
-        expect(annotationLayerSource).toContain("eraseRasterizedAnnotationLayer");
+        expect(annotationLayerSource).toContain("createLiveStickerEraseSession");
         expect(annotationLayerSource).toContain("applyContentEraseToBaseLayer");
         expect(annotationLayerSource).toContain("applyRasterizedContentErase");
         expect(annotationLayerSource).toContain("commitContentErase");
@@ -88,19 +88,35 @@ describe("Hook sticker rasterize contract", () => {
     });
 
     it("applies content eraser annotation-only strokes while the pointer is dragging", () => {
-        expect(annotationLayerSource).toContain("beginLiveRasterizedAnnotationErase");
-        expect(annotationLayerSource).toContain("applyLiveRasterizedAnnotationErase");
-        expect(annotationLayerSource).toContain("finishLiveRasterizedAnnotationErase");
-        expect(annotationLayerSource).toContain('currentDraft?.mode === "content-eraser" && rasterizedEraseQueue.isActive');
-        expect(annotationLayerSource).toContain("void applyLiveRasterizedAnnotationErase([lastPoint, point])");
-        expect(annotationLayerSource).toContain("patchUnitDataLocally");
+        const liveEraseStart = annotationLayerSource.indexOf(
+            "// Dragging mutates decoded in-memory canvases",
+        );
+        const liveEraseEnd = annotationLayerSource.indexOf(
+            "const applyDesktopColorPickerSample",
+            liveEraseStart,
+        );
+        const liveEraseSource = annotationLayerSource.slice(liveEraseStart, liveEraseEnd);
+
+        expect(liveEraseStart).toBeGreaterThanOrEqual(0);
+        expect(liveEraseEnd).toBeGreaterThan(liveEraseStart);
+        expect(liveEraseSource).toContain("createLiveStickerEraseSession");
+        expect(liveEraseSource).toContain("liveEraseSession.queueErase");
+        expect(liveEraseSource).toContain("session.finish()");
+        expect(liveEraseSource).toContain('finishLiveErase("annotations")');
+        expect(liveEraseSource).not.toContain("patchUnitDataLocally");
+        expect(liveEraseSource).not.toContain("eraseRasterizedAnnotationLayer");
+        expect(liveEraseSource).not.toContain("applyLiveContentEraseToStickerLayers");
         expect(annotationLayerSource).not.toContain("await commitRasterizedAnnotationErase(line.points);");
     });
 
-    it("keeps the rasterized annotation layer wired through live default content erase", () => {
-        expect(bitmapLayersSource).toContain("applyLiveContentEraseToStickerLayers");
-        expect(annotationLayerSource).toContain("applyLiveContentEraseToStickerLayers");
-        expect(annotationLayerSource).toContain("liveContentEraseRasterizedAnnotationLayerSrc");
-        expect(annotationLayerSource).toContain("rasterizedAnnotationLayerSrc: next.rasterizedAnnotationLayerSrc");
+    it("keeps live content erase on a canvas preview and encodes bitmap state only when the stroke finishes", () => {
+        expect(bitmapLayersSource).toContain("export class LiveStickerEraseSession");
+        expect(bitmapLayersSource).toContain("requestFrame(() => {");
+        expect(bitmapLayersSource).toContain('this.baseCanvas.toDataURL("image/png")');
+        expect(annotationLayerSource).toContain('data-live-erase-preview');
+        expect(annotationLayerSource).toContain("liveErasePreviewRef");
+        expect(annotationLayerSource).toContain(
+            "rasterizedAnnotationLayerSrc: result.rasterizedAnnotationLayerSrc",
+        );
     });
 });

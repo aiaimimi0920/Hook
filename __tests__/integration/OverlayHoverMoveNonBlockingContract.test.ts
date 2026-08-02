@@ -21,8 +21,9 @@ describe("overlay move non-blocking contract", () => {
       "unsafe extern \"system\" fn capture_mouse_hook_proc",
       "fn install_capture_mouse_hook_thread",
     );
+    const overlayPath = hookProcBlock.slice(hookProcBlock.indexOf("let should_route_overlay_mouse ="));
     const moveBlock = sourceBetween(
-      hookProcBlock,
+      overlayPath,
       "WM_MOUSEMOVE => {",
       "WM_LBUTTONDOWN => {",
     );
@@ -30,7 +31,9 @@ describe("overlay move non-blocking contract", () => {
     expect(moveBlock).toContain("should_route_overlay_mouse");
     expect(moveBlock).toContain("CaptureMouseHookEvent::OverlayMove");
     expect(moveBlock).toContain("OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);");
-    expect(moveBlock).toContain("if !capture_active && overlay_hover_active {");
+    expect(moveBlock).toContain("if !should_route_overlay_mouse");
+    expect(moveBlock).toContain("&& !overlay_drag_active");
+    expect(moveBlock).toContain("&& overlay_hover_active");
     expect(moveBlock).not.toContain("return LRESULT(1);");
   });
 });

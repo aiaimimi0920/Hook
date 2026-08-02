@@ -7,6 +7,7 @@ import {
     resolveAutoLongCaptureBurstPollInterval,
     resolveAutoLongCapturePollInterval,
     resolveAutoLongCaptureSessionPollInterval,
+    resolveCaptureCtrlModifier,
     resolveShortcutContext,
     shouldLogAutoLongCaptureFrame,
     resolveAutoLongCaptureWheelPollInterval,
@@ -48,6 +49,21 @@ describe("capture state helpers", () => {
         expect(beginCaptureSelectionState("long-vertical", true)).toEqual({
             shouldStart: false,
             duplicateDebugEvent: "trigger-long-capture-ignored-duplicate",
+        });
+    });
+
+    it("ignores Ctrl inherited from Ctrl+1 until Ctrl has been released once", () => {
+        expect(resolveCaptureCtrlModifier(false, true)).toEqual({
+            releasedSinceCaptureStart: false,
+            effectiveCtrlKey: false,
+        });
+        expect(resolveCaptureCtrlModifier(false, false)).toEqual({
+            releasedSinceCaptureStart: true,
+            effectiveCtrlKey: false,
+        });
+        expect(resolveCaptureCtrlModifier(true, true)).toEqual({
+            releasedSinceCaptureStart: true,
+            effectiveCtrlKey: true,
         });
     });
 

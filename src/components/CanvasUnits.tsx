@@ -5,7 +5,6 @@ import {
     selectedStickerId,
     selectedUnitIds,
     unitUiState,
-    multiDragPositions,
     activeStickerGroupId,
     uiActions,
 } from "../store/uiStore";
@@ -85,7 +84,6 @@ export const CanvasUnits: Component<CanvasUnitsProps> = (props) => {
           <UnitView
               // State
               unit={u}
-              multiDragPositions={multiDragPositions()}
               params={graphStore.unitParams[u.id] || {}}
               execConfig={graphStore.unitExecConfig[u.id]}
               isSelected={selectedUnitIds.includes(u.id) || selectedStickerId() === u.id}

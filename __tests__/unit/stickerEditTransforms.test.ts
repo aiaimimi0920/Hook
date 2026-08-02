@@ -105,6 +105,50 @@ describe("sticker edit transforms", () => {
     });
   });
 
+  it("does not rebuild empty edit state during an ordinary image-only resize", () => {
+    const scaled = scaleStickerEditDataForFrame(
+      {
+        annotationState: {
+          serialCounter: 1,
+          elements: [],
+        },
+        imageEditState: {
+          contentEraseStrokes: [],
+        },
+      },
+      { w: 100, h: 80 },
+      { w: 150, h: 120 },
+    );
+
+    expect(scaled).toEqual({});
+  });
+
+  it("does not create edit patches when the sticker frame size is unchanged", () => {
+    const scaled = scaleStickerEditDataForFrame(
+      {
+        annotationState: {
+          serialCounter: 1,
+          elements: [
+            {
+              id: "rect",
+              type: "rect",
+              zIndex: 1,
+              x: 10,
+              y: 10,
+              w: 20,
+              h: 20,
+              style: { color: "#fff", width: 2, opacity: 1 },
+            },
+          ],
+        },
+      },
+      { w: 100, h: 80 },
+      { w: 100, h: 80 },
+    );
+
+    expect(scaled).toEqual({});
+  });
+
   it("scales brush-style effect annotations, including stroke points, brush width, and strength, when a sticker frame is resized", () => {
     const sourceFrame: Pick<Unit, "w" | "h"> = { w: 100, h: 100 };
     const targetFrame: Pick<Unit, "w" | "h"> = { w: 200, h: 50 };

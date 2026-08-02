@@ -25,8 +25,8 @@ use std::fs;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, OnceLock};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -69,8 +69,8 @@ use windows::Win32::UI::Controls::Dialogs::{
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, VK_BACK, VK_CONTROL, VK_DELETE, VK_ESCAPE, VK_LSHIFT, VK_MENU, VK_RSHIFT,
-    VK_SHIFT, VK_TAB,
+    GetAsyncKeyState, VK_BACK, VK_CONTROL, VK_DELETE, VK_ESCAPE, VK_LBUTTON, VK_LMENU, VK_LSHIFT,
+    VK_MENU, VK_RMENU, VK_RSHIFT, VK_SHIFT, VK_TAB,
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Shell::{
@@ -470,6 +470,7 @@ pub(crate) fn append_runtime_log_line(message: &str) {
 fn install_panic_logger() {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
+        prepare_for_hook_process_exit("panic");
         let location = info
             .location()
             .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
@@ -1245,67 +1246,50 @@ fn emit_capture_mouse_event(
     global_y: f64,
     modifiers: ModifierSnapshot,
     native_drag_preflight: bool,
+    metrics: Option<CaptureWindowMetrics>,
 ) {
-    let sample =
-        sample_screen_color_physical(global_x.round() as i32, global_y.round() as i32).ok();
-    if let Some(metrics) = capture_window_metrics(window) {
+    let sample = if event_name.starts_with("capture/")
+        && DESKTOP_COLOR_PICKER_ACTIVE.load(Ordering::Relaxed)
+    {
+        sample_screen_color_physical(global_x.round() as i32, global_y.round() as i32).ok()
+    } else {
+        None
+    };
+    if let Some(metrics) = metrics {
         let local = normalize_global_physical_to_local_logical(global_x, global_y, metrics);
-        let payload = match sample {
-            Some(sample) => serde_json::json!({
-                "x": local.x,
-                "y": local.y,
-                "globalX": global_x,
-                "globalY": global_y,
-                "scaleFactor": metrics.scale_factor,
-                "physicalOriginX": metrics.physical_origin_x,
-                "physicalOriginY": metrics.physical_origin_y,
-                "ctrlKey": modifiers.ctrl_pressed,
-                "altKey": modifiers.alt_pressed,
-                "shiftKey": modifiers.shift_pressed,
-                "nativeDragPreflight": native_drag_preflight,
-                "hex": sample.hex,
-                "rgb": sample.rgb,
-            }),
-            None => serde_json::json!({
-                "x": local.x,
-                "y": local.y,
-                "globalX": global_x,
-                "globalY": global_y,
-                "scaleFactor": metrics.scale_factor,
-                "physicalOriginX": metrics.physical_origin_x,
-                "physicalOriginY": metrics.physical_origin_y,
-                "ctrlKey": modifiers.ctrl_pressed,
-                "altKey": modifiers.alt_pressed,
-                "shiftKey": modifiers.shift_pressed,
-                "nativeDragPreflight": native_drag_preflight,
-            }),
-        };
+        let mut payload = serde_json::json!({
+            "x": local.x,
+            "y": local.y,
+            "globalX": global_x,
+            "globalY": global_y,
+            "scaleFactor": metrics.scale_factor,
+            "physicalOriginX": metrics.physical_origin_x,
+            "physicalOriginY": metrics.physical_origin_y,
+            "ctrlKey": modifiers.ctrl_pressed,
+            "altKey": modifiers.alt_pressed,
+            "shiftKey": modifiers.shift_pressed,
+            "nativeDragPreflight": native_drag_preflight,
+        });
+        if let Some(sample) = sample.as_ref() {
+            payload["hex"] = serde_json::json!(sample.hex);
+            payload["rgb"] = serde_json::json!(sample.rgb);
+        }
         let _ = window.emit(event_name, payload);
     } else {
-        let payload = match sample {
-            Some(sample) => serde_json::json!({
-                "x": global_x,
-                "y": global_y,
-                "globalX": global_x,
-                "globalY": global_y,
-                "ctrlKey": modifiers.ctrl_pressed,
-                "altKey": modifiers.alt_pressed,
-                "shiftKey": modifiers.shift_pressed,
-                "nativeDragPreflight": native_drag_preflight,
-                "hex": sample.hex,
-                "rgb": sample.rgb,
-            }),
-            None => serde_json::json!({
-                "x": global_x,
-                "y": global_y,
-                "globalX": global_x,
-                "globalY": global_y,
-                "ctrlKey": modifiers.ctrl_pressed,
-                "altKey": modifiers.alt_pressed,
-                "shiftKey": modifiers.shift_pressed,
-                "nativeDragPreflight": native_drag_preflight,
-            }),
-        };
+        let mut payload = serde_json::json!({
+            "x": global_x,
+            "y": global_y,
+            "globalX": global_x,
+            "globalY": global_y,
+            "ctrlKey": modifiers.ctrl_pressed,
+            "altKey": modifiers.alt_pressed,
+            "shiftKey": modifiers.shift_pressed,
+            "nativeDragPreflight": native_drag_preflight,
+        });
+        if let Some(sample) = sample.as_ref() {
+            payload["hex"] = serde_json::json!(sample.hex);
+            payload["rgb"] = serde_json::json!(sample.rgb);
+        }
         let _ = window.emit(event_name, payload);
     }
 }
@@ -1336,8 +1320,9 @@ fn emit_overlay_wheel_event(
     global_y: f64,
     delta_y: f64,
     modifiers: ModifierSnapshot,
+    metrics: Option<CaptureWindowMetrics>,
 ) {
-    if let Some(metrics) = capture_window_metrics(window) {
+    if let Some(metrics) = metrics {
         let local = normalize_global_physical_to_local_logical(global_x, global_y, metrics);
         let payload = serde_json::json!({
             "x": local.x,
@@ -1396,6 +1381,8 @@ enum CaptureMouseHookEvent {
         y: f64,
         modifiers: ModifierSnapshot,
         native_drag_preflight: bool,
+        source: OverlayPointerSource,
+        continuation: bool,
     },
     OverlayMove {
         x: f64,
@@ -1408,6 +1395,7 @@ enum CaptureMouseHookEvent {
         y: f64,
         modifiers: ModifierSnapshot,
         native_drag_preflight: bool,
+        source: OverlayPointerSource,
     },
     OverlayWheel {
         x: f64,
@@ -1420,6 +1408,387 @@ enum CaptureMouseHookEvent {
         y: f64,
         modifiers: ModifierSnapshot,
     },
+}
+
+#[cfg(target_os = "windows")]
+const CAPTURE_MOUSE_UP_BOUNCE_WINDOW: Duration = Duration::from_millis(35);
+#[cfg(target_os = "windows")]
+const OVERLAY_MOUSE_UP_BOUNCE_WINDOW: Duration = Duration::from_millis(35);
+#[cfg(target_os = "windows")]
+const CAPTURE_MOUSE_MOVE_EMIT_INTERVAL: Duration = Duration::from_millis(8);
+#[cfg(target_os = "windows")]
+const OVERLAY_MOUSE_MOVE_EMIT_INTERVAL: Duration = Duration::from_millis(8);
+
+#[cfg(target_os = "windows")]
+const OVERLAY_POINTER_STATE_NONE: u8 = 0;
+
+#[cfg(target_os = "windows")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+enum OverlayPointerSource {
+    LowLevelHook = 1,
+    InputShield = 2,
+}
+
+#[cfg(target_os = "windows")]
+impl OverlayPointerSource {
+    fn down_state(self) -> u8 {
+        match self {
+            Self::LowLevelHook => 1,
+            Self::InputShield => 3,
+        }
+    }
+
+    fn up_pending_state(self) -> u8 {
+        match self {
+            Self::LowLevelHook => 2,
+            Self::InputShield => 4,
+        }
+    }
+
+    fn log_name(self) -> &'static str {
+        match self {
+            Self::LowLevelHook => "low_level_hook",
+            Self::InputShield => "input_shield",
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OverlayPointerDownTransition {
+    Started,
+    Continued,
+    IgnoredDuplicate,
+    IgnoredForeignOwner,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OverlayPointerUpTransition {
+    Candidate,
+    IgnoredDuplicate,
+    IgnoredUnpaired,
+    IgnoredForeignOwner,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OverlayPointerReleaseResult {
+    Released,
+    SuppressedPhysicalDown,
+    Superseded,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug)]
+enum CaptureMouseUpDebounceResult {
+    Release {
+        deferred_event: Option<CaptureMouseHookEvent>,
+    },
+    Continue {
+        x: f64,
+        y: f64,
+        modifiers: ModifierSnapshot,
+    },
+    Disconnected,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug)]
+enum OverlayMouseUpDebounceResult {
+    Release {
+        deferred_event: Option<CaptureMouseHookEvent>,
+        latest_move: Option<OverlayMouseMoveSnapshot>,
+    },
+    Continue {
+        x: f64,
+        y: f64,
+        modifiers: ModifierSnapshot,
+        native_drag_preflight: bool,
+    },
+    Disconnected,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug, Clone, Copy)]
+struct OverlayMouseMoveSnapshot {
+    x: f64,
+    y: f64,
+    modifiers: ModifierSnapshot,
+    native_drag_preflight: bool,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug)]
+enum CaptureMouseMoveCoalesceResult {
+    Ready {
+        x: f64,
+        y: f64,
+        modifiers: ModifierSnapshot,
+        deferred_event: Option<CaptureMouseHookEvent>,
+    },
+    Disconnected,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug)]
+enum OverlayMouseMoveCoalesceResult {
+    Ready {
+        x: f64,
+        y: f64,
+        modifiers: ModifierSnapshot,
+        native_drag_preflight: bool,
+        deferred_event: Option<CaptureMouseHookEvent>,
+    },
+    Disconnected,
+}
+
+#[cfg(target_os = "windows")]
+fn wait_for_capture_mouse_up_debounce(
+    receiver: &mpsc::Receiver<CaptureMouseHookEvent>,
+    timeout: Duration,
+) -> CaptureMouseUpDebounceResult {
+    let deadline = Instant::now() + timeout;
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match receiver.recv_timeout(remaining) {
+            Ok(CaptureMouseHookEvent::Down { x, y, modifiers }) => {
+                return CaptureMouseUpDebounceResult::Continue { x, y, modifiers };
+            }
+            Ok(CaptureMouseHookEvent::Move { .. })
+            | Ok(CaptureMouseHookEvent::Up { .. })
+            | Ok(CaptureMouseHookEvent::Wheel { .. }) => {
+                // Moves after a candidate Up do not alter its final coordinates.
+                // A Down inside the bounce window is the only event that turns
+                // this release into a continuation of the current drag.
+            }
+            Ok(other) => {
+                return CaptureMouseUpDebounceResult::Release {
+                    deferred_event: Some(other),
+                };
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                return CaptureMouseUpDebounceResult::Release {
+                    deferred_event: None,
+                };
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return CaptureMouseUpDebounceResult::Disconnected;
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn wait_for_overlay_mouse_up_debounce(
+    receiver: &mpsc::Receiver<CaptureMouseHookEvent>,
+    source: OverlayPointerSource,
+    timeout: Duration,
+) -> OverlayMouseUpDebounceResult {
+    let deadline = Instant::now() + timeout;
+    let mut latest_move = None;
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match receiver.recv_timeout(remaining) {
+            Ok(CaptureMouseHookEvent::OverlayDown {
+                x,
+                y,
+                modifiers,
+                native_drag_preflight,
+                source: down_source,
+                continuation: true,
+            }) if down_source == source => {
+                return OverlayMouseUpDebounceResult::Continue {
+                    x,
+                    y,
+                    modifiers,
+                    native_drag_preflight,
+                };
+            }
+            Ok(CaptureMouseHookEvent::OverlayMove {
+                x,
+                y,
+                modifiers,
+                native_drag_preflight,
+            }) => {
+                latest_move = Some(OverlayMouseMoveSnapshot {
+                    x,
+                    y,
+                    modifiers,
+                    native_drag_preflight,
+                });
+                // Keep the shield and drag session alive while the candidate Up
+                // settles. A matching recovery Down, or the physical button
+                // state checked by the worker, decides whether this is release.
+            }
+            Ok(other) => {
+                return OverlayMouseUpDebounceResult::Release {
+                    deferred_event: Some(other),
+                    latest_move,
+                };
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                return OverlayMouseUpDebounceResult::Release {
+                    deferred_event: None,
+                    latest_move,
+                };
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return OverlayMouseUpDebounceResult::Disconnected;
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn coalesce_capture_mouse_move_until_emit(
+    receiver: &mpsc::Receiver<CaptureMouseHookEvent>,
+    mut x: f64,
+    mut y: f64,
+    mut modifiers: ModifierSnapshot,
+    last_emit: Instant,
+    interval: Duration,
+) -> CaptureMouseMoveCoalesceResult {
+    let deadline = last_emit + interval;
+
+    while Instant::now() < deadline {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match receiver.recv_timeout(remaining) {
+            Ok(CaptureMouseHookEvent::Move {
+                x: next_x,
+                y: next_y,
+                modifiers: next_modifiers,
+            }) => {
+                x = next_x;
+                y = next_y;
+                modifiers = next_modifiers;
+            }
+            Ok(other_event) => {
+                return CaptureMouseMoveCoalesceResult::Ready {
+                    x,
+                    y,
+                    modifiers,
+                    deferred_event: Some(other_event),
+                };
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => break,
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return CaptureMouseMoveCoalesceResult::Disconnected;
+            }
+        }
+    }
+
+    loop {
+        match receiver.try_recv() {
+            Ok(CaptureMouseHookEvent::Move {
+                x: next_x,
+                y: next_y,
+                modifiers: next_modifiers,
+            }) => {
+                x = next_x;
+                y = next_y;
+                modifiers = next_modifiers;
+            }
+            Ok(other_event) => {
+                return CaptureMouseMoveCoalesceResult::Ready {
+                    x,
+                    y,
+                    modifiers,
+                    deferred_event: Some(other_event),
+                };
+            }
+            Err(mpsc::TryRecvError::Empty) => {
+                return CaptureMouseMoveCoalesceResult::Ready {
+                    x,
+                    y,
+                    modifiers,
+                    deferred_event: None,
+                };
+            }
+            Err(mpsc::TryRecvError::Disconnected) => {
+                return CaptureMouseMoveCoalesceResult::Disconnected;
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn coalesce_overlay_mouse_move_until_emit(
+    receiver: &mpsc::Receiver<CaptureMouseHookEvent>,
+    mut x: f64,
+    mut y: f64,
+    mut modifiers: ModifierSnapshot,
+    native_drag_preflight: bool,
+    last_emit: Instant,
+    interval: Duration,
+) -> OverlayMouseMoveCoalesceResult {
+    let deadline = last_emit + interval;
+
+    while Instant::now() < deadline {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match receiver.recv_timeout(remaining) {
+            Ok(CaptureMouseHookEvent::OverlayMove {
+                x: next_x,
+                y: next_y,
+                modifiers: next_modifiers,
+                native_drag_preflight: next_native_drag_preflight,
+            }) if next_native_drag_preflight == native_drag_preflight => {
+                x = next_x;
+                y = next_y;
+                modifiers = next_modifiers;
+            }
+            Ok(other_event) => {
+                return OverlayMouseMoveCoalesceResult::Ready {
+                    x,
+                    y,
+                    modifiers,
+                    native_drag_preflight,
+                    deferred_event: Some(other_event),
+                };
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => break,
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return OverlayMouseMoveCoalesceResult::Disconnected;
+            }
+        }
+    }
+
+    loop {
+        match receiver.try_recv() {
+            Ok(CaptureMouseHookEvent::OverlayMove {
+                x: next_x,
+                y: next_y,
+                modifiers: next_modifiers,
+                native_drag_preflight: next_native_drag_preflight,
+            }) if next_native_drag_preflight == native_drag_preflight => {
+                x = next_x;
+                y = next_y;
+                modifiers = next_modifiers;
+            }
+            Ok(other_event) => {
+                return OverlayMouseMoveCoalesceResult::Ready {
+                    x,
+                    y,
+                    modifiers,
+                    native_drag_preflight,
+                    deferred_event: Some(other_event),
+                };
+            }
+            Err(mpsc::TryRecvError::Empty) => {
+                return OverlayMouseMoveCoalesceResult::Ready {
+                    x,
+                    y,
+                    modifiers,
+                    native_drag_preflight,
+                    deferred_event: None,
+                };
+            }
+            Err(mpsc::TryRecvError::Disconnected) => {
+                return OverlayMouseMoveCoalesceResult::Disconnected;
+            }
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -1455,16 +1824,15 @@ struct ForwardedShortcutPayload {
 }
 
 #[cfg(target_os = "windows")]
-const CAPTURE_MOUSE_EVENT_QUEUE_CAPACITY: usize = 2048;
-
-#[cfg(target_os = "windows")]
-static CAPTURE_MOUSE_EVENT_SENDER: OnceLock<mpsc::SyncSender<CaptureMouseHookEvent>> =
-    OnceLock::new();
+static CAPTURE_MOUSE_EVENT_SENDER: OnceLock<mpsc::Sender<CaptureMouseHookEvent>> = OnceLock::new();
+static DESKTOP_COLOR_PICKER_ACTIVE: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
 static OVERLAY_KEYBOARD_EVENT_SENDER: OnceLock<mpsc::SyncSender<OverlayKeyboardHookEvent>> =
     OnceLock::new();
 #[cfg(target_os = "windows")]
 static CAPTURE_MOUSE_HOOK_ACTIVE: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+static CAPTURE_MOUSE_HOOK_BUTTON_DOWN: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
 static OVERLAY_KEYBOARD_CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
@@ -1476,6 +1844,8 @@ static OVERLAY_MOUSE_HIT_MAP: OnceLock<Arc<std::sync::Mutex<Vec<mouse_monitor::R
     OnceLock::new();
 #[cfg(target_os = "windows")]
 static OVERLAY_MOUSE_HIT_MAP_ACTIVE: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+static OVERLAY_POINTER_STATE: AtomicU8 = AtomicU8::new(OVERLAY_POINTER_STATE_NONE);
 #[cfg(target_os = "windows")]
 static OVERLAY_MOUSE_HOOK_DRAG_ACTIVE: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
@@ -1503,6 +1873,8 @@ static OVERLAY_INPUT_SHIELD_WNDPROC_PREVIOUS: OnceLock<isize> = OnceLock::new();
 #[cfg(target_os = "windows")]
 static OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
+static OVERLAY_INPUT_SHIELD_ALT_PASSTHROUGH: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
 static OVERLAY_MAIN_HWND: OnceLock<isize> = OnceLock::new();
 #[cfg(target_os = "windows")]
 static OVERLAY_TOPMOST_MAINTENANCE_STARTED: AtomicBool = AtomicBool::new(false);
@@ -1518,6 +1890,35 @@ static UIACCESS_OVERLAY_STARTUP_STAGED: AtomicBool = AtomicBool::new(false);
 static UIACCESS_FRONTEND_MOUNTED: AtomicBool = AtomicBool::new(false);
 static UIACCESS_PENDING_OVERLAY_CLICK_THROUGH: AtomicBool = AtomicBool::new(true);
 
+#[cfg(target_os = "windows")]
+const EMERGENCY_ESCAPE_WINDOW: Duration = Duration::from_millis(400);
+#[cfg(target_os = "windows")]
+static ESCAPE_KEY_DOWN: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+static EMERGENCY_ESCAPE_TRACKER: OnceLock<Mutex<EmergencyEscapeTracker>> = OnceLock::new();
+#[cfg(target_os = "windows")]
+static RDEV_ESCAPE_KEY_DOWN: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+static RDEV_EMERGENCY_ESCAPE_TRACKER: OnceLock<Mutex<EmergencyEscapeTracker>> = OnceLock::new();
+
+#[cfg(target_os = "windows")]
+#[derive(Default)]
+struct EmergencyEscapeTracker {
+    last_press: Option<Instant>,
+}
+
+#[cfg(target_os = "windows")]
+impl EmergencyEscapeTracker {
+    fn record_press(&mut self, now: Instant) -> bool {
+        let should_exit = self
+            .last_press
+            .map(|last_press| now.duration_since(last_press) < EMERGENCY_ESCAPE_WINDOW)
+            .unwrap_or(false);
+        self.last_press = Some(now);
+        should_exit
+    }
+}
+
 fn uiaccess_build_enabled() -> bool {
     cfg!(target_os = "windows") && option_env!("HOOK_WINDOWS_UIACCESS_BUILD").is_some()
 }
@@ -1525,8 +1926,193 @@ fn uiaccess_build_enabled() -> bool {
 #[cfg(target_os = "windows")]
 fn queue_capture_mouse_hook_event(event: CaptureMouseHookEvent) {
     if let Some(sender) = CAPTURE_MOUSE_EVENT_SENDER.get() {
-        let _ = sender.try_send(event);
+        if sender.send(event).is_err() {
+            append_runtime_log_line("capture_mouse_event_channel_disconnected");
+        }
     }
+}
+
+#[cfg(target_os = "windows")]
+fn claim_capture_button_transition(state: &AtomicBool, pressed: bool) -> bool {
+    if pressed {
+        !state.swap(true, Ordering::SeqCst)
+    } else {
+        state.swap(false, Ordering::SeqCst)
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn claim_overlay_pointer_down(
+    state: &AtomicU8,
+    source: OverlayPointerSource,
+) -> OverlayPointerDownTransition {
+    loop {
+        let current = state.load(Ordering::SeqCst);
+        if current == source.down_state() {
+            return OverlayPointerDownTransition::IgnoredDuplicate;
+        }
+        let pending_release = current == OverlayPointerSource::LowLevelHook.up_pending_state()
+            || current == OverlayPointerSource::InputShield.up_pending_state();
+        if current != OVERLAY_POINTER_STATE_NONE && !pending_release {
+            return OverlayPointerDownTransition::IgnoredForeignOwner;
+        }
+
+        let transition = if pending_release {
+            OverlayPointerDownTransition::Continued
+        } else {
+            OverlayPointerDownTransition::Started
+        };
+        if state
+            .compare_exchange(
+                current,
+                source.down_state(),
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            )
+            .is_ok()
+        {
+            return transition;
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn claim_overlay_pointer_up(
+    state: &AtomicU8,
+    source: OverlayPointerSource,
+) -> OverlayPointerUpTransition {
+    loop {
+        let current = state.load(Ordering::SeqCst);
+        if current == OVERLAY_POINTER_STATE_NONE {
+            return OverlayPointerUpTransition::IgnoredUnpaired;
+        }
+        if current == source.up_pending_state() {
+            return OverlayPointerUpTransition::IgnoredDuplicate;
+        }
+        if current != source.down_state() {
+            return OverlayPointerUpTransition::IgnoredForeignOwner;
+        }
+
+        if state
+            .compare_exchange(
+                current,
+                source.up_pending_state(),
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            )
+            .is_ok()
+        {
+            return OverlayPointerUpTransition::Candidate;
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn resolve_overlay_pointer_release(
+    state: &AtomicU8,
+    source: OverlayPointerSource,
+    primary_button_physically_down: bool,
+) -> OverlayPointerReleaseResult {
+    if primary_button_physically_down {
+        return match state.compare_exchange(
+            source.up_pending_state(),
+            source.down_state(),
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+        ) {
+            Ok(_) => OverlayPointerReleaseResult::SuppressedPhysicalDown,
+            Err(current) if current == source.down_state() => {
+                OverlayPointerReleaseResult::SuppressedPhysicalDown
+            }
+            Err(_) => OverlayPointerReleaseResult::Superseded,
+        };
+    }
+
+    match state.compare_exchange(
+        source.up_pending_state(),
+        OVERLAY_POINTER_STATE_NONE,
+        Ordering::SeqCst,
+        Ordering::SeqCst,
+    ) {
+        Ok(_) => OverlayPointerReleaseResult::Released,
+        Err(_) => OverlayPointerReleaseResult::Superseded,
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn overlay_pointer_source_owns_session(source: OverlayPointerSource) -> bool {
+    matches!(
+        OVERLAY_POINTER_STATE.load(Ordering::SeqCst),
+        current if current == source.down_state() || current == source.up_pending_state()
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn reset_overlay_pointer_session() {
+    OVERLAY_POINTER_STATE.store(OVERLAY_POINTER_STATE_NONE, Ordering::SeqCst);
+    OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(false, Ordering::SeqCst);
+    OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(false, Ordering::SeqCst);
+    OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(false, Ordering::SeqCst);
+    OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(false, Ordering::SeqCst);
+}
+
+#[cfg(target_os = "windows")]
+fn overlay_primary_button_physically_down() -> bool {
+    (unsafe { GetAsyncKeyState(VK_LBUTTON.0 as i32) }) < 0
+}
+
+#[cfg(target_os = "windows")]
+fn handle_emergency_escape_transition_with(
+    key_down: &AtomicBool,
+    tracker: &OnceLock<Mutex<EmergencyEscapeTracker>>,
+    pressed: bool,
+    source: &str,
+) -> bool {
+    if !pressed {
+        key_down.store(false, Ordering::SeqCst);
+        return false;
+    }
+
+    if key_down.swap(true, Ordering::SeqCst) {
+        return false;
+    }
+
+    let should_exit = tracker
+        .get_or_init(|| Mutex::new(EmergencyEscapeTracker::default()))
+        .lock()
+        .map(|mut tracker| tracker.record_press(Instant::now()))
+        .unwrap_or(false);
+    append_runtime_log_line(&format!("emergency_escape_press :: source={}", source));
+    if should_exit {
+        append_runtime_log_line_sync(&format!(
+            "[{}] emergency_double_escape_exit :: source={}",
+            runtime_log_timestamp(),
+            source
+        ));
+        prepare_for_hook_process_exit("double_escape");
+        std::process::exit(0);
+    }
+    true
+}
+
+#[cfg(target_os = "windows")]
+fn handle_emergency_escape_transition(pressed: bool, source: &str) -> bool {
+    handle_emergency_escape_transition_with(
+        &ESCAPE_KEY_DOWN,
+        &EMERGENCY_ESCAPE_TRACKER,
+        pressed,
+        source,
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn handle_rdev_emergency_escape_transition(pressed: bool) -> bool {
+    handle_emergency_escape_transition_with(
+        &RDEV_ESCAPE_KEY_DOWN,
+        &RDEV_EMERGENCY_ESCAPE_TRACKER,
+        pressed,
+        "rdev",
+    )
 }
 
 #[cfg(target_os = "windows")]
@@ -1534,6 +2120,24 @@ fn queue_overlay_keyboard_hook_event(event: OverlayKeyboardHookEvent) {
     if let Some(sender) = OVERLAY_KEYBOARD_EVENT_SENDER.get() {
         let _ = sender.try_send(event);
     }
+}
+
+#[cfg(target_os = "windows")]
+fn try_begin_capture_input_runtime() -> bool {
+    if CAPTURE_MOUSE_HOOK_ACTIVE.swap(true, Ordering::SeqCst) {
+        return false;
+    }
+
+    CAPTURE_MOUSE_HOOK_BUTTON_DOWN.store(false, Ordering::SeqCst);
+    append_runtime_log_line("capture_mouse_hook_active :: true");
+    set_capture_cursor_crosshair();
+    true
+}
+
+#[cfg(not(target_os = "windows"))]
+fn try_begin_capture_input_runtime() -> bool {
+    set_capture_input_runtime_active(true);
+    true
 }
 
 #[cfg(target_os = "windows")]
@@ -1673,11 +2277,8 @@ where
 {
     let previous_click_through = OVERLAY_CLICK_THROUGH_ACTIVE.load(Ordering::SeqCst);
     NATIVE_FILE_DIALOG_ACTIVE.store(true, Ordering::SeqCst);
-    OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(false, Ordering::SeqCst);
-    OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(false, Ordering::SeqCst);
-    OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(false, Ordering::SeqCst);
+    reset_overlay_pointer_session();
     OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(false, Ordering::SeqCst);
-    OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(false, Ordering::SeqCst);
     if let Some(window) = window {
         hide_overlay_input_shield_window();
         set_overlay_click_through_impl(window, true);
@@ -1718,26 +2319,103 @@ unsafe extern "system" fn capture_mouse_hook_proc(
     let mouse = unsafe { *(lparam.0 as *const MSLLHOOKSTRUCT) };
     let x = mouse.pt.x as f64;
     let y = mouse.pt.y as f64;
-    let modifiers = current_modifier_snapshot();
+    let mouse_flags = mouse.flags;
+    let message = wparam.0 as u32;
     let capture_active = CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst);
+
+    // Capture has a dedicated global pointer stream. Keep this hot path free of
+    // overlay hit-map locks, foreground-window checks, window-style changes,
+    // and other work that can make a WH_MOUSE_LL callback fall behind a
+    // high-polling-rate mouse.
+    if capture_active {
+        let modifiers = current_modifier_snapshot();
+        match message {
+            WM_MOUSEMOVE => {
+                queue_capture_mouse_hook_event(CaptureMouseHookEvent::Move { x, y, modifiers });
+                return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+            }
+            WM_LBUTTONDOWN => {
+                if claim_capture_button_transition(&CAPTURE_MOUSE_HOOK_BUTTON_DOWN, true) {
+                    append_runtime_log_line(&format!(
+                        "capture_mouse_down :: x={} y={} flags={}",
+                        x, y, mouse_flags
+                    ));
+                    queue_capture_mouse_hook_event(CaptureMouseHookEvent::Down { x, y, modifiers });
+                } else {
+                    append_runtime_log_line("capture_mouse_down_ignored_duplicate");
+                }
+                return LRESULT(1);
+            }
+            WM_LBUTTONUP => {
+                if claim_capture_button_transition(&CAPTURE_MOUSE_HOOK_BUTTON_DOWN, false) {
+                    append_runtime_log_line(&format!(
+                        "capture_mouse_up :: x={} y={} flags={}",
+                        x, y, mouse_flags
+                    ));
+                    queue_capture_mouse_hook_event(CaptureMouseHookEvent::Up { x, y, modifiers });
+                } else {
+                    append_runtime_log_line("capture_mouse_up_ignored_unpaired");
+                }
+                return LRESULT(1);
+            }
+            WM_MOUSEWHEEL => {
+                queue_capture_mouse_hook_event(CaptureMouseHookEvent::Wheel { x, y, modifiers });
+                return LRESULT(1);
+            }
+            WM_RBUTTONDOWN | WM_RBUTTONUP | WM_MBUTTONDOWN | WM_MBUTTONUP | WM_XBUTTONDOWN
+            | WM_XBUTTONUP => {
+                return LRESULT(1);
+            }
+            _ => {
+                return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+            }
+        }
+    }
+
+    let modifiers = current_modifier_snapshot();
     let should_route_overlay_mouse = should_route_overlay_mouse_events(x, y);
     let overlay_hover_active = OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.load(Ordering::SeqCst);
+    let overlay_drag_active = OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)
+        || OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.load(Ordering::SeqCst);
     let native_drag_preflight_active =
         OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst);
+    let hook_pointer_owner =
+        overlay_pointer_source_owns_session(OverlayPointerSource::LowLevelHook);
+    let overlay_pointer_session_active =
+        OVERLAY_POINTER_STATE.load(Ordering::SeqCst) != OVERLAY_POINTER_STATE_NONE;
+    if modifiers.alt_pressed
+        && should_passthrough_foreign_alt_mouse_input(
+            true,
+            capture_active,
+            overlay_drag_active,
+            native_drag_preflight_active,
+            hook_process_has_foreground_window(),
+            message == WM_MOUSEWHEEL,
+            should_route_overlay_mouse,
+        )
+    {
+        set_overlay_input_shield_alt_passthrough(true);
+        return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+    }
+    if !modifiers.alt_pressed {
+        set_overlay_input_shield_alt_passthrough(false);
+    }
     if !capture_active
         && !should_route_overlay_mouse
         && !overlay_hover_active
+        && !overlay_drag_active
         && !native_drag_preflight_active
+        && !overlay_pointer_session_active
     {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
 
-    match wparam.0 as u32 {
+    match message {
         WM_MOUSEMOVE => {
-            if capture_active {
-                queue_capture_mouse_hook_event(CaptureMouseHookEvent::Move { x, y, modifiers });
+            if overlay_pointer_session_active && !hook_pointer_owner {
+                return unsafe { CallNextHookEx(None, code, wparam, lparam) };
             }
-            if !capture_active && (should_route_overlay_mouse || native_drag_preflight_active) {
+            if should_route_overlay_mouse || overlay_drag_active || native_drag_preflight_active {
                 OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);
                 queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayMove {
                     x,
@@ -1746,7 +2424,11 @@ unsafe extern "system" fn capture_mouse_hook_proc(
                     native_drag_preflight: native_drag_preflight_active,
                 });
             }
-            if !capture_active && overlay_hover_active {
+            if !should_route_overlay_mouse
+                && !overlay_drag_active
+                && !native_drag_preflight_active
+                && overlay_hover_active
+            {
                 OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(false, Ordering::SeqCst);
                 queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayMove {
                     x,
@@ -1757,88 +2439,119 @@ unsafe extern "system" fn capture_mouse_hook_proc(
             }
         }
         WM_LBUTTONDOWN => {
-            if capture_active {
-                queue_capture_mouse_hook_event(CaptureMouseHookEvent::Down { x, y, modifiers });
-                return LRESULT(1);
-            }
-            if should_route_overlay_mouse {
-                let shift_sticker_native_drag_preflight =
-                    modifiers.shift_pressed && is_pointer_over_sticker_body_synthetic_rect(x, y);
-                if shift_sticker_native_drag_preflight {
-                    OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(false, Ordering::SeqCst);
-                    OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(false, Ordering::SeqCst);
-                    OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(true, Ordering::SeqCst);
-                    OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);
-                    append_runtime_log_line(&format!(
-                        "overlay_native_drag_preflight_start :: x={} y={}",
-                        x, y
-                    ));
-                    queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown {
-                        x,
-                        y,
-                        modifiers,
-                        native_drag_preflight: true,
-                    });
-                    return LRESULT(1);
+            if should_route_overlay_mouse || overlay_pointer_session_active {
+                let source = OverlayPointerSource::LowLevelHook;
+                match claim_overlay_pointer_down(&OVERLAY_POINTER_STATE, source) {
+                    OverlayPointerDownTransition::Started => {
+                        let shift_sticker_native_drag_preflight = modifiers.shift_pressed
+                            && is_pointer_over_sticker_body_synthetic_rect(x, y);
+                        if shift_sticker_native_drag_preflight {
+                            OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(false, Ordering::SeqCst);
+                            OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(false, Ordering::SeqCst);
+                            OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE
+                                .store(true, Ordering::SeqCst);
+                            OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);
+                            append_runtime_log_line(&format!(
+                                "overlay_native_drag_preflight_start :: x={} y={}",
+                                x, y
+                            ));
+                            queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown {
+                                x,
+                                y,
+                                modifiers,
+                                native_drag_preflight: true,
+                                source,
+                                continuation: false,
+                            });
+                            return LRESULT(1);
+                        }
+                        OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(true, Ordering::SeqCst);
+                        OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(true, Ordering::SeqCst);
+                        OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE
+                            .store(false, Ordering::SeqCst);
+                        OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);
+                        promote_overlay_input_shield_to_fullscreen();
+                        append_runtime_log_line(&format!(
+                            "overlay_drag_start :: synthetic={} x={} y={}",
+                            true, x, y
+                        ));
+                        queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown {
+                            x,
+                            y,
+                            modifiers,
+                            native_drag_preflight: false,
+                            source,
+                            continuation: false,
+                        });
+                        return LRESULT(1);
+                    }
+                    OverlayPointerDownTransition::Continued => {
+                        let native_drag_preflight =
+                            OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst);
+                        if !native_drag_preflight {
+                            OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(true, Ordering::SeqCst);
+                            OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(true, Ordering::SeqCst);
+                            promote_overlay_input_shield_to_fullscreen();
+                        }
+                        OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);
+                        append_runtime_log_line(&format!(
+                            "overlay_drag_recovery_down :: source={} x={} y={}",
+                            source.log_name(),
+                            x,
+                            y
+                        ));
+                        queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown {
+                            x,
+                            y,
+                            modifiers,
+                            native_drag_preflight,
+                            source,
+                            continuation: true,
+                        });
+                        return LRESULT(1);
+                    }
+                    OverlayPointerDownTransition::IgnoredDuplicate => {
+                        append_runtime_log_line("overlay_drag_down_ignored_duplicate");
+                        return LRESULT(1);
+                    }
+                    OverlayPointerDownTransition::IgnoredForeignOwner => {
+                        return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+                    }
                 }
-                OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(true, Ordering::SeqCst);
-                OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(true, Ordering::SeqCst);
-                OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(false, Ordering::SeqCst);
-                OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);
-                promote_overlay_input_shield_to_fullscreen();
-                append_runtime_log_line(&format!(
-                    "overlay_drag_start :: synthetic={} x={} y={}",
-                    true, x, y
-                ));
-                queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown {
-                    x,
-                    y,
-                    modifiers,
-                    native_drag_preflight: false,
-                });
-                return LRESULT(1);
             }
         }
         WM_LBUTTONUP => {
-            if capture_active {
-                queue_capture_mouse_hook_event(CaptureMouseHookEvent::Up { x, y, modifiers });
-                return LRESULT(1);
-            }
-            let drag_active = OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.swap(false, Ordering::SeqCst);
-            let synthetic_drag_active =
-                OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.swap(false, Ordering::SeqCst);
-            let native_drag_preflight_active =
-                OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.swap(false, Ordering::SeqCst);
-            if drag_active
-                || synthetic_drag_active
-                || native_drag_preflight_active
-                || should_route_overlay_mouse
-            {
-                append_runtime_log_line(&format!(
-                    "overlay_drag_end :: synthetic={} x={} y={}",
-                    synthetic_drag_active, x, y
-                ));
-            }
-            if drag_active
-                || synthetic_drag_active
-                || native_drag_preflight_active
-                || should_route_overlay_mouse
-            {
-                OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(should_route_overlay_mouse, Ordering::SeqCst);
-                queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayUp {
-                    x,
-                    y,
-                    modifiers,
-                    native_drag_preflight: native_drag_preflight_active,
-                });
-                return LRESULT(1);
+            let source = OverlayPointerSource::LowLevelHook;
+            match claim_overlay_pointer_up(&OVERLAY_POINTER_STATE, source) {
+                OverlayPointerUpTransition::Candidate => {
+                    let native_drag_preflight =
+                        OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst);
+                    append_runtime_log_line(&format!(
+                        "overlay_drag_up_candidate :: source={} x={} y={}",
+                        source.log_name(),
+                        x,
+                        y
+                    ));
+                    queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayUp {
+                        x,
+                        y,
+                        modifiers,
+                        native_drag_preflight,
+                        source,
+                    });
+                    return LRESULT(1);
+                }
+                OverlayPointerUpTransition::IgnoredDuplicate => {
+                    append_runtime_log_line("overlay_drag_up_ignored_duplicate");
+                    return LRESULT(1);
+                }
+                OverlayPointerUpTransition::IgnoredUnpaired => {}
+                OverlayPointerUpTransition::IgnoredForeignOwner => {
+                    return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+                }
             }
         }
         WM_MOUSEWHEEL => {
-            if capture_active {
-                queue_capture_mouse_hook_event(CaptureMouseHookEvent::Wheel { x, y, modifiers });
-                return LRESULT(1);
-            }
             if should_route_overlay_mouse {
                 let delta_y = (((mouse.mouseData >> 16) & 0xffff) as i16) as f64;
                 queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayWheel {
@@ -1853,9 +2566,6 @@ unsafe extern "system" fn capture_mouse_hook_proc(
         }
         WM_RBUTTONDOWN | WM_RBUTTONUP | WM_MBUTTONDOWN | WM_MBUTTONUP | WM_XBUTTONDOWN
         | WM_XBUTTONUP => {
-            if capture_active {
-                return LRESULT(1);
-            }
             if should_route_overlay_mouse {
                 OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(true, Ordering::SeqCst);
                 if wparam.0 as u32 == WM_RBUTTONUP {
@@ -1876,8 +2586,7 @@ unsafe extern "system" fn capture_mouse_hook_proc(
 
 #[cfg(target_os = "windows")]
 fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
-    let (sender, receiver) =
-        mpsc::sync_channel::<CaptureMouseHookEvent>(CAPTURE_MOUSE_EVENT_QUEUE_CAPACITY);
+    let (sender, receiver) = mpsc::channel::<CaptureMouseHookEvent>();
     if CAPTURE_MOUSE_EVENT_SENDER.set(sender).is_err() {
         append_runtime_log_line("capture_mouse_hook_sender_already_initialized");
         return;
@@ -1888,6 +2597,9 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
         .name("hook-capture-mouse-events".to_string())
         .spawn(move || {
             let mut deferred_event: Option<CaptureMouseHookEvent> = None;
+            let mut cached_metrics = capture_window_metrics(&emit_window);
+            let mut last_capture_move_emit = Instant::now() - CAPTURE_MOUSE_MOVE_EMIT_INTERVAL;
+            let mut last_overlay_move_emit = Instant::now() - OVERLAY_MOUSE_MOVE_EMIT_INTERVAL;
             loop {
                 let event = match deferred_event.take() {
                     Some(event) => event,
@@ -1899,39 +2611,41 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
 
                 match event {
                     CaptureMouseHookEvent::Move {
-                        mut x,
-                        mut y,
-                        mut modifiers,
+                        x,
+                        y,
+                        modifiers,
                     } => {
-                        loop {
-                            match receiver.try_recv() {
-                                Ok(CaptureMouseHookEvent::Move {
-                                    x: next_x,
-                                    y: next_y,
-                                    modifiers: next_modifiers,
-                                }) => {
-                                    x = next_x;
-                                    y = next_y;
-                                    modifiers = next_modifiers;
-                                }
-                                Ok(other_event) => {
-                                    deferred_event = Some(other_event);
-                                    break;
-                                }
-                                Err(mpsc::TryRecvError::Empty) => break,
-                                Err(mpsc::TryRecvError::Disconnected) => return,
-                            }
-                        }
-                        emit_capture_mouse_event(
-                            &emit_window,
-                            "capture/global_mouse_move",
+                        match coalesce_capture_mouse_move_until_emit(
+                            &receiver,
                             x,
                             y,
                             modifiers,
-                            false,
-                        );
+                            last_capture_move_emit,
+                            CAPTURE_MOUSE_MOVE_EMIT_INTERVAL,
+                        ) {
+                            CaptureMouseMoveCoalesceResult::Ready {
+                                x: latest_x,
+                                y: latest_y,
+                                modifiers: latest_modifiers,
+                                deferred_event: next,
+                            } => {
+                                deferred_event = next;
+                                emit_capture_mouse_event(
+                                    &emit_window,
+                                    "capture/global_mouse_move",
+                                    latest_x,
+                                    latest_y,
+                                    latest_modifiers,
+                                    false,
+                                    cached_metrics,
+                                );
+                                last_capture_move_emit = Instant::now();
+                            }
+                            CaptureMouseMoveCoalesceResult::Disconnected => return,
+                        }
                     }
                     CaptureMouseHookEvent::Down { x, y, modifiers } => {
+                        cached_metrics = capture_window_metrics(&emit_window).or(cached_metrics);
                         emit_capture_mouse_event(
                             &emit_window,
                             "capture/global_mouse_down",
@@ -1939,6 +2653,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                             y,
                             modifiers,
                             false,
+                            cached_metrics,
                         );
                     }
                     CaptureMouseHookEvent::OverlayDown {
@@ -1946,86 +2661,237 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                         y,
                         modifiers,
                         native_drag_preflight,
+                        source,
+                        continuation,
                     } => {
+                        cached_metrics = capture_window_metrics(&emit_window).or(cached_metrics);
                         sync_overlay_input_shield_from_runtime_state(&emit_window);
                         emit_capture_mouse_event(
                             &emit_window,
-                            "overlay/global_mouse_down",
+                            if continuation {
+                                append_runtime_log_line(&format!(
+                                    "overlay_mouse_up_down_bounce_suppressed :: source={} continue_x={} continue_y={}",
+                                    source.log_name(),
+                                    x,
+                                    y
+                                ));
+                                "overlay/global_mouse_move"
+                            } else {
+                                "overlay/global_mouse_down"
+                            },
                             x,
                             y,
                             modifiers,
                             native_drag_preflight,
+                            cached_metrics,
                         );
+                        if continuation {
+                            last_overlay_move_emit = Instant::now();
+                        }
                     }
                     CaptureMouseHookEvent::OverlayMove {
-                        mut x,
-                        mut y,
-                        mut modifiers,
+                        x,
+                        y,
+                        modifiers,
                         native_drag_preflight,
-                    } => {
-                        loop {
-                            match receiver.try_recv() {
-                                Ok(CaptureMouseHookEvent::OverlayMove {
-                                    x: next_x,
-                                    y: next_y,
-                                    modifiers: next_modifiers,
-                                    native_drag_preflight: next_native_drag_preflight,
-                                }) => {
-                                    if next_native_drag_preflight != native_drag_preflight {
-                                        deferred_event = Some(CaptureMouseHookEvent::OverlayMove {
-                                            x: next_x,
-                                            y: next_y,
-                                            modifiers: next_modifiers,
-                                            native_drag_preflight: next_native_drag_preflight,
-                                        });
-                                        break;
-                                    }
-                                    x = next_x;
-                                    y = next_y;
-                                    modifiers = next_modifiers;
-                                }
-                                Ok(other_event) => {
-                                    deferred_event = Some(other_event);
-                                    break;
-                                }
-                                Err(mpsc::TryRecvError::Empty) => break,
-                                Err(mpsc::TryRecvError::Disconnected) => return,
-                            }
+                    } => match coalesce_overlay_mouse_move_until_emit(
+                        &receiver,
+                        x,
+                        y,
+                        modifiers,
+                        native_drag_preflight,
+                        last_overlay_move_emit,
+                        OVERLAY_MOUSE_MOVE_EMIT_INTERVAL,
+                    ) {
+                        OverlayMouseMoveCoalesceResult::Ready {
+                            x: latest_x,
+                            y: latest_y,
+                            modifiers: latest_modifiers,
+                            native_drag_preflight: latest_native_drag_preflight,
+                            deferred_event: next,
+                        } => {
+                            deferred_event = next;
+                            emit_capture_mouse_event(
+                                &emit_window,
+                                "overlay/global_mouse_move",
+                                latest_x,
+                                latest_y,
+                                latest_modifiers,
+                                latest_native_drag_preflight,
+                                cached_metrics,
+                            );
+                            last_overlay_move_emit = Instant::now();
                         }
-                        emit_capture_mouse_event(
-                            &emit_window,
-                            "overlay/global_mouse_move",
-                            x,
-                            y,
-                            modifiers,
-                            native_drag_preflight,
-                        );
-                    }
+                        OverlayMouseMoveCoalesceResult::Disconnected => return,
+                    },
                     CaptureMouseHookEvent::Up { x, y, modifiers } => {
-                        emit_capture_mouse_event(
-                            &emit_window,
-                            "capture/global_mouse_up",
-                            x,
-                            y,
-                            modifiers,
-                            false,
-                        );
+                        match wait_for_capture_mouse_up_debounce(
+                            &receiver,
+                            CAPTURE_MOUSE_UP_BOUNCE_WINDOW,
+                        ) {
+                            CaptureMouseUpDebounceResult::Continue {
+                                x: continue_x,
+                                y: continue_y,
+                                modifiers: continue_modifiers,
+                            } => {
+                                append_runtime_log_line(&format!(
+                                    "capture_mouse_up_down_bounce_suppressed :: up_x={} up_y={} continue_x={} continue_y={}",
+                                    x, y, continue_x, continue_y
+                                ));
+                                emit_capture_mouse_event(
+                                    &emit_window,
+                                    "capture/global_mouse_move",
+                                    continue_x,
+                                    continue_y,
+                                    continue_modifiers,
+                                    false,
+                                    cached_metrics,
+                                );
+                                last_capture_move_emit = Instant::now();
+                            }
+                            CaptureMouseUpDebounceResult::Release { deferred_event: next } => {
+                                deferred_event = next;
+                                emit_capture_mouse_event(
+                                    &emit_window,
+                                    "capture/global_mouse_up",
+                                    x,
+                                    y,
+                                    modifiers,
+                                    false,
+                                    cached_metrics,
+                                );
+                            }
+                            CaptureMouseUpDebounceResult::Disconnected => return,
+                        }
                     }
                     CaptureMouseHookEvent::OverlayUp {
                         x,
                         y,
                         modifiers,
                         native_drag_preflight,
+                        source,
                     } => {
-                        sync_overlay_input_shield_from_runtime_state(&emit_window);
-                        emit_capture_mouse_event(
-                            &emit_window,
-                            "overlay/global_mouse_up",
-                            x,
-                            y,
-                            modifiers,
-                            native_drag_preflight,
-                        );
+                        match wait_for_overlay_mouse_up_debounce(
+                            &receiver,
+                            source,
+                            OVERLAY_MOUSE_UP_BOUNCE_WINDOW,
+                        ) {
+                            OverlayMouseUpDebounceResult::Continue {
+                                x: continue_x,
+                                y: continue_y,
+                                modifiers: continue_modifiers,
+                                native_drag_preflight: continue_native_drag_preflight,
+                            } => {
+                                append_runtime_log_line(&format!(
+                                    "overlay_mouse_up_down_bounce_suppressed :: source={} up_x={} up_y={} continue_x={} continue_y={}",
+                                    source.log_name(),
+                                    x,
+                                    y,
+                                    continue_x,
+                                    continue_y
+                                ));
+                                sync_overlay_input_shield_from_runtime_state(&emit_window);
+                                emit_capture_mouse_event(
+                                    &emit_window,
+                                    "overlay/global_mouse_move",
+                                    continue_x,
+                                    continue_y,
+                                    continue_modifiers,
+                                    continue_native_drag_preflight,
+                                    cached_metrics,
+                                );
+                                last_overlay_move_emit = Instant::now();
+                            }
+                            OverlayMouseUpDebounceResult::Release {
+                                deferred_event: next,
+                                latest_move,
+                            } => {
+                                deferred_event = next;
+                                match resolve_overlay_pointer_release(
+                                    &OVERLAY_POINTER_STATE,
+                                    source,
+                                    overlay_primary_button_physically_down(),
+                                ) {
+                                    OverlayPointerReleaseResult::SuppressedPhysicalDown => {
+                                        let resume_point = latest_move.unwrap_or(
+                                            OverlayMouseMoveSnapshot {
+                                                x,
+                                                y,
+                                                modifiers,
+                                                native_drag_preflight,
+                                            },
+                                        );
+                                        append_runtime_log_line(&format!(
+                                            "overlay_mouse_up_physical_button_down_suppressed :: source={} x={} y={}",
+                                            source.log_name(),
+                                            resume_point.x,
+                                            resume_point.y
+                                        ));
+                                        sync_overlay_input_shield_from_runtime_state(&emit_window);
+                                        emit_capture_mouse_event(
+                                            &emit_window,
+                                            "overlay/global_mouse_move",
+                                            resume_point.x,
+                                            resume_point.y,
+                                            resume_point.modifiers,
+                                            resume_point.native_drag_preflight,
+                                            cached_metrics,
+                                        );
+                                        last_overlay_move_emit = Instant::now();
+                                    }
+                                    OverlayPointerReleaseResult::Released => {
+                                        OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(false, Ordering::SeqCst);
+                                        let synthetic_drag_active =
+                                            OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE
+                                                .swap(false, Ordering::SeqCst);
+                                        OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE
+                                            .store(false, Ordering::SeqCst);
+                                        let direct_drag_active =
+                                            OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE
+                                                .swap(false, Ordering::SeqCst);
+                                        let pointer_still_over_overlay =
+                                            should_route_overlay_mouse_events(x, y);
+                                        OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(
+                                            pointer_still_over_overlay,
+                                            Ordering::SeqCst,
+                                        );
+                                        match source {
+                                            OverlayPointerSource::LowLevelHook => {
+                                                append_runtime_log_line(&format!(
+                                                    "overlay_drag_end :: synthetic={} x={} y={}",
+                                                    synthetic_drag_active, x, y
+                                                ));
+                                            }
+                                            OverlayPointerSource::InputShield => {
+                                                append_runtime_log_line(&format!(
+                                                    "overlay_input_shield_drag_end :: direct={} x={} y={}",
+                                                    direct_drag_active, x, y
+                                                ));
+                                            }
+                                        }
+                                        sync_overlay_input_shield_from_runtime_state(&emit_window);
+                                        emit_capture_mouse_event(
+                                            &emit_window,
+                                            "overlay/global_mouse_up",
+                                            x,
+                                            y,
+                                            modifiers,
+                                            native_drag_preflight,
+                                            cached_metrics,
+                                        );
+                                    }
+                                    OverlayPointerReleaseResult::Superseded => {
+                                        append_runtime_log_line(&format!(
+                                            "overlay_mouse_up_release_superseded :: source={} x={} y={}",
+                                            source.log_name(),
+                                            x,
+                                            y
+                                        ));
+                                    }
+                                }
+                            }
+                            OverlayMouseUpDebounceResult::Disconnected => return,
+                        }
                     }
                     CaptureMouseHookEvent::Wheel { x, y, modifiers } => {
                         let _ = (x, y, modifiers);
@@ -2043,6 +2909,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                             y,
                             delta_y,
                             modifiers,
+                            cached_metrics,
                         );
                     }
                     CaptureMouseHookEvent::OverlayContextMenu { x, y, modifiers } => {
@@ -2053,6 +2920,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                             y,
                             modifiers,
                             false,
+                            cached_metrics,
                         );
                     }
                 }
@@ -2202,6 +3070,53 @@ fn overlay_webview_has_foreground_focus() -> bool {
     foreground.0 as isize == main_hwnd
 }
 
+#[cfg(target_os = "windows")]
+fn hook_process_has_foreground_window() -> bool {
+    let foreground = unsafe { GetForegroundWindow() };
+    if foreground.0.is_null() {
+        return false;
+    }
+
+    let mut foreground_pid = 0;
+    unsafe { GetWindowThreadProcessId(foreground, Some(&mut foreground_pid)) };
+    foreground_pid == std::process::id()
+}
+
+#[cfg(target_os = "windows")]
+fn should_passthrough_foreign_alt_input(
+    alt_pressed: bool,
+    capture_active: bool,
+    drag_active: bool,
+    native_drag_preflight_active: bool,
+    hook_has_foreground_window: bool,
+) -> bool {
+    alt_pressed
+        && !capture_active
+        && !drag_active
+        && !native_drag_preflight_active
+        && !hook_has_foreground_window
+}
+
+#[cfg(target_os = "windows")]
+fn should_passthrough_foreign_alt_mouse_input(
+    alt_pressed: bool,
+    capture_active: bool,
+    drag_active: bool,
+    native_drag_preflight_active: bool,
+    hook_has_foreground_window: bool,
+    is_wheel_message: bool,
+    should_route_overlay_mouse: bool,
+) -> bool {
+    let routed_overlay_wheel = is_wheel_message && should_route_overlay_mouse;
+    should_passthrough_foreign_alt_input(
+        alt_pressed,
+        capture_active,
+        drag_active,
+        native_drag_preflight_active,
+        hook_has_foreground_window,
+    ) && !routed_overlay_wheel
+}
+
 // A sticker-selected DOM shortcut the native hook can forward. `key`/`ctrl`/
 // `shift`/`alt` mirror the DOM KeyboardEvent the frontend reconstructs.
 #[cfg(target_os = "windows")]
@@ -2210,6 +3125,14 @@ struct ForwardedShortcut {
     ctrl: bool,
     shift: bool,
     alt: bool,
+}
+
+#[cfg(target_os = "windows")]
+fn overlay_keyboard_should_consume_forwarded_shortcut(shortcut: &ForwardedShortcut) -> bool {
+    // Alt combinations must remain visible to the foreground application. Hook
+    // can mirror Alt+2/Alt+3 into its unfocused WebView without suppressing the
+    // original system key event.
+    !shortcut.alt
 }
 
 // Maps a physical key + modifier state to the DOM shortcut it should trigger,
@@ -2282,7 +3205,10 @@ fn overlay_keyboard_forwardable_shortcut(
 
 #[cfg(all(test, target_os = "windows"))]
 mod overlay_forwardable_shortcut_tests {
-    use super::{overlay_keyboard_forwardable_shortcut, ModifierSnapshot, VK_TAB};
+    use super::{
+        overlay_keyboard_forwardable_shortcut, overlay_keyboard_should_consume_forwarded_shortcut,
+        ModifierSnapshot, VK_TAB,
+    };
 
     fn mods(ctrl: bool, shift: bool, alt: bool) -> ModifierSnapshot {
         ModifierSnapshot {
@@ -2310,18 +3236,21 @@ mod overlay_forwardable_shortcut_tests {
 
     #[test]
     fn forwards_alt_digit_toggles() {
-        assert_eq!(
-            overlay_keyboard_forwardable_shortcut(b'2' as u32, mods(false, false, true))
-                .unwrap()
-                .key,
-            "2"
-        );
-        assert_eq!(
-            overlay_keyboard_forwardable_shortcut(b'3' as u32, mods(false, false, true))
-                .unwrap()
-                .key,
-            "3"
-        );
+        let alt_2 =
+            overlay_keyboard_forwardable_shortcut(b'2' as u32, mods(false, false, true)).unwrap();
+        let alt_3 =
+            overlay_keyboard_forwardable_shortcut(b'3' as u32, mods(false, false, true)).unwrap();
+        assert_eq!(alt_2.key, "2");
+        assert_eq!(alt_3.key, "3");
+        assert!(!overlay_keyboard_should_consume_forwarded_shortcut(&alt_2));
+        assert!(!overlay_keyboard_should_consume_forwarded_shortcut(&alt_3));
+    }
+
+    #[test]
+    fn still_consumes_non_alt_hook_shortcuts() {
+        let tab = overlay_keyboard_forwardable_shortcut(VK_TAB.0 as u32, mods(false, false, false))
+            .unwrap();
+        assert!(overlay_keyboard_should_consume_forwarded_shortcut(&tab));
     }
 
     #[test]
@@ -2476,6 +3405,510 @@ mod rdev_app_scoped_shortcut_tests {
     }
 }
 
+#[cfg(all(test, target_os = "windows"))]
+mod input_lifecycle_hardening_tests {
+    use super::{
+        claim_capture_button_transition, claim_overlay_pointer_down, claim_overlay_pointer_up,
+        coalesce_capture_mouse_move_until_emit, coalesce_overlay_mouse_move_until_emit,
+        handle_emergency_escape_transition_with, resolve_overlay_pointer_release,
+        should_passthrough_foreign_alt_input, should_passthrough_foreign_alt_mouse_input,
+        wait_for_capture_mouse_up_debounce, wait_for_overlay_mouse_up_debounce,
+        CaptureMouseHookEvent, CaptureMouseMoveCoalesceResult, CaptureMouseUpDebounceResult,
+        EmergencyEscapeTracker, ModifierSnapshot, OverlayMouseMoveCoalesceResult,
+        OverlayMouseUpDebounceResult, OverlayPointerDownTransition, OverlayPointerReleaseResult,
+        OverlayPointerSource, OverlayPointerUpTransition, EMERGENCY_ESCAPE_WINDOW,
+        OVERLAY_POINTER_STATE_NONE,
+    };
+    use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+    use std::sync::mpsc;
+    use std::sync::{Mutex, OnceLock};
+    use std::time::{Duration, Instant};
+
+    fn modifiers() -> ModifierSnapshot {
+        ModifierSnapshot {
+            ctrl_pressed: false,
+            alt_pressed: false,
+            shift_pressed: false,
+        }
+    }
+
+    #[test]
+    fn capture_button_edges_require_a_real_down_up_pair() {
+        let state = AtomicBool::new(false);
+
+        assert!(claim_capture_button_transition(&state, true));
+        assert!(!claim_capture_button_transition(&state, true));
+        assert!(claim_capture_button_transition(&state, false));
+        assert!(!claim_capture_button_transition(&state, false));
+    }
+
+    #[test]
+    fn capture_up_followed_immediately_by_down_continues_the_same_drag() {
+        let (sender, receiver) = mpsc::channel();
+        sender
+            .send(CaptureMouseHookEvent::Move {
+                x: 110.0,
+                y: 120.0,
+                modifiers: modifiers(),
+            })
+            .unwrap();
+        sender
+            .send(CaptureMouseHookEvent::Down {
+                x: 130.0,
+                y: 140.0,
+                modifiers: modifiers(),
+            })
+            .unwrap();
+
+        match wait_for_capture_mouse_up_debounce(&receiver, Duration::from_millis(1)) {
+            CaptureMouseUpDebounceResult::Continue { x, y, .. } => {
+                assert_eq!((x, y), (130.0, 140.0));
+            }
+            other => panic!("expected capture continuation, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn capture_up_without_a_following_down_is_released() {
+        let (_sender, receiver) = mpsc::channel();
+
+        match wait_for_capture_mouse_up_debounce(&receiver, Duration::ZERO) {
+            CaptureMouseUpDebounceResult::Release {
+                deferred_event: None,
+            } => {}
+            other => panic!("expected capture release, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn overlay_pointer_owner_rejects_cross_source_and_duplicate_edges() {
+        let state = AtomicU8::new(OVERLAY_POINTER_STATE_NONE);
+
+        assert_eq!(
+            claim_overlay_pointer_down(&state, OverlayPointerSource::LowLevelHook),
+            OverlayPointerDownTransition::Started
+        );
+        assert_eq!(
+            claim_overlay_pointer_down(&state, OverlayPointerSource::LowLevelHook),
+            OverlayPointerDownTransition::IgnoredDuplicate
+        );
+        assert_eq!(
+            claim_overlay_pointer_down(&state, OverlayPointerSource::InputShield),
+            OverlayPointerDownTransition::IgnoredForeignOwner
+        );
+        assert_eq!(
+            claim_overlay_pointer_up(&state, OverlayPointerSource::InputShield),
+            OverlayPointerUpTransition::IgnoredForeignOwner
+        );
+        assert_eq!(
+            claim_overlay_pointer_up(&state, OverlayPointerSource::LowLevelHook),
+            OverlayPointerUpTransition::Candidate
+        );
+        assert_eq!(
+            claim_overlay_pointer_up(&state, OverlayPointerSource::LowLevelHook),
+            OverlayPointerUpTransition::IgnoredDuplicate
+        );
+    }
+
+    #[test]
+    fn overlay_up_followed_by_down_continues_the_same_drag() {
+        let state = AtomicU8::new(OVERLAY_POINTER_STATE_NONE);
+        let source = OverlayPointerSource::LowLevelHook;
+        assert_eq!(
+            claim_overlay_pointer_down(&state, source),
+            OverlayPointerDownTransition::Started
+        );
+        assert_eq!(
+            claim_overlay_pointer_up(&state, source),
+            OverlayPointerUpTransition::Candidate
+        );
+        assert_eq!(
+            claim_overlay_pointer_down(&state, source),
+            OverlayPointerDownTransition::Continued
+        );
+
+        let (sender, receiver) = mpsc::channel();
+        sender
+            .send(CaptureMouseHookEvent::OverlayMove {
+                x: 400.0,
+                y: 410.0,
+                modifiers: modifiers(),
+                native_drag_preflight: false,
+            })
+            .unwrap();
+        sender
+            .send(CaptureMouseHookEvent::OverlayDown {
+                x: 420.0,
+                y: 430.0,
+                modifiers: modifiers(),
+                native_drag_preflight: false,
+                source,
+                continuation: true,
+            })
+            .unwrap();
+
+        match wait_for_overlay_mouse_up_debounce(&receiver, source, Duration::from_millis(1)) {
+            OverlayMouseUpDebounceResult::Continue { x, y, .. } => {
+                assert_eq!((x, y), (420.0, 430.0));
+            }
+            other => panic!("expected overlay continuation, got {other:?}"),
+        }
+        assert_eq!(state.load(Ordering::SeqCst), source.down_state());
+    }
+
+    #[test]
+    fn overlay_candidate_up_is_suppressed_while_primary_button_is_physically_down() {
+        let state = AtomicU8::new(OVERLAY_POINTER_STATE_NONE);
+        let source = OverlayPointerSource::LowLevelHook;
+        assert_eq!(
+            claim_overlay_pointer_down(&state, source),
+            OverlayPointerDownTransition::Started
+        );
+        assert_eq!(
+            claim_overlay_pointer_up(&state, source),
+            OverlayPointerUpTransition::Candidate
+        );
+        assert_eq!(
+            resolve_overlay_pointer_release(&state, source, true),
+            OverlayPointerReleaseResult::SuppressedPhysicalDown
+        );
+        assert_eq!(state.load(Ordering::SeqCst), source.down_state());
+
+        assert_eq!(
+            claim_overlay_pointer_up(&state, source),
+            OverlayPointerUpTransition::Candidate
+        );
+        assert_eq!(
+            resolve_overlay_pointer_release(&state, source, false),
+            OverlayPointerReleaseResult::Released
+        );
+        assert_eq!(state.load(Ordering::SeqCst), OVERLAY_POINTER_STATE_NONE);
+    }
+
+    #[test]
+    fn overlay_up_debounce_retains_the_latest_move_for_a_suppressed_release() {
+        let (sender, receiver) = mpsc::channel();
+        sender
+            .send(CaptureMouseHookEvent::OverlayMove {
+                x: 500.0,
+                y: 510.0,
+                modifiers: modifiers(),
+                native_drag_preflight: false,
+            })
+            .unwrap();
+        sender
+            .send(CaptureMouseHookEvent::OverlayMove {
+                x: 600.0,
+                y: 610.0,
+                modifiers: modifiers(),
+                native_drag_preflight: false,
+            })
+            .unwrap();
+
+        match wait_for_overlay_mouse_up_debounce(
+            &receiver,
+            OverlayPointerSource::LowLevelHook,
+            Duration::from_millis(1),
+        ) {
+            OverlayMouseUpDebounceResult::Release {
+                deferred_event: None,
+                latest_move: Some(latest_move),
+            } => {
+                assert_eq!((latest_move.x, latest_move.y), (600.0, 610.0));
+            }
+            other => panic!("expected retained overlay move, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn late_recovery_down_wins_the_release_timeout_race() {
+        let state = AtomicU8::new(OVERLAY_POINTER_STATE_NONE);
+        let source = OverlayPointerSource::InputShield;
+        assert_eq!(
+            claim_overlay_pointer_down(&state, source),
+            OverlayPointerDownTransition::Started
+        );
+        assert_eq!(
+            claim_overlay_pointer_up(&state, source),
+            OverlayPointerUpTransition::Candidate
+        );
+        assert_eq!(
+            claim_overlay_pointer_down(&state, source),
+            OverlayPointerDownTransition::Continued
+        );
+        assert_eq!(
+            resolve_overlay_pointer_release(&state, source, false),
+            OverlayPointerReleaseResult::Superseded
+        );
+        assert_eq!(state.load(Ordering::SeqCst), source.down_state());
+    }
+
+    #[test]
+    fn recovery_down_can_transfer_a_pending_session_to_the_fallback_input_source() {
+        let state = AtomicU8::new(OVERLAY_POINTER_STATE_NONE);
+        let original_source = OverlayPointerSource::LowLevelHook;
+        let fallback_source = OverlayPointerSource::InputShield;
+        assert_eq!(
+            claim_overlay_pointer_down(&state, original_source),
+            OverlayPointerDownTransition::Started
+        );
+        assert_eq!(
+            claim_overlay_pointer_up(&state, original_source),
+            OverlayPointerUpTransition::Candidate
+        );
+        assert_eq!(
+            claim_overlay_pointer_down(&state, fallback_source),
+            OverlayPointerDownTransition::Continued
+        );
+        assert_eq!(
+            resolve_overlay_pointer_release(&state, original_source, false),
+            OverlayPointerReleaseResult::Superseded
+        );
+        assert_eq!(state.load(Ordering::SeqCst), fallback_source.down_state());
+        assert_eq!(
+            claim_overlay_pointer_up(&state, fallback_source),
+            OverlayPointerUpTransition::Candidate
+        );
+        assert_eq!(
+            resolve_overlay_pointer_release(&state, fallback_source, false),
+            OverlayPointerReleaseResult::Released
+        );
+    }
+
+    #[test]
+    fn capture_move_coalescing_emits_the_latest_point_before_a_deferred_up() {
+        let (sender, receiver) = mpsc::channel();
+        sender
+            .send(CaptureMouseHookEvent::Move {
+                x: 200.0,
+                y: 210.0,
+                modifiers: modifiers(),
+            })
+            .unwrap();
+        sender
+            .send(CaptureMouseHookEvent::Move {
+                x: 300.0,
+                y: 310.0,
+                modifiers: modifiers(),
+            })
+            .unwrap();
+        sender
+            .send(CaptureMouseHookEvent::Up {
+                x: 320.0,
+                y: 330.0,
+                modifiers: modifiers(),
+            })
+            .unwrap();
+
+        match coalesce_capture_mouse_move_until_emit(
+            &receiver,
+            100.0,
+            110.0,
+            modifiers(),
+            Instant::now() - Duration::from_millis(10),
+            Duration::from_millis(8),
+        ) {
+            CaptureMouseMoveCoalesceResult::Ready {
+                x,
+                y,
+                deferred_event:
+                    Some(CaptureMouseHookEvent::Up {
+                        x: up_x, y: up_y, ..
+                    }),
+                ..
+            } => {
+                assert_eq!((x, y), (300.0, 310.0));
+                assert_eq!((up_x, up_y), (320.0, 330.0));
+            }
+            other => panic!("expected latest move and deferred up, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn overlay_move_coalescing_emits_the_latest_point_before_a_deferred_up() {
+        let (sender, receiver) = mpsc::channel();
+        sender
+            .send(CaptureMouseHookEvent::OverlayMove {
+                x: 200.0,
+                y: 210.0,
+                modifiers: modifiers(),
+                native_drag_preflight: false,
+            })
+            .unwrap();
+        sender
+            .send(CaptureMouseHookEvent::OverlayMove {
+                x: 300.0,
+                y: 310.0,
+                modifiers: modifiers(),
+                native_drag_preflight: false,
+            })
+            .unwrap();
+        sender
+            .send(CaptureMouseHookEvent::OverlayUp {
+                x: 320.0,
+                y: 330.0,
+                modifiers: modifiers(),
+                native_drag_preflight: false,
+                source: OverlayPointerSource::LowLevelHook,
+            })
+            .unwrap();
+
+        match coalesce_overlay_mouse_move_until_emit(
+            &receiver,
+            100.0,
+            110.0,
+            modifiers(),
+            false,
+            Instant::now() - Duration::from_millis(20),
+            Duration::from_millis(16),
+        ) {
+            OverlayMouseMoveCoalesceResult::Ready {
+                x,
+                y,
+                deferred_event:
+                    Some(CaptureMouseHookEvent::OverlayUp {
+                        x: up_x, y: up_y, ..
+                    }),
+                ..
+            } => {
+                assert_eq!((x, y), (300.0, 310.0));
+                assert_eq!((up_x, up_y), (320.0, 330.0));
+            }
+            other => panic!("expected latest overlay move and deferred up, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn overlay_move_coalescing_does_not_cross_native_drag_preflight_boundaries() {
+        let (sender, receiver) = mpsc::channel();
+        sender
+            .send(CaptureMouseHookEvent::OverlayMove {
+                x: 400.0,
+                y: 410.0,
+                modifiers: modifiers(),
+                native_drag_preflight: true,
+            })
+            .unwrap();
+
+        match coalesce_overlay_mouse_move_until_emit(
+            &receiver,
+            100.0,
+            110.0,
+            modifiers(),
+            false,
+            Instant::now() - Duration::from_millis(20),
+            Duration::from_millis(16),
+        ) {
+            OverlayMouseMoveCoalesceResult::Ready {
+                x,
+                y,
+                native_drag_preflight,
+                deferred_event:
+                    Some(CaptureMouseHookEvent::OverlayMove {
+                        x: deferred_x,
+                        y: deferred_y,
+                        native_drag_preflight: deferred_preflight,
+                        ..
+                    }),
+                ..
+            } => {
+                assert_eq!((x, y, native_drag_preflight), (100.0, 110.0, false));
+                assert_eq!(
+                    (deferred_x, deferred_y, deferred_preflight),
+                    (400.0, 410.0, true)
+                );
+            }
+            other => panic!("expected a deferred preflight stream boundary, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn double_escape_requires_two_distinct_presses_inside_the_emergency_window() {
+        let started_at = Instant::now();
+        let mut tracker = EmergencyEscapeTracker::default();
+
+        assert!(!tracker.record_press(started_at));
+        assert!(
+            tracker.record_press(started_at + EMERGENCY_ESCAPE_WINDOW - Duration::from_millis(1))
+        );
+
+        let mut expired_tracker = EmergencyEscapeTracker::default();
+        assert!(!expired_tracker.record_press(started_at));
+        assert!(!expired_tracker.record_press(started_at + EMERGENCY_ESCAPE_WINDOW));
+    }
+
+    #[test]
+    fn keyboard_hook_and_rdev_escape_edges_do_not_suppress_each_other() {
+        let keyboard_down = AtomicBool::new(false);
+        let keyboard_tracker = OnceLock::<Mutex<EmergencyEscapeTracker>>::new();
+        let rdev_down = AtomicBool::new(false);
+        let rdev_tracker = OnceLock::<Mutex<EmergencyEscapeTracker>>::new();
+
+        assert!(handle_emergency_escape_transition_with(
+            &keyboard_down,
+            &keyboard_tracker,
+            true,
+            "keyboard_test",
+        ));
+        assert!(handle_emergency_escape_transition_with(
+            &rdev_down,
+            &rdev_tracker,
+            true,
+            "rdev_test",
+        ));
+        assert!(!handle_emergency_escape_transition_with(
+            &keyboard_down,
+            &keyboard_tracker,
+            true,
+            "keyboard_test",
+        ));
+        assert!(!handle_emergency_escape_transition_with(
+            &rdev_down,
+            &rdev_tracker,
+            true,
+            "rdev_test",
+        ));
+    }
+
+    #[test]
+    fn foreign_alt_input_fails_open_except_during_capture_or_an_existing_drag() {
+        assert!(should_passthrough_foreign_alt_input(
+            true, false, false, false, false,
+        ));
+        assert!(!should_passthrough_foreign_alt_input(
+            false, false, false, false, false,
+        ));
+        assert!(!should_passthrough_foreign_alt_input(
+            true, true, false, false, false,
+        ));
+        assert!(!should_passthrough_foreign_alt_input(
+            true, false, true, false, false,
+        ));
+        assert!(!should_passthrough_foreign_alt_input(
+            true, false, false, true, false,
+        ));
+        assert!(!should_passthrough_foreign_alt_input(
+            true, false, false, false, true,
+        ));
+    }
+
+    #[test]
+    fn foreign_alt_wheel_routes_only_when_the_pointer_is_over_hook() {
+        assert!(!should_passthrough_foreign_alt_mouse_input(
+            true, false, false, false, false, true, true,
+        ));
+        assert!(should_passthrough_foreign_alt_mouse_input(
+            true, false, false, false, false, true, false,
+        ));
+        assert!(should_passthrough_foreign_alt_mouse_input(
+            true, false, false, false, false, false, true,
+        ));
+        assert!(!should_passthrough_foreign_alt_mouse_input(
+            false, false, false, false, false, true, true,
+        ));
+    }
+}
+
 #[cfg(target_os = "windows")]
 unsafe extern "system" fn overlay_keyboard_hook_proc(
     code: i32,
@@ -2491,7 +3924,10 @@ unsafe extern "system" fn overlay_keyboard_hook_proc(
 
     let keyboard = unsafe { *(lparam.0 as *const KBDLLHOOKSTRUCT) };
     let vk_code = keyboard.vkCode;
-    match wparam.0 as u32 {
+    let message = wparam.0 as u32;
+    let key_pressed = matches!(message, WM_KEYDOWN | WM_SYSKEYDOWN);
+    let key_released = matches!(message, WM_KEYUP | WM_SYSKEYUP);
+    match message {
         WM_KEYDOWN | WM_SYSKEYDOWN => {
             update_overlay_modifier_key_state(vk_code, true);
         }
@@ -2501,13 +3937,57 @@ unsafe extern "system" fn overlay_keyboard_hook_proc(
         _ => {}
     }
 
+    if vk_code == VK_ESCAPE.0 as u32 {
+        if key_pressed && !handle_emergency_escape_transition(true, "keyboard_hook") {
+            if overlay_keyboard_capture_should_handle_current_cursor() {
+                return LRESULT(1);
+            }
+            return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+        }
+        if key_released {
+            handle_emergency_escape_transition(false, "keyboard_hook");
+        }
+    }
+
+    let capture_active = CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst);
+    let drag_active = OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)
+        || OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.load(Ordering::SeqCst)
+        || OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst);
+    let native_drag_preflight_active =
+        OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst);
+    let is_alt_key =
+        vk_code == VK_MENU.0 as u32 || vk_code == VK_LMENU.0 as u32 || vk_code == VK_RMENU.0 as u32;
+    if is_alt_key {
+        let passthrough = key_pressed
+            && should_passthrough_foreign_alt_input(
+                true,
+                capture_active,
+                drag_active,
+                native_drag_preflight_active,
+                hook_process_has_foreground_window(),
+            );
+        set_overlay_input_shield_alt_passthrough(passthrough);
+    }
+
+    let modifiers = current_modifier_snapshot();
+    if modifiers.alt_pressed
+        && should_passthrough_foreign_alt_input(
+            true,
+            capture_active,
+            drag_active,
+            native_drag_preflight_active,
+            hook_process_has_foreground_window(),
+        )
+    {
+        return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+    }
+
     if !overlay_keyboard_capture_should_handle_current_cursor() {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
 
-    let modifiers = current_modifier_snapshot();
     let webview_has_focus = overlay_webview_has_foreground_focus();
-    match wparam.0 as u32 {
+    match message {
         WM_KEYDOWN | WM_SYSKEYDOWN => {
             if let Some(event) = overlay_keyboard_hook_should_capture_semantic_keydown(
                 vk_code,
@@ -2523,13 +4003,17 @@ unsafe extern "system" fn overlay_keyboard_hook_proc(
             // preserving normal text typing during sticker edit.
             if !webview_has_focus {
                 if let Some(shortcut) = overlay_keyboard_forwardable_shortcut(vk_code, modifiers) {
+                    let should_consume =
+                        overlay_keyboard_should_consume_forwarded_shortcut(&shortcut);
                     queue_overlay_keyboard_hook_event(OverlayKeyboardHookEvent::Shortcut {
                         key: shortcut.key.to_string(),
                         ctrl: shortcut.ctrl,
                         shift: shortcut.shift,
                         alt: shortcut.alt,
                     });
-                    return LRESULT(1);
+                    if should_consume {
+                        return LRESULT(1);
+                    }
                 }
             }
         }
@@ -2727,18 +4211,49 @@ fn set_capture_cursor_crosshair() {}
 #[cfg(target_os = "windows")]
 fn clear_capture_cursor_crosshair() {
     if CAPTURE_SYSTEM_CURSOR_OVERRIDDEN.swap(false, Ordering::SeqCst) {
-        let _ = unsafe { SystemParametersInfoW(SPI_SETCURSORS, 0, None, Default::default()) };
-        append_runtime_log_line("capture_cursor_crosshair_restored");
+        restore_system_cursors_unconditionally();
     }
 }
 
 #[cfg(not(target_os = "windows"))]
 fn clear_capture_cursor_crosshair() {}
 
+#[cfg(target_os = "windows")]
+fn restore_system_cursors_unconditionally() {
+    CAPTURE_SYSTEM_CURSOR_OVERRIDDEN.store(false, Ordering::SeqCst);
+    match unsafe { SystemParametersInfoW(SPI_SETCURSORS, 0, None, Default::default()) } {
+        Ok(()) => append_runtime_log_line("system_cursors_restored_unconditionally"),
+        Err(error) => {
+            append_runtime_log_line(&format!("system_cursors_restore_failed :: {}", error))
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn restore_system_cursors_unconditionally() {}
+
+fn prepare_for_hook_process_exit(reason: &str) {
+    #[cfg(target_os = "windows")]
+    {
+        CAPTURE_MOUSE_HOOK_ACTIVE.store(false, Ordering::SeqCst);
+        CAPTURE_MOUSE_HOOK_BUTTON_DOWN.store(false, Ordering::SeqCst);
+        OVERLAY_KEYBOARD_CAPTURE_ACTIVE.store(false, Ordering::SeqCst);
+        reset_overlay_pointer_session();
+        OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(false, Ordering::SeqCst);
+        set_overlay_input_shield_alt_passthrough(false);
+        hide_overlay_input_shield_window();
+    }
+    restore_system_cursors_unconditionally();
+    append_runtime_log_line(&format!("hook_process_exit_cleanup :: reason={}", reason));
+}
+
 fn set_capture_input_runtime_active(active: bool) {
     #[cfg(target_os = "windows")]
     {
         CAPTURE_MOUSE_HOOK_ACTIVE.store(active, Ordering::SeqCst);
+        if !active {
+            CAPTURE_MOUSE_HOOK_BUTTON_DOWN.store(false, Ordering::SeqCst);
+        }
         append_runtime_log_line(&format!("capture_mouse_hook_active :: {}", active));
     }
 
@@ -3459,11 +4974,8 @@ fn start_native_file_drag_on_ui_thread(
     file_path: PathBuf,
     hit_map: SharedHitMap,
 ) -> Result<(), String> {
-    OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(false, Ordering::SeqCst);
-    OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(false, Ordering::SeqCst);
-    OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(false, Ordering::SeqCst);
+    reset_overlay_pointer_session();
     OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(false, Ordering::SeqCst);
-    OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(false, Ordering::SeqCst);
     NATIVE_FILE_DRAG_ACTIVE.store(true, Ordering::SeqCst);
     hide_overlay_input_shield_window();
     let _ = window.set_ignore_cursor_events(true);
@@ -3792,10 +5304,7 @@ fn set_mouse_monitor_active(
     }
     OVERLAY_MOUSE_HIT_MAP_ACTIVE.store(active, Ordering::SeqCst);
     if !active {
-        OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(false, Ordering::SeqCst);
-        OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(false, Ordering::SeqCst);
-        OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(false, Ordering::SeqCst);
-        OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(false, Ordering::SeqCst);
+        reset_overlay_pointer_session();
     }
 
     // Capture selection is driven by the backend global input hook. Keep the
@@ -5031,6 +6540,47 @@ fn overlay_input_shield_hwnd() -> Option<HWND> {
 }
 
 #[cfg(target_os = "windows")]
+fn set_overlay_input_shield_alt_passthrough(active: bool) {
+    if OVERLAY_INPUT_SHIELD_ALT_PASSTHROUGH.swap(active, Ordering::SeqCst) == active {
+        return;
+    }
+
+    let Some(hwnd) = overlay_input_shield_hwnd() else {
+        return;
+    };
+    let current_style = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) };
+    let transparent_flag = WS_EX_TRANSPARENT.0 as isize;
+    if (current_style & transparent_flag != 0) == active {
+        return;
+    }
+    let next_style = if active {
+        current_style | transparent_flag
+    } else {
+        current_style & !transparent_flag
+    };
+    let _ = unsafe { SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next_style) };
+    let _ = unsafe {
+        SetWindowPos(
+            hwnd,
+            None,
+            0,
+            0,
+            0,
+            0,
+            SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
+        )
+    };
+    append_runtime_log_line(if active {
+        "overlay_input_shield_alt_passthrough_enabled"
+    } else {
+        "overlay_input_shield_alt_passthrough_disabled"
+    });
+}
+
+#[cfg(not(target_os = "windows"))]
+fn set_overlay_input_shield_alt_passthrough(_active: bool) {}
+
+#[cfg(target_os = "windows")]
 struct OverlayMainWindowSearchState {
     target_pid: u32,
     hwnd: Option<HWND>,
@@ -5120,9 +6670,31 @@ fn route_overlay_input_shield_mouse_message(message: u32, wparam: WPARAM) -> Opt
     let direct_drag_active = OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst);
     let native_drag_preflight_active =
         OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst);
+    let overlay_pointer_session_active =
+        OVERLAY_POINTER_STATE.load(Ordering::SeqCst) != OVERLAY_POINTER_STATE_NONE;
+    if modifiers.alt_pressed
+        && should_passthrough_foreign_alt_mouse_input(
+            true,
+            CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst),
+            direct_drag_active,
+            native_drag_preflight_active,
+            hook_process_has_foreground_window(),
+            message == WM_MOUSEWHEEL,
+            should_route_overlay_mouse,
+        )
+    {
+        set_overlay_input_shield_alt_passthrough(true);
+        return None;
+    }
+    if !modifiers.alt_pressed {
+        set_overlay_input_shield_alt_passthrough(false);
+    }
 
     match message {
         WM_MOUSEMOVE => {
+            if overlay_pointer_source_owns_session(OverlayPointerSource::LowLevelHook) {
+                return Some(LRESULT(1));
+            }
             if direct_drag_active || native_drag_preflight_active {
                 queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayMove {
                     x,
@@ -5144,61 +6716,105 @@ fn route_overlay_input_shield_mouse_message(message: u32, wparam: WPARAM) -> Opt
             }
         }
         WM_LBUTTONDOWN => {
-            if should_route_overlay_mouse {
-                let shift_sticker_native_drag_preflight =
-                    modifiers.shift_pressed && is_pointer_over_sticker_body_synthetic_rect(x, y);
-                if shift_sticker_native_drag_preflight {
-                    OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(false, Ordering::SeqCst);
-                    OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(true, Ordering::SeqCst);
-                    append_runtime_log_line(&format!(
-                        "overlay_input_shield_native_drag_preflight_start :: x={} y={}",
-                        x, y
-                    ));
-                    queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown {
-                        x,
-                        y,
-                        modifiers,
-                        native_drag_preflight: true,
-                    });
-                    return Some(LRESULT(1));
-                }
+            if should_route_overlay_mouse || overlay_pointer_session_active {
+                let source = OverlayPointerSource::InputShield;
+                match claim_overlay_pointer_down(&OVERLAY_POINTER_STATE, source) {
+                    OverlayPointerDownTransition::Started => {
+                        let shift_sticker_native_drag_preflight = modifiers.shift_pressed
+                            && is_pointer_over_sticker_body_synthetic_rect(x, y);
+                        if shift_sticker_native_drag_preflight {
+                            OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(false, Ordering::SeqCst);
+                            OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE
+                                .store(true, Ordering::SeqCst);
+                            append_runtime_log_line(&format!(
+                                "overlay_input_shield_native_drag_preflight_start :: x={} y={}",
+                                x, y
+                            ));
+                            queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown {
+                                x,
+                                y,
+                                modifiers,
+                                native_drag_preflight: true,
+                                source,
+                                continuation: false,
+                            });
+                            return Some(LRESULT(1));
+                        }
 
-                OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(true, Ordering::SeqCst);
-                OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(false, Ordering::SeqCst);
-                promote_overlay_input_shield_to_fullscreen();
-                append_runtime_log_line(&format!(
-                    "overlay_input_shield_drag_start :: x={} y={}",
-                    x, y
-                ));
-                queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown {
-                    x,
-                    y,
-                    modifiers,
-                    native_drag_preflight: false,
-                });
-                return Some(LRESULT(1));
+                        OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(true, Ordering::SeqCst);
+                        OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE
+                            .store(false, Ordering::SeqCst);
+                        promote_overlay_input_shield_to_fullscreen();
+                        append_runtime_log_line(&format!(
+                            "overlay_input_shield_drag_start :: x={} y={}",
+                            x, y
+                        ));
+                        queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown {
+                            x,
+                            y,
+                            modifiers,
+                            native_drag_preflight: false,
+                            source,
+                            continuation: false,
+                        });
+                        return Some(LRESULT(1));
+                    }
+                    OverlayPointerDownTransition::Continued => {
+                        let native_drag_preflight =
+                            OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst);
+                        if !native_drag_preflight {
+                            OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(true, Ordering::SeqCst);
+                            promote_overlay_input_shield_to_fullscreen();
+                        }
+                        append_runtime_log_line(&format!(
+                            "overlay_drag_recovery_down :: source={} x={} y={}",
+                            source.log_name(),
+                            x,
+                            y
+                        ));
+                        queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayDown {
+                            x,
+                            y,
+                            modifiers,
+                            native_drag_preflight,
+                            source,
+                            continuation: true,
+                        });
+                        return Some(LRESULT(1));
+                    }
+                    OverlayPointerDownTransition::IgnoredDuplicate
+                    | OverlayPointerDownTransition::IgnoredForeignOwner => {
+                        return Some(LRESULT(1));
+                    }
+                }
             }
         }
         WM_LBUTTONUP => {
-            let direct_drag_was_active =
-                OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.swap(false, Ordering::SeqCst);
-            let native_drag_preflight_was_active =
-                OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.swap(false, Ordering::SeqCst);
-            if direct_drag_was_active
-                || native_drag_preflight_was_active
-                || should_route_overlay_mouse
-            {
-                append_runtime_log_line(&format!(
-                    "overlay_input_shield_drag_end :: direct={} x={} y={}",
-                    direct_drag_was_active, x, y
-                ));
-                queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayUp {
-                    x,
-                    y,
-                    modifiers,
-                    native_drag_preflight: native_drag_preflight_was_active,
-                });
-                return Some(LRESULT(1));
+            let source = OverlayPointerSource::InputShield;
+            match claim_overlay_pointer_up(&OVERLAY_POINTER_STATE, source) {
+                OverlayPointerUpTransition::Candidate => {
+                    let native_drag_preflight =
+                        OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst);
+                    append_runtime_log_line(&format!(
+                        "overlay_drag_up_candidate :: source={} x={} y={}",
+                        source.log_name(),
+                        x,
+                        y
+                    ));
+                    queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayUp {
+                        x,
+                        y,
+                        modifiers,
+                        native_drag_preflight,
+                        source,
+                    });
+                    return Some(LRESULT(1));
+                }
+                OverlayPointerUpTransition::IgnoredDuplicate
+                | OverlayPointerUpTransition::IgnoredForeignOwner => {
+                    return Some(LRESULT(1));
+                }
+                OverlayPointerUpTransition::IgnoredUnpaired => {}
             }
         }
         WM_MOUSEWHEEL => {
@@ -5326,6 +6942,10 @@ fn ensure_overlay_input_shield_window(window: &tauri::WebviewWindow) -> Option<H
     };
     let _ = unsafe { ShowWindow(hwnd, SW_SHOWNA) };
     let _ = OVERLAY_INPUT_SHIELD_HWND.set(hwnd.0 as isize);
+    if OVERLAY_INPUT_SHIELD_ALT_PASSTHROUGH.load(Ordering::SeqCst) {
+        OVERLAY_INPUT_SHIELD_ALT_PASSTHROUGH.store(false, Ordering::SeqCst);
+        set_overlay_input_shield_alt_passthrough(true);
+    }
     append_runtime_log_line("overlay_input_shield_create_success");
     Some(hwnd)
 }
@@ -5358,6 +6978,8 @@ fn sync_overlay_input_shield_region(
     let height = (main_rect.bottom - main_rect.top).max(1);
     let capture_active = CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst);
     let overlay_drag_active = OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)
+        || OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.load(Ordering::SeqCst)
+        || OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst)
         || OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst);
     let _ = unsafe {
         SetWindowPos(
@@ -5523,6 +7145,8 @@ fn install_overlay_topmost_maintenance_thread(window: &tauri::WebviewWindow) {
             let needs_topmost_maintenance = OVERLAY_MOUSE_HIT_MAP_ACTIVE.load(Ordering::SeqCst)
                 || CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst)
                 || OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)
+                || OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.load(Ordering::SeqCst)
+                || OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst)
                 || OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst);
             if !needs_topmost_maintenance {
                 continue;
@@ -6324,6 +7948,12 @@ fn set_capture_input_active(
     }
 }
 
+#[tauri::command]
+fn set_desktop_color_picker_active(active: bool) {
+    DESKTOP_COLOR_PICKER_ACTIVE.store(active, Ordering::SeqCst);
+    append_runtime_log_line(&format!("set_desktop_color_picker_active :: {}", active));
+}
+
 fn show_canvas_window_impl(window: &tauri::WebviewWindow) {
     let _ = window.set_content_protected(false);
     clear_overlay_no_activate(window);
@@ -6391,7 +8021,10 @@ fn hide_to_tray_impl(window: &tauri::WebviewWindow) {
 
 fn enter_capture_mode(window: &tauri::WebviewWindow) {
     append_runtime_log_line("enter_capture_mode");
-    set_capture_input_runtime_active(true);
+    if !try_begin_capture_input_runtime() {
+        append_runtime_log_line("enter_capture_mode_ignored_active");
+        return;
+    }
     show_overlay_host_impl(window, true);
 
     println!("Overlay setup done. Emitting trigger-capture...");
@@ -6406,7 +8039,10 @@ fn enter_capture_mode(window: &tauri::WebviewWindow) {
 
 fn enter_long_capture_mode(window: &tauri::WebviewWindow) {
     append_runtime_log_line("enter_long_capture_mode");
-    set_capture_input_runtime_active(true);
+    if !try_begin_capture_input_runtime() {
+        append_runtime_log_line("enter_long_capture_mode_ignored_active");
+        return;
+    }
     show_overlay_host_impl(window, true);
 
     if let Err(e) = window.emit("trigger-long-capture", ()) {
@@ -7270,7 +8906,7 @@ pub fn run() {
         voice::hotkey::HotkeyStateMachine::new_toggle("Ctrl+Alt+Space"),
     ));
 
-    tauri::Builder::default()
+    let run_result = tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new().with_handler({
                 let tauri_ctrl_1_last_trigger = tauri_ctrl_1_last_trigger.clone();
@@ -7383,6 +9019,7 @@ pub fn run() {
             copy_node_image_to_clipboard,
             copy_sticker_image_to_smart_clipboard,
             set_capture_input_active,
+            set_desktop_color_picker_active,
             save_session,
             load_session,
             save_history,
@@ -7449,6 +9086,10 @@ pub fn run() {
             // Intentionally leak the guard so the OS mutex stays held for the
             // entire process lifetime; it is released when the process exits.
             std::mem::forget(single_instance_guard);
+            // A force-killed prior Hook cannot run its cleanup path. Once this
+            // process owns the single-instance mutex, reload the user's cursor
+            // scheme before Hook can enter capture mode again.
+            restore_system_cursors_unconditionally();
 
             // Initialize Shared State
             let hit_map = SharedHitMap::new();
@@ -7589,15 +9230,12 @@ pub fn run() {
                 // Start Global Event Listener (Inputs)
                 std::thread::spawn(move || {
                     struct RdevInputRuntimeState {
-                        last_esc: std::time::Instant,
                         is_ignoring_events: bool,
                         ctrl_pressed: bool,
                         last_capture_trigger: std::time::Instant,
                     }
 
                     let input_runtime_state = std::sync::Mutex::new(RdevInputRuntimeState {
-                        last_esc: std::time::Instant::now()
-                            - std::time::Duration::from_secs(1),
                         is_ignoring_events: false,
                         ctrl_pressed: false,
                         last_capture_trigger: std::time::Instant::now()
@@ -7609,6 +9247,17 @@ pub fn run() {
                             Ok(guard) => guard,
                             Err(_) => return,
                         };
+
+                        match &event.event_type {
+                            rdev::EventType::KeyPress(rdev::Key::Escape) => {
+                                handle_rdev_emergency_escape_transition(true);
+                            }
+                            rdev::EventType::KeyRelease(rdev::Key::Escape) => {
+                                handle_rdev_emergency_escape_transition(false);
+                                return;
+                            }
+                            _ => {}
+                        }
 
                         if NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst) {
                             input_state.is_ignoring_events = true;
@@ -7658,7 +9307,8 @@ pub fn run() {
                                     .active
                                     .lock()
                                     .map(|guard| *guard)
-                                    .unwrap_or(false);
+                                    .unwrap_or(false)
+                                    || CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst);
                                 let app_has_focus = overlay_webview_has_foreground_focus();
                                 if !rdev_should_dispatch_app_scoped_shortcut(
                                     RdevAppScopedShortcut::Escape,
@@ -7670,14 +9320,6 @@ pub fn run() {
                                     );
                                     return;
                                 }
-                                if input_state.last_esc.elapsed()
-                                    < std::time::Duration::from_millis(400)
-                                {
-                                    println!("Double ESC detected - Emergency Exit.");
-                                    set_capture_input_runtime_active(false);
-                                    std::process::exit(0);
-                                }
-                                input_state.last_esc = std::time::Instant::now();
                                 append_runtime_log_line("rdev_escape_triggered");
                                 set_capture_input_runtime_active(false);
                                 let _ = window.emit("trigger-escape", ());
@@ -7792,8 +9434,9 @@ pub fn run() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+    prepare_for_hook_process_exit("tauri_run_returned");
+    run_result.expect("error while running tauri application");
 }
 
 #[cfg(test)]

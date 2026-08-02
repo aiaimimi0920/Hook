@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createEffect } from "solid-js";
+import { createEffect, createSignal } from "solid-js";
 import { render } from "solid-js/web";
 
 vi.mock("../../src/services/api", () => ({
@@ -55,6 +55,12 @@ import { UnitView } from "../../src/components/UnitView";
 import { graphStore } from "../../src/store/graphStore";
 import type { ArtCapability } from "../../src/services/protocol";
 import type { Link, Unit } from "../../src/types/unit";
+import {
+    STICKER_GPU_WARM_HOVER_DELAY_MS,
+    STICKER_GPU_WARM_HOVER_GRACE_MS,
+    clearStickerGpuWarmPool,
+    getStickerGpuWarmPoolSnapshot,
+} from "../../src/services/stickerGpuWarmPool";
 
 const CAPABILITY: ArtCapability = {
     id: "color-transfer",
@@ -149,12 +155,14 @@ const OUTPUT_LINK: Link = {
 
 describe("UnitView restored minified shader viewport", () => {
     afterEach(() => {
+        clearStickerGpuWarmPool();
         document.body.innerHTML = "";
         graphStore.setUnits([]);
         graphStore.setLinks([]);
         graphStore.setCapabilities([]);
         graphStore.setUnitParams({});
         graphStore.setUnitExecConfig({});
+        vi.useRealTimers();
         vi.clearAllMocks();
     });
 
@@ -228,5 +236,73 @@ describe("UnitView restored minified shader viewport", () => {
         expect(shaderWrapper?.style.top).toBe("0px");
 
         dispose();
+    });
+
+    it("prewarms the sticker root from real pointer events and cleans up changed identities", async () => {
+        vi.useFakeTimers();
+        graphStore.setUnits([INPUT_UNIT]);
+        const [currentUnit, setCurrentUnit] = createSignal(INPUT_UNIT);
+        const [selected, setSelected] = createSignal(false);
+        const host = document.createElement("div");
+        document.body.append(host);
+
+        const dispose = render(
+            () => (
+                <UnitView
+                    unit={currentUnit()}
+                    params={{}}
+                    isSelected={selected()}
+                    showActions={false}
+                    showParams={false}
+                    onMouseDown={() => undefined}
+                    onParamChange={() => undefined}
+                    onDoubleTap={() => undefined}
+                    onDelete={() => undefined}
+                    onAddNode={() => undefined}
+                    onLinkStart={() => undefined}
+                    onLinkDrop={() => undefined}
+                    onLinkHover={() => undefined}
+                    onRendered={() => undefined}
+                    onResize={() => undefined}
+                    onOpacityChange={() => undefined}
+                    connectedPorts={[]}
+                    connectedLinks={[]}
+                />
+            ),
+            host,
+        );
+
+        await Promise.resolve();
+        const root = host.querySelector(".unit-container") as HTMLDivElement | null;
+        expect(root).toBeInstanceOf(HTMLDivElement);
+        expect(getStickerGpuWarmPoolSnapshot().entries.map((entry) => entry.unitId)).toEqual([
+            INPUT_UNIT.id,
+        ]);
+
+        root?.dispatchEvent(new Event("pointerenter"));
+        vi.advanceTimersByTime(STICKER_GPU_WARM_HOVER_DELAY_MS);
+        expect(root?.style.willChange).toBe("transform");
+
+        root?.dispatchEvent(new Event("pointerleave"));
+        vi.advanceTimersByTime(STICKER_GPU_WARM_HOVER_GRACE_MS);
+        expect(root?.style.willChange).toBe("");
+
+        setSelected(true);
+        await Promise.resolve();
+        expect(root?.style.willChange).toBe("transform");
+
+        setSelected(false);
+        await Promise.resolve();
+        expect(root?.style.willChange).toBe("");
+
+        const replacement = { ...INPUT_UNIT, id: "replacement-sticker" };
+        setCurrentUnit(replacement);
+        await Promise.resolve();
+        expect(getStickerGpuWarmPoolSnapshot().entries.map((entry) => entry.unitId)).toEqual([
+            replacement.id,
+        ]);
+
+        dispose();
+        expect(getStickerGpuWarmPoolSnapshot().entries).toEqual([]);
     });
 });

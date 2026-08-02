@@ -95,15 +95,12 @@ export function useShortcuts(options: UseShortcutsOptions) {
     const shouldSuppressBareAlt = (e: KeyboardEvent) =>
       e.key === 'Alt' && !e.ctrlKey && !e.metaKey;
 
-    // On Windows WebView, a bare Alt press can enter the native accelerator
-    // path and break the next wheel gesture from reaching the Hook overlay.
-    // Hook uses Alt only as an in-canvas modifier, so we suppress the native
-    // bare-Alt default at the app boundary.
+    // Prevent only the WebView accelerator default. Do not stop propagation:
+    // Alt is also a modifier used by other input consumers, and Hook must not
+    // make the key disappear from the remaining event chain.
     const suppressBareAlt = (e: KeyboardEvent) => {
       if (!shouldSuppressBareAlt(e)) return false;
       e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
       return true;
     };
 

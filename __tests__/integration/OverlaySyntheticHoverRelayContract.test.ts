@@ -22,8 +22,9 @@ describe("overlay synthetic hover relay contract", () => {
       "unsafe extern \"system\" fn capture_mouse_hook_proc",
       "fn install_capture_mouse_hook_thread",
     );
+    const overlayPath = hookProcBlock.slice(hookProcBlock.indexOf("let should_route_overlay_mouse ="));
     const moveBlock = sourceBetween(
-      hookProcBlock,
+      overlayPath,
       "WM_MOUSEMOVE => {",
       "WM_LBUTTONDOWN => {",
     );
@@ -45,7 +46,8 @@ describe("overlay synthetic hover relay contract", () => {
       "const relayOverlaySyntheticPointerMove = (event: MouseEvent) => {",
     );
 
-    expect(moveBlock).toContain("if !capture_active && (should_route_overlay_mouse || native_drag_preflight_active) {");
+    expect(moveBlock).toContain("|| overlay_drag_active");
+    expect(moveBlock).toContain("|| native_drag_preflight_active");
     expect(moveBlock).toContain("CaptureMouseHookEvent::OverlayMove");
     expect(hookProcBlock).toContain("let native_drag_preflight_active =");
     expect(moveBlock).toContain("native_drag_preflight_active");

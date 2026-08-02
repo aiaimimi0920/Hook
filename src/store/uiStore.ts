@@ -91,7 +91,9 @@ export const [draggingStickerId, setDraggingStickerId] = createSignal<string | n
 // Legacy Single Drag (Keep for conflict avoidance during transition, or deprecate?)
 // We will use this for the *Primary* dragged unit for snapping logic
 // Multi-Drag Positions (Map ID -> {x, y})
-export const [multiDragPositions, setMultiDragPositions] = createSignal<Record<string, {x: number, y: number}> | null>(null);
+export type MultiDragPosition = { x: number; y: number };
+export type MultiDragPositionMap = Record<string, MultiDragPosition>;
+export const [multiDragPositions, setMultiDragPositions] = createSignal<MultiDragPositionMap | null>(null);
 // Capture Mode (Screenshot)
 export const [isSelecting, setIsSelecting] = createSignal(false);
 export const [captureMode, setCaptureMode] = createSignal<"region" | "long-vertical">("region");

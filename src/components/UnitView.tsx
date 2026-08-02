@@ -16,7 +16,12 @@ import {
 import { Unit, Link } from "../types/unit";
 import { ArtCapability } from "../services/protocol";
 import { addOrUpdateRect, removeRect, updatePortOffset } from "../services/uiRegistry";
-import { computeMinifiedStickerAnnotationViewport, computeMinifiedStickerViewport } from "../services/stickerEditing";
+import {
+  computeCroppedStickerImageViewport,
+  computeMinifiedStickerAnnotationViewport,
+  computeMinifiedStickerViewport,
+  computeStickerWheelResizeFrame,
+} from "../services/stickerEditing";
 import { ShaderPreview } from "./ShaderPreview";
 import { UnitParamsPanel } from "./UnitParamsPanel";
 import { UnitAddNodeMenu } from "./UnitAddNodeMenu";
@@ -40,6 +45,14 @@ import {
   resolveNativeDragPreviewPointFromOverlay,
   resolveUnitDragExportPlan,
 } from "../services/unitDragExport";
+import {
+  enterStickerGpuWarmHover,
+  leaveStickerGpuWarmHover,
+  registerStickerGpuWarmElement,
+  setStickerGpuWarmSelected,
+  unregisterStickerGpuWarmElement,
+  updateStickerGpuWarmEstimate,
+} from "../services/stickerGpuWarmPool";
 
 interface Props {
   unit: Unit;
@@ -68,7 +81,6 @@ interface Props {
   availableArts?: ArtCapability[]; // NEW: List of available arts for the menu
   resolveUnitImage?: (unitId: string) => string | undefined; // NEW: Helper to resolve referenced images
 
-  multiDragPositions?: Record<string, {x: number; y: number}> | null; // Multi-Drag State
   connectedPorts?: string[]; // List of connected INPUT ports
   connectedLinks?: Link[]; // NEW: Full Links for resolving upstream units
   portsLayer?: HTMLElement; // NEW: Global Layer for Z-independent ports
@@ -76,6 +88,7 @@ interface Props {
 
 export const UnitView: Component<Props> = (props) => {
   let unitContainerRef: HTMLDivElement | undefined;
+  let gpuWarmRegistration: { unitId: string; element: HTMLDivElement } | null = null;
   let nativeStickerDragStart:
       | {
             x: number;
@@ -94,6 +107,9 @@ export const UnitView: Component<Props> = (props) => {
   } | null>(null);
   const [baseImageIntrinsicSize, setBaseImageIntrinsicSize] = createSignal<{ w: number; h: number } | null>(null);
   const [shaderImageIntrinsicSize, setShaderImageIntrinsicSize] = createSignal<{ w: number; h: number } | null>(null);
+  let pendingWheelDeltaY = 0;
+  let pendingWheelPointer: { x: number; y: number } | null = null;
+  let wheelResizeFrame: number | null = null;
   type NativeDragPreflightOverlayPayload = {
       x?: number;
       y?: number;
@@ -104,14 +120,49 @@ export const UnitView: Component<Props> = (props) => {
       physicalOriginY?: number;
       shiftKey?: boolean;
   };
-  const logWheelEvent = (phase: string, detail: string) => {
-      void api.debugLogEvent("sticker-wheel-trace", `layer=unit phase=${phase} unit=${props.unit.id} ${detail}`);
-  };
-
-
-
   const isArt = () => props.unit.type === 'art';
-  const liveUnit = () => graphStore.units.find((unit) => unit.id === props.unit.id) || props.unit;
+  const liveUnit = () => props.unit;
+  const syncStickerGpuWarmRegistration = () => {
+      const unit = liveUnit();
+      const element = unitContainerRef;
+      const registration = gpuWarmRegistration;
+
+      if (
+          registration &&
+          (registration.unitId !== unit.id || registration.element !== element || unit.type !== "sticker")
+      ) {
+          unregisterStickerGpuWarmElement(registration.unitId, registration.element);
+          gpuWarmRegistration = null;
+      }
+      if (!element || unit.type !== "sticker") return;
+
+      const devicePixelRatio = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+      if (!gpuWarmRegistration) {
+          registerStickerGpuWarmElement(unit.id, element, unit.w, unit.h, devicePixelRatio);
+          gpuWarmRegistration = { unitId: unit.id, element };
+      } else {
+          updateStickerGpuWarmEstimate(unit.id, unit.w, unit.h, devicePixelRatio);
+      }
+      setStickerGpuWarmSelected(unit.id, props.isSelected);
+  };
+  const flushPendingWheelResize = () => {
+      wheelResizeFrame = null;
+      const deltaY = pendingWheelDeltaY;
+      const pointer = pendingWheelPointer;
+      pendingWheelDeltaY = 0;
+      pendingWheelPointer = null;
+      if (!pointer || deltaY === 0 || isMinified()) return;
+
+      const currentUnit = liveUnit();
+      props.onResize(computeStickerWheelResizeFrame(currentUnit, pointer, deltaY));
+  };
+  const queueWheelResize = (event: WheelEvent) => {
+      pendingWheelDeltaY += event.deltaY;
+      pendingWheelPointer = { x: event.clientX, y: event.clientY };
+      if (wheelResizeFrame === null) {
+          wheelResizeFrame = window.requestAnimationFrame(flushPendingWheelResize);
+      }
+  };
   const isMinified = () => !!liveUnit().data.minified;
   const hasSelectedExistingAnnotations = () =>
       selectedStickerAnnotationIds.length > 0 || selectedStickerAnnotationId() !== null;
@@ -180,24 +231,12 @@ export const UnitView: Component<Props> = (props) => {
       !!props.capability?.params?.some((param) => param.widget === "image_link" || param.id === "reference") ||
       !!props.capability?.inputs?.some((input) => input.name === "reference");
 
-  // Dynamic Style for the container
-  const currentPos = () => {
-    // Check Multi-Drag (Unified)
-    if (props.multiDragPositions && props.multiDragPositions[props.unit.id]) {
-        return props.multiDragPositions[props.unit.id];
-    }
-
-    const unit = liveUnit();
-    return { x: unit.x, y: unit.y };
-  };
-
   const style = () => {
-    const { x, y } = currentPos();
     const unit = liveUnit();
 
     return {
-        left: `${x}px`,
-        top: `${y}px`,
+        left: `${unit.x}px`,
+        top: `${unit.y}px`,
         width: `${unit.w}px`,
         // FIX: Force fixed height when minified (for crop), otherwise auto (for layout)
         height: isMinified() ? `${unit.h}px` : "auto",
@@ -213,6 +252,8 @@ export const UnitView: Component<Props> = (props) => {
     };
   };
 
+  createEffect(syncStickerGpuWarmRegistration);
+
   const getOpacity = () => isMinified()
       ? (liveUnit().data.opacityMini ?? 0.9)
       : (liveUnit().data.opacityNormal ?? 1);
@@ -220,8 +261,11 @@ export const UnitView: Component<Props> = (props) => {
   const getCornerRadius = () => getImageEditState()?.cornerRadius ?? 0;
   const getImageBorderWidth = () => getImageEditState()?.borderWidth ?? 0;
   const getImageBorderColor = () => getImageEditState()?.borderColor ?? "transparent";
-  const getCropRect = () => getImageEditState()?.cropRect;
-  const getCropSourceSize = () => getImageEditState()?.sourceSize;
+  const getCroppedImageViewport = () =>
+      computeCroppedStickerImageViewport(
+          { w: liveUnit().w, h: liveUnit().h },
+          getImageEditState(),
+      );
   const getTransform = () => {
       const scaleX = getImageEditState()?.flippedX ? -1 : 1;
       const scaleY = getImageEditState()?.flippedY ? -1 : 1;
@@ -595,6 +639,15 @@ export const UnitView: Component<Props> = (props) => {
 
   onCleanup(() => {
       detachPendingNativeDragListeners();
+      const registration = gpuWarmRegistration;
+      if (registration) {
+          unregisterStickerGpuWarmElement(registration.unitId, registration.element);
+          gpuWarmRegistration = null;
+      }
+      if (wheelResizeFrame !== null) {
+          window.cancelAnimationFrame(wheelResizeFrame);
+          wheelResizeFrame = null;
+      }
   });
 
   const getRenderedImageFrame = () => {
@@ -726,10 +779,16 @@ export const UnitView: Component<Props> = (props) => {
       class={`unit-container ${props.isSelected ? "selected" : ""} ${isArt() ? "art-node" : "sticker-node"} ${isMinified() ? "minified" : ""}`}
       style={style()}
 
-      ref={unitContainerRef}
+      ref={(element) => {
+        unitContainerRef = element;
+        syncStickerGpuWarmRegistration();
+      }}
 
       data-unit-id={props.unit.id} // NEW: For global hit-testing (Link Node)
+      data-hook-drag-follow-unit-id={props.unit.id}
       tabIndex={-1}
+      onPointerEnter={() => enterStickerGpuWarmHover(props.unit.id)}
+      onPointerLeave={() => leaveStickerGpuWarmHover(props.unit.id)}
       onMouseDown={(event) => {
         if (allowContainerMouseDown()) {
             props.onMouseDown(event);
@@ -751,47 +810,8 @@ export const UnitView: Component<Props> = (props) => {
         if (e.ctrlKey) {
             e.preventDefault();
             e.stopPropagation();
-
-            logWheelEvent(
-                "ctrl-enter",
-                `ctrl=${e.ctrlKey} alt=${e.altKey} shift=${e.shiftKey} minified=${isMinified()} activeEditTarget=${activeStickerEditTargetId() ?? "null"} selectedAnnotationCount=${selectedStickerAnnotationIds.length} primaryAnnotation=${selectedStickerAnnotationId() ?? "null"} deltaY=${e.deltaY}`,
-            );
             if (isMinified()) return;
-            const currentUnit = liveUnit();
-
-            const rect = e.currentTarget.getBoundingClientRect();
-            // Calculate scale of the view (in case canvas is zoomed)
-            // If rect.width is 0 (hidden), safe fallback
-            const viewScale = currentUnit.w > 0 ? rect.width / currentUnit.w : 1;
-
-            // Mouse position relative to unit corner (in World Units)
-            const relX = (e.clientX - rect.left) / viewScale;
-            const relY = (e.clientY - rect.top) / viewScale;
-
-            // Browser wheel direction: deltaY < 0 means wheel-up. Wheel-up should zoom in.
-            const scaleFactor = Math.max(0.5, Math.min(1.5, Math.exp(-e.deltaY * 0.001)));
-
-            const newW = Math.max(24, currentUnit.w * scaleFactor);
-            const newH = Math.max(24, currentUnit.h * scaleFactor);
-
-            // Calculate actual effective scale applied (in case of clamping)
-            const effectiveScaleW = currentUnit.w > 0 ? newW / currentUnit.w : 1;
-            const effectiveScaleH = currentUnit.h > 0 ? newH / currentUnit.h : 1;
-
-            // New Position: Adjusted to keep the point under mouse stationary
-            // NewUnitX = MouseX_World - (RelX_World * NewScale)
-            // But MouseX_World = UnitX + RelX_World
-            // So NewUnitX = UnitX + RelX_World - RelX_World * NewScale
-            //             = UnitX + RelX_World * (1 - NewScale)
-            const newX = currentUnit.x + relX * (1 - effectiveScaleW);
-            const newY = currentUnit.y + relY * (1 - effectiveScaleH);
-            const nextFrame = { x: newX, y: newY, w: newW, h: newH };
-
-            logWheelEvent(
-                "ctrl-resize",
-                `ctrl=${e.ctrlKey} alt=${e.altKey} shift=${e.shiftKey} minified=${currentUnit.data.minified ?? false} relX=${relX.toFixed(2)} relY=${relY.toFixed(2)} nextW=${newW.toFixed(2)} nextH=${newH.toFixed(2)} nextX=${newX.toFixed(2)} nextY=${newY.toFixed(2)}`,
-            );
-            props.onResize(nextFrame);
+            queueWheelResize(e);
         } else if (e.altKey) {
             e.preventDefault();
             e.stopPropagation();
@@ -805,10 +825,6 @@ export const UnitView: Component<Props> = (props) => {
             const delta = -e.deltaY * 0.001;
             const newOp = Math.max(0, Math.min(1, currentOp + delta));
 
-            logWheelEvent(
-                "alt-opacity",
-                `ctrl=${e.ctrlKey} alt=${e.altKey} shift=${e.shiftKey} minified=${currentUnit.data.minified ?? false} currentOpacity=${currentOp.toFixed(3)} nextOpacity=${newOp.toFixed(3)} deltaY=${e.deltaY}`,
-            );
             props.onOpacityChange(newOp);
         }
       }}
@@ -852,8 +868,8 @@ export const UnitView: Component<Props> = (props) => {
             portsLayer={props.portsLayer}
             isCleanView={isCleanView()}
 
-            x={currentPos().x}
-            y={currentPos().y}
+            x={props.unit.x}
+            y={props.unit.y}
             width={props.unit.w}
             height={props.unit.h}
 
@@ -1041,17 +1057,16 @@ export const UnitView: Component<Props> = (props) => {
                             "transform": getTransform()
                         };
                     }
-                    const cropRect = getCropRect();
-                    const cropSourceSize = getCropSourceSize();
-                    if (cropRect && cropSourceSize) {
+                    const croppedViewport = getCroppedImageViewport();
+                    if (croppedViewport) {
                         return {
                             "position": "absolute",
-                            "width": `${cropSourceSize.w}px`,
-                            "height": `${cropSourceSize.h}px`,
-                            "left": `-${cropRect.x}px`,
-                            "top": `-${cropRect.y}px`,
-                            "min-width": `${cropSourceSize.w}px`,
-                            "min-height": `${cropSourceSize.h}px`,
+                            "width": `${croppedViewport.width}px`,
+                            "height": `${croppedViewport.height}px`,
+                            "left": `-${croppedViewport.offsetX}px`,
+                            "top": `-${croppedViewport.offsetY}px`,
+                            "min-width": `${croppedViewport.width}px`,
+                            "min-height": `${croppedViewport.height}px`,
                             "max-width": "none",
                             "max-height": "none",
                             "pointer-events": "auto",
@@ -1278,8 +1293,8 @@ export const UnitView: Component<Props> = (props) => {
             <Show when={props.unit.type === "sticker" && props.isSelected && activeStickerEditTargetId() === props.unit.id}>
                 <StickerTopStrip
                     unitId={props.unit.id}
-                    x={currentPos().x}
-                    y={currentPos().y}
+                    x={props.unit.x}
+                    y={props.unit.y}
                     stickerWidth={props.unit.w}
                     stickerHeight={props.unit.h}
                 />
@@ -1325,7 +1340,7 @@ export const UnitView: Component<Props> = (props) => {
              availableArts={props.availableArts}
              onAddNode={props.onAddNode}
              showActions={props.showActions}
-             currentPos={currentPos()}
+             currentPos={{ x: props.unit.x, y: props.unit.y }}
         />
 
     </div>

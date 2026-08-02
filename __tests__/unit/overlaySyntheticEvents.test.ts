@@ -299,6 +299,21 @@ describe("overlaySyntheticEvents", () => {
         expect(h.lastDeltaY.get("A:wheel")).toBe(120);
     });
 
+    it("11b. preserves Alt on a synthetic overlay wheel event", () => {
+        let received: WheelEvent | null = null;
+        h.a.addEventListener("wheel", (event) => {
+            received = event;
+        });
+        h.setHit(() => h.a);
+
+        h.d.dispatch("wheel", { x: 10, y: 10, deltaY: -120, altKey: true });
+
+        expect(received).not.toBeNull();
+        expect(received?.altKey).toBe(true);
+        expect(received?.ctrlKey).toBe(false);
+        expect(received?.deltaY).toBe(-120);
+    });
+
     it("12. leaves the current hover and dispatches nothing when a no-button move hits the overlay root", () => {
         h.setHit(() => h.a);
         h.d.dispatch("mousemove", { x: 10, y: 10 }); // hover A
@@ -382,5 +397,22 @@ describe("overlaySyntheticEvents", () => {
         expect(hitCalls).toBe(0);
         // ...and the moves are still delivered to #app-main as before.
         expect(h.typesFor("app")).toContain("mousemove");
+    });
+
+    it("16. keeps a sticker drag captured across fast moves outside every hit-test region", () => {
+        h.setHit(() => h.a);
+        h.d.dispatch("mousedown", { x: 10, y: 10 });
+        h.setDragging("s1");
+        h.setHit(() => null);
+        h.clear();
+
+        h.d.dispatch("mousemove", { x: 10_000, y: 10_000 });
+        h.d.dispatch("mousemove", { x: 20_000, y: 20_000 });
+        h.d.dispatch("mouseup", { x: 20_000, y: 20_000 });
+
+        expect(h.typesFor("app").filter((type) => type === "mousemove")).toHaveLength(2);
+        expect(h.typesFor("A")).toContain("mouseup");
+        expect(h.typesFor("A")).not.toContain("click");
+        expect(h.typesFor("B")).toEqual([]);
     });
 });

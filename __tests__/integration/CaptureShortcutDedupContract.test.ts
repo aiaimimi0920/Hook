@@ -29,6 +29,15 @@ describe("capture shortcut de-duplication", () => {
     expect(rustSource).toContain("Duration::from_millis(500)");
   });
 
+  it("refuses to reconfigure the overlay when a native capture session is already active", () => {
+    const rustSource = readSource("src-tauri/src/lib.rs");
+
+    expect(rustSource).toContain("fn try_begin_capture_input_runtime() -> bool");
+    expect(rustSource).toContain("CAPTURE_MOUSE_HOOK_ACTIVE.swap(true, Ordering::SeqCst)");
+    expect(rustSource).toContain("enter_capture_mode_ignored_active");
+    expect(rustSource).toContain("enter_long_capture_mode_ignored_active");
+  });
+
   it("ignores duplicate frontend capture trigger events while a capture session is already active", () => {
     const appSource = readSource("src/app.tsx");
     const captureStateSource = readSource("src/services/captureState.ts");
