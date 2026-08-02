@@ -142,6 +142,16 @@ export const findCaptureWindowTargetAtPoint = (
     && y < target.y + target.h,
 ) ?? null;
 
+export const findRefreshedCaptureWindowTarget = (
+    targets: readonly CaptureWindowTarget[],
+    targetId: string,
+    x: number,
+    y: number,
+): CaptureWindowTarget | null => {
+    const targetAtPoint = findCaptureWindowTargetAtPoint(targets, x, y);
+    return targetAtPoint?.id === targetId ? targetAtPoint : null;
+};
+
 export const shouldConfirmCaptureWindowDoubleClick = (
     previous: CaptureWindowClickState | null,
     targetId: string,

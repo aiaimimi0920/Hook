@@ -23,6 +23,24 @@ describe("HDR capture contract", () => {
     expect(screenshotSource.slice(hdrTransientStart, hdrTransientEnd)).not.toContain("PERSISTENT_CAPTURER");
   });
 
+  it("selects HDR and SDR capture backends from the active capture monitor", () => {
+    const captureSource = readSource("src-tauri/src/capture.rs");
+    const screenshotSource = readSource("src-tauri/src/screenshot.rs");
+    const capturePlanStart = screenshotSource.indexOf("fn capture_plan(");
+    const capturePlanEnd = screenshotSource.indexOf("fn capture_sdr_from_plan(", capturePlanStart);
+    const capturePlan = screenshotSource.slice(capturePlanStart, capturePlanEnd);
+
+    expect(captureSource).toContain("fn capture_display_metrics(window: &Window)");
+    expect(captureSource).toContain("Some(display_metrics),");
+    expect(screenshotSource).toContain("fn capture_display_for_metrics(");
+    expect(screenshotSource).toContain("Display::list()");
+    expect(capturePlan).toContain("capture_display_for_metrics(display_metrics)");
+    expect(capturePlan).not.toContain("let display = Display::primary()");
+    expect(screenshotSource).toContain("hdr_display_info_for(&plan.display)");
+    expect(screenshotSource).toContain("plan.physical_origin_x + plan.crop.left as i32");
+    expect(screenshotSource).toContain("plan.physical_origin_y + plan.crop.top as i32");
+  });
+
   it("writes real 16-bit BT.2020 PQ PNG metadata instead of relabeling SDR pixels", () => {
     const libSource = readSource("src-tauri/src/lib.rs");
     const screenshotSource = readSource("src-tauri/src/screenshot.rs");

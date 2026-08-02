@@ -238,6 +238,66 @@ mod platform {
                 None,
             );
         }
+
+        #[test]
+        fn normalizes_windows_on_a_negative_origin_mixed_dpi_monitor() {
+            let metrics = CaptureWindowMetrics {
+                physical_origin_x: -1920.0,
+                physical_origin_y: -200.0,
+                scale_factor: 1.5,
+                logical_width: 1280.0,
+                logical_height: 720.0,
+            };
+
+            assert_eq!(
+                normalize_window_rect(
+                    RECT {
+                        left: -2000,
+                        top: -260,
+                        right: -1320,
+                        bottom: 400,
+                    },
+                    metrics,
+                ),
+                Some((0.0, 0.0, 400.0, 400.0)),
+            );
+        }
+
+        #[test]
+        fn clips_cross_monitor_windows_using_the_target_monitor_scale() {
+            let metrics = CaptureWindowMetrics {
+                physical_origin_x: 1920.0,
+                physical_origin_y: 0.0,
+                scale_factor: 1.25,
+                logical_width: 1536.0,
+                logical_height: 864.0,
+            };
+
+            assert_eq!(
+                normalize_window_rect(
+                    RECT {
+                        left: 3000,
+                        top: 100,
+                        right: 4000,
+                        bottom: 1200,
+                    },
+                    metrics,
+                ),
+                Some((864.0, 80.0, 672.0, 784.0)),
+            );
+            assert_eq!(
+                normalize_window_rect(
+                    RECT {
+                        left: 1919,
+                        top: 10,
+                        right: 1921,
+                        bottom: 500,
+                    },
+                    metrics,
+                ),
+                None,
+            );
+        }
     }
 }
 

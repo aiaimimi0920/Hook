@@ -4,6 +4,7 @@ import {
     createCaptureMeta,
     createAutoLongCaptureOptions,
     findCaptureWindowTargetAtPoint,
+    findRefreshedCaptureWindowTarget,
     resolveAutoLongCaptureBurstBudget,
     resolveAutoLongCaptureBurstPollInterval,
     resolveAutoLongCapturePollInterval,
@@ -102,6 +103,19 @@ describe("capture state helpers", () => {
             "window-a",
             999,
         )).toBe(false);
+    });
+
+    it("accepts a refreshed window target only when the same window still owns the click point", () => {
+        const refreshedTargets = [
+            { id: "window-a", x: 300, y: 200, w: 500, h: 400 },
+            { id: "window-b", x: 0, y: 0, w: 300, h: 200 },
+        ];
+
+        expect(findRefreshedCaptureWindowTarget(refreshedTargets, "window-a", 350, 250)).toEqual(
+            refreshedTargets[0],
+        );
+        expect(findRefreshedCaptureWindowTarget(refreshedTargets, "window-a", 100, 100)).toBeNull();
+        expect(findRefreshedCaptureWindowTarget(refreshedTargets, "closed-window", 350, 250)).toBeNull();
     });
 
     it("resolves shortcut context with capture selection taking priority over sticker editing", () => {

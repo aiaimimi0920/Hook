@@ -1,3 +1,4 @@
+use crate::capture_coords::CaptureWindowMetrics;
 use anyhow::anyhow;
 #[cfg(target_os = "windows")]
 use half::f16;
@@ -284,6 +285,18 @@ fn should_attempt_hdr_capture(
         && mode != HdrCaptureMode::Sdr
         && windows_11_or_newer
         && display_hdr_enabled
+}
+
+#[cfg(target_os = "windows")]
+fn should_report_hdr_downgrade_on_sdr_fallback(
+    mode: HdrCaptureMode,
+    attempted_hdr: bool,
+    display_hdr_enabled: bool,
+    windows_11_or_newer: bool,
+) -> bool {
+    attempted_hdr
+        || (mode == HdrCaptureMode::Hdr && !display_hdr_enabled)
+        || (mode != HdrCaptureMode::Sdr && display_hdr_enabled && !windows_11_or_newer)
 }
 
 #[cfg(target_os = "windows")]
@@ -1054,6 +1067,7 @@ struct PersistentCapturer {
     // dropping the Capturer calls stop() and ends capture. Never read directly.
     #[allow(dead_code)]
     capturer: Capturer,
+    display_id: scap_targets::DisplayId,
     latest: std::sync::Arc<std::sync::Mutex<Option<RgbImage>>>,
     frame_seq: std::sync::Arc<std::sync::atomic::AtomicU64>,
     last_usable: Option<(RgbImage, std::time::Instant)>,
@@ -1143,6 +1157,7 @@ fn build_persistent_capturer(display_id: &scap_targets::DisplayId) -> Option<Per
 
     Some(PersistentCapturer {
         capturer,
+        display_id: display_id.clone(),
         latest,
         frame_seq,
         last_usable: None,
@@ -1310,6 +1325,20 @@ fn try_fast_capture(
     }
 
     PERSISTENT_CAPTURER.with(|cell| {
+        let display_changed = cell
+            .borrow()
+            .as_ref()
+            .map(|capturer| capturer.display_id != display_id)
+            .unwrap_or(false);
+        if display_changed {
+            *cell.borrow_mut() = None;
+            if diag {
+                crate::append_runtime_log_line(
+                    "capture_area wgc_persistent_display_changed :: rebuilding",
+                );
+            }
+        }
+
         // Lazily create (or recreate after a prior failure) the persistent
         // capturer. Reused across every call on this thread; this is what
         // stops the per-frame create/start/stop churn that exhausted WGC.
@@ -1440,10 +1469,148 @@ fn try_fast_capture(
 // --- Public API ---
 
 #[cfg(target_os = "windows")]
-struct PrimaryCapturePlan {
+struct CapturePlan {
     display: Display,
     display_id: scap_targets::DisplayId,
     crop: D3D11_BOX,
+    physical_origin_x: i32,
+    physical_origin_y: i32,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct CaptureDisplayGeometry {
+    physical_origin_x: i32,
+    physical_origin_y: i32,
+    physical_width: u32,
+    physical_height: u32,
+    logical_width: f64,
+    logical_height: f64,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LocalPhysicalCaptureRect {
+    left: u32,
+    top: u32,
+    right: u32,
+    bottom: u32,
+}
+
+#[cfg(target_os = "windows")]
+fn capture_display_geometry(display: &Display) -> Option<CaptureDisplayGeometry> {
+    let physical_bounds = display.raw_handle().physical_bounds()?;
+    let physical_position = physical_bounds.position();
+    let physical_size = physical_bounds.size();
+    let logical_size = display.logical_size()?;
+    if physical_size.width() <= 0.0
+        || physical_size.height() <= 0.0
+        || logical_size.width() <= 0.0
+        || logical_size.height() <= 0.0
+    {
+        return None;
+    }
+
+    Some(CaptureDisplayGeometry {
+        physical_origin_x: physical_position.x().round() as i32,
+        physical_origin_y: physical_position.y().round() as i32,
+        physical_width: physical_size.width().round() as u32,
+        physical_height: physical_size.height().round() as u32,
+        logical_width: logical_size.width(),
+        logical_height: logical_size.height(),
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn capture_display_matches_metrics(
+    geometry: CaptureDisplayGeometry,
+    metrics: CaptureWindowMetrics,
+) -> bool {
+    let expected_width = metrics.logical_width * metrics.scale_factor;
+    let expected_height = metrics.logical_height * metrics.scale_factor;
+    (geometry.physical_origin_x as f64 - metrics.physical_origin_x).abs() <= 1.0
+        && (geometry.physical_origin_y as f64 - metrics.physical_origin_y).abs() <= 1.0
+        && (geometry.physical_width as f64 - expected_width).abs() <= 2.0
+        && (geometry.physical_height as f64 - expected_height).abs() <= 2.0
+}
+
+#[cfg(target_os = "windows")]
+fn select_capture_display_geometry_index(
+    metrics: CaptureWindowMetrics,
+    geometries: &[CaptureDisplayGeometry],
+) -> Option<usize> {
+    geometries
+        .iter()
+        .position(|geometry| capture_display_matches_metrics(*geometry, metrics))
+        .or_else(|| {
+            let expected_width = metrics.logical_width * metrics.scale_factor;
+            let expected_height = metrics.logical_height * metrics.scale_factor;
+            let center_x = metrics.physical_origin_x + expected_width / 2.0;
+            let center_y = metrics.physical_origin_y + expected_height / 2.0;
+            geometries.iter().position(|geometry| {
+                center_x >= geometry.physical_origin_x as f64
+                    && center_x < geometry.physical_origin_x as f64 + geometry.physical_width as f64
+                    && center_y >= geometry.physical_origin_y as f64
+                    && center_y
+                        < geometry.physical_origin_y as f64 + geometry.physical_height as f64
+            })
+        })
+}
+
+#[cfg(target_os = "windows")]
+fn local_logical_capture_rect_to_physical(
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+    geometry: CaptureDisplayGeometry,
+) -> Option<LocalPhysicalCaptureRect> {
+    if w == 0 || h == 0 || geometry.logical_width <= 0.0 || geometry.logical_height <= 0.0 {
+        return None;
+    }
+
+    let scale_x = geometry.physical_width as f64 / geometry.logical_width;
+    let scale_y = geometry.physical_height as f64 / geometry.logical_height;
+    let left = (x as f64 * scale_x).floor();
+    let top = (y as f64 * scale_y).floor();
+    let right = (left + w as f64 * scale_x).ceil();
+    let bottom = (top + h as f64 * scale_y).ceil();
+    let left = left.max(0.0).min(geometry.physical_width as f64) as u32;
+    let top = top.max(0.0).min(geometry.physical_height as f64) as u32;
+    let right = right.max(left as f64).min(geometry.physical_width as f64) as u32;
+    let bottom = bottom.max(top as f64).min(geometry.physical_height as f64) as u32;
+    (right > left && bottom > top).then_some(LocalPhysicalCaptureRect {
+        left,
+        top,
+        right,
+        bottom,
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn capture_display_for_metrics(
+    metrics: Option<CaptureWindowMetrics>,
+) -> anyhow::Result<(Display, CaptureDisplayGeometry)> {
+    if let Some(metrics) = metrics {
+        let candidates = Display::list()
+            .into_iter()
+            .filter_map(|display| {
+                capture_display_geometry(&display).map(|geometry| (display, geometry))
+            })
+            .collect::<Vec<_>>();
+        let geometries = candidates
+            .iter()
+            .map(|(_, geometry)| *geometry)
+            .collect::<Vec<_>>();
+        let index = select_capture_display_geometry_index(metrics, &geometries)
+            .ok_or_else(|| anyhow!("Capture display no longer matches the active monitor"))?;
+        return Ok(candidates[index]);
+    }
+
+    let display = Display::primary();
+    let geometry = capture_display_geometry(&display)
+        .ok_or_else(|| anyhow!("Primary display geometry is unavailable"))?;
+    Ok((display, geometry))
 }
 
 #[cfg(target_os = "windows")]
@@ -1453,7 +1620,13 @@ struct SdrCaptureResult {
 }
 
 #[cfg(target_os = "windows")]
-fn primary_capture_plan(x: i32, y: i32, w: u32, h: u32) -> anyhow::Result<PrimaryCapturePlan> {
+fn capture_plan(
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+    display_metrics: Option<CaptureWindowMetrics>,
+) -> anyhow::Result<CapturePlan> {
     let verbose_log = capture_area_verbose_logging_enabled();
     if verbose_log {
         crate::append_runtime_log_line(&format!(
@@ -1462,45 +1635,33 @@ fn primary_capture_plan(x: i32, y: i32, w: u32, h: u32) -> anyhow::Result<Primar
         ));
     }
 
-    let display = Display::primary();
+    let (display, geometry) = capture_display_for_metrics(display_metrics)?;
     let display_id = display.id();
-    let physical = display
-        .physical_size()
-        .ok_or_else(|| anyhow!("No physical size"))?;
-    let logical = display
-        .logical_size()
-        .ok_or_else(|| anyhow!("No logical size"))?;
-    if logical.width() <= 0.0 || physical.width() <= 0.0 {
-        return Err(anyhow!("Invalid display dimensions"));
-    }
-
-    let scale = physical.width() / logical.width();
     if verbose_log {
         crate::append_runtime_log_line(&format!(
-            "capture_area display :: logical={}x{} physical={}x{} scale={}",
-            logical.width(),
-            logical.height(),
-            physical.width(),
-            physical.height(),
-            scale
+            "capture_area display :: id={} origin={},{} logical={}x{} physical={}x{} scale={}x{}",
+            display_id,
+            geometry.physical_origin_x,
+            geometry.physical_origin_y,
+            geometry.logical_width,
+            geometry.logical_height,
+            geometry.physical_width,
+            geometry.physical_height,
+            geometry.physical_width as f64 / geometry.logical_width,
+            geometry.physical_height as f64 / geometry.logical_height,
         ));
     }
 
-    let left = (x as f64 * scale).floor();
-    let top = (y as f64 * scale).floor();
-    let right = (left + w as f64 * scale).ceil();
-    let bottom = (top + h as f64 * scale).ceil();
+    let physical_rect = local_logical_capture_rect_to_physical(x, y, w, h, geometry)
+        .ok_or_else(|| anyhow!("Capture rectangle is outside the target display"))?;
     let crop = D3D11_BOX {
-        left: left.max(0.0) as u32,
-        top: top.max(0.0) as u32,
-        right: right.min(physical.width()).max(left) as u32,
-        bottom: bottom.min(physical.height()).max(top) as u32,
+        left: physical_rect.left,
+        top: physical_rect.top,
+        right: physical_rect.right,
+        bottom: physical_rect.bottom,
         front: 0,
         back: 1,
     };
-    if crop.right <= crop.left || crop.bottom <= crop.top {
-        return Err(anyhow!("Capture rectangle is outside the primary display"));
-    }
     if verbose_log {
         crate::append_runtime_log_line(&format!(
             "capture_area crop :: left={} top={} right={} bottom={}",
@@ -1508,16 +1669,18 @@ fn primary_capture_plan(x: i32, y: i32, w: u32, h: u32) -> anyhow::Result<Primar
         ));
     }
 
-    Ok(PrimaryCapturePlan {
+    Ok(CapturePlan {
         display,
         display_id,
         crop,
+        physical_origin_x: geometry.physical_origin_x,
+        physical_origin_y: geometry.physical_origin_y,
     })
 }
 
 #[cfg(target_os = "windows")]
 fn capture_sdr_from_plan(
-    plan: &PrimaryCapturePlan,
+    plan: &CapturePlan,
     profile: CaptureWorkloadProfile,
 ) -> anyhow::Result<SdrCaptureResult> {
     let verbose_log = capture_area_verbose_logging_enabled();
@@ -1557,8 +1720,8 @@ fn capture_sdr_from_plan(
     let width = plan.crop.right - plan.crop.left;
     let height = plan.crop.bottom - plan.crop.top;
     let image = capture_area_gdi(
-        plan.crop.left as i32,
-        plan.crop.top as i32,
+        plan.physical_origin_x + plan.crop.left as i32,
+        plan.physical_origin_y + plan.crop.top as i32,
         width as i32,
         height as i32,
     )?;
@@ -1584,7 +1747,7 @@ pub fn capture_area_with_profile(
 ) -> anyhow::Result<RgbImage> {
     #[cfg(target_os = "windows")]
     {
-        let plan = primary_capture_plan(x, y, w, h)?;
+        let plan = capture_plan(x, y, w, h, None)?;
         return capture_sdr_from_plan(&plan, profile).map(|result| result.image);
     }
 
@@ -1597,12 +1760,13 @@ pub fn capture_region_with_dynamic_range(
     y: i32,
     w: u32,
     h: u32,
+    display_metrics: Option<CaptureWindowMetrics>,
     overlay_gain: f32,
 ) -> anyhow::Result<DynamicCaptureResult> {
     #[cfg(target_os = "windows")]
     {
         let profile = CaptureWorkloadProfile::StandardRegion;
-        let plan = primary_capture_plan(x, y, w, h)?;
+        let plan = capture_plan(x, y, w, h, display_metrics)?;
         let mode = hdr_capture_mode();
         let display_info = hdr_display_info_for(&plan.display).unwrap_or(HdrDisplayInfo {
             enabled: false,
@@ -1650,9 +1814,12 @@ pub fn capture_region_with_dynamic_range(
         }
 
         let sdr = capture_sdr_from_plan(&plan, profile)?;
-        let downgraded_from_hdr = attempt_hdr
-            || (mode == HdrCaptureMode::Hdr && !display_info.enabled)
-            || (mode != HdrCaptureMode::Sdr && display_info.enabled && !windows_11_or_newer);
+        let downgraded_from_hdr = should_report_hdr_downgrade_on_sdr_fallback(
+            mode,
+            attempt_hdr,
+            display_info.enabled,
+            windows_11_or_newer,
+        );
         return Ok(DynamicCaptureResult {
             pixels: DynamicCapturePixels::Sdr(sdr.image),
             backend: sdr.backend,
@@ -1664,7 +1831,7 @@ pub fn capture_region_with_dynamic_range(
     #[cfg(not(target_os = "windows"))]
     {
         let image = capture_area_with_profile(x, y, w, h, CaptureWorkloadProfile::StandardRegion)?;
-        let _ = overlay_gain;
+        let _ = (display_metrics, overlay_gain);
         Ok(DynamicCaptureResult {
             pixels: DynamicCapturePixels::Sdr(image),
             backend: CaptureBackend::Gdi,
@@ -1688,6 +1855,172 @@ mod tests {
         LOCK.get_or_init(|| std::sync::Mutex::new(()))
             .lock()
             .expect("wgc fast path env lock should not be poisoned")
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn selects_the_display_matching_negative_origin_and_mixed_dpi_metrics() {
+        let geometries = [
+            CaptureDisplayGeometry {
+                physical_origin_x: 0,
+                physical_origin_y: 0,
+                physical_width: 1920,
+                physical_height: 1080,
+                logical_width: 1920.0,
+                logical_height: 1080.0,
+            },
+            CaptureDisplayGeometry {
+                physical_origin_x: -2560,
+                physical_origin_y: -200,
+                physical_width: 2560,
+                physical_height: 1440,
+                logical_width: 2560.0 / 1.5,
+                logical_height: 960.0,
+            },
+        ];
+        let metrics = CaptureWindowMetrics {
+            physical_origin_x: -2560.0,
+            physical_origin_y: -200.0,
+            scale_factor: 1.5,
+            logical_width: 2560.0 / 1.5,
+            logical_height: 960.0,
+        };
+
+        assert_eq!(
+            select_capture_display_geometry_index(metrics, &geometries),
+            Some(1),
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn display_selection_distinguishes_identical_monitors_by_virtual_desktop_origin() {
+        let geometries = [
+            CaptureDisplayGeometry {
+                physical_origin_x: 0,
+                physical_origin_y: 0,
+                physical_width: 1920,
+                physical_height: 1080,
+                logical_width: 1536.0,
+                logical_height: 864.0,
+            },
+            CaptureDisplayGeometry {
+                physical_origin_x: 1920,
+                physical_origin_y: 0,
+                physical_width: 1920,
+                physical_height: 1080,
+                logical_width: 1536.0,
+                logical_height: 864.0,
+            },
+        ];
+        let metrics = CaptureWindowMetrics {
+            physical_origin_x: 1920.0,
+            physical_origin_y: 0.0,
+            scale_factor: 1.25,
+            logical_width: 1536.0,
+            logical_height: 864.0,
+        };
+
+        assert_eq!(
+            select_capture_display_geometry_index(metrics, &geometries),
+            Some(1),
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn display_selection_falls_back_to_the_monitor_containing_the_reported_center() {
+        let geometries = [
+            CaptureDisplayGeometry {
+                physical_origin_x: 0,
+                physical_origin_y: 0,
+                physical_width: 1920,
+                physical_height: 1080,
+                logical_width: 1920.0,
+                logical_height: 1080.0,
+            },
+            CaptureDisplayGeometry {
+                physical_origin_x: 1920,
+                physical_origin_y: -100,
+                physical_width: 2560,
+                physical_height: 1440,
+                logical_width: 2048.0,
+                logical_height: 1152.0,
+            },
+        ];
+        let slightly_rounded_metrics = CaptureWindowMetrics {
+            physical_origin_x: 1917.0,
+            physical_origin_y: -98.0,
+            scale_factor: 1.25,
+            logical_width: 2046.0,
+            logical_height: 1150.0,
+        };
+
+        assert_eq!(
+            select_capture_display_geometry_index(slightly_rounded_metrics, &geometries),
+            Some(1),
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn converts_local_logical_capture_rect_using_the_selected_display_scale() {
+        let geometry = CaptureDisplayGeometry {
+            physical_origin_x: -2560,
+            physical_origin_y: -200,
+            physical_width: 2560,
+            physical_height: 1440,
+            logical_width: 2560.0 / 1.5,
+            logical_height: 960.0,
+        };
+
+        let rect = local_logical_capture_rect_to_physical(100, 50, 400, 200, geometry)
+            .expect("capture rect should intersect the selected display");
+        assert_eq!(
+            rect,
+            LocalPhysicalCaptureRect {
+                left: 150,
+                top: 75,
+                right: 750,
+                bottom: 375,
+            },
+        );
+        assert_eq!(geometry.physical_origin_x + rect.left as i32, -2410);
+        assert_eq!(geometry.physical_origin_y + rect.top as i32, -125);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn live_display_metrics_resolve_back_to_the_same_capture_display() {
+        let mut resolved_count = 0usize;
+        for expected_display in Display::list() {
+            let Some(geometry) = capture_display_geometry(&expected_display) else {
+                continue;
+            };
+            let scale_factor = geometry.physical_width as f64 / geometry.logical_width;
+            let metrics = CaptureWindowMetrics {
+                physical_origin_x: geometry.physical_origin_x as f64,
+                physical_origin_y: geometry.physical_origin_y as f64,
+                scale_factor,
+                logical_width: geometry.physical_width as f64 / scale_factor,
+                logical_height: geometry.physical_height as f64 / scale_factor,
+            };
+
+            let (resolved_display, resolved_geometry) = capture_display_for_metrics(Some(metrics))
+                .expect("live display metrics should resolve to a capture display");
+            assert_eq!(resolved_display.id(), expected_display.id());
+            assert_eq!(resolved_geometry, geometry);
+            let plan = capture_plan(0, 0, 100, 100, Some(metrics))
+                .expect("capture plan should use the resolved live display");
+            assert_eq!(plan.display_id, expected_display.id());
+            assert_eq!(plan.physical_origin_x, geometry.physical_origin_x);
+            assert_eq!(plan.physical_origin_y, geometry.physical_origin_y);
+            resolved_count += 1;
+        }
+        assert!(
+            resolved_count > 0,
+            "at least one capture display should resolve"
+        );
     }
 
     #[test]
@@ -1748,6 +2081,41 @@ mod tests {
             CaptureWorkloadProfile::StandardRegion,
             true,
             true,
+        ));
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn hdr_downgrade_metadata_tracks_the_selected_display_fallback_reason() {
+        assert!(should_report_hdr_downgrade_on_sdr_fallback(
+            HdrCaptureMode::Auto,
+            true,
+            true,
+            true,
+        ));
+        assert!(should_report_hdr_downgrade_on_sdr_fallback(
+            HdrCaptureMode::Hdr,
+            false,
+            false,
+            true,
+        ));
+        assert!(should_report_hdr_downgrade_on_sdr_fallback(
+            HdrCaptureMode::Auto,
+            false,
+            true,
+            false,
+        ));
+        assert!(!should_report_hdr_downgrade_on_sdr_fallback(
+            HdrCaptureMode::Auto,
+            false,
+            false,
+            true,
+        ));
+        assert!(!should_report_hdr_downgrade_on_sdr_fallback(
+            HdrCaptureMode::Sdr,
+            false,
+            true,
+            false,
         ));
     }
 

@@ -70,4 +70,19 @@ mod tests {
 
         assert_eq!(point, CapturePoint { x: 1536.0, y: 0.0 });
     }
+
+    #[test]
+    fn converts_negative_virtual_desktop_coordinates_on_a_secondary_monitor() {
+        let metrics = CaptureWindowMetrics {
+            physical_origin_x: -2560.0,
+            physical_origin_y: -200.0,
+            scale_factor: 1.5,
+            logical_width: 2560.0 / 1.5,
+            logical_height: 960.0,
+        };
+
+        let point = normalize_global_physical_to_local_logical(-2410.0, -50.0, metrics);
+
+        assert_eq!(point, CapturePoint { x: 100.0, y: 100.0 });
+    }
 }

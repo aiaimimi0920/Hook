@@ -3,10 +3,25 @@ use std::time::Duration;
 
 use tauri::Window;
 
+use crate::capture_coords::CaptureWindowMetrics;
 use crate::screenshot;
 
 static REGION_CAPTURE_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
 const REGION_CAPTURE_TIMEOUT: Duration = Duration::from_secs(6);
+
+fn capture_display_metrics(window: &Window) -> Option<CaptureWindowMetrics> {
+    let monitor = window.current_monitor().ok().flatten()?;
+    let position = monitor.position();
+    let physical_size = monitor.size();
+    let scale_factor = monitor.scale_factor();
+    Some(CaptureWindowMetrics {
+        physical_origin_x: position.x as f64,
+        physical_origin_y: position.y as f64,
+        scale_factor,
+        logical_width: physical_size.width as f64 / scale_factor,
+        logical_height: physical_size.height as f64 / scale_factor,
+    })
+}
 
 struct RegionCaptureInFlightGuard;
 
@@ -139,16 +154,23 @@ mod tests {
 
 #[tauri::command]
 pub async fn capture_region(
-    _window: Window,
+    window: Window,
     x: i32,
     y: i32,
     w: u32,
     h: u32,
     composition_overlay_alpha: Option<f32>,
 ) -> Result<CaptureResponse, String> {
+    let display_metrics = capture_display_metrics(&window)
+        .ok_or_else(|| "Capture display metrics are unavailable".to_string())?;
     crate::append_runtime_log_line(&format!(
-        "capture_region request :: x={} y={} w={} h={} composition_overlay_alpha={:?}",
-        x, y, w, h, composition_overlay_alpha
+        "capture_region request :: x={} y={} w={} h={} composition_overlay_alpha={:?} display_origin={:?}",
+        x,
+        y,
+        w,
+        h,
+        composition_overlay_alpha,
+        (display_metrics.physical_origin_x, display_metrics.physical_origin_y),
     ));
 
     if REGION_CAPTURE_IN_FLIGHT
@@ -165,8 +187,14 @@ pub async fn capture_region(
         // Note: We pass logical coords (x,y,w,h) as received from frontend.
         // The backend `capture_area` handles conversion to physical pixels.
         let overlay_gain = black_overlay_gain(composition_overlay_alpha).unwrap_or(1.0);
-        let capture = match screenshot::capture_region_with_dynamic_range(x, y, w, h, overlay_gain)
-        {
+        let capture = match screenshot::capture_region_with_dynamic_range(
+            x,
+            y,
+            w,
+            h,
+            Some(display_metrics),
+            overlay_gain,
+        ) {
             Ok(capture) => capture,
             Err(error) => {
                 crate::append_runtime_log_line(&format!("capture_region failure :: {}", error));

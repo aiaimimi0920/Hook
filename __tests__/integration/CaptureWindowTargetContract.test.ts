@@ -44,8 +44,22 @@ describe("capture window target contract", () => {
     const selectionSource = readSource("src/hooks/useSelection.ts");
     const stateSource = readSource("src/services/captureState.ts");
     const canvasSource = readSource("src/components/CanvasSelection.tsx");
+    const refreshRejectedStart = selectionSource.indexOf("if (!clickedCaptureWindowTarget) {");
+    const refreshRejectedEnd = selectionSource.indexOf(
+      "confirmedCaptureWindowTargetId =",
+      refreshRejectedStart,
+    );
+    const refreshRejectedBlock = selectionSource.slice(refreshRejectedStart, refreshRejectedEnd);
 
     expect(selectionSource).toContain("pressedCaptureWindowTarget");
+    expect(selectionSource).toContain("refreshCaptureWindowTargetForClick");
+    expect(selectionSource).toContain("await api.listCaptureWindowTargets()");
+    expect(selectionSource).toContain("capture-window-target-refresh-rejected");
+    expect(selectionSource).toContain("capture-window-target-finalized");
+    expect(selectionSource).toContain("The selected window is no longer visible on this display");
+    expect(refreshRejectedBlock).toContain("setStartPos(null)");
+    expect(refreshRejectedBlock).toContain("setSelectionRect(null)");
+    expect(stateSource).toContain("findRefreshedCaptureWindowTarget");
     expect(selectionSource).toContain("shouldConfirmCaptureWindowDoubleClick");
     expect(selectionSource).toContain("capture-window-click-armed");
     expect(selectionSource).toContain("capture-window-double-click-confirmed");

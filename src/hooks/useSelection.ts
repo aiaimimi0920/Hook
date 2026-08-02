@@ -41,6 +41,7 @@ import {
     ManualLongCaptureFrame,
     isLongCaptureMode,
     findCaptureWindowTargetAtPoint,
+    findRefreshedCaptureWindowTarget,
     shouldConfirmCaptureWindowDoubleClick,
 } from "../services/captureState";
 
@@ -171,6 +172,49 @@ export function useSelection() {
                 "capture-window-targets-failed",
                 error instanceof Error ? error.message : String(error),
             );
+        }
+    };
+
+    const refreshCaptureWindowTargetForClick = async (
+        targetId: string,
+        point: { x: number; y: number },
+        sessionGeneration: number,
+    ): Promise<CaptureWindowTarget | null> => {
+        captureWindowTargetLoadGeneration += 1;
+        const loadGeneration = captureWindowTargetLoadGeneration;
+        try {
+            const targets = await api.listCaptureWindowTargets();
+            if (
+                loadGeneration !== captureWindowTargetLoadGeneration
+                || !isCaptureSessionCurrent(sessionGeneration)
+                || !isSelecting()
+                || captureMode() !== "region"
+            ) {
+                return null;
+            }
+            captureWindowTargets = targets;
+            const refreshedTarget = findRefreshedCaptureWindowTarget(
+                targets,
+                targetId,
+                point.x,
+                point.y,
+            );
+            void api.debugLogEvent(
+                refreshedTarget
+                    ? "capture-window-target-refreshed"
+                    : "capture-window-target-refresh-rejected",
+                `target=${targetId} count=${targets.length}`,
+            );
+            return refreshedTarget;
+        } catch (error) {
+            if (loadGeneration === captureWindowTargetLoadGeneration) {
+                captureWindowTargets = [];
+            }
+            void api.debugLogEvent(
+                "capture-window-target-refresh-failed",
+                error instanceof Error ? error.message : String(error),
+            );
+            return null;
         }
     };
 
@@ -933,13 +977,14 @@ export function useSelection() {
             ? currentPreciseRect
             : currentSelectionRect;
         let resolvedCaptureRect = rect;
+        let confirmedCaptureWindowTargetId: string | null = null;
         invalidatePreciseSelection();
         const sessionGeneration = captureSessionGeneration;
 
         const releasedCaptureWindowTarget = event && captureMode() === "region"
             ? findCaptureWindowTargetAtPoint(captureWindowTargets, event.clientX, event.clientY)
             : null;
-        const clickedCaptureWindowTarget = resolvedCaptureRect.w < 5
+        let clickedCaptureWindowTarget = resolvedCaptureRect.w < 5
             && resolvedCaptureRect.h < 5
             && pressedCaptureWindowTarget
             && releasedCaptureWindowTarget?.id === pressedCaptureWindowTarget.id
@@ -947,6 +992,10 @@ export function useSelection() {
             : null;
         pressedCaptureWindowTarget = null;
         if (clickedCaptureWindowTarget) {
+            const clickPoint = {
+                x: event?.clientX ?? resolvedCaptureRect.x,
+                y: event?.clientY ?? resolvedCaptureRect.y,
+            };
             const now = Date.now();
             if (!shouldConfirmCaptureWindowDoubleClick(
                 lastCaptureWindowClick,
@@ -966,10 +1015,27 @@ export function useSelection() {
                     "capture-window-click-armed",
                     `target=${clickedCaptureWindowTarget.id}`,
                 );
+                void prepareCaptureWindowTargets(clickPoint);
+                return;
+            }
+
+            clickedCaptureWindowTarget = await refreshCaptureWindowTargetForClick(
+                clickedCaptureWindowTarget.id,
+                clickPoint,
+                sessionGeneration,
+            );
+            if (!isCaptureSessionCurrent(sessionGeneration)) return;
+            if (!clickedCaptureWindowTarget) {
+                lastCaptureWindowClick = null;
+                setStartPos(null);
+                hoveredCaptureWindowTargetId = null;
+                setSelectionRect(null);
+                updateCaptureWindowHover(clickPoint.x, clickPoint.y);
                 return;
             }
 
             lastCaptureWindowClick = null;
+            confirmedCaptureWindowTargetId = clickedCaptureWindowTarget.id;
             resolvedCaptureRect = {
                 x: clickedCaptureWindowTarget.x,
                 y: clickedCaptureWindowTarget.y,
@@ -1016,8 +1082,8 @@ export function useSelection() {
             `x=${resolvedCaptureRect.x} y=${resolvedCaptureRect.y} w=${resolvedCaptureRect.w} h=${resolvedCaptureRect.h}`,
         );
 
-        const startX = resolvedCaptureRect.x;
-        const startY = resolvedCaptureRect.y;
+        let startX = resolvedCaptureRect.x;
+        let startY = resolvedCaptureRect.y;
 
         // Wait for UI repaint (remove grey box)
         pendingCaptureTimer = window.setTimeout(async () => {
@@ -1029,6 +1095,28 @@ export function useSelection() {
 
             logger.debug("[Selection] Executing Capture for rect:", resolvedCaptureRect);
             try {
+                if (confirmedCaptureWindowTargetId) {
+                    const finalTargets = await api.listCaptureWindowTargets();
+                    if (!isCaptureSessionCurrent(sessionGeneration)) return;
+                    const finalTarget = finalTargets.find(
+                        (target) => target.id === confirmedCaptureWindowTargetId,
+                    );
+                    if (!finalTarget) {
+                        throw new Error("The selected window is no longer visible on this display");
+                    }
+                    resolvedCaptureRect = {
+                        x: finalTarget.x,
+                        y: finalTarget.y,
+                        w: finalTarget.w,
+                        h: finalTarget.h,
+                    };
+                    startX = finalTarget.x;
+                    startY = finalTarget.y;
+                    await api.debugLogEvent(
+                        "capture-window-target-finalized",
+                        `target=${finalTarget.id} x=${finalTarget.x} y=${finalTarget.y} w=${finalTarget.w} h=${finalTarget.h}`,
+                    );
+                }
                 await api.debugLogEvent(
                     "selection-capture-request",
                     `x=${resolvedCaptureRect.x} y=${resolvedCaptureRect.y} w=${resolvedCaptureRect.w} h=${resolvedCaptureRect.h}`,
