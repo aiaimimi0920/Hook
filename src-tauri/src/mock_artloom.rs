@@ -2293,6 +2293,10 @@ mod mcp_server_sync {
                     Err(error) => panic!("accept request: {error}"),
                 }
             };
+            // Windows can inherit FIONBIO from the nonblocking listener.
+            stream
+                .set_nonblocking(false)
+                .expect("set accepted stream blocking");
             stream
                 .set_read_timeout(Some(Duration::from_secs(5)))
                 .expect("set read timeout");
@@ -2300,8 +2304,19 @@ mod mcp_server_sync {
             let mut buffer = Vec::new();
             let mut chunk = [0_u8; 1024];
             let mut total_len = None;
+            let read_started = std::time::Instant::now();
             loop {
-                let read = stream.read(&mut chunk).expect("read request");
+                let read = match stream.read(&mut chunk) {
+                    Ok(read) => read,
+                    Err(error)
+                        if error.kind() == std::io::ErrorKind::WouldBlock
+                            && read_started.elapsed() < Duration::from_secs(5) =>
+                    {
+                        thread::sleep(Duration::from_millis(10));
+                        continue;
+                    }
+                    Err(error) => panic!("read request: {error}"),
+                };
                 if read == 0 {
                     break;
                 }
