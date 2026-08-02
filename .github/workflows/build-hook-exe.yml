@@ -37,6 +37,9 @@ jobs:
       - name: Install npm dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Audit open-source dependency metadata
+        run: npm run audit:licenses
+
       - name: TypeScript typecheck
         run: npm run typecheck
 

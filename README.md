@@ -30,6 +30,7 @@ Hook works well for quick capture and light editing.
 - [Core capabilities](#core-capabilities)
 - [Release packages](#release-packages)
 - [Trust and policies](#trust-and-policies)
+- [Security posture](#security-posture)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -64,6 +65,7 @@ Hook focuses on the gap between a screenshot utility and a heavier design tool:
 - **Portable (Current recommended package)**
   - unzip and run
   - current public release package for quick trials and ordinary daily capture
+  - includes Hook's license, third-party notices, and bundled-source license texts
   - if you hit Windows foreground/elevation limits in scenarios involving
     special windows such as **Task Manager**, try launching Hook as
     **administrator** as the current workaround
@@ -76,9 +78,28 @@ See [`UIACCESS_DISTRIBUTION.md`](UIACCESS_DISTRIBUTION.md) for the full explanat
 
 ## Trust and policies
 
+### Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io/), certificate
+by [SignPath Foundation](https://signpath.org/).
+
+Hook signs only artifacts built from public tagged source by the hosted workflow.
+Every signing request requires manual approval, and unsigned artifacts are never
+published as signed installer/UIAccess packages.
+
 - [Code Signing Policy](docs/CODE_SIGNING_POLICY.md)
 - [Privacy Policy](docs/PRIVACY_POLICY.md)
+- [Security Policy](SECURITY.md)
+- [Governance and Signing Roles](GOVERNANCE.md)
+- [Third-Party Notices](THIRD_PARTY_NOTICES.md)
 - [UIAccess Distribution Notes](UIACCESS_DISTRIBUTION.md)
+
+## Security posture
+
+Hook is an ordinary screenshot and visual-workflow tool. It does not disable
+security products, inject code into other processes, exploit vulnerabilities,
+or add unauthorized persistence. See [`SECURITY.md`](SECURITY.md) for the
+reporting process and product security boundary.
 
 ## Contributing
 

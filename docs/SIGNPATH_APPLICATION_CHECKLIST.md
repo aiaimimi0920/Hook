@@ -30,9 +30,13 @@ details.
 - Release page: `https://github.com/aiaimimi0920/Hook/releases`
 - Code signing policy: `docs/CODE_SIGNING_POLICY.md`
 - Privacy policy: `docs/PRIVACY_POLICY.md`
+- Security policy: `SECURITY.md`
+- Governance and public role assignments: `GOVERNANCE.md`
+- Third-party notices: `THIRD_PARTY_NOTICES.md`
 - UIAccess distribution notes: `UIACCESS_DISTRIBUTION.md`
 - Release strategy: `docs/RELEASE_STRATEGY.md`
 - Maintainer signing guide: `docs/MAINTAINER_SIGNING_GUIDE.md`
+- Hosted signing workflow: `.github/workflows/signpath-signing.yml`
 - Application answer draft: `docs/SIGNPATH_APPLICATION_DRAFT.md`
 
 ### Current package model
@@ -73,6 +77,9 @@ These items must be confirmed by the maintainer at the time of application.
       - other hosted signer
 - [ ] the maintainer understands that SignPath approval/release signing may
       require manual approval
+- [ ] the `signpath-production` GitHub Environment has required reviewers
+- [ ] the SignPath signing policy requires manual approval for every request
+- [ ] the SignPath GitHub App can access this repository
 
 ### Private operator facts to fill at submission time
 
@@ -83,6 +90,10 @@ the application:
 - signing approver identity
 - organization identity, if applying as an organization
 - final signing route and account identifiers
+
+The repository deliberately uses GitHub Environment variables for those
+identifiers; they are not application answers and must not be invented before
+SignPath provisions the project.
 
 ## Copy-ready wording
 
@@ -112,8 +123,9 @@ Use or adapt these short English descriptions in an application form.
 ### Where policy and uninstall information live
 
 > The public repository includes a code signing policy, a privacy policy, and
-> UIAccess distribution notes. Those documents also explain the portable versus
-> installer distinction and where install/uninstall guidance lives.
+> security, governance, third-party notice, and UIAccess distribution documents.
+> Those documents also explain the portable versus installer distinction and
+> where install/uninstall guidance lives.
 
 ### Why the portable and installer packages are not described as equivalent
 
@@ -162,6 +174,8 @@ brand name.
 
 - [ ] `docs/CODE_SIGNING_POLICY.md` still matches the real release process
 - [ ] `docs/PRIVACY_POLICY.md` still matches the real product behavior
+- [ ] `SECURITY.md` and `GOVERNANCE.md` still match the real team and reporting path
+- [ ] `THIRD_PARTY_NOTICES.md` still matches bundled source and dependency locks
 - [ ] `UIACCESS_DISTRIBUTION.md` still matches the real package model
 - [ ] `docs/MAINTAINER_SIGNING_GUIDE.md` still matches the real workflow
 - [ ] README and release page still expose the project as an active public

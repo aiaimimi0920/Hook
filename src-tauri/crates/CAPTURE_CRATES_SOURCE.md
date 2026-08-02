@@ -16,6 +16,9 @@ Original source context:
   `cap-camera*` and `scap-*` families of crates is licensed under the MIT
   License".
 - `scap-direct3d/Cargo.toml` declares `license = "MIT"`.
+- `scap-targets/Cargo.toml` declares `license = "MIT"`.
+- The corresponding Cap Software MIT text is preserved in
+  `LICENSE_CAP_SCAP_MIT` and included in Hook release archives.
 
 These crates are now Hook-owned implementation dependencies, not a separate
 Neuro product or user-facing program. Keep source attribution and license

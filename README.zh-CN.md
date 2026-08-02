@@ -30,6 +30,7 @@ Hook 适合用于随手截图与简单编辑。
 - [核心能力](#核心能力)
 - [发布包选择](#发布包选择)
 - [信任与策略](#信任与策略)
+- [安全边界](#安全边界)
 - [参与贡献](#参与贡献)
 - [许可证](#许可证)
 
@@ -64,6 +65,7 @@ Hook 关注的是截图工具和更重型设计工具之间的那段空白：
 - **便携版（当前推荐）**
   - 解压即用
   - 当前公开发布的主包体，适合快速试用和普通日常截图
+  - 包含 Hook 许可证、第三方归属说明和随包源码的许可证文本
   - 如果你在 **任务管理器** 等特殊前台窗口场景下碰到交互限制，当前的过渡方案是以**管理员身份**启动
 - **安装版（未来签名版本计划重新公开提供）**
   - Hook 仍在继续维护签名后的 UIAccess 安装路径
@@ -73,9 +75,26 @@ Hook 关注的是截图工具和更重型设计工具之间的那段空白：
 
 ## 信任与策略
 
+### Code signing policy（代码签名策略）
+
+Free code signing provided by [SignPath.io](https://signpath.io/), certificate
+by [SignPath Foundation](https://signpath.org/).
+
+Hook 只会签名由公开版本标签和托管工作流构建出的产物。每一次签名请求都必须
+人工批准，未签名产物绝不会以“已签名安装版/UIAccess 包”的名称发布。
+
 - [代码签名策略](docs/CODE_SIGNING_POLICY.md)
 - [隐私策略](docs/PRIVACY_POLICY.md)
+- [安全策略](SECURITY.md)
+- [治理与签名角色](GOVERNANCE.md)
+- [第三方归属说明](THIRD_PARTY_NOTICES.md)
 - [UIAccess 发布说明](UIACCESS_DISTRIBUTION.md)
+
+## 安全边界
+
+Hook 是普通的截图与视觉工作流工具，不会关闭安全软件、向其他进程注入代码、
+利用漏洞或建立未授权持久化。漏洞报告方式和更完整的安全边界见
+[`SECURITY.md`](SECURITY.md)。
 
 ## 参与贡献
 

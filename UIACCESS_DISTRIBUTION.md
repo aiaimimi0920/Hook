@@ -103,8 +103,11 @@ the current phase workaround, not the preferred long-term distribution model.
 
 ### Installer / UIAccess package
 
-- install by extracting the installer zip and running `install-hook.ps1` from an
-  elevated PowerShell session;
+- when a signed installer zip is present, install by extracting it and running
+  its generated `install-hook.ps1` wrapper from an elevated PowerShell session;
+- maintainers testing a separately signed executable may instead run
+  `scripts/install-hook-uiaccess.ps1 -SourceExe <path-to-signed-hook.exe>` from
+  an elevated PowerShell session;
 - the helper installs `hook.exe` into `Program Files\yamiyu\Hook`;
 - uninstall by closing Hook and removing the installed `Program Files\yamiyu\Hook`
   directory and any shortcuts you created for it.
@@ -132,11 +135,16 @@ Portable releases can be generated without signing and are the only current
 public release artifacts.
 
 Installer/UIAccess releases require a real code-signing certificate in GitHub
-Actions. The current workflow contract expects these secrets:
+Actions. Hook uses the hosted SignPath model instead of exporting a PFX or
+private key into the repository. The protected `signpath-production` GitHub
+Environment supplies:
 
-- `HOOK_WINDOWS_UIACCESS_PFX_BASE64`
-- `HOOK_WINDOWS_UIACCESS_PFX_PASSWORD`
+- secret: `SIGNPATH_API_TOKEN`
+- variable: `SIGNPATH_ORGANIZATION_ID`
+- variable: `SIGNPATH_PROJECT_SLUG`
+- variable: `SIGNPATH_SIGNING_POLICY_SLUG`
 
-Until those secrets are actually available for public release use, the current
-public GitHub Actions release posture should stay portable-first rather than
-pretending an unsigned installer path is currently publishable.
+The environment must require reviewer approval, and the SignPath signing policy
+must require manual approval for every request. Until SignPath provisions these
+values and approvals, the public release posture stays portable-first rather
+than pretending an unsigned installer path is publishable.

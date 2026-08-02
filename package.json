@@ -1,6 +1,6 @@
 {
   "name": "hook",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Windows-first Tauri desktop capture, sticker editing, and visual workflow workspace.",
   "type": "module",
   "author": "yamiyu",
@@ -31,7 +31,8 @@
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
     "lint": "eslint src",
-    "verify:local": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call npm run typecheck && call npm test && call cargo fmt --check --manifest-path src-tauri\\Cargo.toml && call cargo test --manifest-path src-tauri\\Cargo.toml && call npm run build && call build-hook-release.bat\""
+    "audit:licenses": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\audit-open-source-dependencies.ps1",
+    "verify:local": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call npm run audit:licenses && call npm run typecheck && call npm test && call cargo fmt --check --manifest-path src-tauri\\Cargo.toml && call cargo test --manifest-path src-tauri\\Cargo.toml && call npm run build && call build-hook-release.bat\""
   },
   "license": "MIT",
   "dependencies": {

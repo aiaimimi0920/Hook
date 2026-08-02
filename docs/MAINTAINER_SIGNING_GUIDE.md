@@ -5,6 +5,9 @@ This document is maintainer-facing. It complements the public policy documents:
 - `docs/RELEASE_STRATEGY.md`
 - `docs/CODE_SIGNING_POLICY.md`
 - `docs/PRIVACY_POLICY.md`
+- `SECURITY.md`
+- `GOVERNANCE.md`
+- `THIRD_PARTY_NOTICES.md`
 - `UIACCESS_DISTRIBUTION.md`
 - `docs/SIGNPATH_APPLICATION_CHECKLIST.md`
 - `docs/SIGNPATH_APPLICATION_DRAFT.md`
@@ -105,6 +108,28 @@ Additional operating reminders:
 - avoid undocumented side-loading of binaries;
 - be prepared for the publisher name to reflect the signing provider rather than
   the Hook brand alone.
+
+### Repository workflow configuration
+
+The manual workflow is `.github/workflows/signpath-signing.yml`. Configure the
+`signpath-production` GitHub Environment with required reviewers before adding:
+
+- secret `SIGNPATH_API_TOKEN`
+- variable `SIGNPATH_ORGANIZATION_ID`
+- variable `SIGNPATH_PROJECT_SLUG`
+- variable `SIGNPATH_SIGNING_POLICY_SLUG`
+
+Install the SignPath GitHub App for this repository and set the SignPath project
+default artifact configuration to a ZIP whose signed payload is `hook.exe`.
+Configure the SignPath signing policy to require manual approval for every
+request. Do not guess or commit any of these account identifiers.
+
+After the normal tag workflow creates a portable GitHub release, manually run
+`Sign Hook UIAccess Release` for the same public tag. The workflow builds the
+UIAccess payload on `windows-latest`, uploads it to GitHub Actions, submits the
+GitHub artifact ID to SignPath, waits for approval, verifies the returned
+Authenticode signature during packaging, and attaches the signed installer zip
+to the existing release.
 
 ## If Hook uses a commercial provider instead
 

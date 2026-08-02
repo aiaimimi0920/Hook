@@ -3,9 +3,8 @@
 This document defines how signed Hook release artifacts are produced, reviewed,
 and approved.
 
-It is written to be public, provider-neutral, and compatible with hosted
-signing services such as SignPath Foundation or commercial Windows code-signing
-providers.
+It is public and implements the SignPath Foundation requirements for Hook's
+hosted Windows signing lane.
 
 ## Scope
 
@@ -19,9 +18,12 @@ The policy is about release integrity, approval, and signing workflow. It does
 not replace the end-user package notes in `README.md` or
 `UIACCESS_DISTRIBUTION.md`.
 
-The current public release phase is **portable-first**. That means the signed
-installer lane described in this policy is a future public release path until
-real signing material is available.
+The current public release phase is **portable-first**. The SignPath workflow is
+checked in and remains unavailable until the SignPath organization, project,
+policy, GitHub App, API token, and manual approval rules are provisioned.
+
+Free code signing provided by [SignPath.io](https://signpath.io/), certificate
+by [SignPath Foundation](https://signpath.org/).
 
 ## Signed vs unsigned artifacts
 
@@ -68,10 +70,15 @@ maintainer-triggered release workflow run that targets that tag.
 Committers are maintainers with write access to the Hook repository who can land
 changes on the release branch or create the release tag.
 
+The current public assignment is recorded in `GOVERNANCE.md`.
+
 ### Reviewers
 
 Reviewers are maintainers who inspect the tagged source, workflow changes, and
 release-impacting documentation before a signed release is approved.
+
+Changes submitted by people without repository write access must be reviewed by
+a project reviewer before merge.
 
 In a single-maintainer operating period, the same repository administrator may
 act as both committer and reviewer, but the review checklist still applies and
@@ -105,18 +112,33 @@ the following:
    - `UIACCESS_DISTRIBUTION.md`
    - `docs/CODE_SIGNING_POLICY.md`
    - `docs/PRIVACY_POLICY.md`
+   - `SECURITY.md`
+   - `GOVERNANCE.md`
+
+Every release signing request requires manual approval in SignPath. The GitHub
+`signpath-production` Environment also requires configured reviewers before its
+signing secret is installed; that environment gate does not replace SignPath's
+own manual approval.
 
 ## Signing environment rules
 
 Signed releases should use a hosted signing service or other managed private-key
 storage. Private signing keys must not be committed to this repository.
 
-If GitHub Actions is used for signing in the future signed-installer phase:
+The hosted workflow is `.github/workflows/signpath-signing.yml`:
 
-- signing credentials must be stored as repository or organization secrets;
-- signing secrets must only be available to the intended release workflow;
-- the signed installer lane must be skipped when signing material is absent,
-  instead of publishing an unsigned substitute.
+- the SignPath API token is stored only as the `SIGNPATH_API_TOKEN` secret in
+  the protected `signpath-production` GitHub Environment;
+- SignPath organization/project/policy identifiers are GitHub Environment
+  variables, not hardcoded account data;
+- the unsigned artifact is first uploaded as a GitHub Actions artifact and is
+  then submitted through `signpath/github-action-submit-signing-request@v2`;
+- the workflow waits for SignPath approval and verifies the returned
+  Authenticode signature before the installer package script can succeed;
+- the signed installer lane fails closed when configuration or approval is
+  absent, instead of publishing an unsigned substitute;
+- private signing keys remain hosted by the signing provider and are never
+  copied into GitHub Actions or this repository.
 
 ## What gets signed
 

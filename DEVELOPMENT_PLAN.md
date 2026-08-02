@@ -4,7 +4,7 @@ This file records the active implementation contract for changes that span
 multiple development sessions. Historical design documents remain useful
 references, but this plan is the current operational source of truth.
 
-## Current scope: unified image file naming
+## Implemented scope: unified image file naming
 
 Hook must use one naming system for every user-visible image file while keeping
 internal content-addressed assets, image-search caches, runtime logs, and other
@@ -89,7 +89,23 @@ concurrent exports could overwrite each other.
 - capture transport/cache files that are not exposed as final exports;
 - runtime logs and internal state files.
 
-## Future scope (not part of the naming implementation)
+## Current scope: SignPath release readiness
+
+- keep the portable release lane operational;
+- publish the exact SignPath attribution and code-signing policy links;
+- document public security, privacy, governance, and signing roles;
+- include project and bundled-source license notices in release archives;
+- keep all product version fields aligned with the public `Vx.x.x` tag;
+- submit only GitHub-hosted workflow artifacts to SignPath;
+- require manual approval for every signing request;
+- never commit a private key, PFX, API token, or private account identifier;
+- fail closed rather than publishing an unsigned UIAccess installer.
+
+SignPath organization/project/policy identifiers and maintainer MFA status are
+external facts. They must be confirmed during onboarding and must not be
+invented in repository history.
+
+## Future scope (not part of the naming or signing-readiness implementation)
 
 - automatic update checks;
 - update download and installation;

@@ -7,6 +7,10 @@ application and its public release repository.
 
 Hook is primarily a local desktop screenshot and sticker-editing tool.
 
+This program will not transfer any information to other networked systems
+unless specifically requested by the user or the person installing or
+operating it.
+
 For the ordinary capture, pinning, annotation, and local session workflow:
 
 - screenshots and sticker content stay on the user's machine;
@@ -23,6 +27,7 @@ Depending on the feature being used, Hook may store local desktop data such as:
 - sticker editing history and tool settings;
 - runtime logs;
 - local app-data compatibility paths used to keep older installs working.
+- global application settings such as user-configured file-naming templates.
 
 These files are stored in local app-data, temp-cache, or nearby runtime paths
 described by the app configuration and release scripts.
@@ -88,4 +93,3 @@ published.
 Privacy-related public questions can be filed at:
 
 - GitHub Issues: `https://github.com/aiaimimi0920/Hook/issues`
-

@@ -1,0 +1,141 @@
+name: Sign Hook UIAccess Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing public Vx.x.x tag to sign
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  sign-windows-uiaccess:
+    runs-on: windows-latest
+    environment: signpath-production
+
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Verify tag and product versions
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-release-version.ps1 `
+            -Tag "${{ inputs.tag }}" `
+            -RequireTagAtHead
+
+      - name: Validate SignPath configuration
+        shell: powershell
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+        run: |
+          foreach ($name in @(
+            "SIGNPATH_API_TOKEN",
+            "SIGNPATH_ORGANIZATION_ID",
+            "SIGNPATH_PROJECT_SLUG",
+            "SIGNPATH_SIGNING_POLICY_SLUG"
+          )) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "Missing required SignPath environment configuration: $name"
+            }
+          }
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          components: rustfmt
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+        env:
+          NODE_OPTIONS: --no-deprecation
+
+      - name: Install npm dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Audit open-source dependency metadata
+        run: npm run audit:licenses
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Rust format check
+        run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
+
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Build unsigned UIAccess payload for hosted signing
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-hook-exe.ps1 `
+            -OutputDir ".\release\Hook\uiaccess-unsigned" `
+            -UiAccess `
+            -AllowUnsignedUiAccessBuild `
+            -Force
+
+      - name: Upload unsigned payload to GitHub Actions
+        id: upload-unsigned-artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: hook-uiaccess-unsigned-${{ inputs.tag }}
+          path: release/Hook/uiaccess-unsigned/hook.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Submit SignPath signing request
+        id: submit-signing-request
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-artifact.outputs.artifact-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: release/Hook/uiaccess-signed
+
+      - name: Package signed UIAccess installer
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-uiaccess-installer-zip.ps1 `
+            -ExePath ".\release\Hook\uiaccess-signed\hook.exe" `
+            -OutputDir ".\release\Hook" `
+            -Tag "${{ inputs.tag }}" `
+            -Force
+
+      - name: Upload signed installer workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: hook-uiaccess-signed-${{ inputs.tag }}
+          path: release/Hook/hook-windows-uiaccess-installer-${{ inputs.tag }}.zip
+          if-no-files-found: error
+
+      - name: Publish signed installer on the existing GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ inputs.tag }}
+          files: release/Hook/hook-windows-uiaccess-installer-${{ inputs.tag }}.zip
+          overwrite_files: true
+          fail_on_unmatched_files: true

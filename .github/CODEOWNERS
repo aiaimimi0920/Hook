@@ -1,0 +1,15 @@
+# Release integrity and signing-sensitive files
+/.github/workflows/ @aiaimimi0920
+/.signpath/ @aiaimimi0920
+/scripts/build-local-hook-exe.ps1 @aiaimimi0920
+/scripts/package-release-zip.ps1 @aiaimimi0920
+/scripts/package-uiaccess-installer-zip.ps1 @aiaimimi0920
+/scripts/assert-release-version.ps1 @aiaimimi0920
+/package.json @aiaimimi0920
+/package-lock.json @aiaimimi0920
+/src-tauri/Cargo.toml @aiaimimi0920
+/src-tauri/Cargo.lock @aiaimimi0920
+/src-tauri/build.rs @aiaimimi0920
+/src-tauri/windows/ @aiaimimi0920
+/docs/CODE_SIGNING_POLICY.md @aiaimimi0920
+/GOVERNANCE.md @aiaimimi0920

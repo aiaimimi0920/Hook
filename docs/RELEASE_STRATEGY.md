@@ -11,6 +11,8 @@ That means:
 
 - public GitHub release assets publish only the portable Windows zip;
 - normal GitHub Actions build artifacts expose only the portable executable;
+- the repository contains a manual SignPath workflow, but it cannot publish an
+  installer until SignPath and the protected GitHub Environment are provisioned;
 - README currently recommends the portable package as the user-facing default;
 - if users hit Windows foreground/elevation interaction limits, the current
   workaround is to launch the portable build as **administrator**.
@@ -53,6 +55,7 @@ The current portable-first phase is reflected in:
 - `UIACCESS_DISTRIBUTION.md`
 - `.github/workflows/build-hook-exe.yml`
 - `.github/workflows/release-hook-tag.yml`
+- `.github/workflows/signpath-signing.yml`
 
 ## Files that preserve the future installer path
 

@@ -44,6 +44,9 @@ jobs:
       - name: Install npm dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Audit open-source dependency metadata
+        run: npm run audit:licenses
+
       - name: TypeScript typecheck
         run: npm run typecheck
 
@@ -70,15 +73,14 @@ jobs:
             $tag = "${{ github.ref_name }}"
           }
 
-          if ([string]::IsNullOrWhiteSpace($tag)) {
-            throw "Release tag is required."
-          }
-
-          if ($tag -notmatch '^V\d+\.\d+\.\d+$') {
-            throw "Release tag must match Vx.x.x. Received: $tag"
-          }
-
           "HOOK_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Verify tag and product versions
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-release-version.ps1 `
+            -Tag "$env:HOOK_TAG" `
+            -RequireTagAtHead
 
       - name: Package minimal release zip
         shell: powershell
@@ -94,9 +96,9 @@ jobs:
         with:
           tag_name: ${{ env.HOOK_TAG }}
           name: ${{ env.HOOK_TAG }}
+          body_path: docs/GITHUB_RELEASE_BODY.md
           generate_release_notes: true
-          working_directory: release/Hook
           files: |
-            hook-windows-x64-${{ env.HOOK_TAG }}.zip
+            release/Hook/hook-windows-x64-${{ env.HOOK_TAG }}.zip
           overwrite_files: true
           fail_on_unmatched_files: true

@@ -8,6 +8,9 @@ Use it together with:
 - `docs/SIGNPATH_APPLICATION_CHECKLIST.md`
 - `docs/CODE_SIGNING_POLICY.md`
 - `docs/PRIVACY_POLICY.md`
+- `SECURITY.md`
+- `GOVERNANCE.md`
+- `THIRD_PARTY_NOTICES.md`
 - `UIACCESS_DISTRIBUTION.md`
 
 The answers below are intentionally written so they can be copied directly into
@@ -56,9 +59,9 @@ GitHub Actions is the public hosted build path for Hook releases.
 ## Public policy documentation
 
 > The public repository includes a code signing policy, a privacy policy, and
-> UIAccess distribution notes. Those documents explain the release model, the
-> distinction between portable and installer output, and the current local-first
-> privacy baseline.
+> public security, governance, third-party notice, and UIAccess distribution
+> documents. Those documents explain the release model, the distinction between
+> portable and installer output, and the current local-first privacy baseline.
 
 ## Single-maintainer review explanation
 
@@ -75,6 +78,15 @@ GitHub Actions is the public hosted build path for Hook releases.
 > process. A signing solution is being requested so the Windows installer path
 > can be distributed in a way that matches the platform's trust requirements for
 > the UIAccess-oriented package lane.
+
+## Signing workflow preparation
+
+> The repository contains a dedicated manual GitHub Actions workflow using the
+> official SignPath signing-request action. It accepts an existing public release
+> tag, builds the UIAccess payload on a GitHub-hosted Windows runner, submits the
+> GitHub artifact ID, waits for manual approval, and publishes only the returned
+> signed installer package. SignPath account identifiers and the API token are
+> supplied through a protected GitHub Environment after project provisioning.
 
 ## Maintainer submission reminder
 

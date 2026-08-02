@@ -18,7 +18,13 @@ $ErrorActionPreference = "Stop"
 
 $resolvedExePath = [System.IO.Path]::GetFullPath($ExePath)
 $resolvedOutputDir = [System.IO.Path]::GetFullPath($OutputDir)
+$repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $installHelperPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "install-hook-uiaccess.ps1"))
+$projectLicensePath = Join-Path $repoRoot "LICENSE"
+$thirdPartyNoticesPath = Join-Path $repoRoot "THIRD_PARTY_NOTICES.md"
+$capLicensePath = Join-Path $repoRoot "src-tauri\crates\LICENSE_CAP_SCAP_MIT"
+$dragApacheLicensePath = Join-Path $repoRoot "src-tauri\crates\drag\LICENSE_APACHE-2.0"
+$dragMitLicensePath = Join-Path $repoRoot "src-tauri\crates\drag\LICENSE_MIT"
 $assetName = "hook-windows-uiaccess-installer-$Tag.zip"
 $zipPath = Join-Path $resolvedOutputDir $assetName
 
@@ -39,6 +45,18 @@ if (-not (Test-Path -LiteralPath $resolvedExePath -PathType Leaf)) {
 
 if (-not (Test-Path -LiteralPath $installHelperPath -PathType Leaf)) {
     throw "Missing UIAccess install helper script: $installHelperPath"
+}
+
+foreach ($requiredPath in @(
+    $projectLicensePath,
+    $thirdPartyNoticesPath,
+    $capLicensePath,
+    $dragApacheLicensePath,
+    $dragMitLicensePath
+)) {
+    if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+        throw "Missing required installer notice or license file: $requiredPath"
+    }
 }
 
 $signature = Get-AuthenticodeSignature -LiteralPath $resolvedExePath
@@ -63,6 +81,7 @@ $stagingExePath = Join-Path $stagingRoot "hook.exe"
 $stagingInstallHelperPath = Join-Path $stagingRoot "install-hook-uiaccess.ps1"
 $stagingWrapperPath = Join-Path $stagingRoot "install-hook.ps1"
 $stagingReadmePath = Join-Path $stagingRoot "README.txt"
+$stagingThirdPartyRoot = Join-Path $stagingRoot "third-party-licenses"
 
 $wrapperScript = @'
 [CmdletBinding()]
@@ -107,8 +126,14 @@ Portable note:
 
 try {
     New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
+    New-Item -ItemType Directory -Path $stagingThirdPartyRoot -Force | Out-Null
     Copy-Item -LiteralPath $resolvedExePath -Destination $stagingExePath -Force
     Copy-Item -LiteralPath $installHelperPath -Destination $stagingInstallHelperPath -Force
+    Copy-Item -LiteralPath $projectLicensePath -Destination (Join-Path $stagingRoot "LICENSE.txt") -Force
+    Copy-Item -LiteralPath $thirdPartyNoticesPath -Destination (Join-Path $stagingRoot "THIRD_PARTY_NOTICES.md") -Force
+    Copy-Item -LiteralPath $capLicensePath -Destination (Join-Path $stagingThirdPartyRoot "CAP_SCAP_MIT.txt") -Force
+    Copy-Item -LiteralPath $dragApacheLicensePath -Destination (Join-Path $stagingThirdPartyRoot "DRAG_APACHE-2.0.txt") -Force
+    Copy-Item -LiteralPath $dragMitLicensePath -Destination (Join-Path $stagingThirdPartyRoot "DRAG_MIT.txt") -Force
     Set-Content -LiteralPath $stagingWrapperPath -Value $wrapperScript -Encoding UTF8
     Set-Content -LiteralPath $stagingReadmePath -Value $readme -Encoding UTF8
     Compress-Archive -Path (Join-Path $stagingRoot "*") -DestinationPath $zipPath -CompressionLevel Optimal

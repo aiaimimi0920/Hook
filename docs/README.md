@@ -19,6 +19,9 @@ For current release trust/governance docs, also read:
 - `docs/RELEASE_STRATEGY.md`
 - `docs/CODE_SIGNING_POLICY.md`
 - `docs/PRIVACY_POLICY.md`
+- `SECURITY.md`
+- `GOVERNANCE.md`
+- `THIRD_PARTY_NOTICES.md`
 - `docs/MAINTAINER_SIGNING_GUIDE.md`
 - `docs/SIGNPATH_APPLICATION_CHECKLIST.md`
 - `docs/SIGNPATH_APPLICATION_DRAFT.md`
@@ -36,6 +39,7 @@ These files are current and are not archival-only:
 - `MAINTAINER_SIGNING_GUIDE.md`
 - `SIGNPATH_APPLICATION_CHECKLIST.md`
 - `SIGNPATH_APPLICATION_DRAFT.md`
+- `GITHUB_RELEASE_BODY.md`
 
 ### Maintenance records
 

@@ -57,9 +57,9 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource.indexOf("run: npm run typecheck")).toBeLessThan(
       workflowSource.indexOf("Build portable Hook EXE"),
     );
-    expect(workflowSource).toContain("working_directory: release/Hook");
+    expect(workflowSource).toContain("body_path: docs/GITHUB_RELEASE_BODY.md");
     expect(workflowSource).toContain("files:");
-    expect(workflowSource).toContain("hook-windows-x64-${{ env.HOOK_TAG }}.zip");
+    expect(workflowSource).toContain("release/Hook/hook-windows-x64-${{ env.HOOK_TAG }}.zip");
     expect(workflowSource).not.toContain("hook-windows-uiaccess-installer-${{ env.HOOK_TAG }}.zip");
     expect(workflowSource).not.toContain("HOOK_WINDOWS_UIACCESS_PFX_BASE64");
     expect(workflowSource).not.toContain("HOOK_WINDOWS_UIACCESS_PFX_PASSWORD");
@@ -71,6 +71,9 @@ describe("Hook release workflow contract", () => {
 
     expect(packageScriptSource).toContain("hook.exe");
     expect(packageScriptSource).toContain("hook-windows-x64-");
+    expect(packageScriptSource).toContain("THIRD_PARTY_NOTICES.md");
+    expect(packageScriptSource).toContain("LICENSE.txt");
+    expect(packageScriptSource).toContain("third-party-licenses");
     expect(packageScriptSource).toContain("Compress-Archive");
     expect(packageScriptSource).not.toContain("start-hook.bat");
     expect(packageScriptSource).not.toContain("start-hook.vbs");
@@ -81,5 +84,7 @@ describe("Hook release workflow contract", () => {
     expect(installerPackageScriptSource).toContain("install-hook-uiaccess.ps1");
     expect(installerPackageScriptSource).toContain("install-hook.ps1");
     expect(installerPackageScriptSource).toContain("Program Files");
+    expect(installerPackageScriptSource).toContain("THIRD_PARTY_NOTICES.md");
+    expect(installerPackageScriptSource).toContain("third-party-licenses");
   });
 });
