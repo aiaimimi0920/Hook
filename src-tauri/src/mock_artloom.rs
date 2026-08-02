@@ -2456,9 +2456,20 @@ mod arts_merge {
             "artPath": "\\\\192.168.15.200\\home\\project\\project\\ArtNexus\\ArtLoom\\python\\Arts\\Art_ColorTransfer"
         }));
 
+        let loom_art_path = dirs::config_dir()
+            .expect("config dir")
+            .join("Loom")
+            .join("control-plane")
+            .join("arts")
+            .join("custom-1770131241684")
+            .join("python")
+            .join("Arts")
+            .join("Art_ColorTransfer");
+        let loom_art_path = loom_art_path.to_string_lossy().into_owned();
+
         let mut loom_art = art("custom-1770131241684", "Loom安装版");
         loom_art.execution = Some(serde_json::json!({
-            "artPath": "C:\\Users\\vmjcv\\AppData\\Roaming\\Loom\\control-plane\\arts\\custom-1770131241684\\python\\Arts\\Art_ColorTransfer"
+            "artPath": loom_art_path.clone()
         }));
 
         let merged = merge_arts_by_id(&[local_art], &[loom_art.clone()]);
@@ -2471,7 +2482,7 @@ mod arts_merge {
                 .as_ref()
                 .and_then(|execution| execution.get("artPath"))
                 .and_then(serde_json::Value::as_str),
-            Some("C:\\Users\\vmjcv\\AppData\\Roaming\\Loom\\control-plane\\arts\\custom-1770131241684\\python\\Arts\\Art_ColorTransfer")
+            Some(loom_art_path.as_str())
         );
     }
 }
