@@ -17,8 +17,8 @@ describe("Hook sticker shape preview contract", () => {
         expect(annotationLayerSource).toContain("<ellipse");
         expect(annotationLayerSource).toContain("shapeCornerRadius");
         expect(annotationLayerSource).toContain("getShapeCornerRadius");
-        expect(annotationLayerSource).toContain("rx={getShapeCornerRadius(draftShapeMode())}");
-        expect(annotationLayerSource).toContain("ry={getShapeCornerRadius(draftShapeMode())}");
+        expect(annotationLayerSource).toContain("rx={getDraftShapePreviewCornerRadius(draftShapeMode())}");
+        expect(annotationLayerSource).toContain("ry={getDraftShapePreviewCornerRadius(draftShapeMode())}");
         expect(annotationLayerSource).toContain("const [shiftPressed, setShiftPressed] = createSignal(false);");
         expect(annotationLayerSource).toContain("const [ctrlPressed, setCtrlPressed] = createSignal(false);");
         expect(annotationLayerSource).toContain('const isSquareConstraintActive = (event?: PointerEvent) =>');

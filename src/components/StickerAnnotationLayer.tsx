@@ -116,6 +116,7 @@ const TRANSFORM_GIZMO_RING_RADIUS = 28;
 const TRANSFORM_GIZMO_HIT_PADDING = 8;
 const TRANSFORM_GIZMO_CENTER_SIZE = 10;
 const TRANSFORM_GIZMO_SCALE_HANDLE_SIZE = 12;
+const CROP_PREVIEW_STROKE_WIDTH = 4;
 
 // Mirror the commit-time corner-radius substitution so the round-rect drag
 // preview matches the committed shape: a round-rect with radius 0 commits at 12.
@@ -135,6 +136,10 @@ const getDraftShapePreviewFill = (mode?: DraftShape["mode"]) =>
     mode === "crop" ? "none" : getVisibleFill(getShapeFillColorForMode(mode ?? "shape-rect"));
 const getDraftShapePreviewDashArray = (mode?: DraftShape["mode"]) =>
     mode === "crop" ? undefined : "4 2";
+const getDraftShapePreviewCornerRadius = (mode?: DraftShape["mode"]) =>
+    mode === "crop" ? 0 : getShapeCornerRadius(mode);
+const getDraftShapePreviewStrokeWidth = (mode?: DraftShape["mode"]) =>
+    mode === "crop" ? CROP_PREVIEW_STROKE_WIDTH : stickerToolSettings.strokeWidth;
 
 type TransformInteractionKind = "move" | "rotate" | "scale";
 type TransformPivotMode = "group" | "own";
@@ -2533,11 +2538,11 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                                                     y={draftRect().y}
                                                     width={draftRect().w}
                                                     height={draftRect().h}
-                                                    rx={getShapeCornerRadius(draftShapeMode())}
-                                                    ry={getShapeCornerRadius(draftShapeMode())}
+                                                    rx={getDraftShapePreviewCornerRadius(draftShapeMode())}
+                                                    ry={getDraftShapePreviewCornerRadius(draftShapeMode())}
                                                     fill={getDraftShapePreviewFill(draftShapeMode())}
-                                                    stroke={getVisibleStroke(getShapeStrokeColorForMode(draftShapeMode() ?? "shape-rect"), stickerToolSettings.strokeWidth)}
-                                                    stroke-width={stickerToolSettings.strokeWidth}
+                                                    stroke={getVisibleStroke(getShapeStrokeColorForMode(draftShapeMode() ?? "shape-rect"), getDraftShapePreviewStrokeWidth(draftShapeMode()))}
+                                                    stroke-width={getDraftShapePreviewStrokeWidth(draftShapeMode())}
                                                     stroke-dasharray={getDraftShapePreviewDashArray(draftShapeMode())}
                                                 />
                                             }

@@ -59,7 +59,7 @@ describe("Hook sticker crop interaction contract", () => {
         expect(propertyBarRenderSource).toContain('title="重置裁剪"');
     });
 
-    it("renders the crop drag preview as a solid outline with no fill so the selected crop area remains visually readable", () => {
+    it("renders the crop drag preview as a square-cornered 4px solid outline with no fill", () => {
         const draftPreviewSource = sourceBetween(
             annotationLayerSource,
             "<Show when={draftShapeRect()}>",
@@ -70,7 +70,15 @@ describe("Hook sticker crop interaction contract", () => {
         expect(annotationLayerSource).toContain('mode === "crop" ? "none"');
         expect(annotationLayerSource).toContain("const getDraftShapePreviewDashArray =");
         expect(annotationLayerSource).toContain('mode === "crop" ? undefined');
+        expect(annotationLayerSource).toContain("const CROP_PREVIEW_STROKE_WIDTH = 4;");
+        expect(annotationLayerSource).toContain("const getDraftShapePreviewCornerRadius =");
+        expect(annotationLayerSource).toContain('mode === "crop" ? 0 : getShapeCornerRadius(mode)');
+        expect(annotationLayerSource).toContain("const getDraftShapePreviewStrokeWidth =");
+        expect(annotationLayerSource).toContain('mode === "crop" ? CROP_PREVIEW_STROKE_WIDTH : stickerToolSettings.strokeWidth');
         expect(draftPreviewSource).toContain("fill={getDraftShapePreviewFill(draftShapeMode())}");
+        expect(draftPreviewSource).toContain("rx={getDraftShapePreviewCornerRadius(draftShapeMode())}");
+        expect(draftPreviewSource).toContain("ry={getDraftShapePreviewCornerRadius(draftShapeMode())}");
+        expect(draftPreviewSource).toContain("stroke-width={getDraftShapePreviewStrokeWidth(draftShapeMode())}");
         expect(draftPreviewSource).toContain("stroke-dasharray={getDraftShapePreviewDashArray(draftShapeMode())}");
         expect(draftPreviewSource).not.toContain('stroke-dasharray="4 2"');
     });
