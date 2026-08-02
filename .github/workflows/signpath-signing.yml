@@ -82,7 +82,8 @@ jobs:
         run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
 
       - name: Rust tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        # Signing must use the same deterministic Rust test gate as releases.
+        run: cargo test --manifest-path src-tauri/Cargo.toml -- --test-threads=1
 
       - name: Build unsigned UIAccess payload for hosted signing
         shell: powershell
