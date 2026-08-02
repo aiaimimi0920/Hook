@@ -145,7 +145,7 @@ describe("capture input shield contract", () => {
     );
 
     expect(eventThreadBlock).toContain("let mut deferred_event");
-    expect(rustSource).toContain("fn coalesce_capture_mouse_move_until_emit(");
+    expect(rustSource).toContain("fn coalesce_capture_mouse_move_until_emit<");
     expect(eventThreadBlock).toContain("coalesce_capture_mouse_move_until_emit(");
     expect(eventThreadBlock).toContain("CaptureMouseHookEvent::Move");
     expect(eventThreadBlock).toContain("deferred_event = next;");

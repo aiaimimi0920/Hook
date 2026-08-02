@@ -38,8 +38,13 @@ describe("input lifecycle hardening contract", () => {
     expect(appSource).toContain("invalidateCaptureSessionLifecycle();");
   });
 
-  it("uses an ordered unbounded mouse event channel so button edges cannot be dropped behind moves", () => {
+  it("uses a bounded ordered mouse queue that coalesces moves while reserving capacity for edges", () => {
     const rustSource = readSource("src-tauri/src/lib.rs");
+    const queueImplementation = sourceBetween(
+      rustSource,
+      "struct CaptureMouseEventQueue {",
+      "trait CaptureMouseEventReceiver",
+    );
     const queueBlock = sourceBetween(
       rustSource,
       "fn queue_capture_mouse_hook_event",
@@ -52,14 +57,25 @@ describe("input lifecycle hardening contract", () => {
     );
 
     expect(rustSource).toContain(
-      "static CAPTURE_MOUSE_EVENT_SENDER: OnceLock<mpsc::Sender<CaptureMouseHookEvent>>",
+      "static CAPTURE_MOUSE_EVENT_QUEUE: OnceLock<Arc<CaptureMouseEventQueue>>",
     );
-    expect(queueBlock).toContain("sender.send(event)");
+    expect(rustSource).toContain("const CAPTURE_MOUSE_EVENT_QUEUE_CAPACITY: usize = 2048;");
+    expect(rustSource).toContain("const CAPTURE_MOUSE_EVENT_EDGE_RESERVE: usize = 64;");
+    expect(rustSource).toContain("events: VecDeque<CaptureMouseHookEvent>");
+    expect(queueImplementation).toContain("state.events.len() >= self.move_capacity");
+    expect(queueImplementation).toContain("position(CaptureMouseHookEvent::is_move_sample)");
+    expect(queueImplementation).toContain("state.diagnostics.coalesced_moves += 1;");
+    expect(queueImplementation).toContain("state.diagnostics.critical_overflows += 1;");
+    expect(queueBlock).toContain("let _ = queue.enqueue(event);");
+    expect(queueBlock).not.toContain("sender.send(event)");
     expect(queueBlock).not.toContain("try_send");
-    expect(installBlock).toContain("mpsc::channel::<CaptureMouseHookEvent>()");
+    expect(installBlock).toContain("CaptureMouseEventQueue::new(");
+    expect(installBlock).toContain("CAPTURE_MOUSE_EVENT_QUEUE.set(Arc::clone(&queue))");
+    expect(installBlock).toContain("queue.recv()");
     expect(installBlock).toContain("coalesce_capture_mouse_move_until_emit");
     expect(installBlock).toContain("coalesce_overlay_mouse_move_until_emit");
-    expect(rustSource).toContain("receiver.try_recv()");
+    expect(rustSource).toContain("queue.as_ref()");
+    expect(installBlock).not.toContain("mpsc::channel::<CaptureMouseHookEvent>()");
   });
 
   it("accepts only paired native capture button edges and never synthesizes release from polling", () => {

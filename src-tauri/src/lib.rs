@@ -27,12 +27,16 @@ use single_instance::{single_instance_name, try_acquire_single_instance};
 use base64::Engine as _;
 use mouse_monitor::SharedHitMap;
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "windows")]
+use std::collections::VecDeque;
 use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+#[cfg(target_os = "windows")]
+use std::sync::Condvar;
 use std::sync::{mpsc, Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::menu::{Menu, MenuItem};
@@ -1548,6 +1552,267 @@ enum CaptureMouseHookEvent {
 }
 
 #[cfg(target_os = "windows")]
+impl CaptureMouseHookEvent {
+    fn is_move_sample(&self) -> bool {
+        matches!(self, Self::Move { .. } | Self::OverlayMove { .. })
+    }
+
+    fn can_replace_move_sample(&self, previous: &Self) -> bool {
+        match (previous, self) {
+            (Self::Move { .. }, Self::Move { .. }) => true,
+            (
+                Self::OverlayMove {
+                    native_drag_preflight: previous_preflight,
+                    ..
+                },
+                Self::OverlayMove {
+                    native_drag_preflight: next_preflight,
+                    ..
+                },
+            ) => previous_preflight == next_preflight,
+            _ => false,
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+const CAPTURE_MOUSE_EVENT_QUEUE_CAPACITY: usize = 2048;
+#[cfg(target_os = "windows")]
+const CAPTURE_MOUSE_EVENT_EDGE_RESERVE: usize = 64;
+#[cfg(target_os = "windows")]
+const CAPTURE_MOUSE_QUEUE_DIAGNOSTIC_INTERVAL: Duration = Duration::from_secs(5);
+
+#[cfg(target_os = "windows")]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct CaptureMouseEventQueueDiagnostics {
+    current_depth: usize,
+    max_depth: usize,
+    coalesced_moves: u64,
+    evicted_moves: u64,
+    dropped_moves: u64,
+    critical_overflows: u64,
+    enqueued_edges: u64,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CaptureMouseEventEnqueueResult {
+    Enqueued,
+    CoalescedMove,
+    EnqueuedAfterEvictingMove,
+    DroppedMove,
+    CriticalOverflow,
+}
+
+#[cfg(target_os = "windows")]
+struct CaptureMouseEventQueueState {
+    events: VecDeque<CaptureMouseHookEvent>,
+    diagnostics: CaptureMouseEventQueueDiagnostics,
+}
+
+#[cfg(target_os = "windows")]
+struct CaptureMouseEventQueue {
+    capacity: usize,
+    move_capacity: usize,
+    state: Mutex<CaptureMouseEventQueueState>,
+    event_available: Condvar,
+}
+
+#[cfg(target_os = "windows")]
+impl CaptureMouseEventQueue {
+    fn new(capacity: usize, edge_reserve: usize) -> Self {
+        assert!(
+            capacity > 0,
+            "capture mouse queue capacity must be positive"
+        );
+        Self {
+            capacity,
+            move_capacity: capacity.saturating_sub(edge_reserve.min(capacity)),
+            state: Mutex::new(CaptureMouseEventQueueState {
+                events: VecDeque::with_capacity(capacity),
+                diagnostics: CaptureMouseEventQueueDiagnostics::default(),
+            }),
+            event_available: Condvar::new(),
+        }
+    }
+
+    fn enqueue(&self, event: CaptureMouseHookEvent) -> CaptureMouseEventEnqueueResult {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        if event.is_move_sample() {
+            if let Some(previous) = state.events.back_mut() {
+                if event.can_replace_move_sample(previous) {
+                    *previous = event;
+                    state.diagnostics.coalesced_moves += 1;
+                    return CaptureMouseEventEnqueueResult::CoalescedMove;
+                }
+            }
+
+            let evicted_move = if state.events.len() >= self.move_capacity {
+                if let Some(index) = state
+                    .events
+                    .iter()
+                    .position(CaptureMouseHookEvent::is_move_sample)
+                {
+                    state.events.remove(index);
+                    state.diagnostics.evicted_moves += 1;
+                    true
+                } else {
+                    state.diagnostics.dropped_moves += 1;
+                    return CaptureMouseEventEnqueueResult::DroppedMove;
+                }
+            } else {
+                false
+            };
+
+            state.events.push_back(event);
+            state.diagnostics.current_depth = state.events.len();
+            state.diagnostics.max_depth = state
+                .diagnostics
+                .max_depth
+                .max(state.diagnostics.current_depth);
+            self.event_available.notify_one();
+            return if evicted_move {
+                CaptureMouseEventEnqueueResult::EnqueuedAfterEvictingMove
+            } else {
+                CaptureMouseEventEnqueueResult::Enqueued
+            };
+        }
+
+        let evicted_move = if state.events.len() >= self.capacity {
+            if let Some(index) = state
+                .events
+                .iter()
+                .position(CaptureMouseHookEvent::is_move_sample)
+            {
+                state.events.remove(index);
+                state.diagnostics.evicted_moves += 1;
+                true
+            } else {
+                state.diagnostics.critical_overflows += 1;
+                return CaptureMouseEventEnqueueResult::CriticalOverflow;
+            }
+        } else {
+            false
+        };
+
+        state.events.push_back(event);
+        state.diagnostics.enqueued_edges += 1;
+        state.diagnostics.current_depth = state.events.len();
+        state.diagnostics.max_depth = state
+            .diagnostics
+            .max_depth
+            .max(state.diagnostics.current_depth);
+        self.event_available.notify_one();
+        if evicted_move {
+            CaptureMouseEventEnqueueResult::EnqueuedAfterEvictingMove
+        } else {
+            CaptureMouseEventEnqueueResult::Enqueued
+        }
+    }
+
+    fn pop_front_locked(state: &mut CaptureMouseEventQueueState) -> Option<CaptureMouseHookEvent> {
+        let event = state.events.pop_front();
+        state.diagnostics.current_depth = state.events.len();
+        event
+    }
+
+    fn diagnostics(&self) -> CaptureMouseEventQueueDiagnostics {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .diagnostics
+    }
+}
+
+#[cfg(target_os = "windows")]
+trait CaptureMouseEventReceiver {
+    fn recv(&self) -> Result<CaptureMouseHookEvent, mpsc::RecvError>;
+    fn recv_timeout(
+        &self,
+        timeout: Duration,
+    ) -> Result<CaptureMouseHookEvent, mpsc::RecvTimeoutError>;
+    fn try_recv(&self) -> Result<CaptureMouseHookEvent, mpsc::TryRecvError>;
+}
+
+#[cfg(target_os = "windows")]
+impl CaptureMouseEventReceiver for mpsc::Receiver<CaptureMouseHookEvent> {
+    fn recv(&self) -> Result<CaptureMouseHookEvent, mpsc::RecvError> {
+        mpsc::Receiver::recv(self)
+    }
+
+    fn recv_timeout(
+        &self,
+        timeout: Duration,
+    ) -> Result<CaptureMouseHookEvent, mpsc::RecvTimeoutError> {
+        mpsc::Receiver::recv_timeout(self, timeout)
+    }
+
+    fn try_recv(&self) -> Result<CaptureMouseHookEvent, mpsc::TryRecvError> {
+        mpsc::Receiver::try_recv(self)
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl CaptureMouseEventReceiver for CaptureMouseEventQueue {
+    fn recv(&self) -> Result<CaptureMouseHookEvent, mpsc::RecvError> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        loop {
+            if let Some(event) = Self::pop_front_locked(&mut state) {
+                return Ok(event);
+            }
+            state = self
+                .event_available
+                .wait(state)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+        }
+    }
+
+    fn recv_timeout(
+        &self,
+        timeout: Duration,
+    ) -> Result<CaptureMouseHookEvent, mpsc::RecvTimeoutError> {
+        let deadline = Instant::now() + timeout;
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        loop {
+            if let Some(event) = Self::pop_front_locked(&mut state) {
+                return Ok(event);
+            }
+
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(mpsc::RecvTimeoutError::Timeout);
+            }
+            let (next_state, wait_result) = self
+                .event_available
+                .wait_timeout(state, remaining)
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            state = next_state;
+            if wait_result.timed_out() && state.events.is_empty() {
+                return Err(mpsc::RecvTimeoutError::Timeout);
+            }
+        }
+    }
+
+    fn try_recv(&self) -> Result<CaptureMouseHookEvent, mpsc::TryRecvError> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        Self::pop_front_locked(&mut state).ok_or(mpsc::TryRecvError::Empty)
+    }
+}
+
+#[cfg(target_os = "windows")]
 const CAPTURE_MOUSE_UP_BOUNCE_WINDOW: Duration = Duration::from_millis(35);
 #[cfg(target_os = "windows")]
 const OVERLAY_MOUSE_UP_BOUNCE_WINDOW: Duration = Duration::from_millis(35);
@@ -1682,8 +1947,8 @@ enum OverlayMouseMoveCoalesceResult {
 }
 
 #[cfg(target_os = "windows")]
-fn wait_for_capture_mouse_up_debounce(
-    receiver: &mpsc::Receiver<CaptureMouseHookEvent>,
+fn wait_for_capture_mouse_up_debounce<R: CaptureMouseEventReceiver + ?Sized>(
+    receiver: &R,
     timeout: Duration,
 ) -> CaptureMouseUpDebounceResult {
     let deadline = Instant::now() + timeout;
@@ -1718,8 +1983,8 @@ fn wait_for_capture_mouse_up_debounce(
 }
 
 #[cfg(target_os = "windows")]
-fn wait_for_overlay_mouse_up_debounce(
-    receiver: &mpsc::Receiver<CaptureMouseHookEvent>,
+fn wait_for_overlay_mouse_up_debounce<R: CaptureMouseEventReceiver + ?Sized>(
+    receiver: &R,
     source: OverlayPointerSource,
     timeout: Duration,
 ) -> OverlayMouseUpDebounceResult {
@@ -1779,8 +2044,8 @@ fn wait_for_overlay_mouse_up_debounce(
 }
 
 #[cfg(target_os = "windows")]
-fn coalesce_capture_mouse_move_until_emit(
-    receiver: &mpsc::Receiver<CaptureMouseHookEvent>,
+fn coalesce_capture_mouse_move_until_emit<R: CaptureMouseEventReceiver + ?Sized>(
+    receiver: &R,
     mut x: f64,
     mut y: f64,
     mut modifiers: ModifierSnapshot,
@@ -1851,8 +2116,8 @@ fn coalesce_capture_mouse_move_until_emit(
 }
 
 #[cfg(target_os = "windows")]
-fn coalesce_overlay_mouse_move_until_emit(
-    receiver: &mpsc::Receiver<CaptureMouseHookEvent>,
+fn coalesce_overlay_mouse_move_until_emit<R: CaptureMouseEventReceiver + ?Sized>(
+    receiver: &R,
     mut x: f64,
     mut y: f64,
     mut modifiers: ModifierSnapshot,
@@ -1961,7 +2226,7 @@ struct ForwardedShortcutPayload {
 }
 
 #[cfg(target_os = "windows")]
-static CAPTURE_MOUSE_EVENT_SENDER: OnceLock<mpsc::Sender<CaptureMouseHookEvent>> = OnceLock::new();
+static CAPTURE_MOUSE_EVENT_QUEUE: OnceLock<Arc<CaptureMouseEventQueue>> = OnceLock::new();
 static DESKTOP_COLOR_PICKER_ACTIVE: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
 static OVERLAY_KEYBOARD_EVENT_SENDER: OnceLock<mpsc::SyncSender<OverlayKeyboardHookEvent>> =
@@ -2070,11 +2335,46 @@ fn uiaccess_build_enabled() -> bool {
 
 #[cfg(target_os = "windows")]
 fn queue_capture_mouse_hook_event(event: CaptureMouseHookEvent) {
-    if let Some(sender) = CAPTURE_MOUSE_EVENT_SENDER.get() {
-        if sender.send(event).is_err() {
-            append_runtime_log_line("capture_mouse_event_channel_disconnected");
-        }
+    if matches!(event, CaptureMouseHookEvent::Wheel { .. }) {
+        return;
     }
+
+    if let Some(queue) = CAPTURE_MOUSE_EVENT_QUEUE.get() {
+        let _ = queue.enqueue(event);
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn log_capture_mouse_queue_diagnostics_if_due(
+    queue: &CaptureMouseEventQueue,
+    last_log: &mut Instant,
+    last_diagnostics: &mut CaptureMouseEventQueueDiagnostics,
+) {
+    let diagnostics = queue.diagnostics();
+    let critical_overflow_changed =
+        diagnostics.critical_overflows != last_diagnostics.critical_overflows;
+    if !critical_overflow_changed && last_log.elapsed() < CAPTURE_MOUSE_QUEUE_DIAGNOSTIC_INTERVAL {
+        return;
+    }
+
+    let pressure_changed = diagnostics.coalesced_moves != last_diagnostics.coalesced_moves
+        || diagnostics.evicted_moves != last_diagnostics.evicted_moves
+        || diagnostics.dropped_moves != last_diagnostics.dropped_moves
+        || diagnostics.critical_overflows != last_diagnostics.critical_overflows;
+    if pressure_changed {
+        append_runtime_log_line(&format!(
+            "capture_mouse_queue :: depth={} max_depth={} coalesced_moves={} evicted_moves={} dropped_moves={} critical_overflows={} enqueued_edges={}",
+            diagnostics.current_depth,
+            diagnostics.max_depth,
+            diagnostics.coalesced_moves,
+            diagnostics.evicted_moves,
+            diagnostics.dropped_moves,
+            diagnostics.critical_overflows,
+            diagnostics.enqueued_edges,
+        ));
+    }
+    *last_diagnostics = diagnostics;
+    *last_log = Instant::now();
 }
 
 #[cfg(target_os = "windows")]
@@ -2769,9 +3069,12 @@ unsafe extern "system" fn capture_mouse_hook_proc(
 
 #[cfg(target_os = "windows")]
 fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
-    let (sender, receiver) = mpsc::channel::<CaptureMouseHookEvent>();
-    if CAPTURE_MOUSE_EVENT_SENDER.set(sender).is_err() {
-        append_runtime_log_line("capture_mouse_hook_sender_already_initialized");
+    let queue = Arc::new(CaptureMouseEventQueue::new(
+        CAPTURE_MOUSE_EVENT_QUEUE_CAPACITY,
+        CAPTURE_MOUSE_EVENT_EDGE_RESERVE,
+    ));
+    if CAPTURE_MOUSE_EVENT_QUEUE.set(Arc::clone(&queue)).is_err() {
+        append_runtime_log_line("capture_mouse_event_queue_already_initialized");
         return;
     }
 
@@ -2783,14 +3086,21 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
             let mut cached_metrics = capture_window_metrics(&emit_window);
             let mut last_capture_move_emit = Instant::now() - CAPTURE_MOUSE_MOVE_EMIT_INTERVAL;
             let mut last_overlay_move_emit = Instant::now() - OVERLAY_MOUSE_MOVE_EMIT_INTERVAL;
+            let mut last_queue_diagnostic_log = Instant::now();
+            let mut last_queue_diagnostics = queue.diagnostics();
             loop {
                 let event = match deferred_event.take() {
                     Some(event) => event,
-                    None => match receiver.recv() {
+                    None => match queue.recv() {
                         Ok(event) => event,
                         Err(_) => break,
                     },
                 };
+                log_capture_mouse_queue_diagnostics_if_due(
+                    &queue,
+                    &mut last_queue_diagnostic_log,
+                    &mut last_queue_diagnostics,
+                );
 
                 match event {
                     CaptureMouseHookEvent::Move {
@@ -2799,7 +3109,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                         modifiers,
                     } => {
                         match coalesce_capture_mouse_move_until_emit(
-                            &receiver,
+                            queue.as_ref(),
                             x,
                             y,
                             modifiers,
@@ -2878,7 +3188,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                         modifiers,
                         native_drag_preflight,
                     } => match coalesce_overlay_mouse_move_until_emit(
-                        &receiver,
+                        queue.as_ref(),
                         x,
                         y,
                         modifiers,
@@ -2909,7 +3219,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                     },
                     CaptureMouseHookEvent::Up { x, y, modifiers } => {
                         match wait_for_capture_mouse_up_debounce(
-                            &receiver,
+                            queue.as_ref(),
                             CAPTURE_MOUSE_UP_BOUNCE_WINDOW,
                         ) {
                             CaptureMouseUpDebounceResult::Continue {
@@ -2955,7 +3265,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                         source,
                     } => {
                         match wait_for_overlay_mouse_up_debounce(
-                            &receiver,
+                            queue.as_ref(),
                             source,
                             OVERLAY_MOUSE_UP_BOUNCE_WINDOW,
                         ) {
@@ -3597,7 +3907,8 @@ mod input_lifecycle_hardening_tests {
         resolve_overlay_pointer_release, should_passthrough_foreign_alt_input,
         should_passthrough_foreign_alt_mouse_input,
         should_suppress_overlay_interaction_for_occlusion, wait_for_capture_mouse_up_debounce,
-        wait_for_overlay_mouse_up_debounce, CaptureMouseHookEvent, CaptureMouseMoveCoalesceResult,
+        wait_for_overlay_mouse_up_debounce, CaptureMouseEventEnqueueResult, CaptureMouseEventQueue,
+        CaptureMouseEventReceiver, CaptureMouseHookEvent, CaptureMouseMoveCoalesceResult,
         CaptureMouseUpDebounceResult, EmergencyEscapeTracker, ModifierSnapshot,
         OverlayMouseMoveCoalesceResult, OverlayMouseUpDebounceResult, OverlayPointerDownTransition,
         OverlayPointerReleaseResult, OverlayPointerSource, OverlayPointerUpTransition,
@@ -3605,7 +3916,8 @@ mod input_lifecycle_hardening_tests {
     };
     use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
     use std::sync::mpsc;
-    use std::sync::{Mutex, OnceLock};
+    use std::sync::{Arc, Mutex, OnceLock};
+    use std::thread;
     use std::time::{Duration, Instant};
     use windows::Win32::Foundation::RECT;
 
@@ -4005,6 +4317,349 @@ mod input_lifecycle_hardening_tests {
             }
             other => panic!("expected a deferred preflight stream boundary, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn bounded_mouse_queue_coalesces_a_large_capture_move_flood() {
+        let queue = CaptureMouseEventQueue::new(32, 4);
+
+        for index in 0..100_000 {
+            let result = queue.enqueue(CaptureMouseHookEvent::Move {
+                x: index as f64,
+                y: (index + 1) as f64,
+                modifiers: modifiers(),
+            });
+            assert!(matches!(
+                result,
+                CaptureMouseEventEnqueueResult::Enqueued
+                    | CaptureMouseEventEnqueueResult::CoalescedMove
+            ));
+        }
+
+        let diagnostics = queue.diagnostics();
+        assert_eq!(diagnostics.current_depth, 1);
+        assert_eq!(diagnostics.max_depth, 1);
+        assert_eq!(diagnostics.coalesced_moves, 99_999);
+        assert_eq!(diagnostics.evicted_moves, 0);
+        assert_eq!(diagnostics.dropped_moves, 0);
+        assert_eq!(diagnostics.critical_overflows, 0);
+        assert!(matches!(
+            queue.try_recv(),
+            Ok(CaptureMouseHookEvent::Move {
+                x: 99_999.0,
+                y: 100_000.0,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn bounded_mouse_queue_preserves_down_up_order_inside_move_floods() {
+        let queue = CaptureMouseEventQueue::new(32, 4);
+
+        for index in 0..10_000 {
+            let _ = queue.enqueue(CaptureMouseHookEvent::Move {
+                x: index as f64,
+                y: 10.0,
+                modifiers: modifiers(),
+            });
+        }
+        assert_eq!(
+            queue.enqueue(CaptureMouseHookEvent::Down {
+                x: 10_000.0,
+                y: 20.0,
+                modifiers: modifiers(),
+            }),
+            CaptureMouseEventEnqueueResult::Enqueued
+        );
+        for index in 0..10_000 {
+            let _ = queue.enqueue(CaptureMouseHookEvent::Move {
+                x: (20_000 + index) as f64,
+                y: 30.0,
+                modifiers: modifiers(),
+            });
+        }
+        assert_eq!(
+            queue.enqueue(CaptureMouseHookEvent::Up {
+                x: 30_000.0,
+                y: 40.0,
+                modifiers: modifiers(),
+            }),
+            CaptureMouseEventEnqueueResult::Enqueued
+        );
+
+        assert!(matches!(
+            queue.try_recv(),
+            Ok(CaptureMouseHookEvent::Move { x: 9_999.0, .. })
+        ));
+        assert!(matches!(
+            queue.try_recv(),
+            Ok(CaptureMouseHookEvent::Down { x: 10_000.0, .. })
+        ));
+        assert!(matches!(
+            queue.try_recv(),
+            Ok(CaptureMouseHookEvent::Move { x: 29_999.0, .. })
+        ));
+        assert!(matches!(
+            queue.try_recv(),
+            Ok(CaptureMouseHookEvent::Up { x: 30_000.0, .. })
+        ));
+        assert!(matches!(queue.try_recv(), Err(mpsc::TryRecvError::Empty)));
+
+        let diagnostics = queue.diagnostics();
+        assert_eq!(diagnostics.current_depth, 0);
+        assert_eq!(diagnostics.max_depth, 4);
+        assert_eq!(diagnostics.enqueued_edges, 2);
+        assert_eq!(diagnostics.critical_overflows, 0);
+    }
+
+    #[test]
+    fn bounded_mouse_queue_keeps_overlay_preflight_stream_boundaries() {
+        let queue = CaptureMouseEventQueue::new(16, 4);
+        for (x, native_drag_preflight) in
+            [(100.0, false), (200.0, true), (300.0, true), (400.0, false)]
+        {
+            let _ = queue.enqueue(CaptureMouseHookEvent::OverlayMove {
+                x,
+                y: x + 1.0,
+                modifiers: modifiers(),
+                native_drag_preflight,
+            });
+        }
+
+        assert!(matches!(
+            queue.try_recv(),
+            Ok(CaptureMouseHookEvent::OverlayMove {
+                x: 100.0,
+                native_drag_preflight: false,
+                ..
+            })
+        ));
+        assert!(matches!(
+            queue.try_recv(),
+            Ok(CaptureMouseHookEvent::OverlayMove {
+                x: 300.0,
+                native_drag_preflight: true,
+                ..
+            })
+        ));
+        assert!(matches!(
+            queue.try_recv(),
+            Ok(CaptureMouseHookEvent::OverlayMove {
+                x: 400.0,
+                native_drag_preflight: false,
+                ..
+            })
+        ));
+        assert!(matches!(queue.try_recv(), Err(mpsc::TryRecvError::Empty)));
+        assert_eq!(queue.diagnostics().coalesced_moves, 1);
+    }
+
+    #[test]
+    fn bounded_mouse_queue_reserves_capacity_for_button_edges() {
+        let queue = CaptureMouseEventQueue::new(8, 2);
+
+        for index in 0..3 {
+            let _ = queue.enqueue(CaptureMouseHookEvent::Move {
+                x: index as f64,
+                y: 0.0,
+                modifiers: modifiers(),
+            });
+            let _ = queue.enqueue(CaptureMouseHookEvent::OverlayContextMenu {
+                x: index as f64,
+                y: 1.0,
+                modifiers: modifiers(),
+            });
+        }
+        assert_eq!(queue.diagnostics().current_depth, 6);
+        assert_eq!(
+            queue.enqueue(CaptureMouseHookEvent::Move {
+                x: 99.0,
+                y: 100.0,
+                modifiers: modifiers(),
+            }),
+            CaptureMouseEventEnqueueResult::EnqueuedAfterEvictingMove
+        );
+        assert_eq!(
+            queue.enqueue(CaptureMouseHookEvent::Down {
+                x: 101.0,
+                y: 102.0,
+                modifiers: modifiers(),
+            }),
+            CaptureMouseEventEnqueueResult::Enqueued
+        );
+        assert_eq!(
+            queue.enqueue(CaptureMouseHookEvent::Up {
+                x: 103.0,
+                y: 104.0,
+                modifiers: modifiers(),
+            }),
+            CaptureMouseEventEnqueueResult::Enqueued
+        );
+
+        let mut saw_down = false;
+        let mut saw_up = false;
+        while let Ok(event) = queue.try_recv() {
+            match event {
+                CaptureMouseHookEvent::Down { .. } => saw_down = true,
+                CaptureMouseHookEvent::Up { .. } => {
+                    assert!(saw_down);
+                    saw_up = true;
+                }
+                _ => {}
+            }
+        }
+        assert!(saw_down && saw_up);
+        let diagnostics = queue.diagnostics();
+        assert_eq!(diagnostics.current_depth, 0);
+        assert_eq!(diagnostics.max_depth, 8);
+        assert_eq!(diagnostics.evicted_moves, 1);
+        assert_eq!(diagnostics.critical_overflows, 0);
+    }
+
+    #[test]
+    fn bounded_mouse_queue_reports_edge_only_overflow_without_growing() {
+        let queue = CaptureMouseEventQueue::new(3, 1);
+        let _ = queue.enqueue(CaptureMouseHookEvent::Down {
+            x: 1.0,
+            y: 2.0,
+            modifiers: modifiers(),
+        });
+        let _ = queue.enqueue(CaptureMouseHookEvent::Up {
+            x: 3.0,
+            y: 4.0,
+            modifiers: modifiers(),
+        });
+        let _ = queue.enqueue(CaptureMouseHookEvent::OverlayContextMenu {
+            x: 5.0,
+            y: 6.0,
+            modifiers: modifiers(),
+        });
+
+        assert_eq!(
+            queue.enqueue(CaptureMouseHookEvent::OverlayWheel {
+                x: 7.0,
+                y: 8.0,
+                delta_y: 120.0,
+                modifiers: modifiers(),
+            }),
+            CaptureMouseEventEnqueueResult::CriticalOverflow
+        );
+        let diagnostics = queue.diagnostics();
+        assert_eq!(diagnostics.current_depth, 3);
+        assert_eq!(diagnostics.max_depth, 3);
+        assert_eq!(diagnostics.enqueued_edges, 3);
+        assert_eq!(diagnostics.critical_overflows, 1);
+    }
+
+    #[test]
+    fn bounded_mouse_queue_preserves_overlay_edges_and_actions_between_move_floods() {
+        let queue = CaptureMouseEventQueue::new(12, 4);
+        let source = OverlayPointerSource::LowLevelHook;
+        let _ = queue.enqueue(CaptureMouseHookEvent::OverlayDown {
+            x: 1.0,
+            y: 2.0,
+            modifiers: modifiers(),
+            native_drag_preflight: false,
+            source,
+            continuation: false,
+        });
+        for index in 0..1_000 {
+            let _ = queue.enqueue(CaptureMouseHookEvent::OverlayMove {
+                x: index as f64,
+                y: 3.0,
+                modifiers: modifiers(),
+                native_drag_preflight: false,
+            });
+        }
+        let _ = queue.enqueue(CaptureMouseHookEvent::OverlayWheel {
+            x: 1_000.0,
+            y: 4.0,
+            delta_y: 120.0,
+            modifiers: modifiers(),
+        });
+        for index in 0..1_000 {
+            let _ = queue.enqueue(CaptureMouseHookEvent::OverlayMove {
+                x: (1_000 + index) as f64,
+                y: 5.0,
+                modifiers: modifiers(),
+                native_drag_preflight: false,
+            });
+        }
+        let _ = queue.enqueue(CaptureMouseHookEvent::OverlayContextMenu {
+            x: 2_000.0,
+            y: 6.0,
+            modifiers: modifiers(),
+        });
+        let _ = queue.enqueue(CaptureMouseHookEvent::OverlayUp {
+            x: 2_001.0,
+            y: 7.0,
+            modifiers: modifiers(),
+            native_drag_preflight: false,
+            source,
+        });
+
+        assert!(matches!(
+            queue.try_recv(),
+            Ok(CaptureMouseHookEvent::OverlayDown { .. })
+        ));
+        assert!(matches!(
+            queue.try_recv(),
+            Ok(CaptureMouseHookEvent::OverlayMove { x: 999.0, .. })
+        ));
+        assert!(matches!(
+            queue.try_recv(),
+            Ok(CaptureMouseHookEvent::OverlayWheel { delta_y: 120.0, .. })
+        ));
+        assert!(matches!(
+            queue.try_recv(),
+            Ok(CaptureMouseHookEvent::OverlayMove { x: 1_999.0, .. })
+        ));
+        assert!(matches!(
+            queue.try_recv(),
+            Ok(CaptureMouseHookEvent::OverlayContextMenu { .. })
+        ));
+        assert!(matches!(
+            queue.try_recv(),
+            Ok(CaptureMouseHookEvent::OverlayUp { .. })
+        ));
+        assert!(matches!(queue.try_recv(), Err(mpsc::TryRecvError::Empty)));
+        let diagnostics = queue.diagnostics();
+        assert_eq!(diagnostics.enqueued_edges, 4);
+        assert_eq!(diagnostics.coalesced_moves, 1_998);
+        assert_eq!(diagnostics.critical_overflows, 0);
+    }
+
+    #[test]
+    fn bounded_mouse_queue_receiver_times_out_and_wakes_for_an_edge() {
+        let queue = Arc::new(CaptureMouseEventQueue::new(8, 2));
+        assert!(matches!(
+            queue.recv_timeout(Duration::ZERO),
+            Err(mpsc::RecvTimeoutError::Timeout)
+        ));
+
+        let producer_queue = Arc::clone(&queue);
+        let producer = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(5));
+            producer_queue.enqueue(CaptureMouseHookEvent::Up {
+                x: 10.0,
+                y: 20.0,
+                modifiers: modifiers(),
+            })
+        });
+
+        assert!(matches!(
+            queue.recv_timeout(Duration::from_secs(1)),
+            Ok(CaptureMouseHookEvent::Up {
+                x: 10.0,
+                y: 20.0,
+                ..
+            })
+        ));
+        assert_eq!(
+            producer.join().unwrap(),
+            CaptureMouseEventEnqueueResult::Enqueued
+        );
     }
 
     #[test]
