@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-    buildUnitDragExportFilenameHint,
     resolveNativeDragDropPhysicalPointFromOverlay,
     resolveNativeDragDropPhysicalPointFromPointer,
     resolveExistingUnitDragFilePath,
@@ -23,10 +22,20 @@ const mkUnit = (over: Partial<Unit> & { id: string }): Unit => ({
 });
 
 describe("unit drag export planning", () => {
-    it("builds art-node filename hints from the capability label", () => {
-        const unit = mkUnit({ id: "unit-1234", type: "art" });
-        expect(buildUnitDragExportFilenameHint(unit, "图片压缩")).toBe("image_1234");
-        expect(buildUnitDragExportFilenameHint(unit, "Image Compress")).toBe("imagecompress_1234");
+    it("preserves Unicode capability labels in the structured naming context", () => {
+        const unit = mkUnit({
+            id: "unit-1234",
+            type: "art",
+            data: { previewSrc: "data:image/png;base64,ART" },
+        });
+        expect(
+            resolveUnitDragExportPlan({ unit, capabilityLabel: "图片压缩" })?.fileNamingContext,
+        ).toMatchObject({
+            kind: "art",
+            label: "图片压缩",
+            unitId: "unit-1234",
+            shortId: "1234",
+        });
     });
 
     it("reuses a file-backed art result directly", () => {
@@ -45,10 +54,9 @@ describe("unit drag export planning", () => {
                 capabilityLabel: "Image Compress",
                 displaySrc: "http://asset.localhost/C%3A/temp/compressed.png",
             }),
-        ).toEqual({
+        ).toMatchObject({
             kind: "path",
             path: "C:\\temp\\compressed.png",
-            filenameHint: "imagecompress_rt-1",
             cacheSavedPath: false,
         });
     });
@@ -68,10 +76,9 @@ describe("unit drag export planning", () => {
                 capabilityLabel: "Image Compress",
                 displaySrc: "data:image/png;base64,COMPRESSED",
             }),
-        ).toEqual({
+        ).toMatchObject({
             kind: "data-url",
             dataUrl: "data:image/png;base64,COMPRESSED",
-            filenameHint: "imagecompress_rt-2",
             cacheSavedPath: true,
         });
     });
@@ -94,9 +101,8 @@ describe("unit drag export planning", () => {
                 unit,
                 displaySrc: "data:image/png;base64,DISPLAY",
             }),
-        ).toEqual({
+        ).toMatchObject({
             kind: "rendered-composite",
-            filenameHint: "image_er-1",
             cacheSavedPath: true,
         });
     });
@@ -117,9 +123,8 @@ describe("unit drag export planning", () => {
                 unit,
                 displaySrc: "data:image/png;base64,CURRENT_ART_RESULT",
             }),
-        ).toEqual({
+        ).toMatchObject({
             kind: "rendered-composite",
-            filenameHint: "image_er-2",
             cacheSavedPath: true,
         });
     });

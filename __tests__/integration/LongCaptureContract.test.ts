@@ -22,7 +22,7 @@ describe("Hook long capture contract", () => {
         expect(selectionSource).toContain("api.stitchLongCaptureFrames");
         expect(selectionSource).not.toContain("api.captureVerticalLongRegion(");
         expect(selectionSource).toContain('await api.setOverlayClickThrough(true)');
-        expect(selectionSource).toContain("captureMeta: createCaptureMeta(mode, rect, scrollAxis)");
+        expect(selectionSource).toContain("...createCaptureMeta(mode, rect, scrollAxis)");
         expect(captureStateSource).toContain('kind: isLongCaptureMode(mode) ? "long" : "region"');
 
         expect(apiSource).toContain("analyzeLongCapturePair");

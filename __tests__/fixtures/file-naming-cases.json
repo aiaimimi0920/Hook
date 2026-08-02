@@ -1,0 +1,54 @@
+{
+  "render": {
+    "pattern": "{app}_{kind}_{label}_{shortId}_{width}x{height}_{date}_{time}",
+    "context": {
+      "app": "Hook",
+      "kind": "sticker",
+      "label": "图片压缩",
+      "title": "参考窗口",
+      "process": "demo.exe",
+      "unitId": "unit-8f2a",
+      "shortId": "8f2a",
+      "width": 1920,
+      "height": 1080
+    },
+    "moment": {
+      "year": 2026,
+      "month": 8,
+      "day": 2,
+      "hour": 14,
+      "minute": 30,
+      "second": 15,
+      "millisecond": 420
+    },
+    "expected": "Hook_sticker_图片压缩_8f2a_1920x1080_20260802_14301542"
+  },
+  "sanitize": [
+    {
+      "input": "截图_日本語:窗口?. ",
+      "expected": "截图_日本語_窗口_"
+    },
+    {
+      "input": "CON",
+      "expected": "_CON"
+    },
+    {
+      "input": "com9.report",
+      "expected": "_com9.report"
+    },
+    {
+      "input": "..",
+      "expected": "Hook"
+    },
+    {
+      "input": "a\\..\\b",
+      "expected": "a_.._b"
+    }
+  ],
+  "invalidPatterns": [
+    "",
+    "Hook_{unknown}",
+    "Hook_{date",
+    "Hook_date}"
+  ]
+}

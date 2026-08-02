@@ -17,8 +17,8 @@ describe("Hook sticker export contract", () => {
     it("routes copy/save of stickers through a composed export image instead of raw src bytes", () => {
         expect(exportSource).toContain("renderStickerComposite");
         expect(clipboardSource).toContain("await renderStickerComposite(unit)");
-        expect(clipboardSource).toContain("api.copyStickerImageToSmartClipboard(exportBase64)");
-        expect(clipboardSource).toContain("api.saveStickerImageAs(exportBase64");
+        expect(clipboardSource).toContain("api.copyStickerImageToSmartClipboard(");
+        expect(clipboardSource).toContain("api.saveStickerImageAs(");
         expect(appSource).toContain("onSave: handleSave");
         expect(apiSource).toContain("saveStickerImage");
         expect(apiSource).toContain('"save_sticker_image"');

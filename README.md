@@ -53,6 +53,7 @@ Hook focuses on the gap between a screenshot utility and a heavier design tool:
   - crop, border, opacity, raster effects, color pick and copy
   - text, numbering, shapes, brush, highlighter
   - recycle bin and reference list
+  - configurable Unicode-safe file naming for saves, drag export, and clipboard files
 - **Desktop workflow canvas**
   - node graph, links, grouped parameters, sync entry points
   - editing-oriented top toolbar and context menu

@@ -54,6 +54,8 @@ import {
   updateStickerGpuWarmEstimate,
 } from "../services/stickerGpuWarmPool";
 import { resolveStickerContentFrame } from "../services/stickerEditPropagation";
+import { getCurrentAppSettings } from "../services/appSettings";
+import { buildUnitFileNamingContext, renderFileNamingStem } from "../services/fileNaming";
 
 interface Props {
   unit: Unit;
@@ -497,7 +499,7 @@ export const UnitView: Component<Props> = (props) => {
               case "path":
                   path = await api.saveStickerDragExportFromPath(
                       exportPlan.path,
-                      exportPlan.filenameHint,
+                      exportPlan.fileNamingContext,
                       globalX,
                       globalY,
                   );
@@ -505,7 +507,7 @@ export const UnitView: Component<Props> = (props) => {
               case "data-url":
                   path = await api.saveStickerDragExport(
                       exportPlan.dataUrl,
-                      exportPlan.filenameHint,
+                      exportPlan.fileNamingContext,
                       globalX,
                       globalY,
                   );
@@ -514,7 +516,7 @@ export const UnitView: Component<Props> = (props) => {
                   const exportBase64 = await renderStickerComposite(unit);
                   path = await api.saveStickerDragExport(
                       exportBase64,
-                      exportPlan.filenameHint,
+                      exportPlan.fileNamingContext,
                       globalX,
                       globalY,
                   );
@@ -989,25 +991,16 @@ export const UnitView: Component<Props> = (props) => {
                     // Construct DownloadURL
                     // Mime:FileName:Url
 
-                    // ... (Counter logic same)
-                    if (!(window as any)._nodeSaveCounts) (window as any)._nodeSaveCounts = {};
-                    const counts = (window as any)._nodeSaveCounts;
-                    const count = (counts[props.unit.id] || 0) + 1;
-                    counts[props.unit.id] = count;
-
-                    // Construct Filename: label_suffix_count.png
-                    // 1. Get Base Label (e.g. "Pixelate" or "Image")
-                    let label = props.unit.type === 'art' && props.capability?.label
-                        ? props.capability.label
-                        : "image";
-
-                    // 2. Sanitize (lowercase, remove non-alphanumeric)
-                    label = label.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-                    // 3. Get ID Suffix (last 4 chars)
-                    const suffix = props.unit.id.slice(-4);
-
-                    const filename = `${label}_${suffix}_${count}.png`;
+                    const appSettings = getCurrentAppSettings();
+                    const namingContext = buildUnitFileNamingContext(
+                        props.unit,
+                        props.capability?.label,
+                    );
+                    const filename = `${renderFileNamingStem(
+                        appSettings.fileNaming.dragExportPattern,
+                        namingContext,
+                        appSettings.fileNaming,
+                    )}.png`;
 
                     const src = props.unit.data.previewSrc || props.unit.data.src || "";
                     const dragOutFilePath = props.unit.data.filePath;

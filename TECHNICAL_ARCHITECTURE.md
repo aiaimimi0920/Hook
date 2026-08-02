@@ -63,6 +63,7 @@ The current visual baseline is the Hook terminal-style yellow/green theme, not t
 ### 4.2 Key backend modules
 
 - **`capture.rs` / `screenshot.rs`**: region capture and low-level screenshot handling
+- **`app_settings.rs` / `file_naming.rs`**: atomic global settings persistence and the authoritative user-visible image filename policy
 - **`long_capture.rs`**: long screenshot analysis, overlap detection, frame stitching
 - **`mock_artloom.rs`**: workflow-oriented backend integration surface and ArtLoom-style command handling
 - CLI-backed Arts are delegated to Loom through the same AHRP execution path as other package Arts; Hook does not spawn Art commands directly.
@@ -102,6 +103,7 @@ Hook persists several categories of local state:
 - session graph data
 - history data
 - sticker tool settings
+- global application settings, including image filename templates
 - runtime logs
 - clipboard cache files
 

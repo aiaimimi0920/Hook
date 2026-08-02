@@ -2,6 +2,7 @@ import { Show, createEffect, createMemo, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
 import { api } from "../services/api";
 import { renderStickerComposite } from "../services/stickerExport";
+import { buildUnitFileNamingContext } from "../services/fileNaming";
 import {
     addRecycleBinEntry,
     cancelReferenceEntry,
@@ -101,7 +102,12 @@ export const StickerContextMenuLayer = () => {
             const exportBase64 = await renderStickerComposite(target);
             const centerX = target.x + target.w / 2;
             const centerY = target.y + target.h / 2;
-            await api.saveStickerImageAs(exportBase64, centerX, centerY);
+            await api.saveStickerImageAs(
+                exportBase64,
+                centerX,
+                centerY,
+                buildUnitFileNamingContext(target),
+            );
         } catch (error) {
             console.error("Save sticker composite failed", error);
         } finally {

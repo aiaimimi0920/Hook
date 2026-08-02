@@ -16,6 +16,8 @@ import type {
     LongCaptureDirection,
     LongCaptureOverlapAnalysis,
 } from "./captureState";
+import { DEFAULT_APP_SETTINGS, type AppSettings } from "../types/appSettings";
+import type { FileNamingContext } from "../types/fileNaming";
 
 // Arguments Types
 export interface PinRect {
@@ -614,6 +616,17 @@ export const api = {
     saveToolSettings: (stickerToolSettings: Record<string, unknown>): Promise<void> =>
         safeInvoke("save_tool_settings", { stickerToolSettings }, () => undefined, false),
 
+    loadAppSettings: (): Promise<AppSettings> =>
+        safeInvoke(
+            "load_app_settings",
+            undefined,
+            () => ({ ...DEFAULT_APP_SETTINGS, fileNaming: { ...DEFAULT_APP_SETTINGS.fileNaming } }),
+            false,
+        ),
+
+    saveAppSettings: (settings: AppSettings): Promise<AppSettings> =>
+        safeInvoke("save_app_settings", { settings }, () => settings, false),
+
     getInstalledFonts: (): Promise<string[]> =>
         safeInvoke("get_installed_fonts", undefined, () => [], false),
 
@@ -823,20 +836,26 @@ export const api = {
     cacheRemoteImageAsset: (url: string, referer?: string): Promise<string> =>
         safeInvoke("cache_remote_image_asset", { url, referer }),
 
-    beginStickerNativeFileDrag: (base64: string, filenameHint?: string): Promise<string> =>
+    beginStickerNativeFileDrag: (
+        base64: string,
+        fileNamingContext?: FileNamingContext,
+    ): Promise<string> =>
         safeInvoke(
             "begin_sticker_native_file_drag",
-            { base64Image: base64, filenameHint },
+            { base64Image: base64, fileNamingContext },
             () => {
                 throw new Error("Native sticker file drag requires the Tauri desktop runtime");
             },
             false,
         ),
 
-    beginStickerNativeFileDragFromPath: (path: string): Promise<string> =>
+    beginStickerNativeFileDragFromPath: (
+        path: string,
+        fileNamingContext?: FileNamingContext,
+    ): Promise<string> =>
         safeInvoke(
             "begin_sticker_native_file_drag_from_path",
-            { path },
+            { path, fileNamingContext },
             () => {
                 throw new Error("Native sticker file drag from path requires the Tauri desktop runtime");
             },
@@ -845,13 +864,13 @@ export const api = {
 
     saveStickerDragExport: (
         base64: string,
-        filenameHint: string | undefined,
+        fileNamingContext: FileNamingContext | undefined,
         globalX: number,
         globalY: number,
     ): Promise<string> =>
         safeInvoke(
             "save_sticker_drag_export",
-            { base64Image: base64, filenameHint, globalX, globalY },
+            { base64Image: base64, fileNamingContext, globalX, globalY },
             () => {
                 throw new Error("Shift drag export requires the Tauri desktop runtime");
             },
@@ -860,34 +879,54 @@ export const api = {
 
     saveStickerDragExportFromPath: (
         path: string,
-        filenameHint: string | undefined,
+        fileNamingContext: FileNamingContext | undefined,
         globalX: number,
         globalY: number,
     ): Promise<string> =>
         safeInvoke(
             "save_sticker_drag_export_from_path",
-            { path, filenameHint, globalX, globalY },
+            { path, fileNamingContext, globalX, globalY },
             () => {
                 throw new Error("Shift drag export from path requires the Tauri desktop runtime");
             },
             false,
         ),
 
-    saveStickerImage: (base64: string): Promise<string> =>
-        safeInvoke("save_sticker_image", { base64Image: base64 }),
-    saveStickerImageAs: (base64: string, dialogCenterX: number, dialogCenterY: number): Promise<string | null> =>
-        safeInvoke("save_sticker_image_as", { base64Image: base64, dialogCenterX, dialogCenterY }),
+    saveStickerImage: (base64: string, fileNamingContext?: FileNamingContext): Promise<string> =>
+        safeInvoke("save_sticker_image", { base64Image: base64, fileNamingContext }),
+    saveStickerImageAs: (
+        base64: string,
+        dialogCenterX: number,
+        dialogCenterY: number,
+        fileNamingContext?: FileNamingContext,
+    ): Promise<string | null> =>
+        safeInvoke("save_sticker_image_as", {
+            base64Image: base64,
+            dialogCenterX,
+            dialogCenterY,
+            fileNamingContext,
+        }),
     openImageForEdit: (): Promise<string | null> =>
         safeInvoke("open_image_for_edit", undefined, () => null, false),
     readClipboardImage: (): Promise<string | null> =>
         safeInvoke("read_clipboard_image", undefined, () => null, false),
 
-    copyNodeImageToClipboard: (base64: string): Promise<string> =>
-        safeInvoke("copy_node_image_to_clipboard", { base64Image: base64 }, () => "browser-preview", false),
+    copyNodeImageToClipboard: (base64: string, fileNamingContext?: FileNamingContext): Promise<string> =>
+        safeInvoke(
+            "copy_node_image_to_clipboard",
+            { base64Image: base64, fileNamingContext },
+            () => "browser-preview",
+            false,
+        ),
     copyToClipboard: (base64: string): Promise<void> =>
         safeInvoke("copy_to_clipboard", { base64Image: base64 }, () => undefined, false),
-    copyStickerImageToSmartClipboard: (base64: string): Promise<string> =>
-        safeInvoke("copy_sticker_image_to_smart_clipboard", { base64Image: base64 }, () => "browser-preview", false),
+    copyStickerImageToSmartClipboard: (base64: string, fileNamingContext?: FileNamingContext): Promise<string> =>
+        safeInvoke(
+            "copy_sticker_image_to_smart_clipboard",
+            { base64Image: base64, fileNamingContext },
+            () => "browser-preview",
+            false,
+        ),
 };
 
 export const listenBrowserArtLoomMethod = (

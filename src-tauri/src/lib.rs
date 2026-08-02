@@ -1,6 +1,8 @@
+mod app_settings;
 mod capture;
 mod capture_coords;
 mod capture_windows;
+mod file_naming;
 mod long_capture;
 mod loom_config;
 pub mod loom_connector;
@@ -15,6 +17,10 @@ pub mod voice;
 
 use capture::{CaptureMetadata, CaptureResponse};
 use capture_coords::{normalize_global_physical_to_local_logical, CaptureWindowMetrics};
+use file_naming::{
+    create_unique_file, render_file_stem, FileNamingContext, FileNamingPatternKind,
+    FileNamingSettings,
+};
 use mock_artloom::MockArtLoom;
 use single_instance::{single_instance_name, try_acquire_single_instance};
 
@@ -380,6 +386,7 @@ fn app_data_dir_contains_user_state(dir: &Path) -> bool {
         "session.json",
         "history.json",
         "tool-settings.json",
+        "app-settings.json",
         "images",
         "saved",
     ]
@@ -421,6 +428,73 @@ fn effective_app_data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         &current_dir,
         override_dir.as_deref(),
     ))
+}
+
+fn current_file_naming_settings(app: &tauri::AppHandle) -> Result<FileNamingSettings, String> {
+    app_settings::load_app_settings(&effective_app_data_dir(app)?)
+        .map(|settings| settings.file_naming)
+}
+
+fn image_dimensions_from_bytes(image_data: &[u8]) -> Result<(u32, u32), String> {
+    let image = image::load_from_memory(image_data)
+        .map_err(|error| format!("Image load failed while preparing filename: {error}"))?;
+    Ok((image.width(), image.height()))
+}
+
+fn prepare_file_naming_context(
+    context: Option<FileNamingContext>,
+    default_kind: &str,
+    default_label: &str,
+    width: u32,
+    height: u32,
+) -> FileNamingContext {
+    let mut context = context.unwrap_or_default().with_dimensions(width, height);
+    if context.app.trim().is_empty() {
+        context.app = "Hook".to_string();
+    }
+    if context.kind.trim().is_empty() {
+        context.kind = default_kind.to_string();
+    }
+    if context.label.trim().is_empty() {
+        context.label = default_label.to_string();
+    }
+    context
+}
+
+fn render_user_file_stem(
+    app: &tauri::AppHandle,
+    pattern_kind: FileNamingPatternKind,
+    context: FileNamingContext,
+) -> Result<String, String> {
+    let settings = current_file_naming_settings(app)?;
+    Ok(render_file_stem(&settings, pattern_kind, context))
+}
+
+fn write_allocated_bytes(
+    mut file: File,
+    path: &Path,
+    bytes: &[u8],
+    action: &str,
+) -> Result<(), String> {
+    if let Err(error) = file.write_all(bytes) {
+        drop(file);
+        let _ = fs::remove_file(path);
+        return Err(format!("Failed to {action}: {error}"));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn load_app_settings(app: tauri::AppHandle) -> Result<app_settings::AppSettings, String> {
+    app_settings::load_app_settings(&effective_app_data_dir(&app)?)
+}
+
+#[tauri::command]
+fn save_app_settings(
+    app: tauri::AppHandle,
+    settings: app_settings::AppSettings,
+) -> Result<app_settings::AppSettings, String> {
+    app_settings::save_app_settings(&effective_app_data_dir(&app)?, settings)
 }
 
 const RUNTIME_LOG_QUEUE_CAPACITY: usize = 512;
@@ -517,7 +591,7 @@ fn file_timestamp_component() -> String {
     unix_timestamp_millis().to_string()
 }
 
-fn sanitize_drag_filename_hint(hint: Option<&str>) -> String {
+fn sanitize_internal_asset_component(hint: Option<&str>) -> String {
     let sanitized: String = hint
         .unwrap_or("hook")
         .chars()
@@ -622,10 +696,24 @@ fn cleanup_clipboard_cache_dir(
     for entry in fs::read_dir(dir).map_err(|e| format!("Failed to read clipboard cache: {}", e))? {
         let entry = entry.map_err(|e| format!("Failed to inspect clipboard cache: {}", e))?;
         let metadata = match entry.metadata() {
-            Ok(metadata) if metadata.is_file() => metadata,
-            _ => continue,
+            Ok(metadata) => metadata,
+            Err(_) => continue,
         };
         let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+        if metadata.is_dir() {
+            let is_native_drag_staging = entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("native-drag-");
+            if is_native_drag_staging && now.duration_since(modified).unwrap_or_default() > max_age
+            {
+                let _ = fs::remove_dir_all(entry.path());
+            }
+            continue;
+        }
+        if !metadata.is_file() {
+            continue;
+        }
         if now.duration_since(modified).unwrap_or_default() > max_age {
             let _ = fs::remove_file(entry.path());
             continue;
@@ -678,30 +766,46 @@ fn path_is_within(candidate: &Path, root: &Path) -> bool {
 }
 
 #[cfg(target_os = "windows")]
-fn stage_drag_out_file_copy(source_path: &Path) -> Result<PathBuf, String> {
+fn stage_drag_out_file_copy(
+    source_path: &Path,
+    preferred_stem: Option<&str>,
+) -> Result<PathBuf, String> {
     let cache_dir = ensure_clipboard_cache_dir()?;
+    let staging_dir = cache_dir.join(format!("native-drag-{}", uuid::Uuid::new_v4()));
+    fs::create_dir_all(&staging_dir)
+        .map_err(|e| format!("Failed to create native drag staging dir: {}", e))?;
     let staged_extension = source_path
         .extension()
         .and_then(|extension| extension.to_str())
         .filter(|extension| !extension.trim().is_empty())
         .unwrap_or("png");
-    let staged_stem =
-        sanitize_drag_filename_hint(source_path.file_stem().and_then(|stem| stem.to_str()));
-    let staged_path = cache_dir.join(format!(
-        "dragout_{}_{}.{}",
-        staged_stem,
-        file_timestamp_component(),
-        staged_extension
-    ));
-
-    fs::copy(source_path, &staged_path)
-        .map_err(|e| format!("Failed to stage drag file copy: {}", e))?;
+    let staged_stem = preferred_stem
+        .filter(|stem| !stem.trim().is_empty())
+        .or_else(|| source_path.file_stem().and_then(|stem| stem.to_str()))
+        .unwrap_or("Hook");
+    let (mut staged_file, staged_path) =
+        create_unique_file(&staging_dir, staged_stem, Some(staged_extension))?;
+    let mut source_file =
+        File::open(source_path).map_err(|e| format!("Failed to open drag source: {}", e))?;
+    if let Err(error) = std::io::copy(&mut source_file, &mut staged_file) {
+        drop(staged_file);
+        let _ = fs::remove_file(&staged_path);
+        return Err(format!("Failed to stage drag file copy: {}", error));
+    }
     append_runtime_log_line(&format!(
         "native_drag_stage_created :: source={} staged={}",
         cache_file_name_for_log(source_path),
         cache_file_name_for_log(&staged_path)
     ));
     Ok(staged_path)
+}
+
+#[cfg(target_os = "windows")]
+fn cleanup_staged_drag_file(path: &Path) {
+    let _ = fs::remove_file(path);
+    if let Some(parent) = path.parent() {
+        let _ = fs::remove_dir(parent);
+    }
 }
 
 fn cache_file_name_for_log(path: &Path) -> String {
@@ -1062,12 +1166,12 @@ fn select_sticker_save_path(
     app: &tauri::AppHandle,
     dialog_center_x: f64,
     dialog_center_y: f64,
+    default_filename: &str,
 ) -> Result<Option<PathBuf>, String> {
     let window = app.get_webview_window("main");
     let (owner, placement) = resolve_save_dialog_placement(app, dialog_center_x, dialog_center_y)?;
 
-    let default_filename = format!("Hook_{}.png", file_timestamp_component());
-    let default_filename_wide = wide_null(&default_filename);
+    let default_filename_wide = wide_null(default_filename);
     let filter_wide: Vec<u16> = "PNG Image (*.png)\0*.png\0All Files (*.*)\0*.*\0\0"
         .encode_utf16()
         .collect();
@@ -4466,8 +4570,13 @@ fn read_shared_memory(
 }
 
 #[tauri::command]
-fn save_sticker_image(app: tauri::AppHandle, base64_image: String) -> Result<String, String> {
+fn save_sticker_image(
+    app: tauri::AppHandle,
+    base64_image: String,
+    file_naming_context: Option<FileNamingContext>,
+) -> Result<String, String> {
     let image_data = decode_base64_image_data(&base64_image)?;
+    let (width, height) = image_dimensions_from_bytes(&image_data)?;
 
     // 1. Resolve a user-writable destination. Writing next to the executable
     //    fails when Hook is installed under Program Files (read-only) and is
@@ -4476,15 +4585,11 @@ fn save_sticker_image(app: tauri::AppHandle, base64_image: String) -> Result<Str
     let saved_dir = app_dir.join("saved");
     fs::create_dir_all(&saved_dir).map_err(|e| format!("Failed to create save dir: {}", e))?;
 
-    // 2. Generate Filename
-    let timestamp = file_timestamp_component();
-    let filename = format!("{}.png", timestamp);
-    let file_path = saved_dir.join(&filename);
-
-    // 3. Write File
-    let mut file = File::create(&file_path).map_err(|e| format!("Failed to create file: {}", e))?;
-    file.write_all(&image_data)
-        .map_err(|e| format!("Failed to write file: {}", e))?;
+    let context =
+        prepare_file_naming_context(file_naming_context, "sticker", "image", width, height);
+    let stem = render_user_file_stem(&app, FileNamingPatternKind::StickerSave, context)?;
+    let (file, file_path) = create_unique_file(&saved_dir, &stem, Some("png"))?;
+    write_allocated_bytes(file, &file_path, &image_data, "write saved sticker")?;
 
     println!("Saved sticker to: {:?}", file_path);
     Ok(file_path.to_string_lossy().to_string())
@@ -4497,9 +4602,17 @@ fn save_sticker_image_as(
     base64_image: String,
     dialog_center_x: f64,
     dialog_center_y: f64,
+    file_naming_context: Option<FileNamingContext>,
 ) -> Result<Option<String>, String> {
     let image_data = decode_base64_image_data(&base64_image)?;
-    let Some(file_path) = select_sticker_save_path(&app, dialog_center_x, dialog_center_y)? else {
+    let (width, height) = image_dimensions_from_bytes(&image_data)?;
+    let context =
+        prepare_file_naming_context(file_naming_context, "sticker", "image", width, height);
+    let stem = render_user_file_stem(&app, FileNamingPatternKind::StickerSave, context)?;
+    let default_filename = format!("{stem}.png");
+    let Some(file_path) =
+        select_sticker_save_path(&app, dialog_center_x, dialog_center_y, &default_filename)?
+    else {
         return Ok(None);
     };
 
@@ -4519,8 +4632,9 @@ fn save_sticker_image_as(
     base64_image: String,
     _dialog_center_x: f64,
     _dialog_center_y: f64,
+    file_naming_context: Option<FileNamingContext>,
 ) -> Result<Option<String>, String> {
-    save_sticker_image(app, base64_image).map(Some)
+    save_sticker_image(app, base64_image, file_naming_context).map(Some)
 }
 
 fn session_image_asset_fingerprint(bytes: &[u8]) -> String {
@@ -4543,8 +4657,8 @@ fn persist_session_image_asset(
     }
 
     let image_data = decode_base64_image_data(value)?;
-    let sticker_stem = sanitize_drag_filename_hint(Some(sticker_id));
-    let slot_stem = sanitize_drag_filename_hint(Some(slot));
+    let sticker_stem = sanitize_internal_asset_component(Some(sticker_id));
+    let slot_stem = sanitize_internal_asset_component(Some(slot));
     let fingerprint = session_image_asset_fingerprint(&image_data);
     let file_name = format!("{sticker_stem}_{slot_stem}_{fingerprint}.png");
     let file_path = images_dir.join(file_name);
@@ -4947,59 +5061,23 @@ fn resolve_drag_export_target_dir(global_x: f64, global_y: f64) -> Result<PathBu
 }
 
 #[cfg(target_os = "windows")]
-fn drag_export_filename(filename_hint: Option<&str>, source_path: Option<&Path>) -> String {
-    let stem = filename_hint
-        .map(|hint| sanitize_drag_filename_hint(Some(hint)))
-        .filter(|value| !value.is_empty())
-        .or_else(|| {
-            source_path
-                .and_then(|path| path.file_stem())
-                .and_then(|stem| stem.to_str())
-                .map(|stem| sanitize_drag_filename_hint(Some(stem)))
-        })
-        .unwrap_or_else(|| "hook".to_string());
-    let extension = source_path
-        .and_then(|path| path.extension())
-        .and_then(|extension| extension.to_str())
-        .map(|extension| {
-            extension
-                .chars()
-                .filter(|ch| ch.is_ascii_alphanumeric())
-                .take(8)
-                .collect::<String>()
-                .to_ascii_lowercase()
-        })
-        .filter(|extension| !extension.is_empty())
-        .unwrap_or_else(|| "png".to_string());
-    format!("{}.{}", stem, extension)
-}
-
-#[cfg(target_os = "windows")]
-fn unique_drag_export_path(target_dir: &Path, filename: &str) -> PathBuf {
-    let candidate = target_dir.join(filename);
-    if !candidate.exists() {
-        return candidate;
-    }
-
-    let path = Path::new(filename);
-    let stem = path
-        .file_stem()
+fn prepare_drag_export_context(
+    file_naming_context: Option<FileNamingContext>,
+    source_path: Option<&Path>,
+    width: u32,
+    height: u32,
+) -> FileNamingContext {
+    let fallback_label = source_path
+        .and_then(|path| path.file_stem())
         .and_then(|stem| stem.to_str())
-        .filter(|stem| !stem.is_empty())
-        .unwrap_or("hook");
-    let extension = path.extension().and_then(|extension| extension.to_str());
-    for index in 2..10_000 {
-        let next_name = if let Some(extension) = extension {
-            format!("{}_{}.{}", stem, index, extension)
-        } else {
-            format!("{}_{}", stem, index)
-        };
-        let next = target_dir.join(next_name);
-        if !next.exists() {
-            return next;
-        }
-    }
-    target_dir.join(format!("{}_{}.png", stem, file_timestamp_component()))
+        .unwrap_or("image");
+    prepare_file_naming_context(
+        file_naming_context,
+        "sticker",
+        fallback_label,
+        width,
+        height,
+    )
 }
 
 #[cfg(target_os = "windows")]
@@ -5030,18 +5108,18 @@ fn notify_shell_path_changed(path: &Path) {
 
 #[cfg(target_os = "windows")]
 fn write_drag_export_bytes(
+    app: &tauri::AppHandle,
     image_data: &[u8],
-    filename_hint: Option<String>,
+    file_naming_context: Option<FileNamingContext>,
     global_x: f64,
     global_y: f64,
 ) -> Result<String, String> {
     let target_dir = resolve_drag_export_target_dir(global_x, global_y)?;
-    let filename = drag_export_filename(filename_hint.as_deref(), None);
-    let target_path = unique_drag_export_path(&target_dir, &filename);
-    let mut file = File::create(&target_path)
-        .map_err(|e| format!("Failed to create drag export file: {}", e))?;
-    file.write_all(image_data)
-        .map_err(|e| format!("Failed to write drag export file: {}", e))?;
+    let (width, height) = image_dimensions_from_bytes(image_data)?;
+    let context = prepare_drag_export_context(file_naming_context, None, width, height);
+    let stem = render_user_file_stem(app, FileNamingPatternKind::DragExport, context)?;
+    let (file, target_path) = create_unique_file(&target_dir, &stem, Some("png"))?;
+    write_allocated_bytes(file, &target_path, image_data, "write drag export file")?;
     let path_string = target_path.to_string_lossy().to_string();
     append_runtime_log_line(&format!(
         "sticker_drag_export_saved :: path={}",
@@ -5054,13 +5132,14 @@ fn write_drag_export_bytes(
 #[cfg(target_os = "windows")]
 #[tauri::command]
 fn save_sticker_drag_export(
+    app: tauri::AppHandle,
     base64_image: String,
-    filename_hint: Option<String>,
+    file_naming_context: Option<FileNamingContext>,
     global_x: f64,
     global_y: f64,
 ) -> Result<String, String> {
     let image_data = decode_base64_image_data(&base64_image)?;
-    write_drag_export_bytes(&image_data, filename_hint, global_x, global_y)
+    write_drag_export_bytes(&app, &image_data, file_naming_context, global_x, global_y)
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -5068,19 +5147,19 @@ fn save_sticker_drag_export(
 fn save_sticker_drag_export(
     app: tauri::AppHandle,
     base64_image: String,
-    filename_hint: Option<String>,
+    file_naming_context: Option<FileNamingContext>,
     _global_x: f64,
     _global_y: f64,
 ) -> Result<String, String> {
-    let _ = filename_hint;
-    save_sticker_image(app, base64_image)
+    save_sticker_image(app, base64_image, file_naming_context)
 }
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
 fn save_sticker_drag_export_from_path(
+    app: tauri::AppHandle,
     path: String,
-    filename_hint: Option<String>,
+    file_naming_context: Option<FileNamingContext>,
     global_x: f64,
     global_y: f64,
 ) -> Result<String, String> {
@@ -5092,10 +5171,22 @@ fn save_sticker_drag_export_from_path(
         ));
     }
     let target_dir = resolve_drag_export_target_dir(global_x, global_y)?;
-    let filename = drag_export_filename(filename_hint.as_deref(), Some(&source_path));
-    let target_path = unique_drag_export_path(&target_dir, &filename);
-    fs::copy(&source_path, &target_path)
-        .map_err(|e| format!("Failed to copy drag export file: {}", e))?;
+    let (width, height) = image::image_dimensions(&source_path)
+        .map_err(|e| format!("Failed to read drag export image dimensions: {}", e))?;
+    let context =
+        prepare_drag_export_context(file_naming_context, Some(&source_path), width, height);
+    let stem = render_user_file_stem(&app, FileNamingPatternKind::DragExport, context)?;
+    let extension = source_path
+        .extension()
+        .and_then(|extension| extension.to_str());
+    let (mut target_file, target_path) = create_unique_file(&target_dir, &stem, extension)?;
+    let mut source_file =
+        File::open(&source_path).map_err(|e| format!("Failed to open drag export file: {}", e))?;
+    if let Err(error) = std::io::copy(&mut source_file, &mut target_file) {
+        drop(target_file);
+        let _ = fs::remove_file(&target_path);
+        return Err(format!("Failed to copy drag export file: {}", error));
+    }
     let path_string = target_path.to_string_lossy().to_string();
     append_runtime_log_line(&format!(
         "sticker_drag_export_copied :: source={} target={}",
@@ -5110,7 +5201,7 @@ fn save_sticker_drag_export_from_path(
 #[tauri::command]
 fn save_sticker_drag_export_from_path(
     path: String,
-    _filename_hint: Option<String>,
+    _file_naming_context: Option<FileNamingContext>,
     _global_x: f64,
     _global_y: f64,
 ) -> Result<String, String> {
@@ -5215,37 +5306,35 @@ fn start_native_file_drag(
 #[cfg(target_os = "windows")]
 #[tauri::command]
 fn begin_sticker_native_file_drag(
+    app: tauri::AppHandle,
     window: tauri::WebviewWindow,
     hit_map: tauri::State<'_, SharedHitMap>,
     base64_image: String,
-    filename_hint: Option<String>,
+    file_naming_context: Option<FileNamingContext>,
 ) -> Result<String, String> {
     let image_data = decode_base64_image_data(&base64_image)?;
+    let (width, height) = image_dimensions_from_bytes(&image_data)?;
     let cache_dir = ensure_clipboard_cache_dir()?;
-    let filename = format!(
-        "{}_{}.png",
-        sanitize_drag_filename_hint(filename_hint.as_deref()),
-        file_timestamp_component()
-    );
-    let file_path = cache_dir.join(filename);
+    let context = prepare_drag_export_context(file_naming_context, None, width, height);
+    let stem = render_user_file_stem(&app, FileNamingPatternKind::DragExport, context)?;
+    let (file, file_path) = create_unique_file(&cache_dir, &stem, Some("png"))?;
+    write_allocated_bytes(file, &file_path, &image_data, "write native drag file")?;
 
-    let mut file =
-        File::create(&file_path).map_err(|e| format!("Failed to create drag file: {}", e))?;
-    file.write_all(&image_data)
-        .map_err(|e| format!("Failed to write drag file: {}", e))?;
-    drop(file);
-
-    let staged_drag_file = stage_drag_out_file_copy(&file_path)?;
-    start_native_file_drag(window, staged_drag_file, hit_map.inner())?;
+    let staged_drag_file = stage_drag_out_file_copy(&file_path, Some(&stem))?;
+    let drag_result = start_native_file_drag(window, staged_drag_file.clone(), hit_map.inner());
+    cleanup_staged_drag_file(&staged_drag_file);
+    drag_result?;
     Ok(file_path.to_string_lossy().to_string())
 }
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
 fn begin_sticker_native_file_drag_from_path(
+    app: tauri::AppHandle,
     window: tauri::WebviewWindow,
     hit_map: tauri::State<'_, SharedHitMap>,
     path: String,
+    file_naming_context: Option<FileNamingContext>,
 ) -> Result<String, String> {
     let file_path = PathBuf::from(path.clone());
     let metadata =
@@ -5259,8 +5348,14 @@ fn begin_sticker_native_file_drag_from_path(
     if !path_is_within(&file_path, &clipboard_cache_dir()) {
         return Err("Drag source must be inside Hook's clipboard cache".to_string());
     }
-    let staged_drag_file = stage_drag_out_file_copy(&file_path)?;
-    start_native_file_drag(window, staged_drag_file, hit_map.inner())?;
+    let (width, height) = image::image_dimensions(&file_path)
+        .map_err(|e| format!("Failed to read native drag image dimensions: {}", e))?;
+    let context = prepare_drag_export_context(file_naming_context, Some(&file_path), width, height);
+    let stem = render_user_file_stem(&app, FileNamingPatternKind::DragExport, context)?;
+    let staged_drag_file = stage_drag_out_file_copy(&file_path, Some(&stem))?;
+    let drag_result = start_native_file_drag(window, staged_drag_file.clone(), hit_map.inner());
+    cleanup_staged_drag_file(&staged_drag_file);
+    drag_result?;
     Ok(path)
 }
 
@@ -5270,7 +5365,7 @@ fn begin_sticker_native_file_drag(
     _window: tauri::WebviewWindow,
     _hit_map: tauri::State<'_, SharedHitMap>,
     _base64_image: String,
-    _filename_hint: Option<String>,
+    _file_naming_context: Option<FileNamingContext>,
 ) -> Result<String, String> {
     Err("Native sticker file drag is only supported on Windows".to_string())
 }
@@ -5281,29 +5376,27 @@ fn begin_sticker_native_file_drag_from_path(
     _window: tauri::WebviewWindow,
     _hit_map: tauri::State<'_, SharedHitMap>,
     _path: String,
+    _file_naming_context: Option<FileNamingContext>,
 ) -> Result<String, String> {
     Err("Native sticker file drag from path is only supported on Windows".to_string())
 }
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
-fn copy_node_image_to_clipboard(base64_image: String) -> Result<String, String> {
+fn copy_node_image_to_clipboard(
+    app: tauri::AppHandle,
+    base64_image: String,
+    file_naming_context: Option<FileNamingContext>,
+) -> Result<String, String> {
     use clipboard_win::{formats, Clipboard, Setter};
 
     let image_data = decode_base64_image_data(&base64_image)?;
+    let (width, height) = image_dimensions_from_bytes(&image_data)?;
     let cache_dir = ensure_clipboard_cache_dir()?;
-
-    // Use a fixed name or timestamp?
-    // If we use fixed, it overwrites (good for cache size, bad if pasting old ref).
-    // Use timestamp to be safe for now.
-    let timestamp = file_timestamp_component();
-    let filename = format!("ArtNode_{}.png", timestamp);
-    let file_path = cache_dir.join(&filename);
-
-    // 4. Write File
-    let mut file = File::create(&file_path).map_err(|e| format!("Failed to create file: {}", e))?;
-    file.write_all(&image_data)
-        .map_err(|e| format!("Failed to write file: {}", e))?;
+    let context = prepare_file_naming_context(file_naming_context, "art", "art", width, height);
+    let stem = render_user_file_stem(&app, FileNamingPatternKind::ClipboardFile, context)?;
+    let (file, file_path) = create_unique_file(&cache_dir, &stem, Some("png"))?;
+    write_allocated_bytes(file, &file_path, &image_data, "write Art clipboard file")?;
 
     let path_string = file_path.to_string_lossy().to_string();
 
@@ -5326,13 +5419,20 @@ fn copy_node_image_to_clipboard(base64_image: String) -> Result<String, String> 
 
 #[cfg(not(target_os = "windows"))]
 #[tauri::command]
-fn copy_node_image_to_clipboard(_base64_image: String) -> Result<String, String> {
+fn copy_node_image_to_clipboard(
+    _base64_image: String,
+    _file_naming_context: Option<FileNamingContext>,
+) -> Result<String, String> {
     Err("File Copy not supported on non-Windows OS".to_string())
 }
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
-fn copy_sticker_image_to_smart_clipboard(base64_image: String) -> Result<String, String> {
+fn copy_sticker_image_to_smart_clipboard(
+    app: tauri::AppHandle,
+    base64_image: String,
+    file_naming_context: Option<FileNamingContext>,
+) -> Result<String, String> {
     // Publish both clipboard representations from one command:
     // browsers/rich editors read the image formats, Explorer reads CF_HDROP.
     let image_data = decode_base64_image_data(&base64_image)?;
@@ -5342,11 +5442,21 @@ fn copy_sticker_image_to_smart_clipboard(base64_image: String) -> Result<String,
 
     let cache_dir = ensure_clipboard_cache_dir()?;
 
-    let timestamp = file_timestamp_component();
-    let file_path = cache_dir.join(format!("Hook_{}.png", timestamp));
-    let mut file = File::create(&file_path).map_err(|e| format!("Failed to create file: {}", e))?;
-    file.write_all(&image_data)
-        .map_err(|e| format!("Failed to write file: {}", e))?;
+    let context = prepare_file_naming_context(
+        file_naming_context,
+        "sticker",
+        "image",
+        img.width(),
+        img.height(),
+    );
+    let stem = render_user_file_stem(&app, FileNamingPatternKind::ClipboardFile, context)?;
+    let (file, file_path) = create_unique_file(&cache_dir, &stem, Some("png"))?;
+    write_allocated_bytes(
+        file,
+        &file_path,
+        &image_data,
+        "write sticker clipboard file",
+    )?;
 
     let rgba = img.to_rgba8();
     let width = rgba.width() as usize;
@@ -5380,7 +5490,10 @@ fn copy_sticker_image_to_smart_clipboard(base64_image: String) -> Result<String,
 
 #[cfg(not(target_os = "windows"))]
 #[tauri::command]
-fn copy_sticker_image_to_smart_clipboard(base64_image: String) -> Result<String, String> {
+fn copy_sticker_image_to_smart_clipboard(
+    base64_image: String,
+    _file_naming_context: Option<FileNamingContext>,
+) -> Result<String, String> {
     copy_to_clipboard(base64_image)?;
     Ok("image clipboard only; file-list paste is Windows-only".to_string())
 }
@@ -9459,6 +9572,8 @@ pub fn run() {
             load_history,
             save_tool_settings,
             load_tool_settings,
+            save_app_settings,
+            load_app_settings,
             get_installed_fonts,
             initialize_overlay,
             get_boot_profile,
@@ -9587,10 +9702,18 @@ pub fn run() {
                 let long_capture_item = MenuItem::with_id(app, "long_capture", "长截图 (Ctrl+3)", true, None::<&str>)?;
                 let open_image_item =
                     MenuItem::with_id(app, "open_image", "编辑已有图片… (Ctrl+O)", true, None::<&str>)?;
+                let settings_item =
+                    MenuItem::with_id(app, "settings", "设置…", true, None::<&str>)?;
                 let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
                 let tray_menu = Menu::with_items(
                     app,
-                    &[&capture_item, &long_capture_item, &open_image_item, &quit_item],
+                    &[
+                        &capture_item,
+                        &long_capture_item,
+                        &open_image_item,
+                        &settings_item,
+                        &quit_item,
+                    ],
                 )?;
 
                 let mut tray_builder = TrayIconBuilder::with_id("hook")
@@ -9614,6 +9737,17 @@ pub fn run() {
                                 if let Err(e) = window.emit("trigger-open-image", ()) {
                                     append_runtime_log_line(&format!(
                                         "tray_open_image emit_failed :: {}",
+                                        e
+                                    ));
+                                }
+                            }
+                        }
+                        "settings" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                show_canvas_window_impl(&window);
+                                if let Err(e) = window.emit("trigger-open-app-settings", ()) {
+                                    append_runtime_log_line(&format!(
+                                        "tray_settings emit_failed :: {}",
                                         e
                                     ));
                                 }
@@ -10382,7 +10516,8 @@ mod app_cli_tests {
         let source_bytes = vec![1u8, 2, 3, 4, 5, 6];
         std::fs::write(&source_path, &source_bytes).expect("write source file");
 
-        let staged_path = stage_drag_out_file_copy(&source_path).expect("stage drag file copy");
+        let staged_path =
+            stage_drag_out_file_copy(&source_path, Some("导出贴图")).expect("stage drag file copy");
 
         std::env::remove_var(env_name);
 
@@ -10399,6 +10534,7 @@ mod app_cli_tests {
             std::fs::read(&staged_path).expect("read staged file"),
             source_bytes
         );
+        assert_eq!(staged_path.file_name().unwrap(), "导出贴图.png");
 
         let _ = std::fs::remove_dir_all(&root);
     }

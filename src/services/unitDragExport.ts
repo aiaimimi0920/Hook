@@ -1,21 +1,23 @@
 import type { Unit } from "../types/unit";
+import type { FileNamingContext } from "../types/fileNaming";
+import { buildUnitFileNamingContext } from "./fileNaming";
 
 export type UnitDragExportPlan =
     | {
           kind: "path";
           path: string;
-          filenameHint: string;
+          fileNamingContext: FileNamingContext;
           cacheSavedPath: false;
       }
     | {
           kind: "data-url";
           dataUrl: string;
-          filenameHint: string;
+          fileNamingContext: FileNamingContext;
           cacheSavedPath: true;
       }
     | {
           kind: "rendered-composite";
-          filenameHint: string;
+          fileNamingContext: FileNamingContext;
           cacheSavedPath: true;
       };
 
@@ -31,11 +33,6 @@ export type NativeDragOverlayPayload = {
 
 const isFiniteNumber = (value: unknown): value is number =>
     typeof value === "number" && Number.isFinite(value);
-
-const sanitizeExportLabel = (label?: string) => {
-    const next = (label || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    return next || "image";
-};
 
 const isNonEmptyString = (value: string | undefined | null): value is string =>
     typeof value === "string" && value.length > 0;
@@ -102,15 +99,6 @@ export const resolveNativeDragDropPhysicalPointFromPointer = (
     };
 };
 
-export const buildUnitDragExportFilenameHint = (
-    unit: Unit,
-    capabilityLabel?: string,
-) => {
-    const label = unit.type === "art" ? sanitizeExportLabel(capabilityLabel) : "image";
-    const suffix = unit.id.slice(-4);
-    return `${label}_${suffix}`;
-};
-
 export const resolveExistingUnitDragFilePath = (unit: Unit): string | undefined => {
     if (isNonEmptyString(unit.data.dragOutFilePath)) {
         return unit.data.dragOutFilePath;
@@ -159,7 +147,7 @@ export const resolveUnitDragExportPlan = (input: {
     capabilityLabel?: string;
     displaySrc?: string;
 }): UnitDragExportPlan | null => {
-    const filenameHint = buildUnitDragExportFilenameHint(input.unit, input.capabilityLabel);
+    const fileNamingContext = buildUnitFileNamingContext(input.unit, input.capabilityLabel);
     const displayOverridesStoredStickerImage =
         input.unit.type !== "art" &&
         isNonEmptyString(input.displaySrc) &&
@@ -172,7 +160,7 @@ export const resolveUnitDragExportPlan = (input: {
         return {
             kind: "path",
             path: existingPath,
-            filenameHint,
+            fileNamingContext,
             cacheSavedPath: false,
         };
     }
@@ -189,7 +177,7 @@ export const resolveUnitDragExportPlan = (input: {
         return {
             kind: "data-url",
             dataUrl: inlineSource,
-            filenameHint,
+            fileNamingContext,
             cacheSavedPath: true,
         };
     }
@@ -201,7 +189,7 @@ export const resolveUnitDragExportPlan = (input: {
 
     return {
         kind: "rendered-composite",
-        filenameHint,
+        fileNamingContext,
         cacheSavedPath: true,
     };
 };

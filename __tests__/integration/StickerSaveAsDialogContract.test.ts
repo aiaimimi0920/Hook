@@ -11,7 +11,8 @@ describe("Hook Ctrl+S sticker save-as contract", () => {
     it("keeps session autosave separate while routing manual sticker save through a native save-as dialog near the sticker center", () => {
         expect(clipboardSource).toContain("const centerX = unit.x + unit.w / 2");
         expect(clipboardSource).toContain("const centerY = unit.y + unit.h / 2");
-        expect(clipboardSource).toContain("api.saveStickerImageAs(exportBase64, centerX, centerY)");
+        expect(clipboardSource).toContain("api.saveStickerImageAs(");
+        expect(clipboardSource).toContain("buildUnitFileNamingContext(unit)");
         expect(clipboardSource).not.toContain("api.saveStickerImage(exportBase64)");
 
         expect(apiSource).toContain("saveStickerImageAs");

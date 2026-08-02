@@ -13,6 +13,7 @@ import { CanvasSelection } from "./components/CanvasSelection";
 import { StickerGroupBar } from "./components/StickerGroupBar";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { StickerContextMenuLayer } from "./components/StickerContextMenuLayer";
+import { AppSettingsDialog } from "./components/AppSettingsDialog";
 import { sanitizeHistoryState } from "./services/historyModel";
 import { normalizeStickerToolSettings } from "./services/toolSettings";
 import { addRecycleBinEntry } from "./services/stickerLibraryModel";
@@ -77,6 +78,8 @@ import {
     type WorkflowSnapshotPayload,
 } from "./services/workflowPayload";
 import { normalizeImageSourceForDisplay } from "./services/imageSource";
+import { loadCurrentAppSettings } from "./services/appSettings";
+import { DEFAULT_APP_SETTINGS, type AppSettings } from "./types/appSettings";
 import {
     buildWorkflowInstantiation,
     mergeInstantiatedLinks,
@@ -151,6 +154,11 @@ export default function App() {
   const [_voiceSettings, setVoiceSettings] = createSignal<VoiceSettingsSummary | null>(null);
   const [lastTeaTicket, setLastTeaTicket] = createSignal<TeaTicketSummary | null>(null);
   const [lastTeaTicketError, setLastTeaTicketError] = createSignal<string | null>(null);
+  const [appSettings, setAppSettings] = createSignal<AppSettings>({
+      ...DEFAULT_APP_SETTINGS,
+      fileNaming: { ...DEFAULT_APP_SETTINGS.fileNaming },
+  });
+  const [appSettingsOpen, setAppSettingsOpen] = createSignal(false);
 
   // Hooks Integration
   const { startDrag, handleDragMove, handleDragEnd } = useDraggable();
@@ -759,6 +767,12 @@ export default function App() {
           console.warn("Failed to load sticker tool settings:", error);
       }
 
+      try {
+          setAppSettings(await loadCurrentAppSettings());
+      } catch (error) {
+          console.warn("Failed to load app settings:", error);
+      }
+
       if (tauriRuntimeAvailable) {
           // Register desktop listeners before handshake/session restore,
           // otherwise the first instantiate broadcast can arrive before the UI is listening.
@@ -773,12 +787,14 @@ export default function App() {
           const unlistenCapture = await listen("trigger-capture", () => {
               logger.debug("Backend Triggered Capture Mode");
               void api.debugLogEvent("trigger-capture-listener");
+              setAppSettingsOpen(false);
               void beginCaptureSelection("region");
           });
 
           const unlistenLongCapture = await listen("trigger-long-capture", () => {
               logger.debug("Backend Triggered Long Capture Mode");
               void api.debugLogEvent("trigger-long-capture-listener");
+              setAppSettingsOpen(false);
               if (longCaptureSession()?.active) {
                   void finishAutoLongCaptureSession();
                   return;
@@ -810,6 +826,11 @@ export default function App() {
           const unlistenOpenImage = await listen("trigger-open-image", () => {
               void api.debugLogEvent("trigger-open-image-listener");
               void openImageForEdit();
+          });
+
+          const unlistenAppSettings = await listen("trigger-open-app-settings", () => {
+              void api.debugLogEvent("trigger-open-app-settings-listener");
+              setAppSettingsOpen(true);
           });
 
           const unlistenCopy = await listen("trigger-copy", () => {
@@ -876,6 +897,10 @@ export default function App() {
 
           const unlistenEscape = await listen("trigger-escape", () => {
               void api.debugLogEvent("trigger-escape-listener");
+              if (appSettingsOpen()) {
+                  setAppSettingsOpen(false);
+                  return;
+              }
               if (longCaptureSession()?.active) {
                   void cancelAutoLongCaptureSession();
                   return;
@@ -902,7 +927,7 @@ export default function App() {
 
           const unlistenDelete = await listen("trigger-delete", () => {
               void api.debugLogEvent("trigger-delete-listener");
-              if (longCaptureSession()?.active || isSelecting()) {
+              if (appSettingsOpen() || longCaptureSession()?.active || isSelecting()) {
                   return;
               }
               if (!selectedStickerId()) {
@@ -1079,6 +1104,7 @@ export default function App() {
               unlistenLongCaptureWheel,
               unlistenStickerToolbar,
               unlistenOpenImage,
+              unlistenAppSettings,
               unlistenCopy,
               unlistenPaste,
               unlistenOverlayShortcut,
@@ -1512,6 +1538,13 @@ export default function App() {
         </div>
 
         <StickerContextMenuLayer />
+
+        <AppSettingsDialog
+            open={appSettingsOpen()}
+            settings={appSettings()}
+            onClose={() => setAppSettingsOpen(false)}
+            onSaved={setAppSettings}
+        />
 
         {/* DEBUG: Visual Mouse Tracker Removed */}
     </main>

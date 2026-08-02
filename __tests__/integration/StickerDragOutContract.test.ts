@@ -371,7 +371,8 @@ describe("Hook sticker drag-out contract", () => {
   it("stages a disposable drag file and allows Explorer to complete the drop without hiding the original sticker window", () => {
     expect(rustSource).toContain("fn stage_drag_out_file_copy(");
     expect(rustSource).toContain("drag::DragMode::Copy");
-    expect(rustSource).toContain("stage_drag_out_file_copy(&file_path)");
+    expect(rustSource).toContain("stage_drag_out_file_copy(&file_path, Some(&stem))");
+    expect(rustSource).toContain("cleanup_staged_drag_file(&staged_drag_file)");
     expect(rustSource).toContain("native_drag_stage_created");
     expect(rustSource).toContain("effect=");
     expect(rustSource).toContain("hresult=");
@@ -379,16 +380,18 @@ describe("Hook sticker drag-out contract", () => {
       "fn begin_sticker_native_file_drag(",
       "#[cfg(target_os = \"windows\")]\n#[tauri::command]\nfn begin_sticker_native_file_drag_from_path(",
     );
-    expect(beginNativeDragFromBase64Section).toContain("drop(file);");
-    expect(beginNativeDragFromBase64Section).toContain("let staged_drag_file = stage_drag_out_file_copy(&file_path)?;");
-    expect(beginNativeDragFromBase64Section).toContain("start_native_file_drag(window, staged_drag_file, hit_map.inner())?;");
+    expect(beginNativeDragFromBase64Section).toContain("write_allocated_bytes(");
+    expect(beginNativeDragFromBase64Section).toContain("stage_drag_out_file_copy(&file_path, Some(&stem))?");
+    expect(beginNativeDragFromBase64Section).toContain("start_native_file_drag(window, staged_drag_file.clone(), hit_map.inner())");
+    expect(beginNativeDragFromBase64Section).toContain("cleanup_staged_drag_file(&staged_drag_file)");
     expect(beginNativeDragFromBase64Section).toContain("Ok(file_path.to_string_lossy().to_string())");
     const beginNativeDragFromPathSection = extractRustSection(
       "fn begin_sticker_native_file_drag_from_path(",
       "#[cfg(not(target_os = \"windows\"))]\n#[tauri::command]\nfn begin_sticker_native_file_drag(",
     );
-    expect(beginNativeDragFromPathSection).toContain("let staged_drag_file = stage_drag_out_file_copy(&file_path)?;");
-    expect(beginNativeDragFromPathSection).toContain("start_native_file_drag(window, staged_drag_file, hit_map.inner())?;");
+    expect(beginNativeDragFromPathSection).toContain("stage_drag_out_file_copy(&file_path, Some(&stem))?");
+    expect(beginNativeDragFromPathSection).toContain("start_native_file_drag(window, staged_drag_file.clone(), hit_map.inner())");
+    expect(beginNativeDragFromPathSection).toContain("cleanup_staged_drag_file(&staged_drag_file)");
     expect(beginNativeDragFromPathSection).toContain("Ok(path)");
     expect(beginNativeDragFromPathSection).toContain("Drag source must be inside Hook's clipboard cache");
     const nativeDragHelper = extractRustSection(

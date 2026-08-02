@@ -8,6 +8,7 @@ import { syncService } from "../services/syncService";
 import { renderStickerComposite } from "../services/stickerExport";
 import { captureStickerEditSnapshot } from "../services/stickerHistory";
 import { duplicateAnnotationById } from "../services/stickerAnnotationMutations";
+import { buildUnitFileNamingContext } from "../services/fileNaming";
 
 
 export function useClipboard() {
@@ -81,7 +82,10 @@ export function useClipboard() {
                 try {
                     const exportBase64 = await renderStickerComposite(unit);
                     if (s.data.src) {
-                        const path = await api.copyStickerImageToSmartClipboard(exportBase64);
+                        const path = await api.copyStickerImageToSmartClipboard(
+                            exportBase64,
+                            buildUnitFileNamingContext(unit),
+                        );
                         setClipboard((current) =>
                             current && current.originalId === s.id
                                 ? {
@@ -181,7 +185,12 @@ export function useClipboard() {
             const exportBase64 = await renderStickerComposite(unit);
             const centerX = unit.x + unit.w / 2;
             const centerY = unit.y + unit.h / 2;
-            const path = await api.saveStickerImageAs(exportBase64, centerX, centerY);
+            const path = await api.saveStickerImageAs(
+                exportBase64,
+                centerX,
+                centerY,
+                buildUnitFileNamingContext(unit),
+            );
             if (path) {
                 logger.info(`Saved sticker composite to: ${path}`);
             }
