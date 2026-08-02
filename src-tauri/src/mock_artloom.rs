@@ -237,6 +237,10 @@ impl ArtDefinition {
             .as_deref()
             .or_else(|| self.execution.as_ref()?.get("type")?.as_str())
     }
+
+    fn effective_framework(&self) -> Option<&str> {
+        self.execution.as_ref()?.get("framework")?.as_str()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -1240,6 +1244,8 @@ pub async fn artloom_dispatch_action(
                                 }
                             }
 
+                            let runtime_params = loom_ahrp_runtime_params(&def, &resolved_params);
+
                             // Build AHRP Request - matching ArtLoom's InputData schema!
                             let request_id = uuid::Uuid::new_v4().to_string();
                             let ahrp_request = serde_json::json!({
@@ -1254,7 +1260,7 @@ pub async fn artloom_dispatch_action(
                                         "height": height,
                                         "format": "rgba8"
                                     },
-                                    "params": resolved_params,
+                                    "params": runtime_params,
                                     "input_images": resolved_input_images,
                                     "disabled_params": _disabled_params.clone().unwrap_or_default()
                                 }
@@ -1771,6 +1777,25 @@ fn normalize_loom_image_reference(raw: &str) -> String {
     }
 
     trimmed.to_string()
+}
+
+fn loom_ahrp_runtime_params(
+    art: &ArtDefinition,
+    params: &HashMap<String, serde_json::Value>,
+) -> serde_json::Value {
+    let params = serde_json::to_value(params).unwrap_or_else(|_| serde_json::json!({}));
+    if art
+        .effective_framework()
+        .is_some_and(|framework| framework.eq_ignore_ascii_case("process"))
+    {
+        // Loom's process framework splits tool arguments into `inputs` and
+        // `params`. The AHRP adapter currently promotes every Hook parameter to
+        // the tool-argument root, so process Arts need one compatibility layer
+        // to make their runtime receive request.params instead of defaults.
+        serde_json::json!({ "params": params })
+    } else {
+        params
+    }
 }
 
 fn load_rgba_image_from_path(path: &str) -> Option<RgbaImage> {
@@ -2433,6 +2458,7 @@ mod loom_arts_mapping {
             Some("neuro.official/custom-layout-form-stress-test")
         );
         assert_eq!(art.effective_execution_type(), Some("framework_art"));
+        assert_eq!(art.effective_framework(), Some("process"));
         assert_eq!(art.params[0].param_type, "select");
         assert_eq!(art.params[0].options.as_ref().map(Vec::len), Some(2));
         assert!(art.params[0].required);
@@ -2440,6 +2466,36 @@ mod loom_arts_mapping {
         assert_eq!(
             art.outputs[0].execution_type.as_deref(),
             Some("image_buffer")
+        );
+
+        let runtime_params = HashMap::from([
+            ("strength".to_string(), serde_json::json!(21)),
+            ("gamma".to_string(), serde_json::json!(2.3)),
+        ]);
+        assert_eq!(
+            loom_ahrp_runtime_params(art, &runtime_params),
+            serde_json::json!({
+                "params": {
+                    "strength": 21,
+                    "gamma": 2.3
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn keeps_legacy_art_params_flat_for_ahrp_compatibility() {
+        let art: ArtDefinition = serde_json::from_value(serde_json::json!({
+            "id": "legacy-art",
+            "label": "Legacy Art",
+            "execution": { "type": "python_art" }
+        }))
+        .expect("legacy art");
+        let runtime_params = HashMap::from([("strength".to_string(), serde_json::json!(42))]);
+
+        assert_eq!(
+            loom_ahrp_runtime_params(&art, &runtime_params),
+            serde_json::json!({ "strength": 42 })
         );
     }
 }
