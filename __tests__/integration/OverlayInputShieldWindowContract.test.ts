@@ -152,6 +152,82 @@ describe("overlay input shield window contract", () => {
     expect(maintenanceBlock).toContain("std::thread::sleep");
   });
 
+  it("yields mouse input when an external fullscreen window is actually above the visual overlay without interrupting an active drag or capture", () => {
+    const rustSource = readSource("src-tauri/src/lib.rs");
+    const routeBlock = sourceBetween(
+      rustSource,
+      "fn should_route_overlay_mouse_events(",
+      "#[cfg(target_os = \"windows\")]\nfn is_pointer_over_sticker_body_synthetic_rect",
+    );
+    const refreshBlock = sourceBetween(
+      rustSource,
+      "fn refresh_overlay_interactivity_from_runtime_state(",
+      "#[cfg(not(target_os = \"windows\"))]\nfn refresh_overlay_interactivity_from_runtime_state",
+    );
+    const shieldBlock = sourceBetween(
+      rustSource,
+      "fn sync_overlay_input_shield_region(",
+      "#[cfg(not(target_os = \"windows\"))]\nfn sync_overlay_input_shield_region",
+    );
+    const detectorBlock = sourceBetween(
+      rustSource,
+      "fn foreign_fullscreen_foreground_covers_overlay(",
+      "#[cfg(target_os = \"windows\")]\nfn enter_overlay_fullscreen_occlusion_passthrough",
+    );
+    const enterPassthroughBlock = sourceBetween(
+      rustSource,
+      "fn enter_overlay_fullscreen_occlusion_passthrough(",
+      "#[cfg(target_os = \"windows\")]\nfn leave_overlay_fullscreen_occlusion_passthrough",
+    );
+    const leavePassthroughBlock = sourceBetween(
+      rustSource,
+      "fn leave_overlay_fullscreen_occlusion_passthrough(",
+      "#[cfg(target_os = \"windows\")]\nfn reassert_overlay_topmost_window",
+    );
+    const maintenanceBlock = sourceBetween(
+      rustSource,
+      "fn install_overlay_topmost_maintenance_thread(",
+      "#[cfg(not(target_os = \"windows\"))]\nfn install_overlay_topmost_maintenance_thread",
+    );
+    const clickThroughBlock = sourceBetween(
+      rustSource,
+      "fn set_overlay_click_through_impl(",
+      "fn set_overlay_capture_exclusion_impl",
+    );
+    const rdevMoveBlock = sourceBetween(
+      rustSource,
+      "rdev::EventType::MouseMove { x, y } => {",
+      "_ => {}",
+    );
+
+    expect(rustSource).toContain("OVERLAY_VISUALLY_OCCLUDED_BY_FULLSCREEN");
+    expect(rustSource).toContain("OVERLAY_FULLSCREEN_OCCLUSION_PASSTHROUGH_ACTIVE");
+    expect(rustSource).toContain("fn should_suppress_overlay_interaction_for_occlusion(");
+    expect(detectorBlock).toContain("GetForegroundWindow");
+    expect(detectorBlock).toContain("GetWindowRect");
+    expect(detectorBlock).toContain("window_is_above_overlay_in_z_order");
+    expect(detectorBlock).toContain("rect_covers_rect_with_tolerance");
+    expect(routeBlock.indexOf("OVERLAY_MOUSE_HOOK_DRAG_ACTIVE")).toBeLessThan(
+      routeBlock.indexOf("OVERLAY_VISUALLY_OCCLUDED_BY_FULLSCREEN"),
+    );
+    expect(routeBlock).toContain("return false;");
+    expect(refreshBlock).toContain("should_suppress_overlay_interaction_for_current_occlusion");
+    expect(refreshBlock).toContain("set_overlay_click_through_impl(window, true)");
+    expect(shieldBlock).toContain("should_suppress_overlay_interaction_for_current_occlusion");
+    expect(shieldBlock).toContain("hide_overlay_input_shield_window");
+    expect(clickThroughBlock).toContain("should_suppress_overlay_interaction_for_current_occlusion");
+    expect(rdevMoveBlock).toContain("should_suppress_overlay_interaction_for_current_occlusion");
+    expect(rdevMoveBlock).toContain("window.set_ignore_cursor_events(true)");
+    expect(enterPassthroughBlock).toContain("hide_overlay_input_shield_window");
+    expect(enterPassthroughBlock).toContain("HWND_NOTOPMOST");
+    expect(leavePassthroughBlock).toContain("reassert_overlay_topmost_window");
+    expect(leavePassthroughBlock).toContain("sync_overlay_input_shield_from_runtime_state");
+    expect(maintenanceBlock).toContain("foreign_fullscreen_foreground_covers_overlay");
+    expect(maintenanceBlock).toContain("should_suppress_overlay_interaction_for_current_occlusion");
+    expect(maintenanceBlock).toContain("enter_overlay_fullscreen_occlusion_passthrough");
+    expect(maintenanceBlock).toContain("leave_overlay_fullscreen_occlusion_passthrough");
+  });
+
   it("retries deferred native hwnd-dependent overlay setup when a uiAccess launch reaches app setup before the WebView exposes its HWND", () => {
     const rustSource = readSource("src-tauri/src/lib.rs");
     const setupBlock = sourceBetween(

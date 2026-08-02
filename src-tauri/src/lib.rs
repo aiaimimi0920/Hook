@@ -81,18 +81,19 @@ use windows::Win32::UI::Shell::{
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CallWindowProcW, CopyIcon, CreateWindowExW, DefWindowProcW, DispatchMessageW,
     EnumWindows, GetAncestor, GetClassNameW, GetCursorPos, GetForegroundWindow, GetMessageW,
-    GetParent, GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId, IsWindowVisible,
-    LoadCursorW, SetLayeredWindowAttributes, SetSystemCursor, SetWindowLongPtrW, SetWindowPos,
-    SetWindowsHookExW, ShowWindow, SystemParametersInfoW, TranslateMessage, UnhookWindowsHookEx,
-    WindowFromPoint, GA_ROOT, GWLP_WNDPROC, GWL_EXSTYLE, HCURSOR, HC_ACTION, HICON, HWND_TOPMOST,
-    IDC_CROSS, KBDLLHOOKSTRUCT, LWA_ALPHA, MA_NOACTIVATE, MSG, MSLLHOOKSTRUCT, OCR_CROSS, OCR_HAND,
-    OCR_IBEAM, OCR_NO, OCR_NORMAL, OCR_SIZEALL, OCR_SIZENESW, OCR_SIZENS, OCR_SIZENWSE, OCR_SIZEWE,
-    OCR_UP, SPI_SETCURSORS, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
-    SWP_SHOWWINDOW, SW_HIDE, SW_SHOWNA, SYSTEM_CURSOR_ID, WH_KEYBOARD_LL, WH_MOUSE_LL, WM_KEYDOWN,
-    WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEACTIVATE,
-    WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NOTIFY, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SYSKEYDOWN,
-    WM_SYSKEYUP, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDPROC, WS_EX_LAYERED, WS_EX_NOACTIVATE,
-    WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_POPUP,
+    GetParent, GetWindow, GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId,
+    IsWindowVisible, LoadCursorW, SetLayeredWindowAttributes, SetSystemCursor, SetWindowLongPtrW,
+    SetWindowPos, SetWindowsHookExW, ShowWindow, SystemParametersInfoW, TranslateMessage,
+    UnhookWindowsHookEx, WindowFromPoint, GA_ROOT, GWLP_WNDPROC, GWL_EXSTYLE, GW_HWNDPREV, HCURSOR,
+    HC_ACTION, HICON, HWND_NOTOPMOST, HWND_TOPMOST, IDC_CROSS, KBDLLHOOKSTRUCT, LWA_ALPHA,
+    MA_NOACTIVATE, MSG, MSLLHOOKSTRUCT, OCR_CROSS, OCR_HAND, OCR_IBEAM, OCR_NO, OCR_NORMAL,
+    OCR_SIZEALL, OCR_SIZENESW, OCR_SIZENS, OCR_SIZENWSE, OCR_SIZEWE, OCR_UP, SPI_SETCURSORS,
+    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW,
+    SW_HIDE, SW_SHOWNA, SYSTEM_CURSOR_ID, WH_KEYBOARD_LL, WH_MOUSE_LL, WM_KEYDOWN, WM_KEYUP,
+    WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEACTIVATE, WM_MOUSEMOVE,
+    WM_MOUSEWHEEL, WM_NOTIFY, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
+    WM_XBUTTONDOWN, WM_XBUTTONUP, WNDPROC, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    WS_EX_TRANSPARENT, WS_POPUP,
 };
 
 // =====================================
@@ -1879,7 +1880,15 @@ static OVERLAY_MAIN_HWND: OnceLock<isize> = OnceLock::new();
 #[cfg(target_os = "windows")]
 static OVERLAY_TOPMOST_MAINTENANCE_STARTED: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
+static OVERLAY_VISUALLY_OCCLUDED_BY_FULLSCREEN: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+static OVERLAY_FULLSCREEN_OCCLUSION_PASSTHROUGH_ACTIVE: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+static OVERLAY_FULLSCREEN_OCCLUSION_PREVIOUS_CLICK_THROUGH: AtomicBool = AtomicBool::new(true);
+#[cfg(target_os = "windows")]
 const OVERLAY_TOPMOST_MAINTENANCE_INTERVAL_MS: u64 = 250;
+#[cfg(target_os = "windows")]
+const OVERLAY_FULLSCREEN_COVERAGE_TOLERANCE_PX: i32 = 8;
 #[cfg(target_os = "windows")]
 static OVERLAY_HWND_RETRY_THREAD_STARTED: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
@@ -2191,9 +2200,41 @@ fn should_overlay_window_ignore_cursor_events(
 }
 
 #[cfg(target_os = "windows")]
+fn should_suppress_overlay_interaction_for_occlusion(
+    occluded: bool,
+    capture_active: bool,
+    drag_active: bool,
+    native_drag_preflight_active: bool,
+    pointer_session_active: bool,
+) -> bool {
+    occluded
+        && !capture_active
+        && !drag_active
+        && !native_drag_preflight_active
+        && !pointer_session_active
+}
+
+#[cfg(target_os = "windows")]
+fn should_suppress_overlay_interaction_for_current_occlusion() -> bool {
+    let drag_active = OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)
+        || OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.load(Ordering::SeqCst)
+        || OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst);
+    should_suppress_overlay_interaction_for_occlusion(
+        OVERLAY_VISUALLY_OCCLUDED_BY_FULLSCREEN.load(Ordering::SeqCst),
+        CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst),
+        drag_active,
+        OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst),
+        OVERLAY_POINTER_STATE.load(Ordering::SeqCst) != OVERLAY_POINTER_STATE_NONE,
+    )
+}
+
+#[cfg(target_os = "windows")]
 fn should_route_overlay_mouse_events(x: f64, y: f64) -> bool {
     if OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst) {
         return true;
+    }
+    if OVERLAY_VISUALLY_OCCLUDED_BY_FULLSCREEN.load(Ordering::SeqCst) {
+        return false;
     }
     if !OVERLAY_MOUSE_HIT_MAP_ACTIVE.load(Ordering::SeqCst) {
         return false;
@@ -2234,6 +2275,12 @@ fn refresh_overlay_interactivity_from_runtime_state(
         hide_overlay_input_shield_window();
         set_overlay_click_through_impl(window, true);
         append_runtime_log_line("native_file_dialog_overlay_passthrough");
+        return;
+    }
+    if should_suppress_overlay_interaction_for_current_occlusion() {
+        hide_overlay_input_shield_window();
+        set_overlay_click_through_impl(window, true);
+        append_runtime_log_line("fullscreen_occlusion_overlay_passthrough");
         return;
     }
 
@@ -3410,19 +3457,21 @@ mod input_lifecycle_hardening_tests {
     use super::{
         claim_capture_button_transition, claim_overlay_pointer_down, claim_overlay_pointer_up,
         coalesce_capture_mouse_move_until_emit, coalesce_overlay_mouse_move_until_emit,
-        handle_emergency_escape_transition_with, resolve_overlay_pointer_release,
-        should_passthrough_foreign_alt_input, should_passthrough_foreign_alt_mouse_input,
-        wait_for_capture_mouse_up_debounce, wait_for_overlay_mouse_up_debounce,
-        CaptureMouseHookEvent, CaptureMouseMoveCoalesceResult, CaptureMouseUpDebounceResult,
-        EmergencyEscapeTracker, ModifierSnapshot, OverlayMouseMoveCoalesceResult,
-        OverlayMouseUpDebounceResult, OverlayPointerDownTransition, OverlayPointerReleaseResult,
-        OverlayPointerSource, OverlayPointerUpTransition, EMERGENCY_ESCAPE_WINDOW,
-        OVERLAY_POINTER_STATE_NONE,
+        handle_emergency_escape_transition_with, rect_covers_rect_with_tolerance,
+        resolve_overlay_pointer_release, should_passthrough_foreign_alt_input,
+        should_passthrough_foreign_alt_mouse_input,
+        should_suppress_overlay_interaction_for_occlusion, wait_for_capture_mouse_up_debounce,
+        wait_for_overlay_mouse_up_debounce, CaptureMouseHookEvent, CaptureMouseMoveCoalesceResult,
+        CaptureMouseUpDebounceResult, EmergencyEscapeTracker, ModifierSnapshot,
+        OverlayMouseMoveCoalesceResult, OverlayMouseUpDebounceResult, OverlayPointerDownTransition,
+        OverlayPointerReleaseResult, OverlayPointerSource, OverlayPointerUpTransition,
+        EMERGENCY_ESCAPE_WINDOW, OVERLAY_POINTER_STATE_NONE,
     };
     use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
     use std::sync::mpsc;
     use std::sync::{Mutex, OnceLock};
     use std::time::{Duration, Instant};
+    use windows::Win32::Foundation::RECT;
 
     fn modifiers() -> ModifierSnapshot {
         ModifierSnapshot {
@@ -3871,6 +3920,68 @@ mod input_lifecycle_hardening_tests {
     }
 
     #[test]
+    fn fullscreen_occlusion_suppresses_only_new_overlay_interactions() {
+        assert!(should_suppress_overlay_interaction_for_occlusion(
+            true, false, false, false, false,
+        ));
+        assert!(!should_suppress_overlay_interaction_for_occlusion(
+            false, false, false, false, false,
+        ));
+        assert!(!should_suppress_overlay_interaction_for_occlusion(
+            true, true, false, false, false,
+        ));
+        assert!(!should_suppress_overlay_interaction_for_occlusion(
+            true, false, true, false, false,
+        ));
+        assert!(!should_suppress_overlay_interaction_for_occlusion(
+            true, false, false, true, false,
+        ));
+        assert!(!should_suppress_overlay_interaction_for_occlusion(
+            true, false, false, false, true,
+        ));
+    }
+
+    #[test]
+    fn fullscreen_coverage_requires_the_foreground_window_to_cover_the_overlay() {
+        let overlay = RECT {
+            left: 0,
+            top: 0,
+            right: 1920,
+            bottom: 1080,
+        };
+        assert!(rect_covers_rect_with_tolerance(
+            RECT {
+                left: -8,
+                top: -8,
+                right: 1928,
+                bottom: 1088,
+            },
+            overlay,
+            8,
+        ));
+        assert!(!rect_covers_rect_with_tolerance(
+            RECT {
+                left: 0,
+                top: 0,
+                right: 1920,
+                bottom: 1040,
+            },
+            overlay,
+            8,
+        ));
+        assert!(!rect_covers_rect_with_tolerance(
+            RECT {
+                left: 300,
+                top: 100,
+                right: 1600,
+                bottom: 1000,
+            },
+            overlay,
+            8,
+        ));
+    }
+
+    #[test]
     fn foreign_alt_input_fails_open_except_during_capture_or_an_existing_drag() {
         assert!(should_passthrough_foreign_alt_input(
             true, false, false, false, false,
@@ -4117,6 +4228,12 @@ fn refresh_overlay_interactivity_for_current_cursor(
         hide_overlay_input_shield_window();
         set_overlay_click_through_impl(window, true);
         append_runtime_log_line("refresh_overlay_interactivity_native_dialog_passthrough");
+        return;
+    }
+    if should_suppress_overlay_interaction_for_current_occlusion() {
+        hide_overlay_input_shield_window();
+        set_overlay_click_through_impl(window, true);
+        append_runtime_log_line("refresh_overlay_interactivity_fullscreen_occlusion_passthrough");
         return;
     }
 
@@ -6962,6 +7079,11 @@ fn sync_overlay_input_shield_region(
         hide_overlay_input_shield_window();
         return;
     }
+    if should_suppress_overlay_interaction_for_current_occlusion() {
+        hide_overlay_input_shield_window();
+        append_runtime_log_line("overlay_input_shield_fullscreen_occlusion_hidden");
+        return;
+    }
 
     let Some(hwnd) = ensure_overlay_input_shield_window(window) else {
         return;
@@ -7064,6 +7186,132 @@ fn sync_overlay_input_shield_from_runtime_state(window: &tauri::WebviewWindow) {
 fn sync_overlay_input_shield_from_runtime_state(_window: &tauri::WebviewWindow) {}
 
 #[cfg(target_os = "windows")]
+fn rect_covers_rect_with_tolerance(cover: RECT, target: RECT, tolerance: i32) -> bool {
+    cover.left <= target.left.saturating_add(tolerance)
+        && cover.top <= target.top.saturating_add(tolerance)
+        && cover.right >= target.right.saturating_sub(tolerance)
+        && cover.bottom >= target.bottom.saturating_sub(tolerance)
+}
+
+#[cfg(target_os = "windows")]
+fn overlay_window_class_name(hwnd: HWND) -> Option<String> {
+    let mut buffer = [0u16; 256];
+    let len = unsafe { GetClassNameW(hwnd, &mut buffer) };
+    if len <= 0 {
+        return None;
+    }
+    Some(String::from_utf16_lossy(&buffer[..len as usize]))
+}
+
+#[cfg(target_os = "windows")]
+fn is_desktop_shell_window_class(class_name: &str) -> bool {
+    matches!(class_name, "Progman" | "WorkerW" | "Shell_TrayWnd")
+}
+
+#[cfg(target_os = "windows")]
+fn window_is_above_overlay_in_z_order(candidate: HWND, overlay: HWND) -> bool {
+    let mut current = unsafe { GetWindow(overlay, GW_HWNDPREV) }.ok();
+    let mut remaining = 4096usize;
+    while let Some(current_hwnd) = current {
+        if remaining == 0 {
+            break;
+        }
+        if current_hwnd == candidate {
+            return true;
+        }
+        current = unsafe { GetWindow(current_hwnd, GW_HWNDPREV) }.ok();
+        remaining -= 1;
+    }
+    false
+}
+
+#[cfg(target_os = "windows")]
+fn foreign_fullscreen_foreground_covers_overlay(main_hwnd: HWND) -> bool {
+    if !unsafe { IsWindowVisible(main_hwnd) }.as_bool() {
+        return false;
+    }
+
+    let foreground = unsafe { GetForegroundWindow() };
+    if foreground.0.is_null() {
+        return false;
+    }
+    let foreground_root = unsafe { GetAncestor(foreground, GA_ROOT) };
+    let foreground_root = if foreground_root.0.is_null() {
+        foreground
+    } else {
+        foreground_root
+    };
+    if foreground_root == main_hwnd || !unsafe { IsWindowVisible(foreground_root) }.as_bool() {
+        return false;
+    }
+
+    let mut foreground_pid = 0;
+    unsafe { GetWindowThreadProcessId(foreground_root, Some(&mut foreground_pid)) };
+    if foreground_pid == 0 || foreground_pid == std::process::id() {
+        return false;
+    }
+    if overlay_window_class_name(foreground_root)
+        .as_deref()
+        .is_some_and(is_desktop_shell_window_class)
+    {
+        return false;
+    }
+
+    let mut overlay_rect = RECT::default();
+    let mut foreground_rect = RECT::default();
+    if unsafe { GetWindowRect(main_hwnd, &mut overlay_rect) }.is_err()
+        || unsafe { GetWindowRect(foreground_root, &mut foreground_rect) }.is_err()
+    {
+        return false;
+    }
+    rect_covers_rect_with_tolerance(
+        foreground_rect,
+        overlay_rect,
+        OVERLAY_FULLSCREEN_COVERAGE_TOLERANCE_PX,
+    ) && window_is_above_overlay_in_z_order(foreground_root, main_hwnd)
+}
+
+#[cfg(target_os = "windows")]
+fn enter_overlay_fullscreen_occlusion_passthrough(window: &tauri::WebviewWindow, main_hwnd: HWND) {
+    OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(false, Ordering::SeqCst);
+    hide_overlay_input_shield_window();
+    set_overlay_click_through_impl(window, true);
+    let _ = unsafe {
+        SetWindowPos(
+            main_hwnd,
+            Some(HWND_NOTOPMOST),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        )
+    };
+    append_runtime_log_line("overlay_fullscreen_occlusion_passthrough_entered");
+}
+
+#[cfg(target_os = "windows")]
+fn leave_overlay_fullscreen_occlusion_passthrough(window: &tauri::WebviewWindow, main_hwnd: HWND) {
+    if !unsafe { IsWindowVisible(main_hwnd) }.as_bool() {
+        hide_overlay_input_shield_window();
+        append_runtime_log_line("overlay_fullscreen_occlusion_passthrough_left_hidden");
+        return;
+    }
+
+    reassert_overlay_topmost_window(main_hwnd);
+    if CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst) {
+        set_overlay_click_through_impl(window, true);
+    } else {
+        refresh_overlay_interactivity_from_runtime_state(
+            window,
+            OVERLAY_FULLSCREEN_OCCLUSION_PREVIOUS_CLICK_THROUGH.load(Ordering::SeqCst),
+        );
+    }
+    sync_overlay_input_shield_from_runtime_state(window);
+    append_runtime_log_line("overlay_fullscreen_occlusion_passthrough_left");
+}
+
+#[cfg(target_os = "windows")]
 fn reassert_overlay_topmost_window(hwnd: HWND) {
     if !unsafe { IsWindowVisible(hwnd) }.as_bool() {
         return;
@@ -7133,6 +7381,7 @@ fn install_overlay_topmost_maintenance_thread(window: &tauri::WebviewWindow) {
         return;
     }
 
+    let maintenance_window = window.clone();
     let _ = std::thread::Builder::new()
         .name("hook-overlay-topmost-maintenance".to_string())
         .spawn(move || loop {
@@ -7142,6 +7391,37 @@ fn install_overlay_topmost_maintenance_thread(window: &tauri::WebviewWindow) {
 
             if NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst) {
                 continue;
+            }
+
+            let main_hwnd = OVERLAY_MAIN_HWND
+                .get()
+                .copied()
+                .map(|value| HWND(value as *mut core::ffi::c_void));
+            let visually_occluded = main_hwnd
+                .map(foreign_fullscreen_foreground_covers_overlay)
+                .unwrap_or(false);
+            OVERLAY_VISUALLY_OCCLUDED_BY_FULLSCREEN.store(visually_occluded, Ordering::SeqCst);
+
+            if should_suppress_overlay_interaction_for_current_occlusion() {
+                if !OVERLAY_FULLSCREEN_OCCLUSION_PASSTHROUGH_ACTIVE.swap(true, Ordering::SeqCst) {
+                    OVERLAY_FULLSCREEN_OCCLUSION_PREVIOUS_CLICK_THROUGH.store(
+                        OVERLAY_CLICK_THROUGH_ACTIVE.load(Ordering::SeqCst),
+                        Ordering::SeqCst,
+                    );
+                    if let Some(main_hwnd) = main_hwnd {
+                        enter_overlay_fullscreen_occlusion_passthrough(
+                            &maintenance_window,
+                            main_hwnd,
+                        );
+                    }
+                }
+                continue;
+            }
+
+            if OVERLAY_FULLSCREEN_OCCLUSION_PASSTHROUGH_ACTIVE.swap(false, Ordering::SeqCst) {
+                if let Some(main_hwnd) = main_hwnd {
+                    leave_overlay_fullscreen_occlusion_passthrough(&maintenance_window, main_hwnd);
+                }
             }
 
             let needs_topmost_maintenance = OVERLAY_MOUSE_HIT_MAP_ACTIVE.load(Ordering::SeqCst)
@@ -7154,11 +7434,7 @@ fn install_overlay_topmost_maintenance_thread(window: &tauri::WebviewWindow) {
                 continue;
             }
 
-            if let Some(main_hwnd) = OVERLAY_MAIN_HWND
-                .get()
-                .copied()
-                .map(|value| HWND(value as *mut core::ffi::c_void))
-            {
+            if let Some(main_hwnd) = main_hwnd {
                 reassert_overlay_topmost_window(main_hwnd);
             }
             if let Some(shield_hwnd) = overlay_input_shield_hwnd() {
@@ -7997,6 +8273,9 @@ fn show_overlay_host_impl(window: &tauri::WebviewWindow, click_through: bool) {
 }
 
 fn set_overlay_click_through_impl(window: &tauri::WebviewWindow, click_through: bool) {
+    #[cfg(target_os = "windows")]
+    let click_through =
+        click_through || should_suppress_overlay_interaction_for_current_occlusion();
     let _ = window.set_ignore_cursor_events(click_through);
     set_overlay_transparent_style(window, click_through);
     OVERLAY_CLICK_THROUGH_ACTIVE.store(click_through, Ordering::SeqCst);
@@ -9393,6 +9672,16 @@ pub fn run() {
                                     .map(|guard| *guard)
                                     .unwrap_or(false);
                                 if capture_active {
+                                    return;
+                                }
+                                if should_suppress_overlay_interaction_for_current_occlusion() {
+                                    if !input_state.is_ignoring_events {
+                                        let _ = window.set_ignore_cursor_events(true);
+                                        set_overlay_transparent_style(&window, true);
+                                        OVERLAY_CLICK_THROUGH_ACTIVE.store(true, Ordering::SeqCst);
+                                        apply_overlay_no_activate(&window);
+                                        input_state.is_ignoring_events = true;
+                                    }
                                     return;
                                 }
 
