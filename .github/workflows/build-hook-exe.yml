@@ -50,8 +50,8 @@ jobs:
         run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
 
       - name: Rust tests
-        # Several Windows tests temporarily modify process environment variables.
-        run: cargo test --manifest-path src-tauri/Cargo.toml -- --test-threads=1
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-rust-tests-ci.ps1
 
       - name: Build portable Hook EXE
         shell: powershell

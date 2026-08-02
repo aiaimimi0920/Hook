@@ -32,7 +32,7 @@ describe("Hook workflow compatibility contract", () => {
         expect(workflowSource).toContain("run: npm run typecheck");
         expect(workflowSource).toContain("run: npm test");
         expect(workflowSource).toContain("run: cargo fmt --check");
-        expect(workflowSource).toContain("run: cargo test");
+        expect(workflowSource).toContain("run-rust-tests-ci.ps1");
         expect(workflowSource.indexOf("run: npm run typecheck")).toBeLessThan(
             workflowSource.indexOf("Build portable Hook EXE"),
         );

@@ -5,6 +5,7 @@
 /scripts/package-release-zip.ps1 @aiaimimi0920
 /scripts/package-uiaccess-installer-zip.ps1 @aiaimimi0920
 /scripts/assert-release-version.ps1 @aiaimimi0920
+/scripts/run-rust-tests-ci.ps1 @aiaimimi0920
 /package.json @aiaimimi0920
 /package-lock.json @aiaimimi0920
 /src-tauri/Cargo.toml @aiaimimi0920

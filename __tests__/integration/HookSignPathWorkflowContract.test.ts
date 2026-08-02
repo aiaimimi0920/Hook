@@ -56,6 +56,7 @@ describe("Hook SignPath workflow contract", () => {
     expect(existsSync(auditScriptPath)).toBe(true);
     expect(workflow).toContain("assert-release-version.ps1");
     expect(workflow).toContain("npm run audit:licenses");
+    expect(workflow).toContain("run-rust-tests-ci.ps1");
     expect(versionScript).toContain("package-lock.json root package");
     expect(versionScript).toContain("src-tauri/tauri.conf.json");
     expect(auditScript).toContain("cargo metadata");
