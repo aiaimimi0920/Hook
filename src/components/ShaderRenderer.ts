@@ -53,7 +53,7 @@ export class ShaderRenderer {
     private textureUnits: Map<string, number> = new Map();
     private textureLoadGenerations: Map<string, number> = new Map();
     private uniformLocations: Map<string, WebGLUniformLocation | null> = new Map();
-    private nextTextureUnit: number = 0;
+    private nextTextureLoadGeneration: number = 0;
     private currentUniforms: ShaderUniforms = {};
     private canvasWidth: number = 0;
     private canvasHeight: number = 0;
@@ -140,6 +140,7 @@ export class ShaderRenderer {
             if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
                 console.error('Shader compile error:', gl.getShaderInfoLog(shader));
                 console.error('Shader source:', source);
+                gl.deleteShader(shader);
                 return null;
             }
             return shader;
@@ -147,16 +148,27 @@ export class ShaderRenderer {
 
         const vs = compileShader(gl.VERTEX_SHADER, vsSource);
         const fs = compileShader(gl.FRAGMENT_SHADER, fsSource);
-        if (!vs || !fs) return null;
+        if (!vs || !fs) {
+            if (vs) gl.deleteShader(vs);
+            if (fs) gl.deleteShader(fs);
+            return null;
+        }
 
         const program = gl.createProgram();
-        if (!program) return null;
+        if (!program) {
+            gl.deleteShader(vs);
+            gl.deleteShader(fs);
+            return null;
+        }
         gl.attachShader(program, vs);
         gl.attachShader(program, fs);
         gl.linkProgram(program);
 
         if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
             console.error('Program link error:', gl.getProgramInfoLog(program));
+            gl.deleteProgram(program);
+            gl.deleteShader(vs);
+            gl.deleteShader(fs);
             return null;
         }
 
@@ -184,8 +196,10 @@ export class ShaderRenderer {
 
             // Assign texture unit
             if (!this.textureUnits.has(name)) {
-                this.textureUnits.set(name, this.nextTextureUnit);
-                this.nextTextureUnit++;
+                const usedUnits = new Set(this.textureUnits.values());
+                let textureUnit = 0;
+                while (usedUnits.has(textureUnit)) textureUnit += 1;
+                this.textureUnits.set(name, textureUnit);
             }
         }
 
@@ -213,7 +227,7 @@ export class ShaderRenderer {
         if (this.disposed) return;
 
         const lifecycleGeneration = this.lifecycleGeneration;
-        const textureLoadGeneration = (this.textureLoadGenerations.get(name) ?? 0) + 1;
+        const textureLoadGeneration = ++this.nextTextureLoadGeneration;
         this.textureLoadGenerations.set(name, textureLoadGeneration);
         const img = new Image();
         img.onload = () => {
@@ -243,6 +257,20 @@ export class ShaderRenderer {
             console.error(`[ShaderRenderer] Failed to load texture '${name}'`, e);
         };
         img.src = src;
+    }
+
+    removeTexture(name: string): void {
+        if (this.disposed || name === 'input' || this.requiredTextureNames.has(name)) return;
+
+        const texture = this.textures.get(name);
+        if (texture) {
+            this.gl.deleteTexture(texture);
+            this.textures.delete(name);
+        }
+        this.requiredTextureNames.delete(name);
+        this.textureUnits.delete(name);
+        this.textureLoadGenerations.delete(name);
+        this.uniformLocations.delete(`u_${name}`);
     }
 
 
@@ -307,13 +335,6 @@ export class ShaderRenderer {
     }
 
     /**
-     * Get the rendered image as a data URL
-     */
-    toDataURL(type: string = 'image/png', quality?: number): string {
-        return this.canvas.toDataURL(type, quality);
-    }
-
-    /**
      * Get the rendering canvas
      */
     getCanvas(): HTMLCanvasElement {
@@ -340,38 +361,6 @@ export class ShaderRenderer {
             }
         }
         return true;
-    }
-
-    /**
-     * Returns true when the current WebGL framebuffer contains at least one
-     * pixel with visible alpha. This is used during restored-session shader
-     * rehydration so an all-transparent first render does not replace the last
-     * persisted preview image.
-     */
-    hasVisibleContent(): boolean {
-        if (this.disposed || this.canvasWidth <= 0 || this.canvasHeight <= 0) {
-            return false;
-        }
-
-        const gl = this.gl;
-        const pixels = new Uint8Array(this.canvasWidth * this.canvasHeight * 4);
-        gl.readPixels(
-            0,
-            0,
-            this.canvasWidth,
-            this.canvasHeight,
-            gl.RGBA,
-            gl.UNSIGNED_BYTE,
-            pixels,
-        );
-
-        for (let index = 3; index < pixels.length; index += 4) {
-            if (pixels[index] > 0) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
@@ -404,7 +393,7 @@ export class ShaderRenderer {
         this.program = null;
         this.vao = null;
         this.vertexBuffer = null;
-        this.nextTextureUnit = 0;
+        this.nextTextureLoadGeneration = 0;
         this.currentUniforms = {};
         this.canvasWidth = 0;
         this.canvasHeight = 0;

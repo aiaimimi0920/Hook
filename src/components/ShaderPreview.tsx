@@ -27,6 +27,12 @@ interface Props {
     resolveUnitImage?: (unitId: string) => string | undefined;
 }
 
+interface RenderExportRequest {
+    renderer: ShaderRenderer;
+    generation: number;
+    seq: number;
+}
+
 export const ShaderPreview: Component<Props> = (props) => {
     let canvasRef: HTMLCanvasElement | undefined;
     let renderer: ShaderRenderer | null = null;
@@ -46,6 +52,8 @@ export const ShaderPreview: Component<Props> = (props) => {
     let renderExportTimer: number | null = null;
     let renderFrameId: number | null = null;
     let pendingFrameRender: { renderer: ShaderRenderer; generation: number } | null = null;
+    let pendingRenderExport: RenderExportRequest | null = null;
+    let renderExportInFlight = false;
     let contextualPrefetchRetryAttempts = 0;
     let paramsNeedFullReapply = true;
     const parameterTextureRequestSeq = new Map<string, number>();
@@ -109,6 +117,7 @@ export const ShaderPreview: Component<Props> = (props) => {
         inputImageRequestSeq++;
         renderExportSeq++;
         clearRenderExportTimer();
+        pendingRenderExport = null;
         clearScheduledRender();
         parameterTextureRequestSeq.clear();
         paramsNeedFullReapply = true;
@@ -187,6 +196,7 @@ export const ShaderPreview: Component<Props> = (props) => {
         for (const key of Object.keys(prevParams)) {
             if (!(key in params)) {
                 parameterTextureRequestSeq.set(key, (parameterTextureRequestSeq.get(key) ?? 0) + 1);
+                targetRenderer.removeTexture(key);
                 delete prevParams[key];
             }
         }
@@ -195,9 +205,16 @@ export const ShaderPreview: Component<Props> = (props) => {
             if (key.startsWith("__") || key === "reference") continue;
             if (!force && Object.is(prevParams[key], value)) continue;
 
+            const previousValue = prevParams[key];
             prevParams[key] = value;
             const requestSeq = (parameterTextureRequestSeq.get(key) ?? 0) + 1;
             parameterTextureRequestSeq.set(key, requestSeq);
+            if (
+                typeof previousValue === "string"
+                && (typeof value !== "string" || value.length === 0)
+            ) {
+                targetRenderer.removeTexture(key);
+            }
 
             if (typeof value === "number") {
                 targetRenderer.setUniform(key, value);
@@ -228,6 +245,8 @@ export const ShaderPreview: Component<Props> = (props) => {
                     // Non-image string params are ignored.
                 };
                 img.src = toBrowserImageUrl(src);
+            } else if (typeof value === "string") {
+                targetRenderer.removeTexture(key);
             }
         }
 
@@ -410,11 +429,17 @@ export const ShaderPreview: Component<Props> = (props) => {
         applyCurrentParamsToRenderer(targetRenderer, rendererGeneration, false);
     });
 
-    const emitRenderedAsync = (
-        targetRenderer: ShaderRenderer,
-        generation: number,
-        seq: number,
-    ) => {
+    const finishRenderedExport = () => {
+        renderExportInFlight = false;
+        const pending = pendingRenderExport;
+        pendingRenderExport = null;
+        if (pending) {
+            untrack(() => startRenderedExport(pending));
+        }
+    };
+
+    const startRenderedExport = (request: RenderExportRequest) => {
+        const { renderer: targetRenderer, generation, seq } = request;
         if (
             !props.onRendered
             || seq !== renderExportSeq
@@ -422,33 +447,66 @@ export const ShaderPreview: Component<Props> = (props) => {
         ) {
             return;
         }
+        if (renderExportInFlight) {
+            pendingRenderExport = request;
+            return;
+        }
+
+        renderExportInFlight = true;
+        let completed = false;
+        const complete = () => {
+            if (completed) return;
+            completed = true;
+            finishRenderedExport();
+        };
 
         const canvas = targetRenderer.getCanvas();
         // Interactive rendering uses the default non-preserved WebGL buffer for
         // maximum throughput. Repaint once at export time so toBlob captures a
         // complete frame without slowing every slider update.
-        targetRenderer.render();
-        canvas.toBlob((blob) => {
-            if (!blob || seq !== renderExportSeq || !isCurrentRenderer(targetRenderer, generation)) return;
-
-            const reader = new FileReader();
-            reader.onloadend = () => {
+        try {
+            targetRenderer.render();
+            canvas.toBlob((blob) => {
                 if (
-                    seq !== renderExportSeq
+                    !blob
+                    || seq !== renderExportSeq
                     || !isCurrentRenderer(targetRenderer, generation)
-                    || typeof reader.result !== "string"
                 ) {
+                    complete();
                     return;
                 }
 
-                const dataUrl = reader.result;
-                if (dataUrl !== lastRenderedDataUrl) {
-                    lastRenderedDataUrl = dataUrl;
-                    props.onRendered?.(dataUrl);
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    try {
+                        if (
+                            seq !== renderExportSeq
+                            || !isCurrentRenderer(targetRenderer, generation)
+                            || typeof reader.result !== "string"
+                        ) {
+                            return;
+                        }
+
+                        const dataUrl = reader.result;
+                        if (dataUrl !== lastRenderedDataUrl) {
+                            lastRenderedDataUrl = dataUrl;
+                            props.onRendered?.(dataUrl);
+                        }
+                    } finally {
+                        complete();
+                    }
+                };
+                reader.onerror = complete;
+                reader.onabort = complete;
+                try {
+                    reader.readAsDataURL(blob);
+                } catch {
+                    complete();
                 }
-            };
-            reader.readAsDataURL(blob);
-        }, "image/png");
+            }, "image/png");
+        } catch {
+            complete();
+        }
     };
 
     const scheduleRenderedExport = (targetRenderer: ShaderRenderer, generation: number) => {
@@ -457,7 +515,7 @@ export const ShaderPreview: Component<Props> = (props) => {
         const seq = ++renderExportSeq;
         renderExportTimer = window.setTimeout(() => {
             renderExportTimer = null;
-            untrack(() => emitRenderedAsync(targetRenderer, generation, seq));
+            untrack(() => startRenderedExport({ renderer: targetRenderer, generation, seq }));
         }, 120);
     };
 
@@ -494,19 +552,6 @@ export const ShaderPreview: Component<Props> = (props) => {
         if (!canPresentOutput) return;
 
         targetRenderer.render();
-        const shouldKeepFallbackForTransparentRestore =
-            !!effectiveFallbackPreviewSrc() &&
-            (!hasRenderedThisMount() || !!props.holdFallbackPreview) &&
-            typeof (targetRenderer as ShaderRenderer & { hasVisibleContent?: () => boolean }).hasVisibleContent === "function" &&
-            !(targetRenderer as ShaderRenderer & { hasVisibleContent: () => boolean }).hasVisibleContent();
-        if (shouldKeepFallbackForTransparentRestore) {
-            disposeRenderer();
-            lastShaderContextKey = "";
-            lastInputSrc = "";
-            lastRenderedDataUrl = "";
-            scheduleContextualPrefetchRetry();
-            return;
-        }
         clearContextualPrefetchRetry();
         contextualPrefetchRetryAttempts = 0;
         setHasRenderedThisMount(true);

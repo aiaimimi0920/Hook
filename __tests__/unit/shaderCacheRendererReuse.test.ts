@@ -161,4 +161,77 @@ describe("shaderCache renderer reuse", () => {
 
         shaderCache.clear();
     });
+
+    it("evicts least-recently-used inactive shader payloads at the configured cache limit", async () => {
+        const { shaderCache, SHADER_CACHE_LIMITS } = await import("../../src/services/shaderCache");
+        shaderCache.clear();
+
+        for (let index = 0; index <= SHADER_CACHE_LIMITS.maxEntries; index += 1) {
+            shaderCache.setShaderCode(`art-${index}`, {
+                ...completeShader,
+                fragment_shader: `void main() { /* ${index} */ }`,
+            });
+        }
+
+        const cachedArtIds = shaderCache.getCachedArtIds();
+        expect(cachedArtIds).toHaveLength(SHADER_CACHE_LIMITS.maxEntries);
+        expect(cachedArtIds).not.toContain("art-0");
+        expect(cachedArtIds).toContain(`art-${SHADER_CACHE_LIMITS.maxEntries}`);
+        expect(shaderCache.getCacheStats()).toMatchObject({
+            shaderCount: SHADER_CACHE_LIMITS.maxEntries,
+            rendererCount: 0,
+            pendingPrefetchCount: 0,
+        });
+
+        shaderCache.clear();
+    });
+
+    it("keeps active renderers protected and reclaims them by unit lifetime", async () => {
+        const rendererInstances: Array<{
+            dispose: ReturnType<typeof vi.fn>;
+        }> = [];
+
+        vi.doMock("../../src/components/ShaderRenderer", () => ({
+            ShaderRenderer: class FakeShaderRenderer {
+                private readonly canvas: HTMLCanvasElement;
+                readonly dispose = vi.fn();
+
+                constructor(canvas: HTMLCanvasElement) {
+                    this.canvas = canvas;
+                    rendererInstances.push({ dispose: this.dispose });
+                }
+
+                initFromShaderResponse() {
+                    return true;
+                }
+
+                getCanvas() {
+                    return this.canvas;
+                }
+            },
+        }));
+
+        const { shaderCache, SHADER_CACHE_LIMITS } = await import("../../src/services/shaderCache");
+        shaderCache.clear();
+        shaderCache.setShaderCode("active-art", completeShader);
+        expect(shaderCache.getRenderer("active-art", "active-unit", document.createElement("canvas"))).toBeTruthy();
+
+        for (let index = 0; index < SHADER_CACHE_LIMITS.maxEntries; index += 1) {
+            shaderCache.setShaderCode(`inactive-art-${index}`, {
+                ...completeShader,
+                fragment_shader: `void main() { /* inactive ${index} */ }`,
+            });
+        }
+
+        expect(shaderCache.getCachedArtIds()).toContain("active-art");
+        expect(shaderCache.getCacheStats().rendererCount).toBe(1);
+
+        shaderCache.retainRenderersForUnits(new Set());
+
+        expect(rendererInstances[0]?.dispose).toHaveBeenCalledTimes(1);
+        expect(shaderCache.getCacheStats().rendererCount).toBe(0);
+        expect(shaderCache.getCacheStats().shaderCount).toBeLessThanOrEqual(SHADER_CACHE_LIMITS.maxEntries);
+
+        shaderCache.clear();
+    });
 });

@@ -18,6 +18,7 @@ import {
     toggleStickerGroupLocked,
     upsertStickerGroup,
 } from "../services/stickerGroups";
+import { shaderCache } from "../services/shaderCache";
 
 // Core Data Stores
 const [units, setUnits] = createStore<Unit[]>([]);
@@ -50,6 +51,7 @@ const addUnit = (unit: Unit) => {
 };
 
 const removeUnit = (id: string) => {
+    shaderCache.disposeUnit(id);
     setUnits((prev) => prev.filter((u) => u.id !== id));
     // Cascade delete links
     setLinks((prev) => prev.filter((l) => l.fromUnitId !== id && l.toUnitId !== id));

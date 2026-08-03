@@ -40,6 +40,7 @@ class DeferredImage {
 const createRendererDouble = (canvas: HTMLCanvasElement) => ({
     setTextureLoadHandler: vi.fn(),
     loadTexture: vi.fn(),
+    removeTexture: vi.fn(),
     setUniform: vi.fn(),
     render: vi.fn(),
     dispose: vi.fn(),

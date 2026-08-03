@@ -28,6 +28,7 @@
     "tauri": "\"%npm_config_local_prefix%\\scripts\\run-tauri.cmd\"",
     "test": "cmd /d /s /c \"pushd %npm_config_local_prefix% && node_modules\\.bin\\vitest.cmd run --pool threads --maxWorkers 1 --no-file-parallelism\"",
     "test:watch": "cmd /d /s /c \"pushd %npm_config_local_prefix% && node_modules\\.bin\\vitest.cmd watch --pool threads --maxWorkers 1 --no-file-parallelism\"",
+    "bench:shader": "node scripts/run-shader-benchmark.mjs",
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
     "lint": "eslint src",

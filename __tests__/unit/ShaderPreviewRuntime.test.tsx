@@ -935,7 +935,7 @@ describe("ShaderPreview runtime layout", () => {
         dispose();
     });
 
-    it("keeps the restored fallback visible when the first live shader render is fully transparent", async () => {
+    it("presents a ready restored shader without synchronously reading back the full framebuffer", async () => {
         class FakeImage {
             onload: (() => void) | null = null;
             onerror: (() => void) | null = null;
@@ -951,6 +951,7 @@ describe("ShaderPreview runtime layout", () => {
 
         vi.stubGlobal("Image", FakeImage);
 
+        const legacyVisibilityCheck = vi.fn(() => false);
         vi.spyOn(shaderCache, "hasShaderCode").mockReturnValue(true);
         vi.spyOn(shaderCache, "disposeRenderer").mockImplementation(() => undefined);
         vi.spyOn(shaderCache, "getRenderer").mockImplementation((_artId, _unitId, canvas) => ({
@@ -963,7 +964,7 @@ describe("ShaderPreview runtime layout", () => {
             getCanvas: () => canvas,
             isReady: () => true,
             canPresentOutput: () => true,
-            hasVisibleContent: () => false,
+            hasVisibleContent: legacyVisibilityCheck,
             setUniform: () => undefined,
         }) as any);
 
@@ -988,12 +989,13 @@ describe("ShaderPreview runtime layout", () => {
         await Promise.resolve();
         await Promise.resolve();
 
-        expect(host.querySelector('img[data-shader-fallback-preview="true"]')).toBeInstanceOf(HTMLImageElement);
+        expect(host.querySelector('img[data-shader-fallback-preview="true"]')).toBeNull();
+        expect(legacyVisibilityCheck).not.toHaveBeenCalled();
 
         dispose();
     });
 
-    it("retries a restored live shader rerender after a transparent first frame and eventually emits a fresh preview", async () => {
+    it("exports a ready restored shader without a transparent-frame retry or framebuffer readback", async () => {
         vi.useFakeTimers();
 
         class FakeImage {
@@ -1021,7 +1023,7 @@ describe("ShaderPreview runtime layout", () => {
         }
         vi.stubGlobal("FileReader", FakeFileReader as unknown as typeof FileReader);
 
-        let visible = false;
+        const legacyVisibilityCheck = vi.fn(() => false);
         const rendered = vi.fn();
 
         vi.spyOn(shaderCache, "hasShaderCode").mockReturnValue(true);
@@ -1041,7 +1043,7 @@ describe("ShaderPreview runtime layout", () => {
             },
             isReady: () => true,
             canPresentOutput: () => true,
-            hasVisibleContent: () => visible,
+            hasVisibleContent: legacyVisibilityCheck,
             setUniform: () => undefined,
         }) as any);
 
@@ -1068,17 +1070,128 @@ describe("ShaderPreview runtime layout", () => {
         await Promise.resolve();
         await Promise.resolve();
 
-        expect(host.querySelector('img[data-shader-fallback-preview="true"]')).toBeInstanceOf(HTMLImageElement);
-        expect(rendered).not.toHaveBeenCalled();
-
-        visible = true;
-        await vi.advanceTimersByTimeAsync(1200);
         await vi.advanceTimersByTimeAsync(120);
         await Promise.resolve();
         await Promise.resolve();
         await Promise.resolve();
 
         expect(rendered).toHaveBeenCalledTimes(1);
+        expect(legacyVisibilityCheck).not.toHaveBeenCalled();
+
+        dispose();
+    });
+
+    it("keeps full-resolution PNG preview encoding single-flight and publishes only the latest parameters", async () => {
+        vi.useFakeTimers();
+
+        class FakeImage {
+            onload: (() => void) | null = null;
+            onerror: (() => void) | null = null;
+            width = 100;
+            height = 100;
+            naturalWidth = 100;
+            naturalHeight = 100;
+
+            set src(_value: string) {
+                queueMicrotask(() => this.onload?.());
+            }
+        }
+
+        class FakeFileReader {
+            result: string | ArrayBuffer | null = null;
+            onloadend: (() => void) | null = null;
+            onerror: (() => void) | null = null;
+            onabort: (() => void) | null = null;
+
+            readAsDataURL(_blob: Blob) {
+                this.result = "data:image/png;base64,LATEST";
+                queueMicrotask(() => this.onloadend?.());
+            }
+        }
+
+        vi.stubGlobal("Image", FakeImage);
+        vi.stubGlobal("FileReader", FakeFileReader as unknown as typeof FileReader);
+
+        const toBlobCallbacks: BlobCallback[] = [];
+        let activeEncodes = 0;
+        let maxActiveEncodes = 0;
+        const rendered = vi.fn();
+
+        vi.spyOn(shaderCache, "hasShaderCode").mockReturnValue(true);
+        vi.spyOn(shaderCache, "disposeRenderer").mockImplementation(() => undefined);
+        vi.spyOn(shaderCache, "getRenderer").mockImplementation((_artId, _unitId, canvas) => {
+            canvas.toBlob = (callback: BlobCallback) => {
+                activeEncodes += 1;
+                maxActiveEncodes = Math.max(maxActiveEncodes, activeEncodes);
+                toBlobCallbacks.push((blob) => {
+                    activeEncodes -= 1;
+                    callback(blob);
+                });
+            };
+            return {
+                setTextureLoadHandler: () => undefined,
+                loadTexture: (_name: string, image: { width: number; height: number }) => {
+                    canvas.width = image.width;
+                    canvas.height = image.height;
+                },
+                render: () => undefined,
+                getCanvas: () => canvas,
+                isReady: () => true,
+                canPresentOutput: () => true,
+                setUniform: () => undefined,
+                removeTexture: () => undefined,
+            } as any;
+        });
+
+        const host = document.createElement("div");
+        document.body.append(host);
+
+        let setStrength!: (value: number) => void;
+        const dispose = render(() => {
+            const [strength, updateStrength] = createSignal(10);
+            setStrength = updateStrength;
+            return (
+                <ShaderPreview
+                    unitId="shader-single-flight-export-unit"
+                    artId="color-transfer"
+                    params={{ strength: strength() }}
+                    inputImageSrc="data:image/png;base64,INPUT"
+                    width={200}
+                    height={100}
+                    onRendered={rendered}
+                />
+            );
+        }, host);
+
+        await Promise.resolve();
+        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(120);
+
+        expect(toBlobCallbacks).toHaveLength(1);
+        expect(activeEncodes).toBe(1);
+
+        setStrength(20);
+        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(200);
+
+        expect(toBlobCallbacks).toHaveLength(1);
+        expect(maxActiveEncodes).toBe(1);
+
+        toBlobCallbacks[0]?.(new Blob(["stale"], { type: "image/png" }));
+        await Promise.resolve();
+
+        expect(toBlobCallbacks).toHaveLength(2);
+        expect(activeEncodes).toBe(1);
+        expect(rendered).not.toHaveBeenCalled();
+
+        toBlobCallbacks[1]?.(new Blob(["latest"], { type: "image/png" }));
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(maxActiveEncodes).toBe(1);
+        expect(activeEncodes).toBe(0);
+        expect(rendered).toHaveBeenCalledTimes(1);
+        expect(rendered).toHaveBeenCalledWith("data:image/png;base64,LATEST");
 
         dispose();
     });

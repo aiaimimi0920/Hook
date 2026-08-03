@@ -16,6 +16,7 @@ import {
     resolveStickerCompositeBaseImageSrc,
 } from "./stickerExport";
 import { buildSessionStickersForSave } from "./sessionStickerPayload";
+import { shaderCache } from "./shaderCache";
 
 // Local state for sync optimization (dirtiness check)
 const lastSyncedImageSignatures = new Map<string, string>();
@@ -445,6 +446,7 @@ export const syncService = {
                  }));
 
                  // Populate Stores
+                 shaderCache.retainRenderersForUnits(new Set(loadedUnits.map((unit) => unit.id)));
                  graphStore.setUnits(loadedUnits);
                  graphStore.setLinks(loadedLinks);
                  graphStore.setStickerGroups((sessionData.groups || []) as StickerGroup[]);
