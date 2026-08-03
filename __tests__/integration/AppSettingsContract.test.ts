@@ -22,10 +22,11 @@ describe("Hook app settings contract", () => {
         expect(rustSettings).not.toContain("tool-settings.json");
     });
 
-    it("registers typed load/save commands and exposes the settings dialog from the tray", () => {
+    it("registers typed load/save commands while keeping the settings tray entry hidden", () => {
         expect(rustEntry).toContain("save_app_settings,");
         expect(rustEntry).toContain("load_app_settings,");
-        expect(rustEntry).toContain('MenuItem::with_id(app, "settings", "设置…"');
+        expect(rustEntry).not.toContain('MenuItem::with_id(app, "settings"');
+        expect(rustEntry).toContain('"settings" => {');
         expect(rustEntry).toContain('window.emit("trigger-open-app-settings", ())');
         expect(apiSource).toContain("loadAppSettings");
         expect(apiSource).toContain("saveAppSettings");

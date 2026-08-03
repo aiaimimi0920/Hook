@@ -98,10 +98,11 @@ jobs:
       - name: Create signing candidate digest manifest
         shell: powershell
         run: |
+          . .\scripts\file-hash.ps1
           $candidateDir = [System.IO.Path]::GetFullPath(".\release\Hook\signing-candidate")
           $candidateExe = Join-Path $candidateDir "hook.exe"
           $commit = (git rev-parse HEAD).Trim()
-          $sha256 = (Get-FileHash -LiteralPath $candidateExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $sha256 = Get-HookFileSha256 -Path $candidateExe
           $manifest = [ordered]@{
             schemaVersion = 1
             artifact = "hook.exe"

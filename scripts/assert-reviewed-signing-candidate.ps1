@@ -22,6 +22,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "file-hash.ps1")
+
 $resolvedExePath = [System.IO.Path]::GetFullPath($ExePath)
 $resolvedManifestPath = [System.IO.Path]::GetFullPath($ManifestPath)
 
@@ -36,7 +38,7 @@ if ($ReviewedSha256 -notmatch '^[0-9A-Fa-f]{64}$') {
 }
 
 $manifest = Get-Content -LiteralPath $resolvedManifestPath -Raw | ConvertFrom-Json
-$actualSha256 = (Get-FileHash -LiteralPath $resolvedExePath -Algorithm SHA256).Hash.ToLowerInvariant()
+$actualSha256 = Get-HookFileSha256 -Path $resolvedExePath
 $reviewedSha256 = $ReviewedSha256.ToLowerInvariant()
 $manifestSha256 = ([string]$manifest.sha256).ToLowerInvariant()
 

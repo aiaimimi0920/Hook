@@ -96,9 +96,10 @@ jobs:
       - name: Verify reviewed candidate digest and provenance
         shell: powershell
         run: |
+          . .\scripts\file-hash.ps1
           $artifactManifest = ".\release\Hook\reviewed-candidate\manifest.json"
           $publicManifest = ".\release\Hook\public-provenance\hook-uiaccess-signing-candidate-${{ inputs.tag }}.json"
-          if ((Get-FileHash $artifactManifest -Algorithm SHA256).Hash -ne (Get-FileHash $publicManifest -Algorithm SHA256).Hash) {
+          if ((Get-HookFileSha256 -Path $artifactManifest) -ne (Get-HookFileSha256 -Path $publicManifest)) {
             throw "Workflow artifact manifest differs from the public release manifest."
           }
           $commit = (git rev-parse HEAD).Trim()
