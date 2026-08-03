@@ -56,6 +56,10 @@ import {
 import { resolveStickerContentFrame } from "../services/stickerEditPropagation";
 import { getCurrentAppSettings } from "../services/appSettings";
 import { buildUnitFileNamingContext, renderFileNamingStem } from "../services/fileNaming";
+import {
+  registerDragFollowerElement,
+  unregisterDragFollowerElement,
+} from "../services/dragFollowerRegistry";
 
 interface Props {
   unit: Unit;
@@ -92,6 +96,7 @@ interface Props {
 export const UnitView: Component<Props> = (props) => {
   let unitContainerRef: HTMLDivElement | undefined;
   let gpuWarmRegistration: { unitId: string; element: HTMLDivElement } | null = null;
+  let dragFollowerRegistration: { unitId: string; element: HTMLDivElement } | null = null;
   let nativeStickerDragStart:
       | {
             x: number;
@@ -147,6 +152,20 @@ export const UnitView: Component<Props> = (props) => {
           updateStickerGpuWarmEstimate(unit.id, unit.w, unit.h, devicePixelRatio);
       }
       setStickerGpuWarmSelected(unit.id, props.isSelected);
+  };
+  const syncDragFollowerRegistration = () => {
+      const unitId = liveUnit().id;
+      const element = unitContainerRef;
+      const registration = dragFollowerRegistration;
+
+      if (registration && (registration.unitId !== unitId || registration.element !== element)) {
+          unregisterDragFollowerElement(registration.unitId, registration.element);
+          dragFollowerRegistration = null;
+      }
+      if (!element || dragFollowerRegistration) return;
+
+      registerDragFollowerElement(unitId, element);
+      dragFollowerRegistration = { unitId, element };
   };
   const flushPendingWheelResize = () => {
       wheelResizeFrame = null;
@@ -252,6 +271,7 @@ export const UnitView: Component<Props> = (props) => {
   };
 
   createEffect(syncStickerGpuWarmRegistration);
+  createEffect(syncDragFollowerRegistration);
 
   const getOpacity = () => isMinified()
       ? (liveUnit().data.opacityMini ?? 0.9)
@@ -649,6 +669,11 @@ export const UnitView: Component<Props> = (props) => {
           unregisterStickerGpuWarmElement(registration.unitId, registration.element);
           gpuWarmRegistration = null;
       }
+      const followerRegistration = dragFollowerRegistration;
+      if (followerRegistration) {
+          unregisterDragFollowerElement(followerRegistration.unitId, followerRegistration.element);
+          dragFollowerRegistration = null;
+      }
       if (wheelResizeFrame !== null) {
           window.cancelAnimationFrame(wheelResizeFrame);
           wheelResizeFrame = null;
@@ -787,6 +812,7 @@ export const UnitView: Component<Props> = (props) => {
       ref={(element) => {
         unitContainerRef = element;
         syncStickerGpuWarmRegistration();
+        syncDragFollowerRegistration();
       }}
 
       data-unit-id={props.unit.id} // NEW: For global hit-testing (Link Node)

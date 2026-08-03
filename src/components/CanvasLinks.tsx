@@ -12,6 +12,7 @@ import {
 } from "../store/uiStore";
 import { portOffsets } from "../services/uiRegistry";
 import { calculatePortY } from "../utils/graphUtils";
+import type { Unit } from "../types/unit";
 
 type LinkRenderPath = {
     x1: number;
@@ -37,7 +38,24 @@ type OverlayLinkHighlight = {
     };
 };
 
+const resolveUnitOverlayRect = (
+    unit: Unit,
+    dragPositions: ReturnType<typeof multiDragPositions>,
+) => {
+    const dragPosition = dragPositions?.[unit.id];
+    return {
+        x: dragPosition?.x ?? unit.x,
+        y: dragPosition?.y ?? unit.y,
+        w: unit.w,
+        h: unit.h,
+    };
+};
+
 export const CanvasLinks: Component = () => {
+    const unitById = createMemo(
+        () => new Map(graphStore.units.map((unit) => [unit.id, unit])),
+    );
+
     // Computations
     const renderPaths = createMemo(() => {
         // Dependency: Force re-calc on layout tick
@@ -48,10 +66,9 @@ export const CanvasLinks: Component = () => {
             return [];
         }
 
-        const list = graphStore.units;
         const capabilities = graphStore.capabilities; // For port calculation
         const dPositions = multiDragPositions();
-        const unitById = new Map(list.map((unit) => [unit.id, unit]));
+        const currentUnitById = unitById();
         const allOffsets = portOffsets();
         const cleanView = isCleanView();
 
@@ -64,8 +81,8 @@ export const CanvasLinks: Component = () => {
         };
 
         return currentLinks.flatMap(link => {
-             const sFrom = unitById.get(link.fromUnitId);
-             const sTo = unitById.get(link.toUnitId);
+             const sFrom = currentUnitById.get(link.fromUnitId);
+             const sTo = currentUnitById.get(link.toUnitId);
 
              if (!sFrom || !sTo) return [];
 
@@ -140,29 +157,22 @@ export const CanvasLinks: Component = () => {
             return [];
         }
 
-        const source = graphStore.units.find((unit) => unit.id === id);
+        const currentUnitById = unitById();
+        const source = currentUnitById.get(id);
         if (!source) {
             return [];
         }
 
+        const dPositions = multiDragPositions();
+        const sourceRect = resolveUnitOverlayRect(source, dPositions);
         const params = graphStore.unitParams[id] ?? {};
         return Object.values(params)
             .filter((value): value is string => typeof value === "string" && value.length > 0 && !value.startsWith("data:"))
-            .map((targetId) => graphStore.units.find((unit) => unit.id === targetId))
+            .map((targetId) => currentUnitById.get(targetId))
             .filter((target): target is NonNullable<typeof target> => !!target)
             .map((target) => ({
-                source: {
-                    x: source.x,
-                    y: source.y,
-                    w: source.w,
-                    h: source.h,
-                },
-                target: {
-                    x: target.x,
-                    y: target.y,
-                    w: target.w,
-                    h: target.h,
-                },
+                source: sourceRect,
+                target: resolveUnitOverlayRect(target, dPositions),
             }));
     });
 
@@ -176,25 +186,17 @@ export const CanvasLinks: Component = () => {
             return null;
         }
 
-        const source = graphStore.units.find((unit) => unit.id === sourceUnitId);
-        const target = graphStore.units.find((unit) => unit.id === targetUnitId);
+        const currentUnitById = unitById();
+        const source = currentUnitById.get(sourceUnitId);
+        const target = currentUnitById.get(targetUnitId);
         if (!source || !target) {
             return null;
         }
 
+        const dPositions = multiDragPositions();
         return {
-            source: {
-                x: source.x,
-                y: source.y,
-                w: source.w,
-                h: source.h,
-            },
-            target: {
-                x: target.x,
-                y: target.y,
-                w: target.w,
-                h: target.h,
-            },
+            source: resolveUnitOverlayRect(source, dPositions),
+            target: resolveUnitOverlayRect(target, dPositions),
         };
     });
 

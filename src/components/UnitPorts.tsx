@@ -1,9 +1,13 @@
 
-import { Component, For, Show } from "solid-js";
+import { Component, For, Show, createEffect, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Unit } from "../types/unit";
 import { ArtCapability } from "../services/protocol";
 import { logger } from "../services/logger";
+import {
+  registerDragFollowerElement,
+  unregisterDragFollowerElement,
+} from "../services/dragFollowerRegistry";
 
 interface UnitPortsProps {
   unit: Unit;
@@ -23,6 +27,33 @@ interface UnitPortsProps {
 }
 
 export const UnitPorts: Component<UnitPortsProps> = (props) => {
+  let wrapperRef: HTMLDivElement | undefined;
+  let dragFollowerRegistration: { unitId: string; element: HTMLDivElement } | null = null;
+
+  const syncDragFollowerRegistration = () => {
+      const unitId = props.unit.id;
+      const shouldRegister = !!props.portsLayer && !props.isCleanView;
+      const element = shouldRegister ? wrapperRef : undefined;
+      const registration = dragFollowerRegistration;
+
+      if (registration && (registration.unitId !== unitId || registration.element !== element)) {
+          unregisterDragFollowerElement(registration.unitId, registration.element);
+          dragFollowerRegistration = null;
+      }
+      if (!element || dragFollowerRegistration) return;
+
+      registerDragFollowerElement(unitId, element);
+      dragFollowerRegistration = { unitId, element };
+  };
+
+  createEffect(syncDragFollowerRegistration);
+  onCleanup(() => {
+      const registration = dragFollowerRegistration;
+      if (registration) {
+          unregisterDragFollowerElement(registration.unitId, registration.element);
+          dragFollowerRegistration = null;
+      }
+  });
 
   const isArt = () => props.unit.type === 'art';
   const isMinified = () => !!props.unit.data.minified;
@@ -73,6 +104,10 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
             <Portal mount={props.portsLayer!}>
 
                     <div
+                        ref={(element) => {
+                            wrapperRef = element;
+                            syncDragFollowerRegistration();
+                        }}
                         class="absolute pointer-events-none" // Wrapper follows unit, non-interactive itself
                         data-hook-drag-follow-unit-id={props.unit.id}
                         style={{

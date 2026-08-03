@@ -50,6 +50,10 @@ import {
     uiActions,
 } from "../store/uiStore";
 import type { StickerAnnotation, StickerToolMode, StickerTransformMode } from "../types/stickerEditing";
+import {
+    registerDragFollowerElement,
+    unregisterDragFollowerElement,
+} from "../services/dragFollowerRegistry";
 
 interface StickerTopStripProps {
     unitId: string;
@@ -115,8 +119,26 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
     const [currentHistoryAction, setCurrentHistoryAction] = createSignal<HistoryActionMode>("undo");
     const [currentRasterizeScope, setCurrentRasterizeScope] = createSignal<StickerRasterizeScope>("selected");
     let stripRef: HTMLDivElement | undefined;
+    let dragFollowerRegistration: { unitId: string; element: HTMLDivElement } | null = null;
     const openMenuRectId = () => `sticker-top-strip-menu-${props.unitId}`;
     let openMenuRectSyncRafIds: number[] = [];
+
+    const syncDragFollowerRegistration = () => {
+        const element = stripRef;
+        const unitId = props.unitId;
+        const registration = dragFollowerRegistration;
+
+        if (registration && (registration.unitId !== unitId || registration.element !== element)) {
+            unregisterDragFollowerElement(registration.unitId, registration.element);
+            dragFollowerRegistration = null;
+        }
+        if (!element || dragFollowerRegistration) return;
+
+        registerDragFollowerElement(unitId, element);
+        dragFollowerRegistration = { unitId, element };
+    };
+
+    createEffect(syncDragFollowerRegistration);
 
     const syncOpenToolbarMenuRect = (
         menu: TopStripOpenMenu,
@@ -421,13 +443,21 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
     onCleanup(() => {
         removeRect(`sticker-top-strip-${props.unitId}`);
         removeRect(openMenuRectId());
+        const registration = dragFollowerRegistration;
+        if (registration) {
+            unregisterDragFollowerElement(registration.unitId, registration.element);
+            dragFollowerRegistration = null;
+        }
         void syncService.updateBackendRects();
     });
 
     return (
         <Portal>
             <div
-                ref={stripRef}
+                ref={(element) => {
+                    stripRef = element;
+                    syncDragFollowerRegistration();
+                }}
                 data-hook-drag-follow-unit-id={props.unitId}
                 class="hook-terminal-shell hook-terminal-shell--strong pointer-events-none fixed z-[1210] box-border"
                 style={{

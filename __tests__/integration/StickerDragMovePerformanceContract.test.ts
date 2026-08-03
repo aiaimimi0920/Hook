@@ -47,8 +47,10 @@ describe("sticker drag move performance contract", () => {
     const uiStoreSource = readSource("src/store/uiStore.ts");
     const portsSource = readSource("src/components/UnitPorts.tsx");
     const topStripSource = readSource("src/components/StickerTopStrip.tsx");
+    const addNodeMenuSource = readSource("src/components/UnitAddNodeMenu.tsx");
 
-    expect(dragSource).toContain('const DRAG_FOLLOW_SELECTOR = "[data-hook-drag-follow-unit-id]";');
+    expect(dragSource).toContain("getDragFollowerElements(Object.keys(dragStartPositions))");
+    expect(dragSource).not.toContain("querySelectorAll");
     expect(dragSource).toContain("const applyDragVisualFastPath =");
     expect(dragSource).toContain("prepareDragVisualFastPath();");
     expect(dragSource).toContain("follower.element.style.transform = `translate3d(");
@@ -56,6 +58,10 @@ describe("sticker drag move performance contract", () => {
     expect(unitViewSource).toContain("data-hook-drag-follow-unit-id={props.unit.id}");
     expect(portsSource).toContain("data-hook-drag-follow-unit-id={props.unit.id}");
     expect(topStripSource).toContain("data-hook-drag-follow-unit-id={props.unitId}");
+    expect(unitViewSource).toContain("registerDragFollowerElement(unitId, element);");
+    expect(portsSource).toContain("registerDragFollowerElement(unitId, element);");
+    expect(topStripSource).toContain("registerDragFollowerElement(unitId, element);");
+    expect(addNodeMenuSource).toContain("registerDragFollowerElement(unitId, element);");
     expect(uiStoreSource).not.toContain("multiDragPositionStore");
     expect(canvasUnitsSource).not.toContain("dragPosition=");
     expect(canvasUnitsSource).not.toContain("multiDragPositions={multiDragPositions()}");
@@ -110,12 +116,68 @@ describe("sticker drag move performance contract", () => {
       "const selectedOverlayLinks = createMemo",
     );
 
-    expect(renderPathsBlock).toContain("const unitById = new Map(");
+    expect(linksSource).toContain("const unitById = createMemo(");
+    expect(renderPathsBlock).toContain("const currentUnitById = unitById();");
+    expect(renderPathsBlock).not.toContain("new Map(");
     expect(renderPathsBlock).toContain("const allOffsets = portOffsets();");
     expect(renderPathsBlock).toContain("const cleanView = isCleanView();");
     expect(renderPathsBlock).not.toContain("list.find(");
     expect(renderPathsBlock).not.toContain("{ ...sFrom");
     expect(renderPathsBlock).not.toContain("{ ...sTo");
+  });
+
+  it("reuses the unit lookup memo for selected and hover overlays", () => {
+    const linksSource = readSource("src/components/CanvasLinks.tsx");
+    const selectedOverlayBlock = sourceBetween(
+      linksSource,
+      "const selectedOverlayLinks = createMemo",
+      "const hoverPreviewLink = createMemo",
+    );
+    const hoverOverlayBlock = sourceBetween(
+      linksSource,
+      "const hoverPreviewLink = createMemo",
+      "return (",
+    );
+
+    expect(selectedOverlayBlock).toContain("const currentUnitById = unitById();");
+    expect(selectedOverlayBlock).not.toContain("graphStore.units.find(");
+    expect(hoverOverlayBlock).toContain("const currentUnitById = unitById();");
+    expect(hoverOverlayBlock).not.toContain("graphStore.units.find(");
+    expect(selectedOverlayBlock).toContain("resolveUnitOverlayRect(target, dPositions)");
+    expect(hoverOverlayBlock).toContain("resolveUnitOverlayRect(source, dPositions)");
+  });
+
+  it("builds alignment and cascade targets once at drag start instead of scanning every frame", () => {
+    const dragSource = readSource("src/hooks/useDraggable.ts");
+    const applyBlock = sourceBetween(
+      dragSource,
+      "const applyDragMoveSnapshot =",
+      "const flushPendingDragMove =",
+    );
+    const startBlock = sourceBetween(
+      dragSource,
+      "const startDrag =",
+      "const handleDragMove =",
+    );
+
+    expect(startBlock).toContain("buildDragTargetIndex(graphStore.units, draggedUnitIds)");
+    expect(applyBlock).toContain("dragTargetIndex?.findCascadeTarget");
+    expect(applyBlock).toContain("dragTargetIndex.findAlignmentTargets");
+    expect(applyBlock).not.toContain("graphStore.units.find(");
+    expect(applyBlock).not.toContain("graphStore.units.filter(");
+    expect(applyBlock).not.toContain("const allUnits = graphStore.units");
+  });
+
+  it("cleans abandoned GPU-warm drags on all lifecycle escape paths", () => {
+    const dragSource = readSource("src/hooks/useDraggable.ts");
+
+    expect(dragSource).toContain('window.addEventListener("blur", handleWindowBlur)');
+    expect(dragSource).toContain('document.addEventListener("visibilitychange", handleVisibilityChange)');
+    expect(dragSource).toContain('window.addEventListener("pointercancel", handlePointerCancel, true)');
+    expect(dragSource).toContain('document.visibilityState === "hidden"');
+    expect(dragSource).toContain("DRAG_WATCHDOG_TIMEOUT_MS");
+    expect(dragSource).toContain('abortActiveDrag("watchdog")');
+    expect(dragSource).toContain("finishGpuWarmDrag();");
   });
 
   it("batches drag-start selection and toolbar state updates into one reactive flush", () => {

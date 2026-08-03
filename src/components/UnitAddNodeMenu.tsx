@@ -5,6 +5,10 @@ import { Unit } from "../types/unit";
 import { ArtCapability } from "../services/protocol";
 import { api } from "../services/api";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
+import {
+    registerDragFollowerElement,
+    unregisterDragFollowerElement,
+} from "../services/dragFollowerRegistry";
 
 interface UnitAddNodeMenuProps {
   unit?: Unit;
@@ -15,8 +19,10 @@ interface UnitAddNodeMenuProps {
 }
 
 export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
+    let menuRootRef: HTMLDivElement | undefined;
     let scrollContainerRef: HTMLDivElement | undefined;
     let scrollTrackRef: HTMLDivElement | undefined;
+    let dragFollowerRegistration: { unitId: string; element: HTMLDivElement } | null = null;
     let scrollThumbDragCleanup: (() => void) | undefined;
     let lastSearchQuery = "";
     const [searchQuery, setSearchQuery] = createSignal("");
@@ -26,6 +32,22 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
         clientHeight: 0,
         trackHeight: 0,
     });
+
+    const syncDragFollowerRegistration = () => {
+        const unitId = props.unit?.id;
+        const shouldRegister = !!unitId && props.showActions && !props.unit?.data.minified;
+        const element = shouldRegister ? menuRootRef : undefined;
+        const registration = dragFollowerRegistration;
+
+        if (registration && (registration.unitId !== unitId || registration.element !== element)) {
+            unregisterDragFollowerElement(registration.unitId, registration.element);
+            dragFollowerRegistration = null;
+        }
+        if (!unitId || !element || dragFollowerRegistration) return;
+
+        registerDragFollowerElement(unitId, element);
+        dragFollowerRegistration = { unitId, element };
+    };
 
     const filteredArts = createMemo(() => {
         const query = searchQuery().trim().toLocaleLowerCase();
@@ -143,6 +165,8 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
         }
     });
 
+    createEffect(syncDragFollowerRegistration);
+
     createEffect(() => {
         const query = searchQuery();
         const shouldReset = query !== lastSearchQuery || filteredArts().length === 0;
@@ -165,10 +189,22 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
         });
     });
 
+    onCleanup(() => {
+        const registration = dragFollowerRegistration;
+        if (registration) {
+            unregisterDragFollowerElement(registration.unitId, registration.element);
+            dragFollowerRegistration = null;
+        }
+    });
+
     return (
         <Show when={props.showActions && !props.unit?.data.minified}>
             <Portal mount={document.body}>
                 <div
+                    ref={(element) => {
+                        menuRootRef = element;
+                        syncDragFollowerRegistration();
+                    }}
                     id={`actions-menu-${props.unit?.id ?? "global"}`}
                     data-hook-drag-follow-unit-id={props.unit?.id}
                     class="absolute pointer-events-auto text-white"
