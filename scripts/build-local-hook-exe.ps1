@@ -17,6 +17,7 @@ $outputRoot = if ([System.IO.Path]::IsPathRooted($OutputDir)) {
     [System.IO.Path]::GetFullPath((Join-Path $hookRoot $OutputDir))
 }
 $releaseExe = Join-Path $hookRoot "src-tauri\target\release\hook.exe"
+$versionPreflightScript = Join-Path $hookRoot "scripts\assert-release-version.ps1"
 
 function Ensure-OutputDirectory {
     param(
@@ -72,6 +73,11 @@ if ($DryRun) {
 
 if ($UiAccess -and -not $AllowUnsignedUiAccessBuild) {
     throw "Refusing to build an unsigned uiAccess exe by default. Windows will reject it at launch with 'A referral was returned from the server'. Re-run with -AllowUnsignedUiAccessBuild only if you are about to digitally sign it and install it into a trusted location such as Program Files."
+}
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $versionPreflightScript
+if ($LASTEXITCODE -ne 0) {
+    throw "Hook version preflight failed with exit code $LASTEXITCODE."
 }
 
 Ensure-OutputDirectory -Path $outputRoot

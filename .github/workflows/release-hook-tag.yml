@@ -23,6 +23,27 @@ jobs:
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        shell: powershell
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $tag = "${{ github.event.inputs.tag }}"
+          } else {
+            $tag = "${{ github.ref_name }}"
+          }
+
+          "HOOK_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Verify release provenance and product versions
+        shell: powershell
+        run: |
+          git fetch origin main --no-tags
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-release-version.ps1 `
+            -Tag "$env:HOOK_TAG" `
+            -RequireTagAtHead `
+            -RequireReachableFromBranch "origin/main"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -65,23 +86,45 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-hook-exe.ps1 -OutputDir "release\Hook\portable" -Force
 
-      - name: Resolve release tag
+      - name: Build reviewed UIAccess signing candidate
         shell: powershell
         run: |
-          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            $tag = "${{ github.event.inputs.tag }}"
-          } else {
-            $tag = "${{ github.ref_name }}"
-          }
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-hook-exe.ps1 `
+            -OutputDir ".\release\Hook\signing-candidate" `
+            -UiAccess `
+            -AllowUnsignedUiAccessBuild `
+            -Force
 
-          "HOOK_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Verify tag and product versions
+      - name: Create signing candidate digest manifest
         shell: powershell
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-release-version.ps1 `
-            -Tag "$env:HOOK_TAG" `
-            -RequireTagAtHead
+          $candidateDir = [System.IO.Path]::GetFullPath(".\release\Hook\signing-candidate")
+          $candidateExe = Join-Path $candidateDir "hook.exe"
+          $commit = (git rev-parse HEAD).Trim()
+          $sha256 = (Get-FileHash -LiteralPath $candidateExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $manifest = [ordered]@{
+            schemaVersion = 1
+            artifact = "hook.exe"
+            tag = $env:HOOK_TAG
+            commit = $commit
+            runId = "${{ github.run_id }}"
+            sha256 = $sha256
+          } | ConvertTo-Json
+          $utf8 = [System.Text.UTF8Encoding]::new($false)
+          [System.IO.File]::WriteAllText((Join-Path $candidateDir "manifest.json"), $manifest + "`n", $utf8)
+          [System.IO.File]::WriteAllText(
+            [System.IO.Path]::GetFullPath(".\release\Hook\hook-uiaccess-signing-candidate-$env:HOOK_TAG.json"),
+            $manifest + "`n",
+            $utf8
+          )
+
+      - name: Upload reviewed signing candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: hook-uiaccess-signing-candidate-${{ env.HOOK_TAG }}
+          path: release/Hook/signing-candidate/*
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Package minimal release zip
         shell: powershell
@@ -101,5 +144,6 @@ jobs:
           generate_release_notes: true
           files: |
             release/Hook/hook-windows-x64-${{ env.HOOK_TAG }}.zip
+            release/Hook/hook-uiaccess-signing-candidate-${{ env.HOOK_TAG }}.json
           overwrite_files: true
           fail_on_unmatched_files: true

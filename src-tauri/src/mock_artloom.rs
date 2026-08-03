@@ -315,6 +315,7 @@ unsafe impl Send for SafeShmem {}
 // keep the most recent N and drop the oldest, which is safe because a segment is
 // only needed briefly, between `art/ready` and the frontend reading it.
 const MAX_SHMEM_ENTRIES: usize = 12;
+const SHARED_MEMORY_ART_INPUT_MIN_BYTES: usize = 256 * 1024;
 
 // Read timeout for the forward-to-ArtLoom WebSocket. Bounds how long a worker
 // thread will block waiting for a processed image before giving up, so a hung
@@ -332,6 +333,7 @@ pub struct MockArtLoomState {
     pub listener_started: bool,
     pub backend_connected: bool,
     pub app_handle: Option<AppHandle>,
+    pub negotiated_transport: TransportMode,
 }
 
 impl MockArtLoomState {
@@ -372,6 +374,7 @@ impl MockArtLoom {
                 listener_started: false,
                 backend_connected: false,
                 app_handle: None,
+                negotiated_transport: TransportMode::Websocket,
             })),
             loaded_arts: Mutex::new(Vec::new()),
         }
@@ -384,6 +387,19 @@ fn artloom_ws_url() -> String {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "ws://127.0.0.1:19820".to_string())
+}
+
+fn prefer_shared_memory_art_input(negotiated_transport: &TransportMode) -> bool {
+    match std::env::var("HOOK_ART_INPUT_TRANSPORT")
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "base64" => false,
+        "shared_memory" | "shm" => true,
+        _ => matches!(negotiated_transport, TransportMode::SharedMemory),
+    }
 }
 
 fn load_arts_from_disk() -> Option<Vec<ArtDefinition>> {
@@ -934,6 +950,7 @@ pub async fn artloom_handshake(
         let mut s = state.state.lock().map_err(|e| e.to_string())?;
         // Store AppHandle first
         s.set_app_handle(app_handle.clone());
+        s.negotiated_transport = transport.clone();
 
         if !s.listener_started {
             s.listener_started = true;
@@ -1096,6 +1113,11 @@ pub async fn artloom_dispatch_action(
             let _disabled_params = disabled_params.clone(); // Clone for thread
             let _input_images = input_images.clone();
             let loaded_arts = state.loaded_arts.lock().map_err(|e| e.to_string())?.clone();
+            let prefer_shared_memory_input = state
+                .state
+                .lock()
+                .map(|state| prefer_shared_memory_art_input(&state.negotiated_transport))
+                .unwrap_or(false);
             let _params = {
                 let s = state.state.lock().map_err(|e| e.to_string())?;
                 s.active_nodes.get(&node_id).cloned().unwrap_or_default()
@@ -1200,18 +1222,21 @@ pub async fn artloom_dispatch_action(
                         if def.enabled {
                             println!("[MOCK_ARTLOOM] Forwarding execution request ({}) to ArtLoom via WebSocket...", et);
 
-                            // Get image dimensions
-                            let width = img.width();
-                            let height = img.height();
-
-                            // Encode current image to base64
-                            let mut png_buf = Cursor::new(Vec::new());
-                            img.write_to(&mut png_buf, image::ImageFormat::Png).ok();
-                            let b64_img = format!(
-                                "data:image/png;base64,{}",
-                                base64::engine::general_purpose::STANDARD
-                                    .encode(png_buf.into_inner())
-                            );
+                            let PreparedAhrpInput {
+                                descriptor: ahrp_input,
+                                shmem_guard: _input_shmem_guard,
+                                transport: input_transport,
+                            } = match prepare_ahrp_input(&img, prefer_shared_memory_input) {
+                                Ok(input) => input,
+                                Err(error) => {
+                                    let message = format!(
+                                        "Failed to prepare ArtLoom input transport: {error}"
+                                    );
+                                    println!("[MOCK_ARTLOOM] {message}");
+                                    emit_art_error(&app_handle, &_node_id, message);
+                                    return;
+                                }
+                            };
 
                             // Resolve UUID params to paths
                             let mut resolved_params = _params.clone();
@@ -1250,13 +1275,7 @@ pub async fn artloom_dispatch_action(
                                 "params": {
                                     "request_id": request_id,
                                     "art_id": art_type,
-                                    "input": {
-                                        "type": "base64",
-                                        "data": b64_img,
-                                        "width": width,
-                                        "height": height,
-                                        "format": "rgba8"
-                                    },
+                                    "input": ahrp_input,
                                     "params": runtime_params,
                                     "input_images": resolved_input_images,
                                     "disabled_params": _disabled_params.clone().unwrap_or_default()
@@ -1264,9 +1283,10 @@ pub async fn artloom_dispatch_action(
                             });
 
                             crate::append_runtime_log_line(&format!(
-                                "mock_artloom_forward_art_process :: art_id={} request_id={} input_type=base64 has_reference_input_image={} param_keys={}",
+                                "mock_artloom_forward_art_process :: art_id={} request_id={} input_type={} has_reference_input_image={} param_keys={}",
                                 art_type,
                                 request_id,
+                                input_transport,
                                 resolved_input_images.contains_key("reference"),
                                 {
                                     let mut keys = resolved_params.keys().cloned().collect::<Vec<_>>();
@@ -1800,6 +1820,70 @@ fn load_rgba_image_from_path(path: &str) -> Option<RgbaImage> {
     image::load_from_memory(&bytes)
         .ok()
         .map(|image| image.to_rgba8())
+}
+
+struct PreparedAhrpInput {
+    descriptor: serde_json::Value,
+    shmem_guard: Option<SafeShmem>,
+    transport: &'static str,
+}
+
+fn prepare_base64_ahrp_input(image: &RgbaImage) -> Result<PreparedAhrpInput, String> {
+    let mut png_buf = Cursor::new(Vec::new());
+    image
+        .write_to(&mut png_buf, image::ImageFormat::Png)
+        .map_err(|error| format!("encode Art input PNG: {error}"))?;
+    let data = format!(
+        "data:image/png;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(png_buf.into_inner())
+    );
+    Ok(PreparedAhrpInput {
+        descriptor: serde_json::json!({
+            "type": "base64",
+            "data": data,
+            "width": image.width(),
+            "height": image.height(),
+            "format": "rgba8",
+        }),
+        shmem_guard: None,
+        transport: "base64",
+    })
+}
+
+fn prepare_ahrp_input(
+    image: &RgbaImage,
+    prefer_shared_memory: bool,
+) -> Result<PreparedAhrpInput, String> {
+    let raw = image.as_raw();
+    if prefer_shared_memory && raw.len() >= SHARED_MEMORY_ART_INPUT_MIN_BYTES {
+        let handle = format!("hook-art-input-{}", Uuid::new_v4());
+        match ShmemConf::new().size(raw.len()).os_id(&handle).create() {
+            Ok(shmem) => {
+                unsafe {
+                    std::ptr::copy_nonoverlapping(raw.as_ptr(), shmem.as_ptr(), raw.len());
+                }
+                return Ok(PreparedAhrpInput {
+                    descriptor: serde_json::json!({
+                        "type": "shared_memory",
+                        "handle": handle,
+                        "size": raw.len(),
+                        "width": image.width(),
+                        "height": image.height(),
+                        "format": "rgba8",
+                    }),
+                    shmem_guard: Some(SafeShmem(shmem)),
+                    transport: "shared_memory",
+                });
+            }
+            Err(error) => {
+                println!(
+                    "[MOCK_ARTLOOM] Shared-memory Art input allocation failed; falling back to Base64: {error}"
+                );
+            }
+        }
+    }
+
+    prepare_base64_ahrp_input(image)
 }
 
 fn load_input_rgba_image(source: Option<&String>) -> Option<RgbaImage> {
@@ -2693,6 +2777,41 @@ mod input_image_resolution {
         assert_eq!(img.get_pixel(1, 3).0, [90, 80, 70, 255]);
 
         let _ = std::fs::remove_file(temp_path);
+    }
+
+    #[test]
+    fn large_local_art_input_prefers_shared_memory_when_negotiated() {
+        let mut image = RgbaImage::new(256, 256);
+        image.put_pixel(0, 0, Rgba([12, 34, 56, 78]));
+
+        let prepared = prepare_ahrp_input(&image, true).expect("prepare shared input");
+
+        assert_eq!(prepared.transport, "shared_memory");
+        assert_eq!(prepared.descriptor["type"], "shared_memory");
+        assert_eq!(
+            prepared.descriptor["size"].as_u64(),
+            Some((256 * 256 * 4) as u64)
+        );
+        let guard = prepared.shmem_guard.as_ref().expect("shared memory guard");
+        let first_pixel = unsafe { std::slice::from_raw_parts(guard.0.as_ptr(), 4) };
+        assert_eq!(first_pixel, [12, 34, 56, 78]);
+    }
+
+    #[test]
+    fn art_input_keeps_base64_fallback_for_small_or_non_shared_sessions() {
+        let small = RgbaImage::from_pixel(1, 1, Rgba([1, 2, 3, 255]));
+        let small_prepared = prepare_ahrp_input(&small, true).expect("prepare small input");
+        assert_eq!(small_prepared.transport, "base64");
+        assert!(small_prepared.shmem_guard.is_none());
+
+        let large = RgbaImage::from_pixel(256, 256, Rgba([4, 5, 6, 255]));
+        let fallback = prepare_ahrp_input(&large, false).expect("prepare fallback input");
+        assert_eq!(fallback.transport, "base64");
+        assert!(fallback.descriptor["data"]
+            .as_str()
+            .expect("base64 data URL")
+            .starts_with("data:image/png;base64,"));
+        assert!(fallback.shmem_guard.is_none());
     }
 }
 

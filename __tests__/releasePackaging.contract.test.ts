@@ -11,6 +11,7 @@ describe("Hook release build scripts contract", () => {
     expect(script).toMatch(/\.\.\\release\\Hook/);
     expect(script).toMatch(/npm run tauri build -- --no-bundle/i);
     expect(script).toMatch(/hook\.exe/i);
+    expect(script).toMatch(/assert-release-version\.ps1/i);
     expect(script).not.toMatch(/payloadVariants/i);
     expect(script).not.toMatch(/release\\Hook\\full/i);
   });

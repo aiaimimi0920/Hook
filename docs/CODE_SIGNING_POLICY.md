@@ -104,10 +104,13 @@ the following:
 1. the release version/tag is intentional;
 2. the workflow run completed from the expected repository and tag;
 3. the artifact came from the hosted build output for that run;
-4. no unsigned replacement has been manually swapped into the installer lane;
-5. the release notes and package labels clearly distinguish **portable** from
+4. the release tag is reachable from the protected public `main` branch;
+5. the candidate workflow run ID, public digest manifest, reviewed SHA-256, and
+   downloaded `hook.exe` all identify the same bytes;
+6. no unsigned replacement has been manually swapped into the installer lane;
+7. the release notes and package labels clearly distinguish **portable** from
    **installer/UIAccess** output;
-6. the relevant public policy documents remain current:
+8. the relevant public policy documents remain current:
    - `README.md`
    - `UIACCESS_DISTRIBUTION.md`
    - `docs/CODE_SIGNING_POLICY.md`
@@ -131,8 +134,15 @@ The hosted workflow is `.github/workflows/signpath-signing.yml`:
   the protected `signpath-production` GitHub Environment;
 - SignPath organization/project/policy identifiers are GitHub Environment
   variables, not hardcoded account data;
-- the unsigned artifact is first uploaded as a GitHub Actions artifact and is
-  then submitted through `signpath/github-action-submit-signing-request@v2`;
+- the public tag workflow verifies that the tag is reachable from `origin/main`,
+  builds the unsigned UIAccess candidate once, publishes its SHA-256 manifest on
+  the public GitHub release, and retains the exact candidate as a workflow
+  artifact;
+- the signing workflow requires the candidate workflow run ID and reviewed
+  SHA-256, downloads that exact artifact, compares its manifest with the public
+  release manifest, and fails closed on any tag, commit, run ID, or digest drift;
+- only the verified candidate is re-uploaded to the signing run and submitted
+  through `signpath/github-action-submit-signing-request@v2`;
 - the workflow waits for SignPath approval and verifies the returned
   Authenticode signature before the installer package script can succeed;
 - the signed installer lane fails closed when configuration or approval is

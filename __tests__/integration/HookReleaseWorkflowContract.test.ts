@@ -29,6 +29,7 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource).toContain("Release tag to publish manually");
     expect(workflowSource).toContain("contents: write");
     expect(workflowSource).toContain("uses: actions/checkout@v5");
+    expect(workflowSource).toContain("fetch-depth: 0");
     expect(workflowSource).toContain(
       "ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}",
     );
@@ -41,9 +42,13 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource).toContain("run: npm test");
     expect(workflowSource).toContain("run: cargo fmt --check --manifest-path src-tauri/Cargo.toml");
     expect(workflowSource).toContain("run-rust-tests-ci.ps1");
+    expect(workflowSource).toContain("-RequireReachableFromBranch \"origin/main\"");
+    expect(workflowSource.indexOf("Verify release provenance and product versions")).toBeLessThan(
+      workflowSource.indexOf("Setup Node.js"),
+    );
   });
 
-  it("publishes both the portable zip and the signed UIAccess installer zip when release signing is configured", () => {
+  it("publishes the portable zip and reviewed UIAccess candidate digest without publishing the unsigned exe", () => {
     expect(existsSync(packageScriptPath)).toBe(true);
     expect(existsSync(installerPackageScriptPath)).toBe(true);
 
@@ -60,7 +65,11 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource).toContain("body_path: docs/GITHUB_RELEASE_BODY.md");
     expect(workflowSource).toContain("files:");
     expect(workflowSource).toContain("release/Hook/hook-windows-x64-${{ env.HOOK_TAG }}.zip");
+    expect(workflowSource).toContain("hook-uiaccess-signing-candidate-${{ env.HOOK_TAG }}.json");
+    expect(workflowSource).toContain("Build reviewed UIAccess signing candidate");
+    expect(workflowSource).toContain("Upload reviewed signing candidate");
     expect(workflowSource).not.toContain("hook-windows-uiaccess-installer-${{ env.HOOK_TAG }}.zip");
+    expect(workflowSource).not.toContain("release/Hook/signing-candidate/hook.exe\n");
     expect(workflowSource).not.toContain("HOOK_WINDOWS_UIACCESS_PFX_BASE64");
     expect(workflowSource).not.toContain("HOOK_WINDOWS_UIACCESS_PFX_PASSWORD");
     expect(workflowSource).toContain("overwrite_files: true");

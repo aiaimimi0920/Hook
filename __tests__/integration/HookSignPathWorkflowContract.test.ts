@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const hookRoot = process.cwd();
 const workflowPath = resolve(hookRoot, ".github/workflows/signpath-signing.yml");
 const versionScriptPath = resolve(hookRoot, "scripts/assert-release-version.ps1");
+const candidateScriptPath = resolve(hookRoot, "scripts/assert-reviewed-signing-candidate.ps1");
 const auditScriptPath = resolve(hookRoot, "scripts/audit-open-source-dependencies.ps1");
 const workflow = readFileSync(workflowPath, "utf8");
 const versionScript = readFileSync(versionScriptPath, "utf8");
@@ -37,9 +38,13 @@ describe("Hook SignPath workflow contract", () => {
     expect(workflow).not.toContain("artifact-configuration-slug:");
   });
 
-  it("builds the UIAccess payload only for signing and publishes only the returned signed package", () => {
-    expect(workflow).toContain("-UiAccess");
-    expect(workflow).toContain("-AllowUnsignedUiAccessBuild");
+  it("signs the exact reviewed candidate and publishes only the returned signed package", () => {
+    expect(workflow).toContain("candidate_run_id:");
+    expect(workflow).toContain("reviewed_sha256:");
+    expect(workflow).toContain("uses: actions/download-artifact@v7");
+    expect(workflow).toContain("assert-reviewed-signing-candidate.ps1");
+    expect(workflow).toContain("gh release download");
+    expect(workflow).not.toContain("-AllowUnsignedUiAccessBuild");
     expect(workflow).toContain("output-artifact-directory: release/Hook/uiaccess-signed");
     expect(workflow).toContain("package-uiaccess-installer-zip.ps1");
     expect(workflow).toContain("hook-windows-uiaccess-installer-${{ inputs.tag }}.zip");
@@ -51,14 +56,19 @@ describe("Hook SignPath workflow contract", () => {
     );
   });
 
-  it("checks release versions and open-source dependency metadata before signing", () => {
+  it("checks release ancestry, versions, public provenance, and reviewed digest before signing", () => {
     expect(existsSync(versionScriptPath)).toBe(true);
+    expect(existsSync(candidateScriptPath)).toBe(true);
     expect(existsSync(auditScriptPath)).toBe(true);
     expect(workflow).toContain("assert-release-version.ps1");
-    expect(workflow).toContain("npm run audit:licenses");
-    expect(workflow).toContain("run-rust-tests-ci.ps1");
+    expect(workflow).toContain("-RequireReachableFromBranch \"origin/main\"");
+    expect(workflow).toContain("Verify existing public release");
+    expect(workflow.indexOf("Verify reviewed candidate digest and provenance")).toBeLessThan(
+      workflow.indexOf("Submit SignPath signing request"),
+    );
     expect(versionScript).toContain("package-lock.json root package");
     expect(versionScript).toContain("src-tauri/tauri.conf.json");
+    expect(versionScript).toContain("git merge-base --is-ancestor");
     expect(auditScript).toContain("cargo metadata");
     expect(auditScript).toContain("PROPRIETARY");
   });

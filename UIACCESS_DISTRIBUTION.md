@@ -148,3 +148,9 @@ The environment must require reviewer approval, and the SignPath signing policy
 must require manual approval for every request. Until SignPath provisions these
 values and approvals, the public release posture stays portable-first rather
 than pretending an unsigned installer path is publishable.
+
+The public tag workflow builds the unsigned UIAccess candidate once and
+publishes a JSON manifest containing its tag, commit, workflow run ID, and
+SHA-256. The manual signing workflow requires that run ID and the reviewed
+SHA-256, downloads the exact retained candidate, and refuses signing if its
+bytes or manifest differ from the public release provenance.

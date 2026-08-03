@@ -38,9 +38,18 @@ const parseIterationCount = (name, fallback) => {
   const value = Number.parseInt(process.env[name] ?? "", 10);
   return Number.isFinite(value) && value > 0 ? value : fallback;
 };
+const parsePositiveNumber = (name, fallback) => {
+  const value = Number.parseFloat(process.env[name] ?? "");
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+};
 const benchmarkOptions = {
   restoreIterations: parseIterationCount("HOOK_SHADER_BENCH_RESTORE_ITERATIONS", 5),
   adjustmentIterations: parseIterationCount("HOOK_SHADER_BENCH_ADJUSTMENT_ITERATIONS", 30),
+};
+const enforcePerformanceBudgets = process.env.HOOK_SHADER_BENCH_ENFORCE === "1";
+const performanceBudgets = {
+  rehydrationP95Ms: parsePositiveNumber("HOOK_SHADER_BENCH_MAX_REHYDRATION_P95_MS", 5_000),
+  adjustmentP95Ms: parsePositiveNumber("HOOK_SHADER_BENCH_MAX_ADJUSTMENT_P95_MS", 1_000),
 };
 const expectedResolutions = [
   [1920, 1080],
@@ -97,11 +106,35 @@ try {
     throw new Error("Shader benchmark returned incomplete metrics");
   }
 
+  if (enforcePerformanceBudgets) {
+    const violations = report.resolutions.flatMap((result) => {
+      const messages = [];
+      if (result.rehydration.p95Ms > performanceBudgets.rehydrationP95Ms) {
+        messages.push(
+          `${result.width}x${result.height} rehydration p95 ${result.rehydration.p95Ms.toFixed(2)}ms exceeds ${performanceBudgets.rehydrationP95Ms}ms`,
+        );
+      }
+      if (result.adjustment.p95Ms > performanceBudgets.adjustmentP95Ms) {
+        messages.push(
+          `${result.width}x${result.height} adjustment p95 ${result.adjustment.p95Ms.toFixed(2)}ms exceeds ${performanceBudgets.adjustmentP95Ms}ms`,
+        );
+      }
+      return messages;
+    });
+    if (violations.length > 0) {
+      throw new Error(`Shader performance budget failed: ${violations.join("; ")}`);
+    }
+  }
+
   process.stdout.write(`${JSON.stringify({
     benchmark: "hook-shader-resolution",
     rehydrationScope: "ShaderRenderer compile, source texture upload, first draw, and a 1x1 GPU completion barrier",
     adjustmentScope: "Uniform update, draw, and a benchmark-only 1x1 GPU completion barrier",
     options: benchmarkOptions,
+    gate: {
+      enforced: enforcePerformanceBudgets,
+      budgets: performanceBudgets,
+    },
     ...report,
   }, null, 2)}\n`);
 } finally {

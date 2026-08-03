@@ -27,13 +27,16 @@
     "dev:tauri": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call scripts\\dev-tauri.cmd\"",
     "tauri": "\"%npm_config_local_prefix%\\scripts\\run-tauri.cmd\"",
     "test": "cmd /d /s /c \"pushd %npm_config_local_prefix% && node_modules\\.bin\\vitest.cmd run --pool threads --maxWorkers 1 --no-file-parallelism\"",
+    "test:performance": "cmd /d /s /c \"pushd %npm_config_local_prefix% && node_modules\\.bin\\vitest.cmd run __tests__\\performance\\RuntimePerformanceGates.test.ts --pool threads --maxWorkers 1 --no-file-parallelism\"",
+    "test:parallel": "cmd /d /s /c \"pushd %npm_config_local_prefix% && node_modules\\.bin\\vitest.cmd run --pool threads --maxWorkers 4 --fileParallelism\"",
     "test:watch": "cmd /d /s /c \"pushd %npm_config_local_prefix% && node_modules\\.bin\\vitest.cmd watch --pool threads --maxWorkers 1 --no-file-parallelism\"",
     "bench:shader": "node scripts/run-shader-benchmark.mjs",
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
     "lint": "eslint src",
+    "verify:version": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\assert-release-version.ps1",
     "audit:licenses": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\audit-open-source-dependencies.ps1",
-    "verify:local": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call npm run audit:licenses && call npm run typecheck && call npm test && call cargo fmt --check --manifest-path src-tauri\\Cargo.toml && call cargo test --manifest-path src-tauri\\Cargo.toml && call npm run build && call build-hook-release.bat\""
+    "verify:local": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call npm run verify:version && call npm run audit:licenses && call npm run typecheck && call npm test && call cargo fmt --check --manifest-path src-tauri\\Cargo.toml && call cargo test --manifest-path src-tauri\\Cargo.toml && call npm run build && call build-hook-release.bat\""
   },
   "license": "MIT",
   "dependencies": {

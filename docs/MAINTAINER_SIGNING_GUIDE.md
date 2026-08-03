@@ -93,11 +93,14 @@ Before approving a signed release:
 
 1. confirm the tag matches the intended public version;
 2. confirm the workflow ran from the correct repository and tag;
-3. confirm the signed artifact belongs only to the installer/UIAccess lane;
-4. confirm README and UIAccess docs still describe package differences
+3. confirm the tag is reachable from the protected public `main` branch;
+4. open the public `hook-uiaccess-signing-candidate-Vx.x.x.json` release asset
+   and review its workflow run ID, commit, and SHA-256;
+5. confirm the signed artifact belongs only to the installer/UIAccess lane;
+6. confirm README and UIAccess docs still describe package differences
    accurately;
-5. confirm no local hotfix binary was manually substituted into the release;
-6. confirm the public privacy and code-signing documents are still accurate.
+7. confirm no local hotfix binary was manually substituted into the release;
+8. confirm the public privacy and code-signing documents are still accurate.
 
 ## If Hook uses SignPath Foundation
 
@@ -125,11 +128,13 @@ Configure the SignPath signing policy to require manual approval for every
 request. Do not guess or commit any of these account identifiers.
 
 After the normal tag workflow creates a portable GitHub release, manually run
-`Sign Hook UIAccess Release` for the same public tag. The workflow builds the
-UIAccess payload on `windows-latest`, uploads it to GitHub Actions, submits the
-GitHub artifact ID to SignPath, waits for approval, verifies the returned
-Authenticode signature during packaging, and attaches the signed installer zip
-to the existing release.
+`Sign Hook UIAccess Release` for the same public tag. Supply the release
+workflow run ID and the reviewed SHA-256 from the public signing-candidate
+manifest. The signing workflow downloads the exact candidate retained by that
+run, verifies its tag, commit, run ID, public manifest, and bytes, then uploads
+only that reviewed artifact to SignPath. It waits for approval, verifies the
+returned Authenticode signature during packaging, and attaches the signed
+installer zip to the existing release.
 
 ## If Hook uses a commercial provider instead
 

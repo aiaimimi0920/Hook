@@ -22,12 +22,56 @@ export type LiveEraseBatchProcessor = (
     generation: number,
 ) => Promise<void>;
 
+export interface LiveEraseQueueMetrics {
+    queuedPoints: number;
+    processedPoints: number;
+    processedBatches: number;
+    coalescedPoints: number;
+    maxPendingPoints: number;
+    currentPendingPoints: number;
+    activeRunners: number;
+    maxConcurrentRunners: number;
+    errors: number;
+}
+
+export const DEFAULT_LIVE_ERASE_MAX_PENDING_POINTS = 512;
+
+const compactPoints = (points: StickerPoint[], limit: number): StickerPoint[] => {
+    if (points.length <= limit) return points;
+    if (limit === 1) return [points[points.length - 1]];
+
+    const compacted: StickerPoint[] = [];
+    const lastIndex = points.length - 1;
+    for (let index = 0; index < limit; index += 1) {
+        compacted.push(points[Math.round((lastIndex * index) / (limit - 1))]);
+    }
+    return compacted;
+};
+
 export class LiveEraseQueue {
     private active = false;
     private generation = 0;
     private running = false;
     private pending: StickerPoint[] = [];
     private promise: Promise<void> = Promise.resolve();
+    private activeRunners = 0;
+    private readonly metrics: Omit<LiveEraseQueueMetrics, "currentPendingPoints" | "activeRunners"> = {
+        queuedPoints: 0,
+        processedPoints: 0,
+        processedBatches: 0,
+        coalescedPoints: 0,
+        maxPendingPoints: 0,
+        maxConcurrentRunners: 0,
+        errors: 0,
+    };
+
+    constructor(
+        private readonly maxPendingPoints = DEFAULT_LIVE_ERASE_MAX_PENDING_POINTS,
+    ) {
+        if (!Number.isInteger(maxPendingPoints) || maxPendingPoints < 1) {
+            throw new Error("Live erase max pending points must be a positive integer");
+        }
+    }
 
     /** Whether a stroke is currently in progress. */
     get isActive(): boolean {
@@ -37,6 +81,14 @@ export class LiveEraseQueue {
     /** The generation of the current stroke (increments on every `begin`). */
     get currentGeneration(): number {
         return this.generation;
+    }
+
+    getMetrics(): LiveEraseQueueMetrics {
+        return {
+            ...this.metrics,
+            currentPendingPoints: this.pending.length,
+            activeRunners: this.activeRunners,
+        };
     }
 
     /**
@@ -72,7 +124,14 @@ export class LiveEraseQueue {
         if (!this.active || points.length < 1) {
             return this.promise;
         }
-        this.pending.push(...points);
+        this.metrics.queuedPoints += points.length;
+        const combined = [...this.pending, ...points];
+        this.pending = compactPoints(combined, this.maxPendingPoints);
+        this.metrics.coalescedPoints += combined.length - this.pending.length;
+        this.metrics.maxPendingPoints = Math.max(
+            this.metrics.maxPendingPoints,
+            this.pending.length,
+        );
         if (!this.running) {
             this.promise = this.drain(this.generation, process);
         }
@@ -81,15 +140,24 @@ export class LiveEraseQueue {
 
     private async drain(generation: number, process: LiveEraseBatchProcessor): Promise<void> {
         this.running = true;
+        this.activeRunners += 1;
+        this.metrics.maxConcurrentRunners = Math.max(
+            this.metrics.maxConcurrentRunners,
+            this.activeRunners,
+        );
         try {
             while (this.isCurrent(generation) && this.pending.length > 0) {
                 const points = this.pending;
                 this.pending = [];
+                this.metrics.processedBatches += 1;
+                this.metrics.processedPoints += points.length;
                 await process(points, generation);
             }
         } catch (error) {
+            this.metrics.errors += 1;
             console.error("[Hook] Live erase queue failed", error);
         } finally {
+            this.activeRunners -= 1;
             // Only clear the runner flag if we are still the current generation;
             // a superseding begin() already reset it for the new run.
             if (generation === this.generation) {
