@@ -1346,6 +1346,8 @@ export default function App() {
           return;
       }
 
+      void api.focusOverlayWindow();
+
       batch(() => {
           if (e.ctrlKey) {
                // Toggle Logic

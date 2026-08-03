@@ -1360,6 +1360,8 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             return;
         }
 
+        void api.focusOverlayWindow();
+
         if (hit && event.shiftKey && transformMode === "select" && !event.ctrlKey && !event.altKey) {
             const nextIds = isHitSelected
                 ? currentSelectionIds.filter((annotationId) => annotationId !== hit.id)

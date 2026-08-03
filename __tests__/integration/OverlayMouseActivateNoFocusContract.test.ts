@@ -14,7 +14,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 };
 
 describe("overlay mouse activate no-focus contract", () => {
-  it("handles WM_MOUSEACTIVATE with MA_NOACTIVATE on the overlay host window, so clicking an existing sticker does not activate Hook and blank hardware-composited video behind it", () => {
+  it("keeps the overlay non-activating by default so only explicit Hook interactions transfer focus", () => {
     const rustSource = readSource("src-tauri/src/lib.rs");
     const setupOverlayBlock = sourceBetween(
       rustSource,

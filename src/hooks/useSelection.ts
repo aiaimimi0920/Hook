@@ -295,6 +295,7 @@ export function useSelection() {
 
         graphStore.actions.addUnit(newUnit);
         selectionActions.set([newUnit.id]);
+        await api.focusOverlayWindow();
         await syncService.updateBackendRects();
         void syncService.performWorkflowSync();
         await api.debugLogEvent("selection-capture-success", `cssW=${cssW} cssH=${cssH}`);

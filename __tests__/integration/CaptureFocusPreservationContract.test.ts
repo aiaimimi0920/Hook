@@ -46,4 +46,21 @@ describe("capture focus preservation contract", () => {
         expect(unitViewSource).not.toContain("event.currentTarget.focus();");
         expect(unitViewSource).not.toContain("e.currentTarget.focus();");
     });
+
+    it("hands foreground focus to Hook only after a capture was successfully added and selected", () => {
+        const addCaptureStart = selectionSource.indexOf("const addCaptureUnit = async");
+        const addCaptureEnd = selectionSource.indexOf("const describeLongCaptureAnalysis", addCaptureStart);
+
+        expect(addCaptureStart).toBeGreaterThan(-1);
+        expect(addCaptureEnd).toBeGreaterThan(addCaptureStart);
+
+        const addCaptureBlock = selectionSource.slice(addCaptureStart, addCaptureEnd);
+        const addUnitIndex = addCaptureBlock.indexOf("graphStore.actions.addUnit(newUnit);");
+        const selectIndex = addCaptureBlock.indexOf("selectionActions.set([newUnit.id]);");
+        const focusIndex = addCaptureBlock.indexOf("await api.focusOverlayWindow();");
+
+        expect(addUnitIndex).toBeGreaterThan(-1);
+        expect(selectIndex).toBeGreaterThan(addUnitIndex);
+        expect(focusIndex).toBeGreaterThan(selectIndex);
+    });
 });
