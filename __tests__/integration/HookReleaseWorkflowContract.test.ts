@@ -63,6 +63,7 @@ describe("Hook release workflow contract", () => {
       workflowSource.indexOf("Build portable Hook EXE"),
     );
     expect(workflowSource).toContain("body_path: docs/GITHUB_RELEASE_BODY.md");
+    expect(workflowSource).toContain("generate_release_notes: false");
     expect(workflowSource).toContain("files:");
     expect(workflowSource).toContain("release/Hook/hook-windows-x64-${{ env.HOOK_TAG }}.zip");
     expect(workflowSource).toContain("hook-uiaccess-signing-candidate-${{ env.HOOK_TAG }}.json");

@@ -142,7 +142,7 @@ jobs:
           tag_name: ${{ env.HOOK_TAG }}
           name: ${{ env.HOOK_TAG }}
           body_path: docs/GITHUB_RELEASE_BODY.md
-          generate_release_notes: true
+          generate_release_notes: false
           files: |
             release/Hook/hook-windows-x64-${{ env.HOOK_TAG }}.zip
             release/Hook/hook-uiaccess-signing-candidate-${{ env.HOOK_TAG }}.json
