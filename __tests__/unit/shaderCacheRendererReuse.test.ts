@@ -144,8 +144,8 @@ describe("shaderCache renderer reuse", () => {
             textures: {},
         });
 
-        const staleRequest = shaderCache.prefetchShader("art-color-transfer", undefined, true);
-        const currentRequest = shaderCache.prefetchShader("art-color-transfer", undefined, true);
+        const staleRequest = shaderCache.prefetchShader("art-color-transfer", true);
+        const currentRequest = shaderCache.prefetchShader("art-color-transfer", true);
         expect(prefetchShader).toHaveBeenCalledTimes(2);
 
         fetchResolves[0]?.(response("stale-fragment"));

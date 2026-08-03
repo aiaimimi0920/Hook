@@ -190,7 +190,6 @@ describe('Hook api browser mode', () => {
     await expect(
       api.prefetchShader({
         artId: 'shader-1',
-        artPath: null,
         inputPath: null,
         referencePath: null,
       })

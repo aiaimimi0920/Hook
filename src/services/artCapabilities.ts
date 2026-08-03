@@ -8,16 +8,13 @@ const capabilityMetadata = (
 /**
  * Returns whether an Art advertises a local shader/live preview.
  *
- * The legacy execution enum is deliberately checked only as a protocol
- * compatibility fallback. New plugin Arts should advertise
- * metadata.capabilities.preview = "shader".
+ * Installed Arts advertise this behavior through package metadata. Framework
+ * ids describe execution ownership and must not be overloaded as UI behavior.
  */
 export const supportsShaderPreview = (
-    capability: Pick<ArtCapability, "execution_type" | "capabilities" | "metadata"> | undefined,
+    capability: Pick<ArtCapability, "capabilities" | "metadata"> | undefined,
 ): boolean => {
     if (!capability) return false;
-    if (capability.execution_type === "shader") return true;
-
     const metadata = capabilityMetadata(capability);
     return metadata?.preview === "shader" || metadata?.shader === true;
 };

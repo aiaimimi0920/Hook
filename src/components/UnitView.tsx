@@ -223,10 +223,6 @@ export const UnitView: Component<Props> = (props) => {
       if (typeof reference !== "string" || reference.length === 0) return undefined;
       return props.resolveUnitImage?.(reference) || reference;
   };
-  const getCapabilityArtPath = () => {
-      const artPath = props.capability?.execution?.artPath;
-      return typeof artPath === "string" && artPath.length > 0 ? artPath : undefined;
-  };
   const shouldHoldRestoredShaderPreview = () =>
       !!liveUnit().data.restoredPreviewLocked &&
       !!(liveUnit().data.previewSrc || liveUnit().data.src);
@@ -935,7 +931,6 @@ export const UnitView: Component<Props> = (props) => {
                         unitId={props.unit.id}
                         artId={getArtId()!}
                         params={effectiveParams()}
-                        artPath={getCapabilityArtPath()}
                         holdFallbackPreview={shouldHoldRestoredShaderPreview()}
                         fallbackPreviewSrc={liveUnit().data.previewSrc || liveUnit().data.src}
                         inputImageSrc={getShaderInputSrc()}

@@ -49,21 +49,17 @@ describe("generic Art plugin contracts", () => {
         expect(state.selectedResultIndex).toBe(0);
     });
 
-    it("uses capability metadata for shader previews and keeps the legacy fallback", () => {
+    it("uses package capability metadata as the only shader preview contract", () => {
         expect(
             supportsShaderPreview({
-                execution_type: "script",
                 metadata: { capabilities: { preview: "shader" } },
             }),
         ).toBe(true);
         expect(
-            supportsShaderPreview({
-                execution_type: "shader",
-            }),
-        ).toBe(true);
+            supportsShaderPreview({}),
+        ).toBe(false);
         expect(
             supportsShaderPreview({
-                execution_type: "script",
                 metadata: { capabilities: { preview: "image" } },
             }),
         ).toBe(false);

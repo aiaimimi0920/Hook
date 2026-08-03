@@ -1,12 +1,9 @@
-use crate::process_utils::configure_child_no_window;
 use base64::Engine as _;
 use image::{Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 use shared_memory::ShmemConf;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::io::Cursor;
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -1851,64 +1848,6 @@ fn load_input_rgba_image(source: Option<&String>) -> Option<RgbaImage> {
         .map(|image| image.to_rgba8())
 }
 
-fn artloom_suffix(path: &PathBuf) -> Option<PathBuf> {
-    let normalized = path.to_string_lossy().replace('\\', "/");
-    let parts: Vec<&str> = normalized
-        .split('/')
-        .filter(|part| !part.is_empty())
-        .collect();
-    let artloom_index = parts
-        .iter()
-        .position(|part| part.eq_ignore_ascii_case("ArtLoom"))?;
-
-    let mut suffix = PathBuf::new();
-    for part in &parts[artloom_index..] {
-        suffix.push(part);
-    }
-    Some(suffix)
-}
-
-fn artloom_search_roots() -> Vec<PathBuf> {
-    let mut roots: Vec<PathBuf> = Vec::new();
-    let candidates = [std::env::current_exe().ok(), std::env::current_dir().ok()];
-
-    for candidate in candidates.into_iter().flatten() {
-        let start = if candidate.is_file() {
-            candidate
-                .parent()
-                .map(|parent| parent.to_path_buf())
-                .unwrap_or(candidate)
-        } else {
-            candidate
-        };
-
-        for ancestor in start.ancestors() {
-            let root = ancestor.to_path_buf();
-            if !roots.iter().any(|existing| existing == &root) {
-                roots.push(root);
-            }
-        }
-    }
-
-    roots
-}
-
-fn repair_artloom_art_path(configured: &PathBuf) -> Option<PathBuf> {
-    if configured.exists() {
-        return Some(configured.clone());
-    }
-
-    let suffix = artloom_suffix(configured)?;
-    for root in artloom_search_roots() {
-        let candidate = root.join(&suffix);
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-
-    None
-}
-
 // Age-based sweep of materialized shader temp files in `dir`. Only files whose
 // names start with the shader-input prefixes and are older than `max_age_secs`
 // are removed, so an in-flight file (just written, being consumed downstream) is
@@ -2004,20 +1943,16 @@ fn materialize_shader_image_input(value: Option<&String>, label: &str) -> Option
 
 fn try_prefetch_shader_via_loom(
     art_id: &str,
-    art_path: &std::path::Path,
     input_path: Option<&str>,
     reference_path: Option<&str>,
-) -> Result<Option<serde_json::Value>, String> {
-    let manifest = match crate::loom_connector::read_default_loom_manifest() {
-        Ok(manifest) => manifest,
-        Err(_) => return Ok(None),
-    };
+) -> Result<serde_json::Value, String> {
+    let manifest = crate::loom_connector::read_default_loom_manifest()
+        .map_err(|error| format!("Loom shader service is unavailable: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
     if base.is_empty() {
-        return Ok(None);
+        return Err("Loom shader service manifest has an empty base URL".to_string());
     }
 
-    let art_path = art_path.to_string_lossy().to_string();
     let client = reqwest::blocking::Client::builder()
         .no_proxy()
         .timeout(Duration::from_secs(20))
@@ -2027,7 +1962,6 @@ fn try_prefetch_shader_via_loom(
     let endpoint = format!("{base}/v1/python-arts/shader/prefetch");
     let body = serde_json::json!({
         "artId": art_id,
-        "artPath": art_path,
         "params": {
             "output_mode": "shader",
             "input_path": input_path.unwrap_or(""),
@@ -2054,13 +1988,9 @@ fn try_prefetch_shader_via_loom(
         }
     }
 
-    let response = match request.send() {
-        Ok(response) => response,
-        Err(error) => {
-            println!("[MockArtLoom] Loom shader prefetch unavailable: {}", error);
-            return Ok(None);
-        }
-    };
+    let response = request
+        .send()
+        .map_err(|error| format!("Loom shader prefetch request failed: {error}"))?;
 
     let status = response.status();
     let text = response
@@ -2076,87 +2006,33 @@ fn try_prefetch_shader_via_loom(
 
     let value: serde_json::Value = serde_json::from_str(&text)
         .map_err(|error| format!("Failed to parse Loom shader prefetch response: {error}"))?;
-    Ok(Some(
-        value
-            .get("result")
-            .cloned()
-            .unwrap_or_else(|| value.clone()),
-    ))
+    Ok(value
+        .get("result")
+        .cloned()
+        .unwrap_or_else(|| value.clone()))
 }
 
-/// Prefetch shader code from a Python Art by executing it with output_mode='shader'
-/// input_path and reference_path are optional paths to source and reference images for LUT generation
+/// Prefetch shader code from the installed Loom Art package.
 #[tauri::command]
 pub async fn prefetch_shader(
-    state: tauri::State<'_, MockArtLoom>,
     art_id: String,
-    art_path: Option<String>,
     input_path: Option<String>,
     reference_path: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let loaded_arts = state
-        .inner()
-        .loaded_arts
-        .lock()
-        .map_err(|e| e.to_string())?
-        .clone();
-
     tauri::async_runtime::spawn_blocking(move || {
-        prefetch_shader_blocking(loaded_arts, art_id, art_path, input_path, reference_path)
+        prefetch_shader_blocking(art_id, input_path, reference_path)
     })
     .await
     .map_err(|e| format!("Shader prefetch task failed: {}", e))?
 }
 
 fn prefetch_shader_blocking(
-    loaded_arts: Vec<ArtDefinition>,
     art_id: String,
-    art_path: Option<String>,
     input_path: Option<String>,
     reference_path: Option<String>,
 ) -> Result<serde_json::Value, String> {
     println!("[MockArtLoom] Prefetching shader for Art: {}", art_id);
 
-    // 1. Find the configured plugin root path.
-    let art_path_str = if let Some(path) = art_path {
-        path
-    } else {
-        // Look up in loaded arts
-        let art = loaded_arts
-            .iter()
-            .find(|art| art.matches_runtime_id(&art_id))
-            .ok_or_else(|| format!("Art not found: {}", art_id))?;
-
-        let exec = art
-            .execution
-            .as_ref()
-            .ok_or_else(|| "Art definition missing execution config".to_string())?;
-
-        exec.get("artPath")
-            .and_then(|v: &serde_json::Value| v.as_str())
-            .map(|s: &str| s.to_string())
-            .ok_or_else(|| "Art execution missing 'artPath'".to_string())?
-    };
-
-    println!("[MockArtLoom] Configured Art Path: {}", art_path_str);
-    let mut plugin_path = PathBuf::from(&art_path_str);
-    if !plugin_path.exists() {
-        if let Some(repaired) = repair_artloom_art_path(&plugin_path) {
-            println!(
-                "[MockArtLoom] Repaired art path from {:?} to {:?}",
-                plugin_path, repaired
-            );
-            plugin_path = repaired;
-        }
-    }
-    if plugin_path.is_file() {
-        plugin_path = plugin_path
-            .parent()
-            .map(std::path::Path::to_path_buf)
-            .ok_or_else(|| format!("Art path has no parent directory: {:?}", plugin_path))?;
-    }
-
-    // 2. Resolve UUID references and materialize data URI inputs to actual files.
     let resolved_input_path = materialize_shader_image_input(input_path.as_ref(), "input");
     let resolved_reference_path =
         materialize_shader_image_input(reference_path.as_ref(), "reference");
@@ -2167,146 +2043,12 @@ fn prefetch_shader_blocking(
         resolved_reference_path.as_deref().unwrap_or("<none>")
     );
 
-    // Prefer the Loom python_art runtime when it is available, so installable
-    // framework-managed shader Arts use the same packaged runtime as the daemon.
-    if let Some(result) = try_prefetch_shader_via_loom(
+    let result = try_prefetch_shader_via_loom(
         &art_id,
-        &plugin_path,
         resolved_input_path.as_deref(),
         resolved_reference_path.as_deref(),
-    )? {
-        println!("[MockArtLoom] Loom shader prefetch succeeded.");
-        return Ok(result);
-    }
-
-    println!("[MockArtLoom] Falling back to local Python shader prefetch.");
-
-    // 3. Resolve the local script path for fallback execution.
-    let mut script_path = plugin_path;
-    if !script_path.exists() {
-        if let Some(repaired) = repair_artloom_art_path(&script_path) {
-            println!(
-                "[MockArtLoom] Repaired script path from {:?} to {:?}",
-                script_path, repaired
-            );
-            script_path = repaired;
-        }
-    }
-
-    // If it's a directory, we need to find the entry point
-    if script_path.is_dir() {
-        // Try to get 'entry' from definition first
-        let art = loaded_arts
-            .iter()
-            .find(|art| art.matches_runtime_id(&art_id));
-
-        let mut entry_file = "main.py".to_string(); // Default
-
-        if let Some(a) = art {
-            if let Some(exec) = &a.execution {
-                if let Some(e) = exec.get("entry").and_then(|v| v.as_str()) {
-                    entry_file = e.to_string();
-                }
-            }
-        }
-
-        script_path = script_path.join(entry_file);
-        if !script_path.exists() {
-            if let Some(repaired) = repair_artloom_art_path(&script_path) {
-                println!(
-                    "[MockArtLoom] Repaired entry script path from {:?} to {:?}",
-                    script_path, repaired
-                );
-                script_path = repaired;
-            }
-        }
-    }
-
-    println!("[MockArtLoom] Resolved Script Path: {:?}", script_path);
-
-    if !script_path.exists() {
-        // Try verifying if maybe the original path was the file?
-        // If not, error out.
-        return Err(format!("Script file not found: {:?}", script_path));
-    }
-
-    // 4. Prepare JSON arguments with resolved paths for LUT generation
-    let params = serde_json::json!({
-        "output_mode": "shader",
-        "input_path": resolved_input_path.as_ref().unwrap_or(&String::new()),
-        "reference_path": resolved_reference_path.as_ref().unwrap_or(&String::new())
-    });
-    let params_str = params.to_string();
-
-    println!(
-        "[MockArtLoom] Params: input={}, reference={}",
-        resolved_input_path.as_deref().unwrap_or("<none>"),
-        resolved_reference_path.as_deref().unwrap_or("<none>")
-    );
-
-    // 5. Find Python Executable
-    // Try 'python' first.
-    let python_cmd = "python";
-
-    println!(
-        "[MockArtLoom] Executing: {} {:?} '{}'",
-        python_cmd, script_path, params_str
-    );
-
-    // 6. Validate script path is a file
-    if !script_path.is_file() {
-        return Err(format!("Script path is not a file: {:?}", script_path));
-    }
-
-    // 7. Execute
-    let mut command = Command::new(python_cmd);
-    let output = configure_child_no_window(
-        command
-            .arg(&script_path)
-            .arg(&params_str)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped()),
-    )
-    .output()
-    .map_err(|e| format!("Failed to execute python: {}", e))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    if !stderr.is_empty() {
-        println!("[MockArtLoom] Python stderr: {}", stderr);
-    }
-
-    if !output.status.success() {
-        return Err(format!(
-            "Python execution failed ({}): {}",
-            output.status, stderr
-        ));
-    }
-
-    // 8. Parse Output (Expect JSON)
-    let clean_stdout = stdout.trim();
-    if clean_stdout.is_empty() {
-        return Err("Python produced no output".to_string());
-    }
-
-    // Log the output snippet for debugging
-    let snippet_len = std::cmp::min(200, clean_stdout.len());
-    println!(
-        "[MockArtLoom] Python Output Snippet: {}...",
-        &clean_stdout[..snippet_len]
-    );
-
-    // Try to find the last separate JSON object if mixed with logs?
-    // For now assuming clean output.
-    let result: serde_json::Value = serde_json::from_str(clean_stdout).map_err(|e| {
-        format!(
-            "Failed to parse Python JSON output: {}. Raw: '{}'",
-            e, clean_stdout
-        )
-    })?;
-
-    println!("[MockArtLoom] Shader prefetch success");
+    )?;
+    println!("[MockArtLoom] Loom shader prefetch succeeded.");
     Ok(result)
 }
 
@@ -2484,13 +2226,13 @@ mod loom_arts_mapping {
     }
 
     #[test]
-    fn keeps_legacy_art_params_flat_for_ahrp_compatibility() {
+    fn keeps_non_process_framework_params_at_the_tool_argument_root() {
         let art: ArtDefinition = serde_json::from_value(serde_json::json!({
-            "id": "legacy-art",
-            "label": "Legacy Art",
-            "execution": { "type": "python_art" }
+            "id": "cloud-art",
+            "label": "Cloud Art",
+            "execution": { "type": "framework_art", "framework": "cloud_api" }
         }))
-        .expect("legacy art");
+        .expect("cloud art");
         let runtime_params = HashMap::from([("strength".to_string(), serde_json::json!(42))]);
 
         assert_eq!(
@@ -2846,6 +2588,7 @@ mod arts_merge {
 #[cfg(test)]
 mod input_image_resolution {
     use super::*;
+    use std::path::PathBuf;
 
     fn write_test_png(path: &std::path::Path, width: u32, height: u32, rgba: [u8; 4]) {
         let mut img = RgbaImage::new(width, height);

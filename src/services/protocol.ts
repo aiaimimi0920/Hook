@@ -74,8 +74,7 @@ export interface ArtCapability {
  * Optional behavior advertised by an installed Art package.
  *
  * The host must not infer these behaviors from an Art id or from a framework
- * implementation detail. execution_type remains a compatibility fallback
- * for older Loom daemons.
+ * implementation detail.
  */
 export interface ArtCapabilityMetadata {
     preview?: string;

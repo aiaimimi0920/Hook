@@ -2,7 +2,7 @@
  * ShaderPreview - WebGL canvas component for Shader Art real-time preview.
  */
 
-import { Component, createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
+import { Component, createEffect, createMemo, createSignal, onCleanup, Show, untrack } from "solid-js";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { api, isTauriRuntimeAvailable } from "../services/api";
 import { isLikelyLocalFilePath } from "../services/imageSource";
@@ -13,7 +13,6 @@ import { computeContainFitPlacement } from "../services/stickerEditing";
 interface Props {
     unitId: string;
     artId: string;
-    artPath?: string;
     params: Record<string, unknown>;
     holdFallbackPreview?: boolean;
     fallbackPreviewSrc?: string;
@@ -44,6 +43,9 @@ export const ShaderPreview: Component<Props> = (props) => {
     let lastReactiveResetKey = "";
     let lastFallbackRecoveryAttemptSrc = "";
     let contextualPrefetchRetryTimer: number | null = null;
+    let renderExportTimer: number | null = null;
+    let renderFrameId: number | null = null;
+    let pendingFrameRender: { renderer: ShaderRenderer; generation: number } | null = null;
     let contextualPrefetchRetryAttempts = 0;
     let paramsNeedFullReapply = true;
     const parameterTextureRequestSeq = new Map<string, number>();
@@ -58,6 +60,21 @@ export const ShaderPreview: Component<Props> = (props) => {
             window.clearTimeout(contextualPrefetchRetryTimer);
         }
         contextualPrefetchRetryTimer = null;
+    };
+
+    const clearRenderExportTimer = () => {
+        if (renderExportTimer !== null && typeof window !== "undefined") {
+            window.clearTimeout(renderExportTimer);
+        }
+        renderExportTimer = null;
+    };
+
+    const clearScheduledRender = () => {
+        if (renderFrameId !== null && typeof window !== "undefined") {
+            window.cancelAnimationFrame(renderFrameId);
+        }
+        renderFrameId = null;
+        pendingFrameRender = null;
     };
 
     const shaderHasIncompleteSupportTextures = (shader: ShaderSuccessResponse | null | undefined) => {
@@ -91,6 +108,8 @@ export const ShaderPreview: Component<Props> = (props) => {
         rendererGeneration++;
         inputImageRequestSeq++;
         renderExportSeq++;
+        clearRenderExportTimer();
+        clearScheduledRender();
         parameterTextureRequestSeq.clear();
         paramsNeedFullReapply = true;
         prevParamsRef.current = {};
@@ -213,7 +232,11 @@ export const ShaderPreview: Component<Props> = (props) => {
         }
 
         if (shouldRender) {
-            renderRenderer(targetRenderer, generation);
+            if (force) {
+                renderRenderer(targetRenderer, generation);
+            } else {
+                scheduleRendererRender(targetRenderer, generation);
+            }
         }
     };
 
@@ -255,7 +278,6 @@ export const ShaderPreview: Component<Props> = (props) => {
 
         const artId = props.artId;
         const unitId = props.unitId;
-        const artPath = props.artPath;
         const inputSrc = props.inputImageSrc || "";
         const referenceSrc = props.referenceImageSrc || "";
         const requiresReference = !!props.requiresReference;
@@ -269,7 +291,6 @@ export const ShaderPreview: Component<Props> = (props) => {
         const seq = ++rendererRequestSeq;
         const shaderContextKey = [
             artId,
-            artPath || "",
             requiresReference ? inputSrc : "",
             requiresReference ? referenceSrc : "",
         ].join("|");
@@ -279,7 +300,6 @@ export const ShaderPreview: Component<Props> = (props) => {
             if (!isTauriRuntimeAvailable()) return;
             const shader = await shaderCache.prefetchShader(
                 artId,
-                artPath,
                 true,
                 inputSrc,
                 referenceSrc,
@@ -301,7 +321,7 @@ export const ShaderPreview: Component<Props> = (props) => {
             lastRenderedDataUrl = "";
         } else if (!shaderCache.hasShaderCode(artId)) {
             if (!isTauriRuntimeAvailable()) return;
-            const shader = await shaderCache.prefetchShader(artId, artPath);
+            const shader = await shaderCache.prefetchShader(artId);
             if (disposed || seq !== rendererRequestSeq || !canvasRef || !shader) return;
         }
 
@@ -331,13 +351,14 @@ export const ShaderPreview: Component<Props> = (props) => {
     onCleanup(() => {
         disposed = true;
         clearContextualPrefetchRetry();
+        clearRenderExportTimer();
+        clearScheduledRender();
         disposeRenderer();
     });
 
     createEffect(() => {
         const inputSrc = props.inputImageSrc;
         const referenceSrc = props.referenceImageSrc;
-        const artPath = props.artPath;
         const requiresReference = props.requiresReference;
         const holdFallbackPreview = props.holdFallbackPreview;
         const reactiveResetKey = [
@@ -345,13 +366,11 @@ export const ShaderPreview: Component<Props> = (props) => {
             props.artId,
             inputSrc || "",
             referenceSrc || "",
-            artPath || "",
             requiresReference ? "1" : "0",
             holdFallbackPreview ? "1" : "0",
         ].join("|");
         void inputSrc;
         void referenceSrc;
-        void artPath;
         void requiresReference;
         void holdFallbackPreview;
         if (reactiveResetKey === lastReactiveResetKey) {
@@ -391,11 +410,24 @@ export const ShaderPreview: Component<Props> = (props) => {
         applyCurrentParamsToRenderer(targetRenderer, rendererGeneration, false);
     });
 
-    const emitRenderedAsync = (targetRenderer: ShaderRenderer, generation: number) => {
-        if (!props.onRendered || !isCurrentRenderer(targetRenderer, generation)) return;
+    const emitRenderedAsync = (
+        targetRenderer: ShaderRenderer,
+        generation: number,
+        seq: number,
+    ) => {
+        if (
+            !props.onRendered
+            || seq !== renderExportSeq
+            || !isCurrentRenderer(targetRenderer, generation)
+        ) {
+            return;
+        }
 
         const canvas = targetRenderer.getCanvas();
-        const seq = ++renderExportSeq;
+        // Interactive rendering uses the default non-preserved WebGL buffer for
+        // maximum throughput. Repaint once at export time so toBlob captures a
+        // complete frame without slowing every slider update.
+        targetRenderer.render();
         canvas.toBlob((blob) => {
             if (!blob || seq !== renderExportSeq || !isCurrentRenderer(targetRenderer, generation)) return;
 
@@ -417,6 +449,39 @@ export const ShaderPreview: Component<Props> = (props) => {
             };
             reader.readAsDataURL(blob);
         }, "image/png");
+    };
+
+    const scheduleRenderedExport = (targetRenderer: ShaderRenderer, generation: number) => {
+        if (!props.onRendered || typeof window === "undefined") return;
+        clearRenderExportTimer();
+        const seq = ++renderExportSeq;
+        renderExportTimer = window.setTimeout(() => {
+            renderExportTimer = null;
+            untrack(() => emitRenderedAsync(targetRenderer, generation, seq));
+        }, 120);
+    };
+
+    const scheduleRendererRender = (targetRenderer: ShaderRenderer, generation: number) => {
+        if (!isCurrentRenderer(targetRenderer, generation)) return;
+        pendingFrameRender = { renderer: targetRenderer, generation };
+        if (renderFrameId !== null) return;
+        if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
+            const pending = pendingFrameRender;
+            pendingFrameRender = null;
+            if (pending) {
+                renderRenderer(pending.renderer, pending.generation);
+            }
+            return;
+        }
+
+        renderFrameId = window.requestAnimationFrame(() => {
+            renderFrameId = null;
+            const pending = pendingFrameRender;
+            pendingFrameRender = null;
+            if (pending) {
+                renderRenderer(pending.renderer, pending.generation);
+            }
+        });
     };
 
     const renderRenderer = (targetRenderer: ShaderRenderer, generation: number) => {
@@ -445,7 +510,7 @@ export const ShaderPreview: Component<Props> = (props) => {
         clearContextualPrefetchRetry();
         contextualPrefetchRetryAttempts = 0;
         setHasRenderedThisMount(true);
-        emitRenderedAsync(targetRenderer, generation);
+        scheduleRenderedExport(targetRenderer, generation);
     };
 
     return (

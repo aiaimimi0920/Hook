@@ -677,7 +677,7 @@ export const api = {
         safeInvoke("set_mouse_monitor_active", { active }, () => undefined, false),
 
     // --- Shader ---
-    prefetchShader: (args: { artId: string, artPath: string | null, inputPath: string | null, referencePath: string | null }): Promise<ShaderResponse> =>
+    prefetchShader: (args: { artId: string, inputPath: string | null, referencePath: string | null }): Promise<ShaderResponse> =>
         safeInvoke("prefetch_shader", args, () => ({
             type: "unsupported",
             success: false,

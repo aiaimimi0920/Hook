@@ -8,7 +8,6 @@ mod loom_config;
 pub mod loom_connector;
 mod mock_artloom; // Integration
 mod mouse_monitor;
-mod process_utils;
 mod screenshot;
 mod single_instance;
 pub mod talk_connector;

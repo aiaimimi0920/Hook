@@ -61,6 +61,9 @@ describe("ShaderRenderer lifecycle", () => {
             () => gl as unknown as WebGL2RenderingContext,
         );
         const renderer = new ShaderRenderer(canvas);
+        expect(canvas.getContext).toHaveBeenCalledWith("webgl2", expect.objectContaining({
+            preserveDrawingBuffer: false,
+        }));
         const textureLoadHandler = vi.fn();
         renderer.setTextureLoadHandler(textureLoadHandler);
         renderer.loadTextureFromSrc("lut", "data:image/png;base64,LUT");

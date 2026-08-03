@@ -40,7 +40,8 @@ const colorTransferCapability: ArtCapability = {
     label: "Color Transfer",
     description: "",
     supported_transports: ["shared_memory"],
-    execution_type: "shader",
+    execution_type: "framework_art",
+    metadata: { capabilities: { preview: "shader" } },
     inputs: [
         { name: "input", label: "Input", type: "image" },
         { name: "reference", label: "Reference", type: "image" },

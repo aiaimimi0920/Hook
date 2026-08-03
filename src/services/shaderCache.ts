@@ -37,7 +37,6 @@ class ShaderCacheService {
      */
     prefetchShader(
         artId: string,
-        artPath?: string,
         force: boolean = false,
         inputPath?: string,
         referencePath?: string
@@ -56,8 +55,7 @@ class ShaderCacheService {
         // Start fetching
         const generation = ++this.nextPrefetchGeneration;
         this.prefetchGenerations.set(artId, generation);
-        let promise: Promise<ShaderSuccessResponse | null>;
-        promise = this.doFetchShader(artId, artPath, inputPath, referencePath)
+        const promise: Promise<ShaderSuccessResponse | null> = this.doFetchShader(artId, inputPath, referencePath)
             .then((result) => {
                 if (this.prefetchGenerations.get(artId) !== generation) {
                     return null;
@@ -77,7 +75,7 @@ class ShaderCacheService {
         return promise;
     }
 
-    private async doFetchShader(artId: string, artPath?: string, inputPath?: string, referencePath?: string): Promise<ShaderSuccessResponse | null> {
+    private async doFetchShader(artId: string, inputPath?: string, referencePath?: string): Promise<ShaderSuccessResponse | null> {
         if (!isTauriRuntimeAvailable()) {
             return null;
         }
@@ -89,7 +87,6 @@ class ShaderCacheService {
 
             const response = await api.prefetchShader({
                 artId,
-                artPath: artPath ?? null,
                 inputPath: inputPath ?? null,
                 referencePath: referencePath ?? null
             });

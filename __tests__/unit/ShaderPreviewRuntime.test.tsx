@@ -216,6 +216,82 @@ describe("ShaderPreview runtime layout", () => {
         dispose();
     });
 
+    it("coalesces rapid numeric parameter renders into one animation frame", async () => {
+        class FakeImage {
+            onload: (() => void) | null = null;
+            onerror: (() => void) | null = null;
+            width = 100;
+            height = 100;
+            naturalWidth = 100;
+            naturalHeight = 100;
+
+            set src(_value: string) {
+                queueMicrotask(() => this.onload?.());
+            }
+        }
+
+        const frameCallbacks: FrameRequestCallback[] = [];
+        vi.stubGlobal("Image", FakeImage);
+        vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
+            frameCallbacks.push(callback);
+            return frameCallbacks.length;
+        }));
+        vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+        const renderShader = vi.fn();
+        const setUniform = vi.fn();
+        vi.spyOn(shaderCache, "hasShaderCode").mockReturnValue(true);
+        vi.spyOn(shaderCache, "disposeRenderer").mockImplementation(() => undefined);
+        vi.spyOn(shaderCache, "getRenderer").mockImplementation((_artId, _unitId, canvas) => ({
+            setTextureLoadHandler: () => undefined,
+            loadTexture: (_name: string, image: { width: number; height: number }) => {
+                canvas.width = image.width;
+                canvas.height = image.height;
+            },
+            render: renderShader,
+            getCanvas: () => canvas,
+            isReady: () => true,
+            setUniform,
+        }) as any);
+
+        const host = document.createElement("div");
+        document.body.append(host);
+        let setParams!: (next: Record<string, unknown>) => void;
+        const dispose = render(() => {
+            const [params, updateParams] = createSignal<Record<string, unknown>>({ strength: 10 });
+            setParams = updateParams;
+            return (
+                <ShaderPreview
+                    unitId="shader-coalesced-unit"
+                    artId="color-transfer"
+                    params={params()}
+                    inputImageSrc="data:image/png;base64,INPUT"
+                    width={200}
+                    height={100}
+                />
+            );
+        }, host);
+
+        await Promise.resolve();
+        await Promise.resolve();
+        renderShader.mockClear();
+        setUniform.mockClear();
+
+        setParams({ strength: 20 });
+        await Promise.resolve();
+        setParams({ strength: 30 });
+        await Promise.resolve();
+
+        expect(window.requestAnimationFrame).toHaveBeenCalledTimes(1);
+        expect(renderShader).not.toHaveBeenCalled();
+        expect(setUniform).toHaveBeenLastCalledWith("strength", 30);
+
+        frameCallbacks.shift()?.(16);
+        expect(renderShader).toHaveBeenCalledTimes(1);
+
+        dispose();
+    });
+
     it("shows the persisted shader preview image while a restored shader node has not re-rendered yet", async () => {
         class FakeImage {
             onload: (() => void) | null = null;
@@ -832,7 +908,6 @@ describe("ShaderPreview runtime layout", () => {
                 <ShaderPreview
                     unitId="shader-retry-unit"
                     artId="color-transfer"
-                    artPath="C:\\Arts\\ColorTransfer"
                     params={{ strength: 50 }}
                     fallbackPreviewSrc="data:image/png;base64,PERSISTED"
                     inputImageSrc="data:image/png;base64,INPUT"
@@ -998,6 +1073,7 @@ describe("ShaderPreview runtime layout", () => {
 
         visible = true;
         await vi.advanceTimersByTimeAsync(1200);
+        await vi.advanceTimersByTimeAsync(120);
         await Promise.resolve();
         await Promise.resolve();
         await Promise.resolve();
@@ -1112,7 +1188,6 @@ describe("ShaderPreview runtime layout", () => {
                     <ShaderPreview
                         unitId="shader-stale-prefetch-unit"
                         artId="color-transfer"
-                        artPath="C:\\Arts\\ColorTransfer"
                         params={{ strength: 50 }}
                         fallbackPreviewSrc="data:image/png;base64,PERSISTED"
                         inputImageSrc="data:image/png;base64,INPUT"

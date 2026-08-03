@@ -200,11 +200,6 @@ export default function App() {
       ((art.params || []).some((param) => param.widget === "image_link" || param.id === "reference") ||
           (art.inputs || []).some((input) => input.name === "reference"));
 
-  const getCapabilityArtPath = (art: ArtCapability) => {
-      const artPath = art.execution?.artPath;
-      return typeof artPath === "string" && artPath.length > 0 ? artPath : undefined;
-  };
-
   const toggleStickerToolbarVisibility = () => {
       const stickerId = selectedStickerId();
       if (tauriRuntime) {
@@ -312,7 +307,7 @@ export default function App() {
       shaderArts
           .filter((art) => !isContextualShaderArt(art))
           .forEach((art: ArtCapability) => {
-          void shaderCache.prefetchShader(art.id, getCapabilityArtPath(art));
+          void shaderCache.prefetchShader(art.id);
       });
   };
 

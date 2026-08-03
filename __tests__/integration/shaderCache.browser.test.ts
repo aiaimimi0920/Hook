@@ -30,7 +30,7 @@ describe('shaderCache browser mode', () => {
     const { shaderCache } = await import('../../src/services/shaderCache');
 
     await expect(
-      shaderCache.prefetchShader('shader-art-1', 'C:/fake/path.py')
+      shaderCache.prefetchShader('shader-art-1')
     ).resolves.toBeNull();
 
     expect(shaderCache.hasShaderCode('shader-art-1')).toBe(false);

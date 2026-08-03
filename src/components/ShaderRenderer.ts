@@ -52,6 +52,7 @@ export class ShaderRenderer {
     private requiredTextureNames: Set<string> = new Set();
     private textureUnits: Map<string, number> = new Map();
     private textureLoadGenerations: Map<string, number> = new Map();
+    private uniformLocations: Map<string, WebGLUniformLocation | null> = new Map();
     private nextTextureUnit: number = 0;
     private currentUniforms: ShaderUniforms = {};
     private canvasWidth: number = 0;
@@ -65,7 +66,7 @@ export class ShaderRenderer {
         const gl = canvas.getContext('webgl2', {
             alpha: true,
             antialias: false,
-            preserveDrawingBuffer: true
+            preserveDrawingBuffer: false
         });
 
         if (!gl) {
@@ -253,6 +254,16 @@ export class ShaderRenderer {
         this.currentUniforms[name] = value;
     }
 
+    private getUniformLocation(name: string): WebGLUniformLocation | null {
+        if (!this.program) return null;
+        if (this.uniformLocations.has(name)) {
+            return this.uniformLocations.get(name) ?? null;
+        }
+        const location = this.gl.getUniformLocation(this.program, name);
+        this.uniformLocations.set(name, location);
+        return location;
+    }
+
     /**
      * Render with current or provided uniforms
      */
@@ -273,16 +284,16 @@ export class ShaderRenderer {
 
             // Set sampler uniform (u_input, u_reference, etc.)
             const uniformName = `u_${name}`;
-            const loc = gl.getUniformLocation(this.program, uniformName);
-            if (loc) {
+            const loc = this.getUniformLocation(uniformName);
+            if (loc !== null) {
                 gl.uniform1i(loc, unit);
             }
         }
 
         // Set all uniforms dynamically
         for (const [name, value] of Object.entries(u)) {
-            const loc = gl.getUniformLocation(this.program, `u_${name}`);
-            if (loc) {
+            const loc = this.getUniformLocation(`u_${name}`);
+            if (loc !== null) {
                 if (typeof value === 'number') {
                     gl.uniform1f(loc, value);
                 } else if (typeof value === 'boolean') {
@@ -385,6 +396,7 @@ export class ShaderRenderer {
         this.requiredTextureNames.clear();
         this.textureUnits.clear();
         this.textureLoadGenerations.clear();
+        this.uniformLocations.clear();
 
         if (this.program) gl.deleteProgram(this.program);
         if (this.vao) gl.deleteVertexArray(this.vao);

@@ -97,31 +97,12 @@ export function useNodeParameters() {
                     const artCap = unit && findArtCapability(caps, unit.artId);
 
                     if (supportsShaderPreview(artCap)) {
-                         console.log(`[Execution] Shader Art Manual Trigger intercepted for ${unitId}`);
-                         const executeShader = async () => {
-                             if (!unit || !unit.artId) return;
-                             const shaderArtId = artCap?.id ?? unit.artId;
-
-                             if (!shaderCache.hasShaderCode(shaderArtId)) {
-                                 try {
-                                     await shaderCache.prefetchShader(shaderArtId);
-                                 } catch (e) {
-                                     console.error(`[Execution] Prefetch failed:`, e);
-                                     return;
-                                 }
-                             }
-
-                             const canvas = document.getElementById(`shader-canvas-${unitId}`) as HTMLCanvasElement;
-                             if (canvas) {
-                                 const renderer = shaderCache.getRenderer(shaderArtId, unitId, canvas);
-                                 if (renderer) {
-                                     renderer.render();
-                                     return;
-                                 }
-                             }
-                         };
-                         executeShader();
-                         return; // STOP EXECUTION HERE
+                         const shaderArtId = artCap?.id ?? unit?.artId;
+                         const canvas = document.getElementById(`shader-canvas-${unitId}`) as HTMLCanvasElement;
+                         if (shaderArtId && canvas) {
+                             shaderCache.getRenderer(shaderArtId, unitId, canvas)?.render();
+                         }
+                         return;
                     }
 
                     // For now, just trigger processing like before
@@ -205,12 +186,27 @@ export function useNodeParameters() {
             }
         }
 
+        // Shader Arts are entirely reactive in ShaderPreview. The store update
+        // above changes uniforms immediately, while source/reference changes
+        // trigger a contextual LUT refresh there. Keep the hot slider path out
+        // of graph image resolution and backend dispatch, and persist only the
+        // final value instead of repeating the same work for every mouse event.
+        if (artCapability && supportsShaderPreview(artCapability) && runtimeArtId) {
+            if (isManualTrigger) {
+                const canvas = document.getElementById(`shader-canvas-${unitId}`) as HTMLCanvasElement;
+                if (canvas) {
+                    shaderCache.getRenderer(runtimeArtId, unitId, canvas)?.render();
+                }
+            }
+            if (isFinal || isManualTrigger || isUpstreamTrigger) {
+                void syncService.performWorkflowSync();
+            }
+            return;
+        }
+
         // If param-driven but NOT final (dragging slider), SKIP backend execution
-        // UNLESS it's a shader art
         if (!isFinal && !isManualTrigger && !isUpstreamTrigger) {
-             if (!supportsShaderPreview(artCapability)) {
-                return;
-             }
+             return;
         }
 
           // 5. Resolve the current full parameter/image state from the graph.
@@ -276,40 +272,6 @@ export function useNodeParameters() {
                   activeParams[key] = fullParams[key];
               }
           });
-
-          // === SHADER ART LOCAL EXECUTION ===
-          if (artCapability && supportsShaderPreview(artCapability) && runtimeArtId) {
-                const isLutParam = ['reference', 'recalculate'].includes(paramId);
-                if (isManualTrigger || isLutParam) {
-                    // Contextual shaders are refreshed by ShaderPreview with the current
-                    // source/reference images. Do not dispatch them to the image backend,
-                    // otherwise the backend pass-through can overwrite the WebGL result.
-                }
-
-                const canvas = document.getElementById(`shader-canvas-${unitId}`) as HTMLCanvasElement;
-                if (canvas) {
-                    const renderer = shaderCache.getRenderer(runtimeArtId, unitId, canvas);
-                    if (renderer) {
-                        if (isManualTrigger) {
-                     renderer.render(); return;
-                        }
-                        const paramDef = artCapability.params.find(p => p.id === paramId);
-                        if (isUpstreamTrigger || isLutParam || !paramDef) {
-                            renderer.render();
-                        } else if (paramDef) {
-                            try {
-                                renderer.setUniform(paramId, effectiveValue);
-                                renderer.render();
-                                if (!isFinal) return;
-                            } catch (e) {
-                                console.error(`[Shader] Render failed:`, e);
-                            }
-                        }
-                    }
-                }
-                void syncService.performWorkflowSync();
-                return;
-          }
 
           // Dispatch Action
           try {
