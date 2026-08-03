@@ -3,6 +3,8 @@ dist
 .vinxi
 .output
 .runtime
+.tmp/
+artifacts/
 release
 *.log
 tmp-*

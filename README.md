@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  Open-source Windows desktop screenshot tool.
+  Windows-first desktop capture, sticker editing, and visual workflow workspace.
 </p>
 
 <p align="center">
@@ -22,97 +22,151 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-F4EA2A" alt="MIT License" /></a>
 </p>
 
-Hook works well for quick capture and light editing.
-
-## Table of contents
-
-- [Why Hook](#why-hook)
-- [Core capabilities](#core-capabilities)
-- [Release packages](#release-packages)
-- [Trust and policies](#trust-and-policies)
-- [Security posture](#security-posture)
-- [Contributing](#contributing)
-- [License](#license)
-
 ## Why Hook
 
-Hook focuses on the gap between a screenshot utility and a heavier design tool:
-
-- you can keep editing and organizing after capture
-- stickers, annotations, and reference images can stay in the same desktop workspace
-- the recycle bin and reference list make assets reusable
-- the node canvas and local capability bridges make it more than an image collector
+Hook combines a transparent desktop capture surface with a persistent sticker
+workspace. Captures can remain on the desktop, be edited and annotated, or be
+connected to local Art/Loom workflows without leaving the application.
 
 ## Core capabilities
 
-- **Capture and long capture**
-  - region capture
-  - HDR-aware region capture with automatic SDR fallback
-  - long-capture sessions
-  - file-backed capture payloads for desktop performance
-- **Sticker and annotation workspace**
-  - crop, border, opacity, raster effects, color pick and copy
-  - text, numbering, shapes, brush, highlighter
-  - recycle bin and reference list
-  - configurable Unicode-safe file naming for saves, drag export, and clipboard files
-- **Desktop workflow canvas**
-  - node graph, links, grouped parameters, sync entry points
-  - editing-oriented top toolbar and context menu
-  - local startup helpers and single-instance control
+### Capture
+
+- region capture through `Ctrl+1`;
+- hovered-window targeting and double-click window capture;
+- HDR-aware Windows 11 capture with automatic SDR fallback;
+- long capture through `Ctrl+3`;
+- file-backed capture payloads to avoid unnecessary large Base64 transfers;
+- native screen color picking.
+
+### Sticker workspace
+
+- persistent desktop stickers and a focused canvas mode;
+- crop, erase, border, corner radius, opacity, rotate, flip, and beautify tools;
+- text, numbering, shapes, lines, arrows, brush, highlighter, mosaic, and blur
+  annotations;
+- geometry-aware annotation selection instead of bounding-box-only hit testing;
+- recycle bin, reference library, groups, history, undo, and redo;
+- Unicode-safe naming for visible save, clipboard, and drag-export files;
+- fast minified/full-view switching through cached composite previews;
+- native Shift-drag file export to Explorer.
+
+### Workflow and local integrations
+
+- node canvas, links, grouped parameters, and shader previews;
+- Loom capability discovery and Art execution/delivery;
+- optional Talk voice capture and Tea ticket creation through local capability
+  bridges;
+- single-instance enforcement, tray residency, runtime diagnostics, and an
+  independent emergency-exit watchdog.
+
+See [`docs/FEATURES.md`](docs/FEATURES.md) for the current shortcut and manual
+regression matrix. The implementation remains the source of truth when a
+document and the code disagree.
+
+## Requirements
+
+- Windows 10 or Windows 11;
+- WebView2 Runtime;
+- Node.js 22+ for frontend development;
+- Rust stable with the MSVC toolchain for desktop builds.
+
+HDR capture is available only when the selected Windows 11 display reports HDR
+support. Unsupported or SDR-only cases fall back automatically. See
+[`docs/HDR_CAPTURE.md`](docs/HDR_CAPTURE.md).
+
+## Development
+
+Install dependencies and start the Tauri development application:
+
+```powershell
+npm install
+npm run dev:tauri
+```
+
+Useful checks:
+
+```powershell
+npm run typecheck
+npm run test:performance
+npm run test:parallel
+npm test
+cargo fmt --check --manifest-path src-tauri\Cargo.toml
+cargo test --manifest-path src-tauri\Cargo.toml
+npm run build
+```
+
+`npm run verify:local` runs the complete serial verification chain and then
+builds/packages a local release. It is not a lightweight lint-only command.
+
+Build a portable executable directly:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\build-local-hook-exe.ps1 `
+  -OutputDir ..\release\Hook\local-build `
+  -Force
+```
+
+Development rules and module ownership are documented in
+[`CONTRIBUTING.md`](CONTRIBUTING.md). The current runtime structure is documented
+in [`TECHNICAL_ARCHITECTURE.md`](TECHNICAL_ARCHITECTURE.md).
 
 ## Release packages
 
-- **Portable (Current recommended package)**
-  - unzip and run
-  - current public release package for quick trials and ordinary daily capture
-  - includes Hook's license, third-party notices, and bundled-source license texts
-  - if you hit Windows foreground/elevation limits in scenarios involving
-    special windows such as **Task Manager**, try launching Hook as
-    **administrator** as the current workaround
-- **Installer (Planned for future signed releases)**
-  - Hook keeps the signed UIAccess-oriented installer path in development
-  - it will become a public release package again after the project has real
-    signing material wired into the release pipeline
+- **Portable (current recommended package)**
+  - extract the zip and run `hook.exe`;
+  - the only current user-facing package in ordinary builds and tag releases;
+  - includes the project license, third-party notices, and bundled-source
+    license texts;
+  - if Windows blocks interaction with elevated foreground windows such as
+    **Task Manager**, try running Hook as **administrator** as the current
+    workaround.
+- **Installer (planned for future signed releases)**
+  - the repository retains the UIAccess installer and SignPath preparation;
+  - the installer is not a current public package and must not be published
+    until the signing provider and protected approval environment are active.
 
-See [`UIACCESS_DISTRIBUTION.md`](UIACCESS_DISTRIBUTION.md) for the full explanation.
+The tag workflow may also attach a provenance JSON file for the unsigned
+UIAccess signing candidate. That JSON is review metadata, not an installer.
 
-## Trust and policies
+See [`UIACCESS_DISTRIBUTION.md`](UIACCESS_DISTRIBUTION.md) and
+[`docs/RELEASE_STRATEGY.md`](docs/RELEASE_STRATEGY.md).
 
-### Code signing policy
+## Code signing status
 
 Free code signing provided by [SignPath.io](https://signpath.io/), certificate
-by [SignPath Foundation](https://signpath.org/).
-
-Hook signs only artifacts built from public tagged source by the hosted workflow.
-Every signing request requires manual approval, and unsigned artifacts are never
-published as signed installer/UIAccess packages.
+by [SignPath Foundation](https://signpath.org/), applies only after the Hook
+project is provisioned and a hosted signing request receives manual approval.
+The current portable package must be treated as unsigned unless a release
+explicitly includes an approved signed installer.
 
 - [Code Signing Policy](docs/CODE_SIGNING_POLICY.md)
 - [Privacy Policy](docs/PRIVACY_POLICY.md)
 - [Security Policy](SECURITY.md)
 - [Governance and Signing Roles](GOVERNANCE.md)
 - [Third-Party Notices](THIRD_PARTY_NOTICES.md)
-- [UIAccess Distribution Notes](UIACCESS_DISTRIBUTION.md)
 
-## Security posture
+## Local data compatibility
 
-Hook is an ordinary screenshot and visual-workflow tool. It does not disable
-security products, inject code into other processes, exploit vulnerabilities,
-or add unauthorized persistence. See [`SECURITY.md`](SECURITY.md) for the
-reporting process and product security boundary.
+The public Tauri bundle identifier is `com.yamiyu.hook`. Hook preserves existing
+local user state by falling back to older data directories created under
+`io.github.aiaimimi0920.hook` and `com.vmjcv.hook` when the current directory is
+empty.
 
 ## Contributing
 
-Issues, build feedback, and focused improvement suggestions are welcome:
+Focused issues and pull requests are welcome:
 
 - Issues: <https://github.com/aiaimimi0920/Hook/issues>
-- Local verification: run `npm run verify:local` before packaging or submitting changes.
-- Public bundle identifier: `com.yamiyu.hook`. Hook keeps compatibility fallbacks for older local data directories created under `io.github.aiaimimi0920.hook` and `com.vmjcv.hook`.
+- Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Documentation index: [`docs/README.md`](docs/README.md)
 
 ## License
 
-MIT
+MIT. See [`LICENSE`](LICENSE).
 
-## Friendly Links
+## Friendly links
 
-- [linux.do](https://linux.do/) Thanks to the promotion from the linux.do community
+- [linux.do](https://linux.do/) — thanks to the linux.do community for helping
+  introduce Hook to more users.

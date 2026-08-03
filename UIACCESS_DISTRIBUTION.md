@@ -132,7 +132,9 @@ the current public phase is portable-first:
 ## GitHub Actions requirements
 
 Portable releases can be generated without signing and are the only current
-public release artifacts.
+user-facing executable packages. Tag releases also publish a provenance JSON for
+the reviewed unsigned UIAccess candidate; that JSON is audit metadata, not an
+installer or executable release package.
 
 Installer/UIAccess releases require a real code-signing certificate in GitHub
 Actions. Hook uses the hosted SignPath model instead of exporting a PFX or

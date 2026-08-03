@@ -1,82 +1,45 @@
-# Hook Documentation Guide
+# Hook Documentation
 
-This `docs/` directory is still primarily a **historical archive**, but it now
-also contains a small set of **current policy documents** used by the public
-release process.
+This directory contains only documentation that describes the current product,
+release process, or public policy. Current code, configuration, workflows, and
+tests remain the source of truth.
 
-## What to read first
+## Product and runtime
 
-If you want to understand the current project, start with the repository root:
+- [`../README.md`](../README.md) - English product overview and developer entrypoints.
+- [`../README.zh-CN.md`](../README.zh-CN.md) - Simplified Chinese product overview.
+- [`../TECHNICAL_ARCHITECTURE.md`](../TECHNICAL_ARCHITECTURE.md) - current runtime,
+  module, capture, input, persistence, and release architecture.
+- [`../CONTRIBUTING.md`](../CONTRIBUTING.md) - engineering and verification rules.
+- [`FEATURES.md`](FEATURES.md) - implemented shortcuts and manual regression matrix.
+- [`HDR_CAPTURE.md`](HDR_CAPTURE.md) - HDR capture behavior and SDR fallback rules.
 
-- `README.md`
-- `UIACCESS_DISTRIBUTION.md`
-- `PROJECT_OVERVIEW.md`
-- `TECHNICAL_ARCHITECTURE.md`
-- `docs/AI_HANDOFF_PROJECT_MAP.md`
+## Release and signing
 
-For current release trust/governance docs, also read:
+- [`RELEASE_STRATEGY.md`](RELEASE_STRATEGY.md)
+- [`CODE_SIGNING_POLICY.md`](CODE_SIGNING_POLICY.md)
+- [`MAINTAINER_SIGNING_GUIDE.md`](MAINTAINER_SIGNING_GUIDE.md)
+- [`SIGNPATH_APPLICATION_CHECKLIST.md`](SIGNPATH_APPLICATION_CHECKLIST.md)
+- [`SIGNPATH_APPLICATION_DRAFT.md`](SIGNPATH_APPLICATION_DRAFT.md)
+- [`GITHUB_RELEASE_BODY.md`](GITHUB_RELEASE_BODY.md)
+- [`../UIACCESS_DISTRIBUTION.md`](../UIACCESS_DISTRIBUTION.md)
 
-- `docs/RELEASE_STRATEGY.md`
-- `docs/CODE_SIGNING_POLICY.md`
-- `docs/PRIVACY_POLICY.md`
-- `SECURITY.md`
-- `GOVERNANCE.md`
-- `THIRD_PARTY_NOTICES.md`
-- `docs/MAINTAINER_SIGNING_GUIDE.md`
-- `docs/SIGNPATH_APPLICATION_CHECKLIST.md`
-- `docs/SIGNPATH_APPLICATION_DRAFT.md`
+## Project policy
 
-## What is current here
+- [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md)
+- [`../SECURITY.md`](../SECURITY.md)
+- [`../GOVERNANCE.md`](../GOVERNANCE.md)
+- [`../THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md)
 
-### Policy docs
+## Documentation rule
 
-These files are current and are not archival-only:
+Completed implementation plans, migration checklists, smoke logs, and handoff
+notes are preserved by Git history and the `文本优化前版本` tag rather than kept in
+the active documentation tree. If a document conflicts with the implementation,
+correct or remove the document; do not change working code merely to match an old
+plan.
 
-- `AI_HANDOFF_PROJECT_MAP.md`
-- `RELEASE_STRATEGY.md`
-- `CODE_SIGNING_POLICY.md`
-- `PRIVACY_POLICY.md`
-- `MAINTAINER_SIGNING_GUIDE.md`
-- `SIGNPATH_APPLICATION_CHECKLIST.md`
-- `SIGNPATH_APPLICATION_DRAFT.md`
-- `GITHUB_RELEASE_BODY.md`
-
-### Maintenance records
-
-- `PURE_LOGIC_EXTRACTION.md` — record of the pure-logic extraction / testability
-  campaign: modules pulled out of `app.tsx` (and a `tea_client.rs` hardening),
-  the discipline used, decisions deliberately preserved, and remaining tech debt.
-
-## What is archived here
-
-### `migration/`
-
-Historical migration and smoke-audit records. Useful for tracing how Hook was ported or audited, but not guaranteed to match the current implementation.
-
-### `superpowers/plans/`
-
-Archived implementation plans from earlier development stages.
-
-### `superpowers/specs/`
-
-Archived design/spec documents written for earlier feature batches.
-
-## Path placeholder rule
-
-Machine-local absolute paths in archived docs have been normalized to placeholder roots such as:
-
-- `<hook-repo-root>`
-- `<neuro-root>`
-- `<hook-runtime-root>`
-- `<hook-release-root>`
-- `<legacy-arthook-root>`
-- `<legacy-talk-root>`
-- `<legacy-artnexus-workflows-root>`
-
-These placeholders preserve historical context without leaking a specific workstation layout.
-
-## Interpretation rule
-
-If a file under `docs/` conflicts with the current code or the root docs, treat
-the `docs/` copy as historical context unless it is one of the current policy
-docs listed above or it is explicitly refreshed.
+Historical commits may contain sanitized path placeholders such as
+`<hook-repo-root>`, `<legacy-arthook-root>`, and
+`<legacy-artnexus-workflows-root>`. They describe old machine-local roots only
+and are not active repository locations.

@@ -9,7 +9,11 @@ Hook is currently in a **portable-first** public release phase.
 
 That means:
 
-- public GitHub release assets publish only the portable Windows zip;
+- the portable Windows zip is the only current user-facing software package in a
+  public GitHub Release;
+- tag releases also attach
+  `hook-uiaccess-signing-candidate-Vx.x.x.json`, a provenance record for the
+  reviewed unsigned UIAccess candidate; it is metadata, not an installer;
 - normal GitHub Actions build artifacts expose only the portable executable;
 - the repository contains a manual SignPath workflow, but it cannot publish an
   installer until SignPath and the protected GitHub Environment are provisioned;
@@ -56,6 +60,9 @@ The current portable-first phase is reflected in:
 - `.github/workflows/build-hook-exe.yml`
 - `.github/workflows/release-hook-tag.yml`
 - `.github/workflows/signpath-signing.yml`
+
+The phrase "portable-first" describes the downloadable application package. It
+does not exclude non-executable audit metadata such as the signing-candidate JSON.
 
 ## Files that preserve the future installer path
 
