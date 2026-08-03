@@ -589,7 +589,7 @@ describe("sticker edit transforms", () => {
       y: 20,
       w: 30,
       h: 40,
-      style: { color: "#fff", width: 2, opacity: 1 },
+      style: { color: "#fff", width: 2, opacity: 1, fill: "#ffffff" },
     };
 
     const polygon: StickerAnnotation = {
@@ -601,7 +601,7 @@ describe("sticker edit transforms", () => {
       w: 24,
       h: 24,
       sides: 6,
-      style: { color: "#fff", width: 2, opacity: 1 },
+      style: { color: "#fff", width: 2, opacity: 1, fill: "#ffffff" },
     };
 
     expect(annotationContainsPoint(triangle, { x: 25, y: 45 })).toBe(true);
@@ -609,7 +609,7 @@ describe("sticker edit transforms", () => {
     expect(findTopmostAnnotationAtPoint([triangle, polygon], { x: 62, y: 72 })?.id).toBe("polygon");
   });
 
-  it("hit-tests rotated box annotations using their transformed bounds", () => {
+  it("hit-tests rotated box annotations using their transformed geometry", () => {
     const rotatedRect: StickerAnnotation = {
       id: "rotated-rect",
       type: "rect",
@@ -622,7 +622,8 @@ describe("sticker edit transforms", () => {
       style: { color: "#fff", width: 2, opacity: 1 },
     };
 
-    expect(annotationContainsPoint(rotatedRect, { x: 15, y: 25 })).toBe(true);
-    expect(findTopmostAnnotationAtPoint([rotatedRect], { x: 15, y: 25 })?.id).toBe("rotated-rect");
+    expect(annotationContainsPoint(rotatedRect, { x: 30, y: 10 })).toBe(true);
+    expect(findTopmostAnnotationAtPoint([rotatedRect], { x: 30, y: 10 })?.id).toBe("rotated-rect");
+    expect(annotationContainsPoint(rotatedRect, { x: 5, y: 25 }, 0)).toBe(false);
   });
 });

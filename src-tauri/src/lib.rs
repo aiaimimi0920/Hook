@@ -2,6 +2,7 @@ mod app_settings;
 mod capture;
 mod capture_coords;
 mod capture_windows;
+pub mod emergency_watchdog;
 mod file_naming;
 mod long_capture;
 mod loom_config;
@@ -327,6 +328,9 @@ pub fn hook_help_text() -> &'static str {
         "  --talk-voice-capture-smoke Invoke Talk voice.capture.once through local capability discovery and exit\n",
         "  -h, --help                Print help\n",
         "  -V, --version             Print version\n",
+        "\n",
+        "Emergency exit:\n",
+        "  Double-press Esc within 400 ms, or press Ctrl+Alt+Shift+F12.\n",
         "\n",
         "Environment:\n",
         "  HOOK_SELF_CHECK_OUTPUT          Optional file path for --self-check JSON output\n",
@@ -10347,6 +10351,16 @@ pub fn run() {
             // process owns the single-instance mutex, reload the user's cursor
             // scheme before Hook can enter capture mode again.
             restore_system_cursors_unconditionally();
+            match emergency_watchdog::spawn_for_current_process() {
+                Ok(watchdog_pid) => append_runtime_log_line(&format!(
+                    "emergency_watchdog_spawned :: watchdog_pid={}",
+                    watchdog_pid
+                )),
+                Err(error) => append_runtime_log_line(&format!(
+                    "emergency_watchdog_spawn_failed :: {}",
+                    error
+                )),
+            }
 
             // Initialize Shared State
             let hit_map = SharedHitMap::new();

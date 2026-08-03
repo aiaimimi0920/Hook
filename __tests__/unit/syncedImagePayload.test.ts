@@ -207,6 +207,47 @@ describe("synced image payload helpers", () => {
         expect(baseSignature).not.toEqual(changedSignature);
     });
 
+    it("keeps the baked image signature stable across view-only minify and restore changes", () => {
+        const fullUnit = {
+            type: "sticker",
+            w: 640,
+            h: 360,
+            data: {
+                src: "data:image/png;base64,base",
+                annotationState: {
+                    elements: [
+                        {
+                            id: "annotation-1",
+                            type: "line",
+                            zIndex: 1,
+                            points: [
+                                { x: 10, y: 10 },
+                                { x: 400, y: 200 },
+                            ],
+                            style: { color: "#ffffff", width: 4 },
+                        },
+                    ],
+                    serialCounter: 1,
+                },
+            },
+        } as any;
+        const minifiedUnit = {
+            ...fullUnit,
+            w: 120,
+            h: 120,
+            data: {
+                ...fullUnit.data,
+                minified: true,
+                savedRect: { x: 20, y: 30, w: 640, h: 360 },
+                cropOffset: { x: 180, y: 70 },
+            },
+        } as any;
+
+        expect(buildSyncedImageSignature(minifiedUnit)).toBe(
+            buildSyncedImageSignature(fullUnit),
+        );
+    });
+
     it("invalidates baked previews when propagated sticker content geometry changes", () => {
         const baseUnit = {
             type: "sticker",

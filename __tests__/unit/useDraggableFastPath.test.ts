@@ -332,6 +332,7 @@ describe("useDraggable compositor fast path", () => {
     }
 
     expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
+    expect(follower.style.transform).toBe("translate3d(500px, 0px, 0)");
     scheduledFrame?.(performance.now());
     await draggable.handleDragEnd();
 

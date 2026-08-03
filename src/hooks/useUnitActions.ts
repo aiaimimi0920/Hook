@@ -132,10 +132,7 @@ export function useUnitActions() {
                } else {
                    graphStore.actions.updateUnitData(id, { minified: false });
                }
-               setTimeout(() => {
-                   syncService.updateBackendRects();
-                   syncService.performWorkflowSync();
-               }, 100);
+               void syncService.performWorkflowSync();
                return;
           }
 
@@ -178,10 +175,7 @@ export function useUnitActions() {
               },
           );
 
-          setTimeout(() => {
-              syncService.updateBackendRects();
-              syncService.performWorkflowSync();
-          }, 100);
+          void syncService.performWorkflowSync();
     };
 
     // Extracted from App.tsx - Inline Logic

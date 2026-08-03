@@ -174,6 +174,10 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
     let hostRef: HTMLDivElement | undefined;
     let pendingTextInputRef: HTMLInputElement | undefined;
     let liveErasePreviewRef: HTMLCanvasElement | undefined;
+    let selectionOverlayRef: SVGGElement | undefined;
+    let activePointerRect: DOMRect | null = null;
+    let imperativeMovePoint: StickerPoint | null = null;
+    let imperativeMoveFollowers: SVGGElement[] = [];
     const [draftShape, setDraftShape] = createSignal<DraftShape | null>(null);
     const [draftLine, setDraftLine] = createSignal<DraftLine | null>(null);
     const [activePointerId, setActivePointerId] = createSignal<number | null>(null);
@@ -851,14 +855,48 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
     };
 
     const toLocalPoint = (event: PointerEvent): StickerPoint => {
-        const rect = hostRef!.getBoundingClientRect();
+        const rect = activePointerRect ?? hostRef!.getBoundingClientRect();
         return {
             x: event.clientX - rect.left,
             y: event.clientY - rect.top,
         };
     };
 
+    const clearImperativeMovePreview = () => {
+        for (const follower of imperativeMoveFollowers) {
+            follower.removeAttribute("transform");
+        }
+        selectionOverlayRef?.removeAttribute("transform");
+        imperativeMoveFollowers = [];
+        imperativeMovePoint = null;
+    };
+
+    const prepareImperativeMovePreview = (annotationIds: string[]) => {
+        clearImperativeMovePreview();
+        const selectedIds = new Set(annotationIds);
+        imperativeMoveFollowers = Array.from(
+            hostRef?.querySelectorAll<SVGGElement>("[data-sticker-annotation-id]") ?? [],
+        ).filter((element) => selectedIds.has(element.dataset.stickerAnnotationId ?? ""));
+    };
+
+    const applyImperativeMovePreview = (
+        interaction: ActiveTransformInteraction,
+        point: StickerPoint,
+    ) => {
+        imperativeMovePoint = point;
+        const rawDeltaX = point.x - interaction.startPoint.x;
+        const rawDeltaY = point.y - interaction.startPoint.y;
+        const deltaX = interaction.axis === "y" ? 0 : rawDeltaX;
+        const deltaY = interaction.axis === "x" ? 0 : rawDeltaY;
+        const transform = `translate(${deltaX} ${deltaY})`;
+        for (const follower of imperativeMoveFollowers) {
+            follower.setAttribute("transform", transform);
+        }
+        selectionOverlayRef?.setAttribute("transform", transform);
+    };
+
     const captureHostPointer = (pointerId: number) => {
+        activePointerRect ??= hostRef?.getBoundingClientRect() ?? null;
         try {
             hostRef?.setPointerCapture(pointerId);
         } catch {
@@ -898,16 +936,22 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             axis: options?.axis ?? "xy",
             pivot: getAnnotationGroupCenter(targetAnnotations),
         });
+        if (kind === "move") {
+            prepareImperativeMovePreview(annotationIds);
+            imperativeMovePoint = point;
+        }
         return true;
     };
 
     const releaseHostPointer = () => {
         const pointerId = activePointerId();
-        if (pointerId === null) return;
-        if (hostRef?.hasPointerCapture(pointerId)) {
-            hostRef.releasePointerCapture(pointerId);
+        if (pointerId !== null) {
+            if (hostRef?.hasPointerCapture(pointerId)) {
+                hostRef.releasePointerCapture(pointerId);
+            }
+            setActivePointerId(null);
         }
-        setActivePointerId(null);
+        activePointerRect = null;
     };
 
     const isSquareConstraintActive = (event?: PointerEvent) =>
@@ -928,8 +972,13 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
         mode === "highlighter" || (mode === "brush" && stickerToolSettings.brushHighlighterEnabled);
 
     const onPointerMove = (event: PointerEvent) => {
-        if (transformInteraction()) {
+        const transform = transformInteraction();
+        if (transform) {
             const point = toLocalPoint(event);
+            if (transform.kind === "move") {
+                applyImperativeMovePreview(transform, point);
+                return;
+            }
             setTransformInteraction((prev) =>
                 prev
                     ? {
@@ -1072,17 +1121,34 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             line?.mode === "content-eraser" && liveEraseStrokePoints.length > 0
                 ? [...liveEraseStrokePoints]
                 : line?.points ?? [];
-        setTransformInteraction(null);
         setReshapeLine(null);
         setResizeAnnotation(null);
         setDraftShape(null);
         setDraftLine(null);
 
         if (transform) {
-            await commitAnnotationElements(buildTransformPreviewAnnotations(transform));
-            uiActions.setSelectedStickerAnnotations(transform.annotationIds);
+            const committedTransform =
+                transform.kind === "move" && imperativeMovePoint
+                    ? { ...transform, currentPoint: imperativeMovePoint }
+                    : transform;
+            try {
+                const commit = commitAnnotationElements(
+                    buildTransformPreviewAnnotations(committedTransform),
+                );
+                // The store patch above is synchronous. Remove the temporary SVG
+                // transform only after the committed coordinates are already live,
+                // so the annotation never flashes back or applies the delta twice.
+                clearImperativeMovePreview();
+                await commit;
+                uiActions.setSelectedStickerAnnotations(transform.annotationIds);
+            } finally {
+                clearImperativeMovePreview();
+                setTransformInteraction(null);
+            }
             return;
         }
+        clearImperativeMovePreview();
+        setTransformInteraction(null);
 
         if (reshape) {
             await commitAnnotationElements(buildReshapedPreviewAnnotations(reshape));
@@ -1547,6 +1613,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
 
     const onPointerDown = async (event: PointerEvent) => {
         if (!interactionEnabled()) return;
+        activePointerRect = hostRef?.getBoundingClientRect() ?? null;
         const point = toLocalPoint(event);
         const hit = findTopmostAnnotationAtPoint(annotationState().elements, point);
         const currentSelectionIds = selectedAnnotationIds();
@@ -1918,6 +1985,8 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             window.removeEventListener("keydown", handleKeyDown);
             window.removeEventListener("keyup", handleKeyUp);
             window.removeEventListener("blur", handleBlur);
+            clearImperativeMovePreview();
+            activePointerRect = null;
         });
     });
 
@@ -1990,14 +2059,16 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                         {(annotation) => {
                             const line = annotation as StickerLineAnnotation;
                             return (
-                                <path
-                                    d={renderArrowShaftPath(line.points, line.style.width || 2, false)}
-                                    stroke={line.style.color}
-                                    stroke-width={line.style.width}
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    fill="none"
-                                />
+                                <g data-sticker-annotation-id={line.id}>
+                                    <path
+                                        d={renderArrowShaftPath(line.points, line.style.width || 2, false)}
+                                        stroke={line.style.color}
+                                        stroke-width={line.style.width}
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        fill="none"
+                                    />
+                                </g>
                             );
                         }}
                     </For>
@@ -2005,8 +2076,9 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
 
                 <For each={nonHighlighterPreviewAnnotations()}>
                     {(annotation) => (
-                        <Dynamic
-                            component={() => {
+                        <g data-sticker-annotation-id={annotation.id}>
+                            <Dynamic
+                                component={() => {
                                 switch (annotation.type) {
                                     case "rect":
                                     case "round-rect":
@@ -2149,8 +2221,9 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                                         );
                                     }
                                 }
-                            }}
-                        />
+                                }}
+                            />
+                        </g>
                     )}
                 </For>
 
@@ -2158,9 +2231,10 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                     {(preview) => renderTextAnnotation(() => preview)}
                 </Show>
 
-                <Show
-                    when={selectedPreviewAnnotations().length > 1}
-                    fallback={
+                <g ref={selectionOverlayRef} data-sticker-annotation-selection-overlay="true">
+                    <Show
+                        when={selectedPreviewAnnotations().length > 1}
+                        fallback={
                         <Show when={selectedPreviewAnnotation()} keyed>
                             {(value) => {
                                 if ("points" in value && Array.isArray(value.points)) {
@@ -2271,8 +2345,8 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                                 );
                             }}
                         </Show>
-                    }
-                >
+                        }
+                    >
                     <g>
                         <For each={selectedPreviewAnnotations()}>
                             {(annotation) => (
@@ -2312,10 +2386,10 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                             )}
                         </Show>
                     </g>
-                </Show>
+                    </Show>
 
-                <Show when={interactionEnabled() && (showMoveAxesGizmo() || showScaleGizmo() || showRotateGizmo())}>
-                    <g style={{ "pointer-events": "none" }}>
+                    <Show when={interactionEnabled() && (showMoveAxesGizmo() || showScaleGizmo() || showRotateGizmo())}>
+                        <g style={{ "pointer-events": "none" }}>
                         <Show when={showMoveAxesGizmo()}>
                             <g>
                                 <line
@@ -2411,8 +2485,9 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                                 stroke-dasharray="5 3"
                             />
                         </Show>
-                    </g>
-                </Show>
+                        </g>
+                    </Show>
+                </g>
 
                 {/* Effect (mosaic/blur) brush draft, kept in its own <Show> keyed on
                     the MODE so the overlay's expensive <defs> mount once per stroke;

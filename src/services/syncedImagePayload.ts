@@ -16,6 +16,14 @@ interface BuildSyncedImagePayloadOptions<TUnit extends ImagePayloadUnit> {
     renderBakedPreviewSrc?: (unit: TUnit) => Promise<string>;
 }
 
+export const resolveBakedStickerSyncSize = (unit: ImagePayloadUnit) => {
+    const savedRect = unit.data.minified ? unit.data.savedRect : undefined;
+    if (unit.type === "sticker" && savedRect && savedRect.w > 0 && savedRect.h > 0) {
+        return { w: savedRect.w, h: savedRect.h };
+    }
+    return { w: unit.w, h: unit.h };
+};
+
 const hasMeaningfulImageEditState = (
     imageEditState: Unit["data"]["imageEditState"] | null | undefined,
 ) => {
@@ -70,11 +78,12 @@ export const buildSyncedImageSignature = (
         });
     }
 
+    const bakedSize = resolveBakedStickerSyncSize(unit);
     return JSON.stringify({
         mode: "baked",
         type: unit.type,
-        w: unit.w,
-        h: unit.h,
+        w: bakedSize.w,
+        h: bakedSize.h,
         displaySrc: options.displaySrcOverride ?? null,
         src: unit.data.src ?? null,
         previewSrc: previewSrc ?? null,

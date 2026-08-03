@@ -3,6 +3,16 @@
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    match hook_lib::emergency_watchdog::parse_parent_pid(&args) {
+        Ok(Some(parent_pid)) => {
+            std::process::exit(hook_lib::emergency_watchdog::run(parent_pid));
+        }
+        Ok(None) => {}
+        Err(error) => {
+            eprintln!("failed to start Hook emergency watchdog: {error}");
+            std::process::exit(2);
+        }
+    }
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         emit_cli_text(hook_lib::hook_help_text());
         return;

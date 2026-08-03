@@ -24,6 +24,11 @@ describe("Hook sticker double-click contract", () => {
         expect(actionsSource).toContain("setDraggingStickerId(null);");
         expect(actionsSource).toContain("setMultiDragPositions(null);");
         expect(actionsSource).toContain("sticker-double-click-window");
+        expect(actionsSource).not.toContain(
+            "syncService.updateBackendRects();\n                   syncService.performWorkflowSync();",
+        );
+        expect(actionsSource).not.toContain("setTimeout(() => {\n              syncService.performWorkflowSync();");
+        expect(actionsSource).toContain("void syncService.performWorkflowSync();");
         expect(unitViewSource).toContain('"pointer-events": "none"');
         expect(unitViewSource).toContain("data-hook-drag-follow-unit-id={props.unit.id}");
         expect(unitViewSource).not.toContain("props.dragPosition");

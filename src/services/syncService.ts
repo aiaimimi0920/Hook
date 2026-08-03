@@ -10,6 +10,7 @@ import { mapSessionStickerToUnit, detectUnknownSessionStickerKeys } from "./sess
 import {
     buildSyncedImagePayload,
     buildSyncedImageSignature,
+    resolveBakedStickerSyncSize,
 } from "./syncedImagePayload";
 import {
     renderStickerCompositeWithAnnotations,
@@ -117,6 +118,7 @@ const executeSyncCycle = async () => {
         signature: string;
     }>();
     const workflowAssetArchiveHints: WorkflowAssetArchiveHints = { workflows: {} };
+    const bakedPreviewSignatures = new Map<string, string | undefined>();
 
     const resolveBakedPreviewDisplaySrc = (unit: Unit) =>
         resolveStickerCompositeBaseImageSrc({
@@ -126,14 +128,33 @@ const executeSyncCycle = async () => {
             capabilities: graphStore.capabilities,
         });
 
-    const buildBakedPreviewSignature = (unit: Unit) =>
-        buildSyncedImageSignature(unit, {
+    const normalizeBakedPreviewUnit = (unit: Unit): Unit => {
+        const bakedSize = resolveBakedStickerSyncSize(unit);
+        if (bakedSize.w === unit.w && bakedSize.h === unit.h) {
+            return unit;
+        }
+        return {
+            ...unit,
+            w: bakedSize.w,
+            h: bakedSize.h,
+        };
+    };
+
+    const buildBakedPreviewSignature = (unit: Unit) => {
+        if (bakedPreviewSignatures.has(unit.id)) {
+            return bakedPreviewSignatures.get(unit.id);
+        }
+        const signature = buildSyncedImageSignature(unit, {
             displaySrcOverride: resolveBakedPreviewDisplaySrc(unit) ?? null,
         });
+        bakedPreviewSignatures.set(unit.id, signature);
+        return signature;
+    };
 
     const renderBakedPreviewSrc = async (unit: Unit) => {
+        const bakedUnit = normalizeBakedPreviewUnit(unit);
         const cacheToken = getSyncImageCacheToken(unit.id);
-        const baseImageSrcOverride = resolveBakedPreviewDisplaySrc(unit);
+        const baseImageSrcOverride = resolveBakedPreviewDisplaySrc(bakedUnit);
         const signature = buildBakedPreviewSignature(unit);
         if (!signature) {
             return baseImageSrcOverride || unit.data.previewSrc || unit.data.src || "";
@@ -145,7 +166,7 @@ const executeSyncCycle = async () => {
         }
 
         const bakedPreviewSrc = await renderStickerCompositeWithAnnotations(
-            unit,
+            bakedUnit,
             unit.data.annotationState?.elements || [],
             { baseImageSrcOverride },
         );

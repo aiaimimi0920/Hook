@@ -108,6 +108,28 @@ export function useDraggable() {
         }
     };
 
+    const applyImmediateDragVisual = (snapshot: PendingDragPointer) => {
+        if (snapshot.alignment || snapshot.cascade) return;
+        const primaryId = activeDragId;
+        if (!primaryId) return;
+        const primaryStart = dragStartPositions[primaryId];
+        if (!primaryStart) return;
+
+        const primaryX = snapshot.clientX - dragOffset.x;
+        const primaryY = snapshot.clientY - dragOffset.y;
+        const deltaX = primaryX - primaryStart.x;
+        const deltaY = primaryY - primaryStart.y;
+        const positions: DragPositionMap = {};
+        for (const unitId in dragStartPositions) {
+            const start = dragStartPositions[unitId];
+            positions[unitId] = {
+                x: start.x + deltaX,
+                y: start.y + deltaY,
+            };
+        }
+        applyDragVisualFastPath(positions);
+    };
+
     const clearDragVisualFastPath = () => {
         for (const follower of dragFollowerStyles) {
             follower.element.style.transform = follower.transform;
@@ -404,6 +426,10 @@ export function useDraggable() {
             flushPendingDragMove();
             return;
         }
+        // Keep the visual surface under the physical cursor immediately. RAF is
+        // still retained for snapping, link previews, metrics, and the committed
+        // position, but no longer imposes a one-frame lag on ordinary dragging.
+        applyImmediateDragVisual(pendingDragPointer);
         scheduleDragMoveFrame();
     };
 

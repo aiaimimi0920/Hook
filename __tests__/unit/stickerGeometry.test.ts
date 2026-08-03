@@ -93,11 +93,103 @@ describe("stickerGeometry", () => {
             y: 40,
             w: 80,
             h: 50,
-            style: { color: "#fff", width: 2, opacity: 1 },
+            style: { color: "#fff", width: 2, opacity: 1, fill: "#ffffff" },
         };
 
         expect(annotationContainsPoint(annotation, { x: 80, y: 65 })).toBe(true);
         expect(annotationContainsPoint(annotation, { x: 10, y: 10 })).toBe(false);
+    });
+
+    it("does not select empty space inside a sparse mosaic brush bounding box", () => {
+        const mosaic: StickerAnnotation = {
+            id: "mosaic-wave",
+            type: "mosaic",
+            zIndex: 1,
+            x: 10,
+            y: 10,
+            w: 180,
+            h: 100,
+            points: [
+                { x: 10, y: 50 },
+                { x: 50, y: 15 },
+                { x: 90, y: 85 },
+                { x: 130, y: 15 },
+                { x: 190, y: 50 },
+            ],
+            brushWidth: 12,
+            style: { color: "#fff", width: 12, opacity: 1 },
+        };
+
+        expect(annotationContainsPoint(mosaic, { x: 90, y: 85 }, 2)).toBe(true);
+        expect(annotationContainsPoint(mosaic, { x: 90, y: 20 }, 2)).toBe(false);
+    });
+
+    it("hit-tests line strokes and arrowheads instead of their surrounding boxes", () => {
+        const line: StickerAnnotation = {
+            id: "wave",
+            type: "polyline",
+            zIndex: 1,
+            points: [
+                { x: 10, y: 20 },
+                { x: 60, y: 70 },
+                { x: 110, y: 20 },
+            ],
+            style: { color: "#fff", width: 4, opacity: 1 },
+        };
+        const arrow: StickerAnnotation = {
+            id: "arrow",
+            type: "arrow",
+            zIndex: 2,
+            points: [
+                { x: 20, y: 120 },
+                { x: 120, y: 120 },
+            ],
+            style: { color: "#fff", width: 4, opacity: 1 },
+        };
+
+        expect(annotationContainsPoint(line, { x: 60, y: 70 }, 2)).toBe(true);
+        expect(annotationContainsPoint(line, { x: 60, y: 25 }, 2)).toBe(false);
+        expect(annotationContainsPoint(arrow, { x: 112, y: 120 }, 1)).toBe(true);
+        expect(annotationContainsPoint(arrow, { x: 108, y: 124 }, 1)).toBe(true);
+    });
+
+    it("uses rotated shape geometry instead of the rotated outer bounding box", () => {
+        const rotatedRect: StickerAnnotation = {
+            id: "rotated-outline",
+            type: "rect",
+            zIndex: 1,
+            x: 20,
+            y: 20,
+            w: 100,
+            h: 20,
+            rotation: 45,
+            style: { color: "#fff", width: 2, opacity: 1, fill: "transparent" },
+        };
+
+        expect(annotationContainsPoint(rotatedRect, { x: 28, y: 5 }, 1)).toBe(false);
+        expect(annotationContainsPoint(rotatedRect, { x: 34.6, y: 11.6 }, 2)).toBe(true);
+    });
+
+    it("treats transparent shape interiors as empty while filled shapes keep interior hits", () => {
+        const outline: StickerAnnotation = {
+            id: "outline",
+            type: "rect",
+            zIndex: 1,
+            x: 10,
+            y: 10,
+            w: 100,
+            h: 60,
+            style: { color: "#fff", width: 2, opacity: 1, fill: "transparent" },
+        };
+        const filled: StickerAnnotation = {
+            ...outline,
+            id: "filled",
+            style: { ...outline.style, fill: "#ff0000" },
+        };
+
+        expect(annotationContainsPoint(outline, { x: 60, y: 40 }, 2)).toBe(false);
+        expect(annotationContainsPoint(outline, { x: 11, y: 40 }, 2)).toBe(true);
+        expect(annotationContainsPoint(filled, { x: 60, y: 40 }, 2)).toBe(true);
     });
 
     it("uses the last meaningful segment for arrowhead orientation instead of tiny trailing jitter", () => {
