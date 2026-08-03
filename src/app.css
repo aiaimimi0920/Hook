@@ -485,6 +485,15 @@ main {
     background: rgba(217, 255, 56, 0.56);
 }
 
+.hook-add-art-scroll-container {
+    scrollbar-width: none;
+}
+
+.hook-add-art-scroll-container::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
 .param-slider-track {
     background: transparent;
     touch-action: none;
