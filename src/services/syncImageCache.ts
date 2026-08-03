@@ -1,5 +1,43 @@
+import { createSignal } from "solid-js";
+import type { Unit } from "../types/unit";
+import { buildSyncedImageSignature } from "./syncedImagePayload";
+
 export const lastSyncedImageSignatures = new Map<string, string>();
-export const bakedSyncPreviewCache = new Map<string, { signature: string; src: string }>();
+type BakedSyncPreviewCacheEntry = { signature: string; src: string };
+const mutableBakedSyncPreviewCache = new Map<string, BakedSyncPreviewCacheEntry>();
+export const bakedSyncPreviewCache: ReadonlyMap<string, BakedSyncPreviewCacheEntry> =
+    mutableBakedSyncPreviewCache;
+export const [bakedSyncPreviewCacheRevision, setBakedSyncPreviewCacheRevision] =
+    createSignal(0);
+
+const bumpBakedSyncPreviewCacheRevision = () => {
+    setBakedSyncPreviewCacheRevision((revision) => revision + 1);
+};
+
+export const setBakedSyncPreviewCacheEntry = (
+    unitId: string,
+    entry: BakedSyncPreviewCacheEntry,
+) => {
+    const previous = mutableBakedSyncPreviewCache.get(unitId);
+    if (previous?.signature === entry.signature && previous.src === entry.src) return;
+    mutableBakedSyncPreviewCache.set(unitId, entry);
+    bumpBakedSyncPreviewCacheRevision();
+};
+
+export const deleteBakedSyncPreviewCacheEntry = (unitId: string) => {
+    if (!mutableBakedSyncPreviewCache.delete(unitId)) return;
+    bumpBakedSyncPreviewCacheRevision();
+};
+
+export const resolveCachedBakedSyncPreview = (
+    unit: Unit,
+    displaySrcOverride: string | null,
+) => {
+    const signature = buildSyncedImageSignature(unit, { displaySrcOverride });
+    if (!signature) return undefined;
+    const cached = mutableBakedSyncPreviewCache.get(unit.id);
+    return cached?.signature === signature ? cached.src : undefined;
+};
 
 export interface SyncImageCacheToken {
     readonly workspaceGeneration: number;
@@ -41,14 +79,17 @@ export const clearSyncImageCachesForUnit = (unitId: string) => {
             lastSyncedImageSignatures.delete(key);
         }
     }
-    bakedSyncPreviewCache.delete(unitId);
+    deleteBakedSyncPreviewCacheEntry(unitId);
 };
 
 export const clearAllSyncImageCaches = () => {
     workspaceGeneration += 1;
     unitTokens.clear();
     lastSyncedImageSignatures.clear();
-    bakedSyncPreviewCache.clear();
+    if (mutableBakedSyncPreviewCache.size > 0) {
+        mutableBakedSyncPreviewCache.clear();
+        bumpBakedSyncPreviewCacheRevision();
+    }
 };
 
 export const retainSyncImageCachesForUnits = (unitIds: ReadonlySet<string>) => {
@@ -65,7 +106,7 @@ export const retainSyncImageCachesForUnits = (unitIds: ReadonlySet<string>) => {
             staleUnitIds.add(unitId);
         }
     }
-    for (const unitId of bakedSyncPreviewCache.keys()) {
+    for (const unitId of mutableBakedSyncPreviewCache.keys()) {
         if (!unitIds.has(unitId)) {
             staleUnitIds.add(unitId);
         }

@@ -212,7 +212,10 @@ export function useDraggable() {
         scheduleDragWatchdogCheck(DRAG_WATCHDOG_TIMEOUT_MS);
     };
 
-    const applyDragMoveSnapshot = (snapshot: PendingDragPointer) => {
+    const applyDragMoveSnapshot = (
+        snapshot: PendingDragPointer,
+        options: { applyVisual?: boolean } = {},
+    ) => {
         const applyStartedAt = now();
         const primaryId = activeDragId;
         if (!primaryId) return;
@@ -314,7 +317,12 @@ export function useDraggable() {
 
         if (changed) {
             latestDragPositions = nextPositions;
-            applyDragVisualFastPath(nextPositions);
+            // Raw pointer events already own the ordinary visual transform. RAF
+            // only recomputes state/link previews; writing the same transform from
+            // a second clock makes the sticker alternate between cursor samples.
+            if (options.applyVisual !== false || snapshot.alignment || snapshot.cascade) {
+                applyDragVisualFastPath(nextPositions);
+            }
 
             if (
                 graphStore.links.length > 0 &&
@@ -352,7 +360,7 @@ export function useDraggable() {
             const snapshot = pendingDragPointer;
             pendingDragPointer = null;
             if (snapshot) {
-                applyDragMoveSnapshot(snapshot);
+                applyDragMoveSnapshot(snapshot, { applyVisual: false });
             }
         });
     };

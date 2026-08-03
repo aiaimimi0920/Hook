@@ -1874,6 +1874,8 @@ const OVERLAY_MOUSE_UP_BOUNCE_WINDOW: Duration = Duration::from_millis(35);
 const CAPTURE_MOUSE_MOVE_EMIT_INTERVAL: Duration = Duration::from_millis(8);
 #[cfg(target_os = "windows")]
 const OVERLAY_MOUSE_MOVE_EMIT_INTERVAL: Duration = Duration::from_millis(8);
+#[cfg(target_os = "windows")]
+const OVERLAY_MOUSE_DRAG_MOVE_EMIT_INTERVAL: Duration = Duration::from_millis(2);
 
 #[cfg(target_os = "windows")]
 const OVERLAY_POINTER_STATE_NONE: u8 = 0;
@@ -2330,6 +2332,22 @@ static OVERLAY_INPUT_SHIELD_WNDPROC_PREVIOUS: OnceLock<isize> = OnceLock::new();
 static OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
 static OVERLAY_INPUT_SHIELD_ALT_PASSTHROUGH: AtomicBool = AtomicBool::new(false);
+
+#[cfg(target_os = "windows")]
+fn select_overlay_mouse_move_emit_interval(drag_active: bool) -> Duration {
+    if drag_active {
+        OVERLAY_MOUSE_DRAG_MOVE_EMIT_INTERVAL
+    } else {
+        OVERLAY_MOUSE_MOVE_EMIT_INTERVAL
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn overlay_sticker_drag_active() -> bool {
+    OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)
+        || OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.load(Ordering::SeqCst)
+        || OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst)
+}
 #[cfg(target_os = "windows")]
 static OVERLAY_MAIN_HWND: OnceLock<isize> = OnceLock::new();
 #[cfg(target_os = "windows")]
@@ -3248,7 +3266,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                         modifiers,
                         native_drag_preflight,
                         last_overlay_move_emit,
-                        OVERLAY_MOUSE_MOVE_EMIT_INTERVAL,
+                        select_overlay_mouse_move_emit_interval(overlay_sticker_drag_active()),
                     ) {
                         OverlayMouseMoveCoalesceResult::Ready {
                             x: latest_x,
@@ -3258,11 +3276,22 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                             deferred_event: next,
                         } => {
                             deferred_event = next;
+                            // The queue sample can already be several milliseconds
+                            // old by the time Tauri IPC starts. During a sticker
+                            // drag, sample the hardware cursor again at the last
+                            // native boundary so the webview receives the freshest
+                            // possible position.
+                            let (emit_x, emit_y) = if overlay_sticker_drag_active() {
+                                current_cursor_position_physical()
+                                    .unwrap_or((latest_x, latest_y))
+                            } else {
+                                (latest_x, latest_y)
+                            };
                             emit_capture_mouse_event(
                                 &emit_window,
                                 "overlay/global_mouse_move",
-                                latest_x,
-                                latest_y,
+                                emit_x,
+                                emit_y,
                                 latest_modifiers,
                                 latest_native_drag_preflight,
                                 cached_metrics,
@@ -3958,15 +3987,16 @@ mod input_lifecycle_hardening_tests {
         claim_capture_button_transition, claim_overlay_pointer_down, claim_overlay_pointer_up,
         coalesce_capture_mouse_move_until_emit, coalesce_overlay_mouse_move_until_emit,
         handle_emergency_escape_transition_with, rect_covers_rect_with_tolerance,
-        resolve_overlay_pointer_release, should_passthrough_foreign_alt_input,
-        should_passthrough_foreign_alt_mouse_input,
+        resolve_overlay_pointer_release, select_overlay_mouse_move_emit_interval,
+        should_passthrough_foreign_alt_input, should_passthrough_foreign_alt_mouse_input,
         should_suppress_overlay_interaction_for_occlusion, wait_for_capture_mouse_up_debounce,
         wait_for_overlay_mouse_up_debounce, CaptureMouseEventEnqueueResult, CaptureMouseEventQueue,
         CaptureMouseEventReceiver, CaptureMouseHookEvent, CaptureMouseMoveCoalesceResult,
         CaptureMouseUpDebounceResult, EmergencyEscapeTracker, ModifierSnapshot,
         OverlayMouseMoveCoalesceResult, OverlayMouseUpDebounceResult, OverlayPointerDownTransition,
         OverlayPointerReleaseResult, OverlayPointerSource, OverlayPointerUpTransition,
-        EMERGENCY_ESCAPE_WINDOW, OVERLAY_POINTER_STATE_NONE,
+        EMERGENCY_ESCAPE_WINDOW, OVERLAY_MOUSE_DRAG_MOVE_EMIT_INTERVAL,
+        OVERLAY_MOUSE_MOVE_EMIT_INTERVAL, OVERLAY_POINTER_STATE_NONE,
     };
     use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
     use std::sync::mpsc;
@@ -3981,6 +4011,19 @@ mod input_lifecycle_hardening_tests {
             alt_pressed: false,
             shift_pressed: false,
         }
+    }
+
+    #[test]
+    fn sticker_drag_uses_a_fresher_pointer_emit_interval_than_passive_hover() {
+        assert_eq!(
+            select_overlay_mouse_move_emit_interval(false),
+            OVERLAY_MOUSE_MOVE_EMIT_INTERVAL,
+        );
+        assert_eq!(
+            select_overlay_mouse_move_emit_interval(true),
+            OVERLAY_MOUSE_DRAG_MOVE_EMIT_INTERVAL,
+        );
+        assert!(OVERLAY_MOUSE_DRAG_MOVE_EMIT_INTERVAL < OVERLAY_MOUSE_MOVE_EMIT_INTERVAL);
     }
 
     #[test]

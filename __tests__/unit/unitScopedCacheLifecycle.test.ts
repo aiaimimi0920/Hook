@@ -13,6 +13,7 @@ import {
     isSyncImageCacheEpochCurrent,
     isSyncImageCacheTokenCurrent,
     lastSyncedImageSignatures,
+    setBakedSyncPreviewCacheEntry,
 } from "../../src/services/syncImageCache";
 
 const unit = (id: string): Unit => ({
@@ -40,7 +41,7 @@ describe("unit-scoped cache lifecycle", () => {
         graphStore.setUnits([unit("removed")]);
         nextImageSearchPrefetchGeneration("removed");
         lastSyncedImageSignatures.set("workflow:removed", "signature");
-        bakedSyncPreviewCache.set("removed", { signature: "signature", src: "preview" });
+        setBakedSyncPreviewCacheEntry("removed", { signature: "signature", src: "preview" });
 
         graphStore.actions.removeUnit("removed");
 
@@ -56,7 +57,7 @@ describe("unit-scoped cache lifecycle", () => {
         graphStore.setUnitParams({ old: { amount: 1 } });
         graphStore.setUnitExecConfig({ old: { mode: "manual" } });
         lastSyncedImageSignatures.set("workflow:old", "signature");
-        bakedSyncPreviewCache.set("old", { signature: "signature", src: "preview" });
+        setBakedSyncPreviewCacheEntry("old", { signature: "signature", src: "preview" });
 
         graphStore.actions.replaceUnits([unit("new")]);
 
@@ -78,7 +79,7 @@ describe("unit-scoped cache lifecycle", () => {
 
         expect(isSyncImageCacheTokenCurrent("removed", token)).toBe(false);
         if (isSyncImageCacheTokenCurrent("removed", token)) {
-            bakedSyncPreviewCache.set("removed", {
+            setBakedSyncPreviewCacheEntry("removed", {
                 signature: "late-signature",
                 src: "late-preview",
             });

@@ -5,6 +5,11 @@ import {
     normalizePreviewSrc,
     requiresBakedStickerSyncImage,
 } from "../../src/services/syncedImagePayload";
+import {
+    deleteBakedSyncPreviewCacheEntry,
+    resolveCachedBakedSyncPreview,
+    setBakedSyncPreviewCacheEntry,
+} from "../../src/services/syncImageCache";
 
 describe("synced image payload helpers", () => {
     it("drops previewSrc when it is missing or identical to src", () => {
@@ -246,6 +251,77 @@ describe("synced image payload helpers", () => {
         expect(buildSyncedImageSignature(minifiedUnit)).toBe(
             buildSyncedImageSignature(fullUnit),
         );
+    });
+
+    it("resolves the full-size baked bitmap for a minified sticker without accepting stale annotations", () => {
+        const fullUnit = {
+            id: "sticker-cache",
+            type: "sticker",
+            w: 640,
+            h: 360,
+            data: {
+                src: "data:image/png;base64,base",
+                annotationState: {
+                    elements: [
+                        {
+                            id: "annotation-1",
+                            type: "line",
+                            zIndex: 1,
+                            points: [{ x: 10, y: 10 }, { x: 400, y: 200 }],
+                            style: { color: "#ffffff", width: 4 },
+                        },
+                    ],
+                    serialCounter: 1,
+                },
+            },
+        } as any;
+        const displaySrc = "data:image/png;base64,display";
+        const signature = buildSyncedImageSignature(fullUnit, {
+            displaySrcOverride: displaySrc,
+        })!;
+        setBakedSyncPreviewCacheEntry(fullUnit.id, {
+            signature,
+            src: "data:image/png;base64,baked",
+        });
+        try {
+            const minifiedUnit = {
+                ...fullUnit,
+                w: 120,
+                h: 120,
+                data: {
+                    ...fullUnit.data,
+                    minified: true,
+                    savedRect: { x: 20, y: 30, w: 640, h: 360 },
+                    cropOffset: { x: 180, y: 70 },
+                },
+            } as any;
+            expect(resolveCachedBakedSyncPreview(minifiedUnit, displaySrc)).toBe(
+                "data:image/png;base64,baked",
+            );
+
+            const changedUnit = {
+                ...minifiedUnit,
+                data: {
+                    ...minifiedUnit.data,
+                    annotationState: {
+                        ...minifiedUnit.data.annotationState,
+                        elements: [
+                            ...minifiedUnit.data.annotationState.elements,
+                            {
+                                id: "annotation-2",
+                                type: "line",
+                                zIndex: 2,
+                                points: [{ x: 20, y: 20 }, { x: 30, y: 30 }],
+                                style: { color: "#ff0000", width: 2 },
+                            },
+                        ],
+                    },
+                },
+            } as any;
+            expect(resolveCachedBakedSyncPreview(changedUnit, displaySrc)).toBeUndefined();
+        } finally {
+            deleteBakedSyncPreviewCacheEntry(fullUnit.id);
+        }
     });
 
     it("invalidates baked previews when propagated sticker content geometry changes", () => {

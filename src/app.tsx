@@ -953,6 +953,18 @@ export default function App() {
               };
           };
 
+          const toOverlayDragMouseEvent = (payload: OverlaySyntheticMousePayload) =>
+              new MouseEvent("mousemove", {
+                  clientX: payload.x ?? payload.globalX ?? 0,
+                  clientY: payload.y ?? payload.globalY ?? 0,
+                  screenX: payload.globalX ?? payload.x ?? 0,
+                  screenY: payload.globalY ?? payload.y ?? 0,
+                  ctrlKey: !!payload.ctrlKey,
+                  altKey: !!payload.altKey,
+                  shiftKey: !!payload.shiftKey,
+                  buttons: 1,
+              });
+
           const unlistenCaptureDown = await listen<NativeCaptureMousePayload>(
               "capture/global_mouse_down",
               (event) => {
@@ -1008,6 +1020,12 @@ export default function App() {
                               detail: event.payload,
                           }),
                       );
+                  } else if (draggingStickerId()) {
+                      // Whole-sticker dragging already has a pinned target. Feed the
+                      // native sample directly into the compositor fast path instead
+                      // of constructing pointer + mouse events and bubbling them
+                      // through the DOM before the sticker can move.
+                      handleDragMove(toOverlayDragMouseEvent(event.payload));
                   } else {
                       overlaySynthetic.dispatch("mousemove", event.payload);
                   }
@@ -1246,6 +1264,11 @@ export default function App() {
   const handleGlobalMouseMove = (e: MouseEvent) => {
       if (handledGlobalMouseMoveEvents.has(e)) return;
       handledGlobalMouseMoveEvents.add(e);
+      // The Windows overlay hook is the authoritative stream during a desktop
+      // sticker drag because it continues outside the current DOM hit target.
+      // Ignoring simultaneous trusted WebView moves prevents two differently
+      // timed cursor streams from alternating the transient transform.
+      if (tauriRuntime && draggingStickerId() && e.isTrusted) return;
       if (!draggingStickerId()) {
           setMousePos({ x: e.clientX, y: e.clientY });
       }
@@ -1261,6 +1284,7 @@ export default function App() {
   const handleGlobalMouseUp = (e: MouseEvent) => {
       if (handledGlobalMouseUpEvents.has(e)) return;
       handledGlobalMouseUpEvents.add(e);
+      if (tauriRuntime && draggingStickerId() && e.isTrusted) return;
       // The reliable native Up carries the final cursor coordinates. Apply it
       // before ending the drag so a fast release cannot strand the sticker at
       // the previous coalesced/RAF move position.

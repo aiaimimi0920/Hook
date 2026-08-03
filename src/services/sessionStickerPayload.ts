@@ -36,7 +36,11 @@ export const mapUnitToSessionSticker = (unit: Unit): SessionSticker => ({
 
 interface BuildSessionStickersForSaveOptions {
     renderBakedPreviewSrc: (unit: Unit) => Promise<string>;
-    previewCache: Map<string, { signature: string; src: string }>;
+    previewCache: ReadonlyMap<string, { signature: string; src: string }>;
+    setPreviewCacheEntry?: (
+        unitId: string,
+        entry: { signature: string; src: string },
+    ) => void;
     buildPreviewSignature?: (unit: Unit) => string | undefined;
     paramsByUnitId?: Record<string, Record<string, unknown>>;
 }
@@ -76,7 +80,12 @@ export const buildSessionStickersForSave = async (
 
             try {
                 const bakedPreviewSrc = await options.renderBakedPreviewSrc(unit);
-                options.previewCache.set(unit.id, { signature, src: bakedPreviewSrc });
+                const cacheEntry = { signature, src: bakedPreviewSrc };
+                if (options.setPreviewCacheEntry) {
+                    options.setPreviewCacheEntry(unit.id, cacheEntry);
+                } else if (options.previewCache instanceof Map) {
+                    options.previewCache.set(unit.id, cacheEntry);
+                }
                 return {
                     ...normalizedBase,
                     previewSrc: bakedPreviewSrc,

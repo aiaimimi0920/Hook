@@ -120,6 +120,9 @@ describe("input lifecycle hardening contract", () => {
     expect(eventWorker).toContain("CAPTURE_MOUSE_MOVE_EMIT_INTERVAL");
     expect(eventWorker).toContain("OVERLAY_MOUSE_MOVE_EMIT_INTERVAL");
     expect(rustSource).toContain("const OVERLAY_MOUSE_MOVE_EMIT_INTERVAL: Duration = Duration::from_millis(8);");
+    expect(rustSource).toContain("const OVERLAY_MOUSE_DRAG_MOVE_EMIT_INTERVAL: Duration = Duration::from_millis(2);");
+    expect(eventWorker).toContain("select_overlay_mouse_move_emit_interval(overlay_sticker_drag_active())");
+    expect(eventWorker).toContain("current_cursor_position_physical()");
     expect(eventWorker).toContain("coalesce_overlay_mouse_move_until_emit");
     expect(rustSource).not.toContain("fn throttle_mouse_move_emit");
     expect(emitMouseEvent).toContain("DESKTOP_COLOR_PICKER_ACTIVE.load");

@@ -7,13 +7,12 @@ const graphStoreSource = readFileSync(resolve(process.cwd(), "src/store/graphSto
 const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitView.tsx"), "utf8");
 
 describe("Hook sticker window-state contract", () => {
-    it("updates minified sticker geometry and metadata through direct store field writes plus one data merge so the shrunken sticker does not render at the stale top-left position", () => {
+    it("updates minified sticker geometry and metadata through one store write so the shrunken sticker never renders an intermediate frame", () => {
         expect(graphStoreSource).toContain("const updateStickerWindowState = (");
-        expect(graphStoreSource).toContain('setUnits(match, "x", () => frame.x);');
-        expect(graphStoreSource).toContain('setUnits(match, "y", () => frame.y);');
-        expect(graphStoreSource).toContain('setUnits(match, "w", () => frame.w);');
-        expect(graphStoreSource).toContain('setUnits(match, "h", () => frame.h);');
-        expect(graphStoreSource).toContain('setUnits(match, "data", (prev) => ({');
+        expect(graphStoreSource).toContain("setUnits(match, (previous) => ({");
+        expect(graphStoreSource).toContain("...frame,");
+        expect(graphStoreSource).toContain("...previous.data,");
+        expect(graphStoreSource).toContain("...dataUpdates,");
         expect(actionsSource).toContain("graphStore.actions.updateStickerWindowState(");
         expect(actionsSource).not.toContain("graphStore.actions.updateUnitData(id, { \n              minified: true");
         expect(actionsSource).not.toContain("graphStore.actions.updateUnit(id, {\n              x: newX");

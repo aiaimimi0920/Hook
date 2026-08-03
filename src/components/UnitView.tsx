@@ -1,4 +1,4 @@
-import { Component, For, Show, createEffect, createSignal, onCleanup } from "solid-js";
+import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
 import { graphStore } from "../store/graphStore";
 import {
@@ -37,7 +37,10 @@ import {
 import { normalizeImageSourceForDisplay } from "../services/imageSource";
 import { api, isTauriRuntimeAvailable } from "../services/api";
 import { stickerContextMenuController } from "../services/stickerContextMenuController";
-import { renderStickerComposite } from "../services/stickerExport";
+import {
+  renderStickerComposite,
+  resolveStickerCompositeBaseImageSrc,
+} from "../services/stickerExport";
 import { supportsShaderPreview } from "../services/artCapabilities";
 import {
   resolveNativeDragDropPhysicalPointFromOverlay,
@@ -60,6 +63,10 @@ import {
   registerDragFollowerElement,
   unregisterDragFollowerElement,
 } from "../services/dragFollowerRegistry";
+import {
+    bakedSyncPreviewCacheRevision,
+    resolveCachedBakedSyncPreview,
+} from "../services/syncImageCache";
 
 interface Props {
   unit: Unit;
@@ -376,6 +383,22 @@ export const UnitView: Component<Props> = (props) => {
       liveUnit().data.rasterizedAnnotationLayerSrc
           ? normalizeImageSourceForDisplay(liveUnit().data.src || displaySrc()) || ""
           : displaySrc();
+  const minifiedBakedPreviewSrc = createMemo(() => {
+      // The bitmap is produced asynchronously by workflow sync. Subscribe to the
+      // cache revision so a minified sticker can switch from the live fallback to
+      // the baked preview as soon as that render finishes.
+      bakedSyncPreviewCacheRevision();
+      const unit = liveUnit();
+      if (unit.type !== "sticker" || !unit.data.minified) return undefined;
+      const displaySrcOverride = resolveStickerCompositeBaseImageSrc({
+          unit,
+          units: graphStore.units,
+          links: graphStore.links,
+          capabilities: graphStore.capabilities,
+      });
+      const cached = resolveCachedBakedSyncPreview(unit, displaySrcOverride ?? null);
+      return cached ? normalizeImageSourceForDisplay(cached) || undefined : undefined;
+  });
   const shaderViewportSourceKey = () =>
       isShaderArt()
           ? `${getArtId() || ""}|${getShaderInputSrc()}|${getShaderReferenceSrc() || ""}`
@@ -972,6 +995,44 @@ export const UnitView: Component<Props> = (props) => {
                 </div>
             </Show>
 
+            {/* A minified sticker is a read-only crop. When the sync cache has a
+                current composite, display that single bitmap instead of asking
+                WebView2 to relayout and repaint every editable SVG annotation. */}
+            <Show when={minifiedBakedPreviewSrc()} keyed>
+                {(src) => {
+                    const viewport = getMinifiedAnnotationViewport();
+                    return (
+                        <div
+                            class="sticker-minified-baked-preview-viewport absolute"
+                            style={{
+                                width: `${viewport.width}px`,
+                                height: `${viewport.height}px`,
+                                left: "0",
+                                top: "0",
+                                transform: `translate3d(${-viewport.offsetX}px, ${-viewport.offsetY}px, 0)`,
+                                "pointer-events": "none",
+                                "z-index": 10,
+                                contain: "layout paint style",
+                            }}
+                        >
+                            <img
+                                class="sticker-minified-baked-preview pointer-events-none absolute inset-0"
+                                data-sticker-minified-baked-preview="true"
+                                src={src}
+                                draggable={false}
+                                style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    "object-fit": "fill",
+                                    "max-width": "100%",
+                                    "max-height": "100%",
+                                }}
+                            />
+                        </div>
+                    );
+                }}
+            </Show>
+
             {/* Standard Image Layer (hidden for Shader Arts) */}
             <Show when={!isShaderArt()}>
             <div
@@ -979,6 +1040,7 @@ export const UnitView: Component<Props> = (props) => {
                 style={(() => {
                     const contentFrame = getImageContentFrame();
                     return {
+                        display: minifiedBakedPreviewSrc() ? "none" : "block",
                         position: "absolute",
                         left: `${contentFrame.x}px`,
                         top: `${contentFrame.y}px`,
@@ -1138,6 +1200,7 @@ export const UnitView: Component<Props> = (props) => {
                                       offsetY: 0,
                                   };
                             return {
+                                display: minifiedBakedPreviewSrc() ? "none" : "block",
                                 width: `${viewport.width}px`,
                                 height: `${viewport.height}px`,
                                 left: `${-viewport.offsetX}px`,
@@ -1167,6 +1230,7 @@ export const UnitView: Component<Props> = (props) => {
                 <div
                     class="pointer-events-none absolute inset-0 z-[12] box-border"
                     style={{
+                        display: minifiedBakedPreviewSrc() ? "none" : "block",
                         border: `${getImageBorderWidth()}px solid ${getImageBorderColor()}`,
                         "border-radius": `${getCornerRadius()}px`,
                     }}
@@ -1308,6 +1372,7 @@ export const UnitView: Component<Props> = (props) => {
                                   offsetY: 0,
                               };
                         return {
+                            display: minifiedBakedPreviewSrc() ? "none" : "block",
                             width: `${viewport.width}px`,
                             height: `${viewport.height}px`,
                             left: `${-viewport.offsetX}px`,

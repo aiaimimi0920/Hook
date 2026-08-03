@@ -25,6 +25,7 @@ import {
     isSyncImageCacheTokenCurrent,
     lastSyncedImageSignatures,
     retainSyncImageCachesForUnits,
+    setBakedSyncPreviewCacheEntry,
     type SyncImageCacheToken,
 } from "./syncImageCache";
 
@@ -174,7 +175,7 @@ const executeSyncCycle = async () => {
             isSyncImageCacheTokenCurrent(unit.id, cacheToken) &&
             graphStore.units.some((candidate) => candidate.id === unit.id)
         ) {
-            bakedSyncPreviewCache.set(unit.id, { signature, src: bakedPreviewSrc });
+            setBakedSyncPreviewCacheEntry(unit.id, { signature, src: bakedPreviewSrc });
         }
         return bakedPreviewSrc;
     };
@@ -415,6 +416,7 @@ const executeSyncCycle = async () => {
     const sessionStickers = await buildSessionStickersForSave(graphStore.units, {
         renderBakedPreviewSrc,
         previewCache: bakedSyncPreviewCache,
+        setPreviewCacheEntry: setBakedSyncPreviewCacheEntry,
         buildPreviewSignature: buildBakedPreviewSignature,
         paramsByUnitId: graphStore.unitParams,
     });

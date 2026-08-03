@@ -188,13 +188,17 @@ const updateStickerWindowState = (
     dataUpdates: Partial<Unit["data"]>,
 ) => {
     const match = (u: Unit) => u.id === id;
-    setUnits(match, "x", () => frame.x);
-    setUnits(match, "y", () => frame.y);
-    setUnits(match, "w", () => frame.w);
-    setUnits(match, "h", () => frame.h);
-    setUnits(match, "data", (prev) => ({
-        ...prev,
-        ...dataUpdates,
+    // Geometry and minified metadata form one visual state. A single store write
+    // prevents transient combinations (for example mini width with
+    // minified=false) from forcing the complete annotation tree through several
+    // intermediate layouts during one double-click.
+    setUnits(match, (previous) => ({
+        ...previous,
+        ...frame,
+        data: {
+            ...previous.data,
+            ...dataUpdates,
+        },
     }));
 };
 

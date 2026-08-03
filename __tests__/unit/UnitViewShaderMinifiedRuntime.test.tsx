@@ -38,7 +38,7 @@ vi.mock("../../src/components/UnitPorts", () => ({
 }));
 
 vi.mock("../../src/components/StickerAnnotationLayer", () => ({
-    StickerAnnotationLayer: () => null,
+    StickerAnnotationLayer: () => <div data-testid="sticker-annotation-layer" />,
 }));
 
 vi.mock("../../src/components/StickerTopStrip", () => ({
@@ -61,6 +61,12 @@ import {
     clearStickerGpuWarmPool,
     getStickerGpuWarmPoolSnapshot,
 } from "../../src/services/stickerGpuWarmPool";
+import { buildSyncedImageSignature } from "../../src/services/syncedImagePayload";
+import {
+    deleteBakedSyncPreviewCacheEntry,
+    setBakedSyncPreviewCacheEntry,
+} from "../../src/services/syncImageCache";
+import { resolveStickerCompositeBaseImageSrc } from "../../src/services/stickerExport";
 
 const CAPABILITY: ArtCapability = {
     id: "color-transfer",
@@ -165,6 +171,123 @@ describe("UnitView restored minified shader viewport", () => {
         graphStore.setUnitExecConfig({});
         vi.useRealTimers();
         vi.clearAllMocks();
+    });
+
+    it("reacts to a late baked preview without remounting the live annotation tree on restore", async () => {
+        const fullSticker: Unit = {
+            ...INPUT_UNIT,
+            id: "annotated-sticker",
+            x: 100,
+            y: 120,
+            w: 320,
+            h: 180,
+            data: {
+                src: "data:image/png;base64,ANNOTATED",
+                annotationState: {
+                    elements: [
+                        {
+                            id: "line-1",
+                            type: "line",
+                            zIndex: 1,
+                            points: [{ x: 10, y: 10 }, { x: 200, y: 100 }],
+                            style: { color: "#ffffff", width: 4 },
+                        },
+                    ],
+                    serialCounter: 1,
+                },
+            },
+        };
+        const minifiedSticker: Unit = {
+            ...fullSticker,
+            x: 180,
+            y: 150,
+            w: 120,
+            h: 120,
+            data: {
+                ...fullSticker.data,
+                minified: true,
+                savedRect: {
+                    x: fullSticker.x,
+                    y: fullSticker.y,
+                    w: fullSticker.w,
+                    h: fullSticker.h,
+                },
+                cropOffset: { x: 80, y: 30 },
+            },
+        };
+        const [currentUnit, setCurrentUnit] = createSignal(minifiedSticker);
+        graphStore.setUnits([minifiedSticker]);
+        graphStore.setLinks([]);
+        graphStore.setCapabilities([]);
+
+        const host = document.createElement("div");
+        document.body.append(host);
+        const dispose = render(
+            () => (
+                <UnitView
+                    unit={currentUnit()}
+                    params={{}}
+                    isSelected={false}
+                    showActions={false}
+                    showParams={false}
+                    onMouseDown={() => undefined}
+                    onParamChange={() => undefined}
+                    onDoubleTap={() => undefined}
+                    onDelete={() => undefined}
+                    onAddNode={() => undefined}
+                    onLinkStart={() => undefined}
+                    onLinkDrop={() => undefined}
+                    onLinkHover={() => undefined}
+                    onRendered={() => undefined}
+                    onResize={() => undefined}
+                    onOpacityChange={() => undefined}
+                    connectedPorts={[]}
+                    connectedLinks={[]}
+                    resolveUnitImage={() => undefined}
+                />
+            ),
+            host,
+        );
+
+        await Promise.resolve();
+        const annotationNode = host.querySelector('[data-testid="sticker-annotation-layer"]');
+        const annotationViewport = annotationNode?.parentElement as HTMLDivElement | null;
+        expect(annotationNode).toBeInstanceOf(HTMLDivElement);
+        expect(annotationViewport?.style.display).toBe("block");
+        expect(host.querySelector("[data-sticker-minified-baked-preview]")).toBeNull();
+
+        const displaySrcOverride = resolveStickerCompositeBaseImageSrc({
+            unit: minifiedSticker,
+            units: [minifiedSticker],
+            links: [],
+            capabilities: [],
+        }) ?? null;
+        const signature = buildSyncedImageSignature(minifiedSticker, { displaySrcOverride });
+        expect(signature).toBeTruthy();
+        setBakedSyncPreviewCacheEntry(minifiedSticker.id, {
+            signature: signature!,
+            src: "data:image/png;base64,BAKED",
+        });
+
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(host.querySelector("[data-sticker-minified-baked-preview]")).toBeInstanceOf(
+            HTMLImageElement,
+        );
+        expect(host.querySelector('[data-testid="sticker-annotation-layer"]')).toBe(annotationNode);
+        expect(annotationViewport?.style.display).toBe("none");
+
+        graphStore.setUnits([fullSticker]);
+        setCurrentUnit(fullSticker);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(host.querySelector("[data-sticker-minified-baked-preview]")).toBeNull();
+        expect(host.querySelector('[data-testid="sticker-annotation-layer"]')).toBe(annotationNode);
+        expect(annotationViewport?.style.display).toBe("block");
+
+        dispose();
+        deleteBakedSyncPreviewCacheEntry(minifiedSticker.id);
     });
 
     it("keeps the restored shader minified viewport stable when an unrelated downstream output sticker is deleted", async () => {

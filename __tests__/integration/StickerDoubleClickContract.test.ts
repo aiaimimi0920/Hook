@@ -7,6 +7,7 @@ const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitV
 const stickerEditingSource = readFileSync(resolve(process.cwd(), "src/services/stickerEditing.ts"), "utf8");
 const topStripSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStrip.tsx"), "utf8");
 const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStripPropertyBar.tsx"), "utf8");
+const graphStoreSource = readFileSync(resolve(process.cwd(), "src/store/graphStore.ts"), "utf8");
 
 describe("Hook sticker double-click contract", () => {
     it("derives double-click minify from the actual sticker visual rect and routes the crop math through the shared helper so every corner uses the same edge handling", () => {
@@ -65,5 +66,15 @@ describe("Hook sticker double-click contract", () => {
         expect(topStripSource).toContain("onMouseDown={(event) => event.stopPropagation()}");
         expect(propertyBarSource).toContain("event.stopPropagation();");
         expect(propertyBarSource).toContain("api.focusOverlayWindow()");
+    });
+
+    it("publishes minified geometry atomically and hides the retained editable SVG stack behind one cached bitmap", () => {
+        expect(graphStoreSource).toContain("setUnits(match, (previous) => ({");
+        expect(unitViewSource).toContain("const minifiedBakedPreviewSrc = createMemo(() => {");
+        expect(unitViewSource).toContain("bakedSyncPreviewCacheRevision();");
+        expect(unitViewSource).toContain("resolveCachedBakedSyncPreview(unit, displaySrcOverride ?? null)");
+        expect(unitViewSource).toContain('data-sticker-minified-baked-preview="true"');
+        expect(unitViewSource).toContain('display: minifiedBakedPreviewSrc() ? "none" : "block"');
+        expect(unitViewSource).toContain('props.unit.type === "sticker"');
     });
 });

@@ -26,6 +26,8 @@ describe("sticker drag move performance contract", () => {
     expect(dragSource).toContain("window.requestAnimationFrame");
     expect(handleDragMoveBlock).toContain("scheduleDragMoveFrame();");
     expect(handleDragMoveBlock).not.toContain("setMultiDragPositions(nextPositions);");
+    expect(dragSource).toContain("applyDragMoveSnapshot(snapshot, { applyVisual: false });");
+    expect(dragSource).toContain("options.applyVisual !== false || snapshot.alignment || snapshot.cascade");
   });
 
   it("skips unrelated global mouse position churn while a sticker drag is active", () => {
@@ -38,6 +40,10 @@ describe("sticker drag move performance contract", () => {
 
     expect(handleGlobalMouseMoveBlock).toContain("if (!draggingStickerId()) {");
     expect(handleGlobalMouseMoveBlock).toContain("setMousePos({ x: e.clientX, y: e.clientY });");
+    expect(handleGlobalMouseMoveBlock).toContain(
+      "if (tauriRuntime && draggingStickerId() && e.isTrusted) return;",
+    );
+    expect(appSource).toContain("handleDragMove(toOverlayDragMouseEvent(event.payload));");
   });
 
   it("moves drag followers through an imperative compositor fast path without a Solid position update", () => {
