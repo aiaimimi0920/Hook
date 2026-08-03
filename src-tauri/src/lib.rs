@@ -10478,8 +10478,6 @@ pub fn run() {
                 let long_capture_item = MenuItem::with_id(app, "long_capture", "长截图 (Ctrl+3)", true, None::<&str>)?;
                 let open_image_item =
                     MenuItem::with_id(app, "open_image", "编辑已有图片… (Ctrl+O)", true, None::<&str>)?;
-                let settings_item =
-                    MenuItem::with_id(app, "settings", "设置…", true, None::<&str>)?;
                 let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
                 let tray_menu = Menu::with_items(
                     app,
@@ -10487,7 +10485,8 @@ pub fn run() {
                         &capture_item,
                         &long_capture_item,
                         &open_image_item,
-                        &settings_item,
+                        // Temporarily keep app settings out of the tray menu while
+                        // retaining the existing command and event handler.
                         &quit_item,
                     ],
                 )?;
