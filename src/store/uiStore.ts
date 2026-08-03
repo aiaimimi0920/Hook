@@ -308,6 +308,19 @@ export const uiActions = {
     clearUnitUiState: (unitId: string) => {
         setUnitUiState(unitId, undefined!);
     },
+    retainUnitScopedState: (unitIds: ReadonlySet<string>) => {
+        batch(() => {
+            Object.keys(stickerEditHistories).forEach((unitId) => {
+                if (!unitIds.has(unitId)) setStickerEditHistories(unitId, undefined!);
+            });
+            Object.keys(enhancementNotices).forEach((unitId) => {
+                if (!unitIds.has(unitId)) setEnhancementNotices(unitId, undefined);
+            });
+            Object.keys(unitUiState).forEach((unitId) => {
+                if (!unitIds.has(unitId)) setUnitUiState(unitId, undefined!);
+            });
+        });
+    },
     setStickerEditMode: (mode: StickerToolSettings["mode"]) => {
         setStickerColorPickerReturnMode(null);
         if (mode === "select" || mode === "move" || mode === "rotate" || mode === "scale") {

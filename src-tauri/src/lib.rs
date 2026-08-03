@@ -433,8 +433,48 @@ fn effective_app_data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     ))
 }
 
+struct AppSettingsState {
+    current: Mutex<app_settings::AppSettings>,
+    save_lock: Mutex<()>,
+}
+
+impl AppSettingsState {
+    fn new(settings: app_settings::AppSettings) -> Self {
+        Self {
+            current: Mutex::new(settings),
+            save_lock: Mutex::new(()),
+        }
+    }
+
+    fn snapshot(&self) -> Result<app_settings::AppSettings, String> {
+        self.current
+            .lock()
+            .map(|settings| settings.clone())
+            .map_err(|_| "App settings cache lock is poisoned".to_string())
+    }
+
+    fn save(
+        &self,
+        app_data_dir: &Path,
+        settings: app_settings::AppSettings,
+    ) -> Result<app_settings::AppSettings, String> {
+        let _save_guard = self
+            .save_lock
+            .lock()
+            .map_err(|_| "App settings save lock is poisoned".to_string())?;
+        let saved = app_settings::save_app_settings(app_data_dir, settings)?;
+        *self
+            .current
+            .lock()
+            .map_err(|_| "App settings cache lock is poisoned".to_string())? = saved.clone();
+        Ok(saved)
+    }
+}
+
 fn current_file_naming_settings(app: &tauri::AppHandle) -> Result<FileNamingSettings, String> {
-    app_settings::load_app_settings(&effective_app_data_dir(app)?)
+    app.try_state::<AppSettingsState>()
+        .ok_or_else(|| "App settings cache is not initialized".to_string())?
+        .snapshot()
         .map(|settings| settings.file_naming)
 }
 
@@ -488,16 +528,19 @@ fn write_allocated_bytes(
 }
 
 #[tauri::command]
-fn load_app_settings(app: tauri::AppHandle) -> Result<app_settings::AppSettings, String> {
-    app_settings::load_app_settings(&effective_app_data_dir(&app)?)
+fn load_app_settings(
+    state: tauri::State<'_, AppSettingsState>,
+) -> Result<app_settings::AppSettings, String> {
+    state.snapshot()
 }
 
 #[tauri::command]
 fn save_app_settings(
     app: tauri::AppHandle,
+    state: tauri::State<'_, AppSettingsState>,
     settings: app_settings::AppSettings,
 ) -> Result<app_settings::AppSettings, String> {
-    app_settings::save_app_settings(&effective_app_data_dir(&app)?, settings)
+    state.save(&effective_app_data_dir(&app)?, settings)
 }
 
 const RUNTIME_LOG_QUEUE_CAPACITY: usize = 512;
@@ -592,6 +635,14 @@ fn runtime_log_timestamp() -> String {
 
 fn file_timestamp_component() -> String {
     unix_timestamp_millis().to_string()
+}
+
+fn create_internal_capture_file(
+    cache_dir: &Path,
+    prefix: &str,
+    timestamp: &str,
+) -> Result<(File, PathBuf), String> {
+    create_unique_file(cache_dir, &format!("{prefix}_{timestamp}"), Some("png"))
 }
 
 fn sanitize_internal_asset_component(hint: Option<&str>) -> String {
@@ -9220,18 +9271,14 @@ pub(crate) fn encode_rgb_image_as_file_capture_response_with_metadata(
     let width = rgb_image.width();
     let height = rgb_image.height();
     let cache_dir = ensure_clipboard_cache_dir()?;
-    let file_path = cache_dir.join(format!(
-        "Hook_long_capture_{}.png",
-        file_timestamp_component()
-    ));
+    let (file, file_path) =
+        create_internal_capture_file(&cache_dir, "Hook_long_capture", &file_timestamp_component())?;
 
     let file_write_started_at = Instant::now();
-    {
+    let write_result = (|| -> Result<(), String> {
         use image::codecs::png::{CompressionType, FilterType, PngEncoder};
         use image::{ColorType, ImageEncoder};
 
-        let file =
-            File::create(&file_path).map_err(|error| format!("Failed to create PNG: {error}"))?;
         let mut writer = BufWriter::new(file);
         let encoder =
             PngEncoder::new_with_quality(&mut writer, CompressionType::Fast, FilterType::NoFilter);
@@ -9241,6 +9288,11 @@ pub(crate) fn encode_rgb_image_as_file_capture_response_with_metadata(
         writer
             .flush()
             .map_err(|error| format!("Failed to flush PNG: {error}"))?;
+        Ok(())
+    })();
+    if let Err(error) = write_result {
+        let _ = fs::remove_file(&file_path);
+        return Err(error);
     }
     let file_write_ms = file_write_started_at.elapsed().as_millis();
     let png_bytes = fs::metadata(&file_path)
@@ -9337,17 +9389,20 @@ pub(crate) fn encode_hdr_image_as_file_capture_response(
 ) -> Result<CaptureResponse, String> {
     let started_at = Instant::now();
     let cache_dir = ensure_clipboard_cache_dir()?;
-    let file_path = cache_dir.join(format!(
-        "Hook_hdr_capture_{}.png",
-        file_timestamp_component()
-    ));
-    let file =
-        File::create(&file_path).map_err(|error| format!("Failed to create HDR PNG: {error}"))?;
-    let mut writer = BufWriter::new(file);
-    write_hdr_png(&mut writer, &hdr_image)?;
-    writer
-        .flush()
-        .map_err(|error| format!("Failed to flush HDR PNG: {error}"))?;
+    let (file, file_path) =
+        create_internal_capture_file(&cache_dir, "Hook_hdr_capture", &file_timestamp_component())?;
+    let write_result = (|| -> Result<(), String> {
+        let mut writer = BufWriter::new(file);
+        write_hdr_png(&mut writer, &hdr_image)?;
+        writer
+            .flush()
+            .map_err(|error| format!("Failed to flush HDR PNG: {error}"))?;
+        Ok(())
+    })();
+    if let Err(error) = write_result {
+        let _ = fs::remove_file(&file_path);
+        return Err(error);
+    }
 
     let file_url = file_url_from_path(&file_path);
     let file_path_string = file_path.to_string_lossy().to_string();
@@ -10300,6 +10355,16 @@ pub fn run() {
             app.manage(capture_input_state.clone());
             let long_capture_sessions = SharedLongCaptureSessions::new();
             app.manage(long_capture_sessions.clone());
+            let app_settings_dir = effective_app_data_dir(app.handle()).map_err(|error| {
+                append_runtime_log_line(&format!("app_settings_dir_failed :: {error}"));
+                error
+            })?;
+            let initial_app_settings =
+                app_settings::load_app_settings(&app_settings_dir).map_err(|error| {
+                    append_runtime_log_line(&format!("app_settings_load_failed :: {error}"));
+                    error
+                })?;
+            app.manage(AppSettingsState::new(initial_app_settings));
 
             // Initialize Mock ArtLoom
             app.manage(MockArtLoom::new());
@@ -11150,6 +11215,69 @@ mod app_cli_tests {
         assert_eq!(decoded, image);
     }
 
+    #[test]
+    fn internal_capture_file_allocation_is_atomic_for_identical_timestamps() {
+        let root = std::env::temp_dir().join(format!(
+            "hook-internal-capture-allocation-test-{}-{}",
+            std::process::id(),
+            file_timestamp_component(),
+        ));
+        std::fs::create_dir_all(&root).expect("create capture allocation test dir");
+
+        let (mut first, first_path) =
+            create_internal_capture_file(&root, "Hook_long_capture", "1234").unwrap();
+        first.write_all(b"first").unwrap();
+        drop(first);
+        let (mut second, second_path) =
+            create_internal_capture_file(&root, "Hook_long_capture", "1234").unwrap();
+        second.write_all(b"second").unwrap();
+        drop(second);
+
+        assert_ne!(first_path, second_path);
+        assert_eq!(std::fs::read(&first_path).unwrap(), b"first");
+        assert_eq!(std::fs::read(&second_path).unwrap(), b"second");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn failed_internal_hdr_capture_removes_partial_file() {
+        let _env_guard = clipboard_cache_env_lock();
+        let env_name = "HOOK_CLIPBOARD_CACHE_DIR";
+        let cache_dir = std::env::temp_dir().join(format!(
+            "hook-failed-hdr-capture-test-{}-{}",
+            std::process::id(),
+            file_timestamp_component(),
+        ));
+        std::env::set_var(env_name, &cache_dir);
+        let invalid_image = screenshot::HdrPqImage {
+            width: 1,
+            height: 1,
+            rgb16_be: Vec::new(),
+            max_content_light_level_nits: 1_000.0,
+            max_frame_average_light_level_nits: 250.0,
+            mastering_min_luminance_nits: 0.001,
+            mastering_max_luminance_nits: 1_000.0,
+        };
+
+        let result = encode_hdr_image_as_file_capture_response(
+            invalid_image,
+            CaptureMetadata::hdr("test-invalid-hdr"),
+        );
+
+        std::env::remove_var(env_name);
+        assert!(result.is_err());
+        assert!(
+            !cache_dir.exists()
+                || std::fs::read_dir(&cache_dir).unwrap().all(|entry| !entry
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .ends_with(".png")),
+            "failed HDR encoding must not leave a partial PNG"
+        );
+        let _ = std::fs::remove_dir_all(cache_dir);
+    }
+
     #[cfg(target_os = "windows")]
     #[test]
     fn stage_drag_out_file_copy_creates_disposable_copy_without_moving_original() {
@@ -11390,6 +11518,29 @@ mod app_cli_tests {
 
         let _ = std::fs::remove_dir_all(&root);
         assert_eq!(resolved, legacy_dir);
+    }
+
+    #[test]
+    fn app_settings_state_serves_cached_values_and_preserves_them_after_failed_save() {
+        let root = std::env::temp_dir().join(format!(
+            "hook-app-settings-state-test-{}-{}",
+            std::process::id(),
+            file_timestamp_component(),
+        ));
+        let state = AppSettingsState::new(app_settings::AppSettings::default());
+        let mut settings = app_settings::AppSettings::default();
+        settings.file_naming.drag_export_pattern = "cached_{unitId}".to_string();
+
+        let saved = state.save(&root, settings.clone()).unwrap();
+        assert_eq!(state.snapshot().unwrap(), saved);
+        std::fs::write(root.join("app-settings.json"), b"{ externally corrupted").unwrap();
+        assert_eq!(state.snapshot().unwrap(), saved);
+
+        let mut invalid = settings;
+        invalid.file_naming.drag_export_pattern = "{unsupported}".to_string();
+        assert!(state.save(&root, invalid).is_err());
+        assert_eq!(state.snapshot().unwrap(), saved);
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

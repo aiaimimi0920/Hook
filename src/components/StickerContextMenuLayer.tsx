@@ -85,6 +85,8 @@ export const StickerContextMenuLayer = () => {
         graphStore.setRecycleBin(addRecycleBinEntry(graphStore.recycleBin, captureFrozenStickerSnapshot(target)));
         graphStore.actions.removeUnit(target.id);
         uiActions.clearStickerHistory(target.id);
+        uiActions.clearUnitUiState(target.id);
+        uiActions.dismissEnhancementNotice(target.id);
         selectionActions.clear();
         uiActions.hideStickerToolbar();
         closeMenu();

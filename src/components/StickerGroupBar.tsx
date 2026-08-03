@@ -85,7 +85,11 @@ export const StickerGroupBar: Component = () => {
                             const confirmed = window.confirm(`关闭贴图组“${group.name}”？组内贴图会全部关闭。`);
                             if (!confirmed) return;
                             const removedUnitIds = graphStore.actions.closeStickerGroup(groupId);
-                            removedUnitIds.forEach((id) => uiActions.clearStickerHistory(id));
+                            removedUnitIds.forEach((id) => {
+                                uiActions.clearStickerHistory(id);
+                                uiActions.clearUnitUiState(id);
+                                uiActions.dismissEnhancementNotice(id);
+                            });
                             selectionActions.clear();
                             uiActions.hideStickerToolbar();
                             uiActions.setActiveStickerGroup(null);

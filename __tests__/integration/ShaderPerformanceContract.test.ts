@@ -26,11 +26,10 @@ describe("shader and large-image performance contract", () => {
 
   it("reclaims renderer caches when units are deleted or a workspace is replaced", () => {
     const graphStoreSource = readSource("src/store/graphStore.ts");
-    const syncServiceSource = readSource("src/services/syncService.ts");
     const cacheSource = readSource("src/services/shaderCache.ts");
 
     expect(graphStoreSource).toContain("shaderCache.disposeUnit(id);");
-    expect(syncServiceSource).toContain("shaderCache.retainRenderersForUnits(");
+    expect(graphStoreSource).toContain("shaderCache.retainRenderersForUnits(");
     expect(cacheSource).toContain("maxEntries: 16");
     expect(cacheSource).toContain("maxEstimatedBytes: 64 * 1024 * 1024");
   });

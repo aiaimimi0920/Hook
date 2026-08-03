@@ -1,4 +1,4 @@
-import { createStore, unwrap } from "solid-js/store";
+import { createStore, reconcile, unwrap } from "solid-js/store";
 import { Unit, Link } from "../types/unit";
 import { ArtCapability } from "../services/protocol";
 import type { StickerGroup } from "../types/stickerEditing";
@@ -19,6 +19,14 @@ import {
     upsertStickerGroup,
 } from "../services/stickerGroups";
 import { shaderCache } from "../services/shaderCache";
+import {
+    clearAllImageSearchPrefetchGenerations,
+    clearImageSearchPrefetchGenerationForUnit,
+} from "../services/imageSearchPrefetchGeneration";
+import {
+    clearAllSyncImageCaches,
+    clearSyncImageCachesForUnit,
+} from "../services/syncImageCache";
 
 // Core Data Stores
 const [units, setUnits] = createStore<Unit[]>([]);
@@ -52,12 +60,23 @@ const addUnit = (unit: Unit) => {
 
 const removeUnit = (id: string) => {
     shaderCache.disposeUnit(id);
+    clearImageSearchPrefetchGenerationForUnit(id);
+    clearSyncImageCachesForUnit(id);
     setUnits((prev) => prev.filter((u) => u.id !== id));
     // Cascade delete links
     setLinks((prev) => prev.filter((l) => l.fromUnitId !== id && l.toUnitId !== id));
     // Clear per-unit keyed state so it does not accumulate across add/remove churn.
     setUnitParams(id, undefined!);
     setUnitExecConfig(id, undefined!);
+};
+
+const replaceUnits = (nextUnits: Unit[]) => {
+    clearAllImageSearchPrefetchGenerations();
+    clearAllSyncImageCaches();
+    shaderCache.retainRenderersForUnits(new Set(nextUnits.map((unit) => unit.id)));
+    setUnitParams(reconcile({}));
+    setUnitExecConfig(reconcile({}));
+    setUnits(nextUnits);
 };
 
 const updateUnit = (id: string, updates: Partial<Unit>) => {
@@ -255,6 +274,7 @@ export const graphStore = {
     setReferenceLibrary,
     actions: {
         addUnit,
+        replaceUnits,
         removeUnit,
         updateUnit,
         updateUnitData,

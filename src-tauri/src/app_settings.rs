@@ -6,9 +6,11 @@ use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::Mutex;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const APP_SETTINGS_FILE_NAME: &str = "app-settings.json";
+static APP_SETTINGS_IO_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -27,6 +29,13 @@ impl Default for AppSettings {
 }
 
 pub fn load_app_settings(app_data_dir: &Path) -> Result<AppSettings, String> {
+    let _io_guard = APP_SETTINGS_IO_LOCK
+        .lock()
+        .map_err(|_| "App settings I/O lock is poisoned".to_string())?;
+    load_app_settings_unlocked(app_data_dir)
+}
+
+fn load_app_settings_unlocked(app_data_dir: &Path) -> Result<AppSettings, String> {
     let path = app_data_dir.join(APP_SETTINGS_FILE_NAME);
     let bytes = match std::fs::read(&path) {
         Ok(bytes) => bytes,
@@ -40,12 +49,8 @@ pub fn load_app_settings(app_data_dir: &Path) -> Result<AppSettings, String> {
         Ok(mut settings) => {
             settings.schema_version = FILE_NAMING_SCHEMA_VERSION;
             if let Err(error) = validate_file_naming_settings(&settings.file_naming) {
-                let backup = corrupted_settings_backup_path(app_data_dir);
-                std::fs::rename(&path, &backup).map_err(|backup_error| {
-                    format!(
-                        "App settings are invalid ({error}) and could not be backed up to {}: {backup_error}",
-                        backup.to_string_lossy()
-                    )
+                backup_corrupted_settings(app_data_dir, &path, &bytes).map_err(|backup_error| {
+                    format!("App settings are invalid ({error}) and could not be backed up: {backup_error}")
                 })?;
                 return Ok(AppSettings::default());
             }
@@ -53,11 +58,9 @@ pub fn load_app_settings(app_data_dir: &Path) -> Result<AppSettings, String> {
             Ok(settings)
         }
         Err(error) => {
-            let backup = corrupted_settings_backup_path(app_data_dir);
-            std::fs::rename(&path, &backup).map_err(|backup_error| {
+            backup_corrupted_settings(app_data_dir, &path, &bytes).map_err(|backup_error| {
                 format!(
-                    "App settings are invalid ({error}) and could not be backed up to {}: {backup_error}",
-                    backup.to_string_lossy()
+                    "App settings are invalid ({error}) and could not be backed up: {backup_error}"
                 )
             })?;
             Ok(AppSettings::default())
@@ -66,6 +69,16 @@ pub fn load_app_settings(app_data_dir: &Path) -> Result<AppSettings, String> {
 }
 
 pub fn save_app_settings(
+    app_data_dir: &Path,
+    settings: AppSettings,
+) -> Result<AppSettings, String> {
+    let _io_guard = APP_SETTINGS_IO_LOCK
+        .lock()
+        .map_err(|_| "App settings I/O lock is poisoned".to_string())?;
+    save_app_settings_unlocked(app_data_dir, settings)
+}
+
+fn save_app_settings_unlocked(
     app_data_dir: &Path,
     mut settings: AppSettings,
 ) -> Result<AppSettings, String> {
@@ -124,23 +137,96 @@ fn allocate_settings_temp_file(app_data_dir: &Path) -> Result<(File, PathBuf), S
     Err("Failed to allocate app settings temp path".to_string())
 }
 
-fn corrupted_settings_backup_path(app_data_dir: &Path) -> PathBuf {
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis())
-        .unwrap_or(0);
+fn allocate_corrupted_settings_backup_file(
+    app_data_dir: &Path,
+    timestamp: u128,
+) -> Result<(File, PathBuf), String> {
     for index in 1..10_000u32 {
         let suffix = if index == 1 {
             String::new()
         } else {
             format!("-{index}")
         };
-        let candidate = app_data_dir.join(format!("app-settings.corrupt-{timestamp}{suffix}.json"));
-        if !candidate.exists() {
-            return candidate;
+        let candidate = app_data_dir.join(format!(
+            "app-settings.corrupt-{timestamp}-{process_id}{suffix}.json",
+            process_id = std::process::id(),
+        ));
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
+            Ok(file) => return Ok((file, candidate)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(format!(
+                    "Failed to allocate corrupt settings backup {}: {error}",
+                    candidate.to_string_lossy(),
+                ))
+            }
         }
     }
-    app_data_dir.join(format!("app-settings.corrupt-{timestamp}-overflow.json"))
+    Err("Failed to allocate corrupt settings backup".to_string())
+}
+
+fn backup_corrupted_settings(
+    app_data_dir: &Path,
+    source_path: &Path,
+    bytes: &[u8],
+) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(app_data_dir)
+        .map_err(|error| format!("Failed to create app settings backup directory: {error}"))?;
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    let (mut backup_file, backup_path) =
+        allocate_corrupted_settings_backup_file(app_data_dir, timestamp)?;
+    if let Err(error) = backup_file
+        .write_all(bytes)
+        .and_then(|_| backup_file.sync_all())
+    {
+        drop(backup_file);
+        let _ = std::fs::remove_file(&backup_path);
+        return Err(format!("Failed to write corrupt settings backup: {error}"));
+    }
+    drop(backup_file);
+
+    remove_corrupted_settings_source_if_unchanged(source_path, bytes)?;
+    Ok(backup_path)
+}
+
+fn remove_corrupted_settings_source_if_unchanged(
+    source_path: &Path,
+    corrupted_bytes: &[u8],
+) -> Result<(), String> {
+    for attempt in 0..4 {
+        match std::fs::read(source_path) {
+            Ok(current_bytes) if current_bytes != corrupted_bytes => return Ok(()),
+            Ok(_) => match std::fs::remove_file(source_path) {
+                Ok(()) => return Ok(()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::PermissionDenied && attempt < 3 =>
+                {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => {
+                    return Err(format!(
+                        "Failed to remove corrupt settings source after backup: {error}"
+                    ))
+                }
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => {
+                return Err(format!(
+                    "Failed to verify corrupt settings source after backup: {error}"
+                ))
+            }
+        }
+    }
+
+    Err("Failed to remove corrupt settings source after backup retries".to_string())
 }
 
 #[cfg(target_os = "windows")]
@@ -266,6 +352,76 @@ mod tests {
             .file_name()
             .to_string_lossy()
             .starts_with("app-settings.corrupt-")));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn corrupt_backup_allocation_never_overwrites_an_existing_candidate() {
+        let root = test_dir("corrupt-collision");
+        std::fs::create_dir_all(&root).unwrap();
+        let timestamp = 42u128;
+        let first_path = root.join(format!(
+            "app-settings.corrupt-{timestamp}-{}.json",
+            std::process::id(),
+        ));
+        std::fs::write(&first_path, b"existing backup").unwrap();
+
+        let (mut file, second_path) =
+            allocate_corrupted_settings_backup_file(&root, timestamp).unwrap();
+        file.write_all(b"new backup").unwrap();
+        drop(file);
+
+        assert_ne!(first_path, second_path);
+        assert_eq!(std::fs::read(&first_path).unwrap(), b"existing backup");
+        assert_eq!(std::fs::read(&second_path).unwrap(), b"new backup");
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn concurrent_corrupt_backups_allocate_distinct_files_without_errors() {
+        use std::sync::{Arc, Barrier};
+
+        let root = test_dir("corrupt-concurrent");
+        std::fs::create_dir_all(&root).unwrap();
+        let source_path = root.join(APP_SETTINGS_FILE_NAME);
+        std::fs::write(&source_path, b"{ invalid").unwrap();
+        let barrier = Arc::new(Barrier::new(2));
+        let handles = (0..2)
+            .map(|_| {
+                let root = root.clone();
+                let source_path = source_path.clone();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    backup_corrupted_settings(&root, &source_path, b"{ invalid")
+                })
+            })
+            .collect::<Vec<_>>();
+        let backups = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap().unwrap())
+            .collect::<Vec<_>>();
+
+        assert_ne!(backups[0], backups[1]);
+        assert!(backups
+            .iter()
+            .all(|path| std::fs::read(path).unwrap() == b"{ invalid"));
+        assert!(!source_path.exists());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn corrupt_backup_cleanup_does_not_remove_a_newer_replacement() {
+        let root = test_dir("corrupt-newer-replacement");
+        std::fs::create_dir_all(&root).unwrap();
+        let source_path = root.join(APP_SETTINGS_FILE_NAME);
+        let corrupted_bytes = b"{ invalid";
+        let replacement_bytes = serde_json::to_vec(&AppSettings::default()).unwrap();
+        std::fs::write(&source_path, replacement_bytes.as_slice()).unwrap();
+
+        remove_corrupted_settings_source_if_unchanged(&source_path, corrupted_bytes).unwrap();
+
+        assert_eq!(std::fs::read(&source_path).unwrap(), replacement_bytes);
         let _ = std::fs::remove_dir_all(root);
     }
 }

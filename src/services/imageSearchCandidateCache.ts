@@ -6,6 +6,11 @@ import { syncService } from "./syncService";
 import type { DeliveryImageSearchCandidate } from "./protocol";
 import type { Unit } from "../types/unit";
 import { graphStore } from "../store/graphStore";
+import {
+    isImageSearchPrefetchGenerationCurrent,
+    nextImageSearchPrefetchGeneration,
+    releaseImageSearchPrefetchGeneration,
+} from "./imageSearchPrefetchGeneration";
 
 type ImageSearchCandidateRuntimeFields = Pick<
     DeliveryImageSearchCandidate,
@@ -20,7 +25,6 @@ const IMAGE_SEARCH_RUNTIME_FIELDS: (keyof ImageSearchCandidateRuntimeFields)[] =
 ];
 
 const remoteImageDownloadsInFlight = new Map<string, Promise<string>>();
-const unitPrefetchGeneration = new Map<string, number>();
 
 const candidateFullImageDisplaySrc = (candidate: DeliveryImageSearchCandidate) =>
     candidate.cachedImageSrc ||
@@ -78,15 +82,6 @@ const mergeImageSearchCandidatePatch = (
 
     return changed ? nextCandidates : candidates;
 };
-
-const nextPrefetchGeneration = (unitId: string) => {
-    const nextGeneration = (unitPrefetchGeneration.get(unitId) || 0) + 1;
-    unitPrefetchGeneration.set(unitId, nextGeneration);
-    return nextGeneration;
-};
-
-const isPrefetchGenerationCurrent = (unitId: string, generation: number) =>
-    unitPrefetchGeneration.get(unitId) === generation;
 
 const cacheRemoteImagePath = async (url: string, referer?: string) => {
     const normalizedUrl = url.trim();
@@ -289,7 +284,7 @@ const prefetchSingleCandidate = async (
         candidate.thumbnail;
     const referer = liveCandidateBeforeThumb?.sourcePageUrl || candidate.sourcePageUrl;
     if (
-        isPrefetchGenerationCurrent(unitId, generation) &&
+        isImageSearchPrefetchGenerationCurrent(unitId, generation) &&
         isNonEmptyString(thumbnailUrl) &&
         !isNonEmptyString(liveCandidateBeforeThumb?.cachedThumbnailPath) &&
         !isNonEmptyString(liveCandidateBeforeThumb?.cachedThumbnailSrc)
@@ -299,7 +294,7 @@ const prefetchSingleCandidate = async (
                 thumbnailUrl,
                 referer,
             );
-            if (!isPrefetchGenerationCurrent(unitId, generation)) return;
+            if (!isImageSearchPrefetchGenerationCurrent(unitId, generation)) return;
             updateCachedImageSearchCandidate(unitId, candidate.index, {
                 cachedThumbnailPath,
                 cachedThumbnailSrc:
@@ -315,7 +310,7 @@ const prefetchSingleCandidate = async (
         candidate.index,
     );
     if (
-        !isPrefetchGenerationCurrent(unitId, generation) ||
+        !isImageSearchPrefetchGenerationCurrent(unitId, generation) ||
         !liveCandidateBeforeImage ||
         isNonEmptyString(liveCandidateBeforeImage.cachedImagePath) ||
         isNonEmptyString(liveCandidateBeforeImage.cachedImageSrc)
@@ -328,7 +323,7 @@ const prefetchSingleCandidate = async (
             liveCandidateBeforeImage.imageUrl,
             referer,
         );
-        if (!isPrefetchGenerationCurrent(unitId, generation)) return;
+        if (!isImageSearchPrefetchGenerationCurrent(unitId, generation)) return;
         updateCachedImageSearchCandidate(unitId, candidate.index, {
             cachedImagePath,
             cachedImageSrc:
@@ -344,19 +339,19 @@ export const prefetchImageSearchCandidateAssets = async (input: {
     candidates: DeliveryImageSearchCandidate[] | undefined;
     selectedIndex?: number;
 }) => {
-    const generation = nextPrefetchGeneration(input.unitId);
+    const generation = nextImageSearchPrefetchGeneration(input.unitId);
     const orderedCandidates = orderImageSearchCandidatePrefetchQueue(
         input.candidates,
         input.selectedIndex,
     );
-    if (orderedCandidates.length === 0) {
-        return;
-    }
-
-    for (const candidate of orderedCandidates) {
-        if (!isPrefetchGenerationCurrent(input.unitId, generation)) {
-            return;
+    try {
+        for (const candidate of orderedCandidates) {
+            if (!isImageSearchPrefetchGenerationCurrent(input.unitId, generation)) {
+                return;
+            }
+            await prefetchSingleCandidate(input.unitId, candidate, generation);
         }
-        await prefetchSingleCandidate(input.unitId, candidate, generation);
+    } finally {
+        releaseImageSearchPrefetchGeneration(input.unitId, generation);
     }
 };

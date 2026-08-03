@@ -1176,6 +1176,7 @@ export default function App() {
               console.warn("Failed to refresh restored-session art capabilities:", error);
           }
       }
+      uiActions.retainUnitScopedState(new Set(graphStore.units.map((unit) => unit.id)));
 
       // Load persisted color/screenshot history (best-effort; never blocks boot).
       try {
@@ -1476,6 +1477,9 @@ export default function App() {
 
             onDelete={(id) => {
                 graphStore.actions.removeUnit(id);
+                uiActions.clearStickerHistory(id);
+                uiActions.clearUnitUiState(id);
+                uiActions.dismissEnhancementNotice(id);
                 if (selectedStickerId() === id) {
                     uiActions.hideStickerToolbar();
                 }

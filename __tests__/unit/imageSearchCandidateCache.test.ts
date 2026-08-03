@@ -28,6 +28,10 @@ import {
 import { graphStore } from "../../src/store/graphStore";
 import { api } from "../../src/services/api";
 import { syncService } from "../../src/services/syncService";
+import {
+    clearAllImageSearchPrefetchGenerations,
+    getImageSearchPrefetchGenerationCount,
+} from "../../src/services/imageSearchPrefetchGeneration";
 
 const BASE_CANDIDATES: DeliveryImageSearchCandidate[] = [
     {
@@ -56,6 +60,7 @@ describe("imageSearchCandidateCache helpers", () => {
         graphStore.setCapabilities([]);
         graphStore.setUnitParams({});
         graphStore.setUnitExecConfig({});
+        clearAllImageSearchPrefetchGenerations();
         vi.clearAllMocks();
     });
 
@@ -259,5 +264,50 @@ describe("imageSearchCandidateCache helpers", () => {
             "https://example.com/protected/a.png",
             "https://example.com/gallery/a",
         );
+        expect(getImageSearchPrefetchGenerationCount()).toBe(0);
+    });
+
+    it("invalidates an in-flight prefetch when its unit is deleted", async () => {
+        let resolveDownload: ((path: string) => void) | undefined;
+        vi.mocked(api.cacheRemoteImageAsset).mockImplementation(
+            () => new Promise<string>((resolve) => {
+                resolveDownload = resolve;
+            }),
+        );
+        const candidate = { ...BASE_CANDIDATES[2] };
+        graphStore.setUnits([
+            {
+                id: "deleted-image-search",
+                type: "art",
+                artId: "image-search",
+                x: 0,
+                y: 0,
+                w: 320,
+                h: 200,
+                params: {},
+                inputs: [],
+                outputs: [],
+                data: {
+                    resultCandidates: [candidate],
+                    selectedResultIndex: candidate.index,
+                },
+            },
+        ]);
+
+        const prefetch = prefetchImageSearchCandidateAssets({
+            unitId: "deleted-image-search",
+            candidates: [candidate],
+            selectedIndex: candidate.index,
+        });
+        await Promise.resolve();
+        expect(getImageSearchPrefetchGenerationCount()).toBe(1);
+
+        graphStore.actions.removeUnit("deleted-image-search");
+        expect(getImageSearchPrefetchGenerationCount()).toBe(0);
+        resolveDownload?.("C:\\cache\\deleted.png");
+        await prefetch;
+
+        expect(graphStore.units).toHaveLength(0);
+        expect(syncService.performWorkflowSync).not.toHaveBeenCalled();
     });
 });
