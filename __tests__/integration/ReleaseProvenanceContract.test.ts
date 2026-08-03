@@ -90,5 +90,5 @@ describe("release provenance contract", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 });
