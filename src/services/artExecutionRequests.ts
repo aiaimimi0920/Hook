@@ -1,0 +1,66 @@
+export interface ArtExecutionRequestRegistry {
+    begin(unitId: string): string;
+    isLatest(unitId: string, requestId?: string): boolean;
+    markPreview(unitId: string, requestId: string | undefined, previewSrc: string): void;
+    getPreview(unitId: string, requestId?: string): string | undefined;
+    finish(unitId: string, requestId?: string): void;
+    invalidate(unitId: string): void;
+}
+
+const defaultRequestIdFactory = (): string => {
+    if (typeof globalThis.crypto?.randomUUID === "function") {
+        return globalThis.crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+export const createArtExecutionRequestRegistry = (
+    requestIdFactory: () => string = defaultRequestIdFactory,
+): ArtExecutionRequestRegistry => {
+    const latestByUnit = new Map<string, string>();
+    const previewByUnit = new Map<string, { requestId: string; previewSrc: string }>();
+
+    return {
+        begin(unitId) {
+            const requestId = requestIdFactory();
+            latestByUnit.set(unitId, requestId);
+            previewByUnit.delete(unitId);
+            return requestId;
+        },
+        isLatest(unitId, requestId) {
+            const latest = latestByUnit.get(unitId);
+            if (!requestId) return latest === undefined;
+            return latest === requestId;
+        },
+        markPreview(unitId, requestId, previewSrc) {
+            const latest = latestByUnit.get(unitId);
+            if (requestId && latest === requestId) {
+                previewByUnit.set(unitId, { requestId, previewSrc });
+            }
+        },
+        getPreview(unitId, requestId) {
+            const preview = previewByUnit.get(unitId);
+            return requestId && preview?.requestId === requestId
+                ? preview.previewSrc
+                : undefined;
+        },
+        finish(unitId, requestId) {
+            if (!requestId) {
+                if (!latestByUnit.has(unitId)) {
+                    previewByUnit.delete(unitId);
+                }
+                return;
+            }
+            if (latestByUnit.get(unitId) === requestId) {
+                latestByUnit.delete(unitId);
+                previewByUnit.delete(unitId);
+            }
+        },
+        invalidate(unitId) {
+            latestByUnit.delete(unitId);
+            previewByUnit.delete(unitId);
+        },
+    };
+};
+
+export const artExecutionRequests = createArtExecutionRequestRegistry();

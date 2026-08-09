@@ -34,6 +34,7 @@ interface ShortcutHandlers {
   onTransformMove?: () => void | Promise<void>;
   onTransformRotate?: () => void | Promise<void>;
   onTransformScale?: () => void | Promise<void>;
+  onCloseActions?: () => boolean;
 }
 
 interface UseShortcutsOptions {
@@ -48,6 +49,17 @@ export function isGlobalShortcutEditingTarget(target: EventTarget | null): targe
 
 export function shouldIgnoreGlobalShortcut(target: EventTarget | null, key: string): boolean {
   return isGlobalShortcutEditingTarget(target) && key !== "Escape";
+}
+
+export function isActionsMenuDismissShortcut(
+  event: Pick<KeyboardEvent, "key" | "shiftKey" | "ctrlKey" | "altKey" | "metaKey"> & { code?: string },
+): boolean {
+  if (event.key === "Escape") return true;
+  return (event.key === "!" || event.key === "1" || event.code === "Digit1")
+    && event.shiftKey
+    && !event.ctrlKey
+    && !event.altKey
+    && !event.metaKey;
 }
 
 /**
@@ -107,6 +119,16 @@ export function useShortcuts(options: UseShortcutsOptions) {
     // Global keydown listener
     const handleKeyDown = (e: KeyboardEvent) => {
       if (suppressBareAlt(e)) return;
+
+      if (
+        handlers.onCloseActions
+        && isActionsMenuDismissShortcut(e)
+        && handlers.onCloseActions()
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
 
       if (shouldIgnoreGlobalShortcut(e.target, e.key)) return;
 

@@ -91,13 +91,13 @@ export interface StickerEditPropagationState {
     locallyEdited?: boolean;
     /** Monotonic local edit counter for traceability and future conflict checks. */
     revision?: number;
-    /** Last direct upstream sticker that supplied propagated annotation edits. */
+    /** Effective upstream edit source; unchanged intermediate stickers remain transparent relays. */
     upstreamSourceUnitId?: string;
     /** The upstream revision observed when propagated. */
     upstreamSourceRevision?: number;
-    /** Immediate upstream sticker frame used to contain its visible image content. */
+    /** Effective source frame used to contain its visible image content. */
     upstreamSourceFrame?: { w: number; h: number };
-    /** Visible image-content frame in immediate upstream sticker coordinates. */
+    /** Visible image-content frame in effective source coordinates. */
     upstreamContentFrame?: { x: number; y: number; w: number; h: number };
 }
 

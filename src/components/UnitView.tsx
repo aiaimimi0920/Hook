@@ -31,6 +31,7 @@ import { StickerTopStrip } from "./StickerTopStrip";
 import { DISABLED_PREFIX } from "../constants";
 import { isStickerSurfaceDoubleClickTarget } from "../services/stickerDoubleClick";
 import {
+  isUnitFormalImagePending,
   resolveConnectedUnitImageForPort,
   resolveEffectiveNodeParams
 } from "../services/graphImageResolution";
@@ -41,7 +42,11 @@ import {
   renderStickerComposite,
   resolveStickerCompositeBaseImageSrc,
 } from "../services/stickerExport";
-import { supportsShaderPreview } from "../services/artCapabilities";
+import {
+  shaderInputPortName,
+  shaderReferenceInputPortName,
+  supportsShaderPreview,
+} from "../services/artCapabilities";
 import {
   resolveNativeDragDropPhysicalPointFromOverlay,
   resolveNativeDragDropPhysicalPointFromPointer,
@@ -84,6 +89,7 @@ interface Props {
   onParamChange: (propId: string, value: any, isFinal?: boolean) => void;
   onDoubleTap: (e: MouseEvent) => void;
   onDelete: () => void;
+  onCloseActions?: () => void;
   onAddNode: (artId: string) => void;
   onLinkStart: (propId: string, startX: number, startY: number) => void;
   onLinkDrop: (propId: string) => void; // NEW: Robust Link Completion
@@ -235,13 +241,21 @@ export const UnitView: Component<Props> = (props) => {
           unitId: props.unit.id,
           portId: portName,
       });
-  const getShaderInputSrc = () =>
-      getConnectedImageForPort("input") ||
-      getConnectedImageForPort("input_image") ||
-      getConnectedImageForPort("image") ||
-      liveUnit().data.src ||
-      "";
+  const getShaderInputSrc = () => {
+      const configuredPort = shaderInputPortName(props.capability);
+      return (configuredPort ? getConnectedImageForPort(configuredPort) : undefined) ||
+          getConnectedImageForPort("input") ||
+          getConnectedImageForPort("input_image") ||
+          getConnectedImageForPort("image") ||
+          liveUnit().data.src ||
+          "";
+  };
   const getShaderReferenceSrc = () => {
+      const configuredPort = shaderReferenceInputPortName(props.capability);
+      if (configuredPort) {
+          const configured = getConnectedImageForPort(configuredPort);
+          if (configured) return configured;
+      }
       const connected = getConnectedImageForPort("reference");
       if (connected) return connected;
 
@@ -253,6 +267,7 @@ export const UnitView: Component<Props> = (props) => {
       !!liveUnit().data.restoredPreviewLocked &&
       !!(liveUnit().data.previewSrc || liveUnit().data.src);
   const isContextualShader = () =>
+      !!shaderReferenceInputPortName(props.capability) ||
       !!props.capability?.params?.some((param) => param.widget === "image_link" || param.id === "reference") ||
       !!props.capability?.inputs?.some((input) => input.name === "reference");
 
@@ -499,12 +514,20 @@ export const UnitView: Component<Props> = (props) => {
       window.addEventListener("hook:overlay-native-drag-preflight-up", handlePendingNativeDragOverlayEnd as EventListener, true);
   };
 
-  const resolveCurrentUnitDragExportPlan = () =>
-      resolveUnitDragExportPlan({
-          unit: liveUnit(),
+  const resolveCurrentUnitDragExportPlan = () => {
+      const unit = liveUnit();
+      return resolveUnitDragExportPlan({
+          unit,
           capabilityLabel: props.capability?.label,
           displaySrc: baseImageSrc(),
+          formalImagePending: isUnitFormalImagePending({
+              unitId: unit.id,
+              units: graphStore.units,
+              links: graphStore.links,
+              capabilities: graphStore.capabilities,
+          }),
       });
+  };
 
   const beginPendingHookStickerExportDrag = (x: number, y: number, pointerId?: number) => {
       const exportPlan = resolveCurrentUnitDragExportPlan();
@@ -1085,8 +1108,15 @@ export const UnitView: Component<Props> = (props) => {
                         appSettings.fileNaming,
                     )}.png`;
 
-                    const src = props.unit.data.previewSrc || props.unit.data.src || "";
-                    const dragOutFilePath = props.unit.data.filePath;
+                    const exportPlan = resolveCurrentUnitDragExportPlan();
+                    const src = exportPlan?.kind === "data-url"
+                        ? exportPlan.dataUrl
+                        : props.unit.type === "art"
+                          ? ""
+                          : props.unit.data.previewSrc || props.unit.data.src || "";
+                    const dragOutFilePath = exportPlan?.kind === "path"
+                        ? exportPlan.path
+                        : undefined;
 
                     if (dragOutFilePath) {
                          const normalizedFilePath = dragOutFilePath.replace(/\\/g, "/").startsWith("/")
@@ -1441,6 +1471,7 @@ export const UnitView: Component<Props> = (props) => {
              unit={props.unit}
              availableArts={props.availableArts}
              onAddNode={props.onAddNode}
+             onClose={props.onCloseActions}
              showActions={props.showActions}
              currentPos={{ x: props.unit.x, y: props.unit.y }}
         />

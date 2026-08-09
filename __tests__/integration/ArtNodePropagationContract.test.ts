@@ -32,13 +32,15 @@ describe("Hook art-node upstream propagation contract", () => {
     expect(source).toContain("if (isUpstreamTrigger)");
   });
 
-  it("resolves art input images through intermediate sticker links before dispatching cloud nodes", () => {
+  it("resolves formal linked outputs through intermediate stickers before dispatching downstream nodes", () => {
     const nodeParametersSource = readFileSync(resolve(process.cwd(), "src", "hooks", "useNodeParameters.ts"), "utf8");
     const unitActionsSource = readFileSync(resolve(process.cwd(), "src", "hooks", "useUnitActions.ts"), "utf8");
 
     expect(nodeParametersSource).toContain("resolveUnitExecutionInputImage");
     expect(nodeParametersSource).toContain("unitId,");
-    expect(unitActionsSource).toContain("resolveUnitImageFromGraph");
-    expect(unitActionsSource).toContain("unitId: fromUnitId");
+    expect(unitActionsSource).toContain("resolveConnectedUnitImageForPort");
+    expect(unitActionsSource).toContain("unitId: childId");
+    expect(unitActionsSource).toContain("portId: l.toPortId");
+    expect(unitActionsSource).not.toContain("unitId: fromUnitId");
   });
 });

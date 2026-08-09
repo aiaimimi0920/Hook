@@ -84,12 +84,11 @@ describe("beautify export", () => {
         expect(beautified.height).toBe(180);
     });
 
-    it("leaves the canvas at composite size when beautify is disabled", async () => {
+    it("preserves the original bytes without creating a canvas when beautify is disabled", async () => {
         const canvases = installCanvas();
-        await renderStickerComposite(makeUnit(false));
-        // No beautify pass: the only/last canvas keeps the composite size.
-        const last = canvases[canvases.length - 1];
-        expect(last.width).toBe(200);
-        expect(last.height).toBe(100);
+        await expect(renderStickerComposite(makeUnit(false))).resolves.toBe(
+            "data:image/png;base64,BASE",
+        );
+        expect(canvases).toHaveLength(0);
     });
 });

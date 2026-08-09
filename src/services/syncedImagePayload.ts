@@ -57,6 +57,13 @@ export const requiresBakedStickerSyncImage = (unit: ImagePayloadUnit) => {
     if (unit.type !== "sticker") return false;
     if ((unit.data.annotationState?.elements?.length ?? 0) > 0) return true;
     if (Boolean(unit.data.rasterizedAnnotationLayerSrc)) return true;
+    if (
+        typeof unit.data.opacityNormal === "number" &&
+        Number.isFinite(unit.data.opacityNormal) &&
+        unit.data.opacityNormal !== 1
+    ) {
+        return true;
+    }
     return hasMeaningfulImageEditState(unit.data.imageEditState);
 };
 

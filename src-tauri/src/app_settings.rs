@@ -10,20 +10,63 @@ use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const APP_SETTINGS_FILE_NAME: &str = "app-settings.json";
+const APP_SETTINGS_SCHEMA_VERSION: u32 = FILE_NAMING_SCHEMA_VERSION + 1;
 static APP_SETTINGS_IO_LOCK: Mutex<()> = Mutex::new(());
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CacheSettings {
+    pub recycle_bin_max_entries: u32,
+    pub recycle_bin_retention_days: u32,
+    pub temp_cache_max_bytes: u64,
+    pub temp_cache_retention_days: u32,
+}
+
+impl Default for CacheSettings {
+    fn default() -> Self {
+        Self {
+            recycle_bin_max_entries: 15,
+            recycle_bin_retention_days: 0,
+            temp_cache_max_bytes: 256 * 1024 * 1024,
+            temp_cache_retention_days: 7,
+        }
+    }
+}
+
+fn validate_cache_settings(settings: &CacheSettings) -> Result<(), String> {
+    if settings.recycle_bin_max_entries > 500 {
+        return Err("Recycle bin maximum must be unlimited or at most 500".to_string());
+    }
+    if settings.recycle_bin_retention_days > 3650 {
+        return Err("Recycle bin retention cannot exceed 3650 days".to_string());
+    }
+    if settings.temp_cache_max_bytes != 0
+        && !(32 * 1024 * 1024..=16 * 1024 * 1024 * 1024).contains(&settings.temp_cache_max_bytes)
+    {
+        return Err(
+            "Temporary cache maximum must be unlimited or between 32 MiB and 16 GiB".to_string(),
+        );
+    }
+    if settings.temp_cache_retention_days > 3650 {
+        return Err("Temporary cache retention cannot exceed 3650 days".to_string());
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
     pub schema_version: u32,
     pub file_naming: FileNamingSettings,
+    pub cache: CacheSettings,
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            schema_version: FILE_NAMING_SCHEMA_VERSION,
+            schema_version: APP_SETTINGS_SCHEMA_VERSION,
             file_naming: FileNamingSettings::default(),
+            cache: CacheSettings::default(),
         }
     }
 }
@@ -47,8 +90,14 @@ fn load_app_settings_unlocked(app_data_dir: &Path) -> Result<AppSettings, String
 
     match serde_json::from_slice::<AppSettings>(&bytes) {
         Ok(mut settings) => {
-            settings.schema_version = FILE_NAMING_SCHEMA_VERSION;
+            settings.schema_version = APP_SETTINGS_SCHEMA_VERSION;
             if let Err(error) = validate_file_naming_settings(&settings.file_naming) {
+                backup_corrupted_settings(app_data_dir, &path, &bytes).map_err(|backup_error| {
+                    format!("App settings are invalid ({error}) and could not be backed up: {backup_error}")
+                })?;
+                return Ok(AppSettings::default());
+            }
+            if let Err(error) = validate_cache_settings(&settings.cache) {
                 backup_corrupted_settings(app_data_dir, &path, &bytes).map_err(|backup_error| {
                     format!("App settings are invalid ({error}) and could not be backed up: {backup_error}")
                 })?;
@@ -82,8 +131,9 @@ fn save_app_settings_unlocked(
     app_data_dir: &Path,
     mut settings: AppSettings,
 ) -> Result<AppSettings, String> {
-    settings.schema_version = FILE_NAMING_SCHEMA_VERSION;
+    settings.schema_version = APP_SETTINGS_SCHEMA_VERSION;
     validate_file_naming_settings(&settings.file_naming)?;
+    validate_cache_settings(&settings.cache)?;
     settings.file_naming = normalize_file_naming_settings(settings.file_naming);
     std::fs::create_dir_all(app_data_dir)
         .map_err(|error| format!("Failed to create app settings directory: {error}"))?;
@@ -293,6 +343,8 @@ mod tests {
         let root = test_dir("roundtrip");
         let mut settings = AppSettings::default();
         settings.file_naming.drag_export_pattern = "{label}_{unitId}".to_string();
+        settings.cache.recycle_bin_max_entries = 0;
+        settings.cache.temp_cache_max_bytes = 0;
         let saved = save_app_settings(&root, settings.clone()).unwrap();
         assert_eq!(saved, settings);
         assert_eq!(load_app_settings(&root).unwrap(), settings);

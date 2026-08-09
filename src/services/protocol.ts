@@ -79,6 +79,9 @@ export interface ArtCapability {
 export interface ArtCapabilityMetadata {
     preview?: string;
     requiresLiveInputs?: boolean;
+    requiresFormalExecution?: boolean;
+    shaderInput?: string;
+    shaderReferenceInput?: string;
     parameterEditor?: string;
     shader?: boolean;
     [key: string]: unknown;
@@ -168,6 +171,8 @@ export interface ShaderDeliveryPayload {
 
 export interface ArtDelivery {
     art_id: string;
+    request_id?: string;
+    phase?: "preview" | "final";
     status: number;
     error?: string;
     delivery: DeliveryPayload | ShaderDeliveryPayload;

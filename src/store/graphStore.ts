@@ -182,6 +182,38 @@ const propagateStickerEditsFrom = (sourceUnitId: string) => {
     return patches;
 };
 
+const reconcileStickerEditPropagation = () => {
+    const snapshotUnits = unwrap(units);
+    const snapshotLinks = unwrap(links);
+    const stickerIds = new Set(
+        snapshotUnits
+            .filter((unit) => unit.type === "sticker")
+            .map((unit) => unit.id),
+    );
+    const hasIncomingSticker = (unitId: string) =>
+        snapshotLinks.some(
+            (link) =>
+                link.toUnitId === unitId &&
+                stickerIds.has(link.fromUnitId) &&
+                (link.toPortId === "image" ||
+                    link.toPortId === "input_image" ||
+                    link.toPortId === "input"),
+        );
+    const sourceIds = snapshotUnits
+        .filter((unit) => {
+            if (unit.type !== "sticker") return false;
+            const propagation = unit.data.stickerEditPropagation;
+            return (
+                !hasIncomingSticker(unit.id) ||
+                propagation?.locallyEdited === true ||
+                propagation?.acceptUpstream === false
+            );
+        })
+        .map((unit) => unit.id);
+
+    return sourceIds.flatMap((sourceId) => propagateStickerEditsFrom(sourceId));
+};
+
 const updateStickerWindowState = (
     id: string,
     frame: Pick<Unit, "x" | "y" | "w" | "h">,
@@ -252,6 +284,17 @@ const closeStickerGroup = (groupId: string) => {
 
 const addLink = (link: Link) => {
     setLinks((prev) => [...prev, link]);
+    const source = units.find((unit) => unit.id === link.fromUnitId);
+    const target = units.find((unit) => unit.id === link.toUnitId);
+    if (
+        source?.type === "sticker" &&
+        target?.type === "sticker" &&
+        (link.toPortId === "image" ||
+            link.toPortId === "input_image" ||
+            link.toPortId === "input")
+    ) {
+        propagateStickerEditsFrom(link.fromUnitId);
+    }
 };
 
 const removeLink = (id: string) => {
@@ -285,6 +328,7 @@ export const graphStore = {
         updateStickerEditData,
         resizeStickerFrame,
         propagateStickerEditsFrom,
+        reconcileStickerEditPropagation,
         updateStickerWindowState,
         restoreStickerEditSnapshot,
         addOrUpdateStickerGroup,

@@ -6,6 +6,23 @@ const readSource = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), relativePath), "utf8");
 
 describe("Hook legacy Escape delete contract", () => {
+  it("closes an open actions menu before the legacy selected-unit delete handler", () => {
+    const shortcutsSource = readSource("src/hooks/useShortcuts.ts");
+    const appSource = readSource("src/app.tsx");
+
+    expect(shortcutsSource).toContain("isActionsMenuDismissShortcut(e)");
+    expect(shortcutsSource).toContain("handlers.onCloseActions()");
+    expect(appSource).toContain("const closeSelectedActionsMenu = () =>");
+    expect(appSource).toContain("onCloseActions: closeSelectedActionsMenu");
+
+    const nativeEscapeStart = appSource.indexOf('listen("trigger-escape"');
+    const nativeEscapeEnd = appSource.indexOf('listen("trigger-delete"', nativeEscapeStart);
+    const nativeEscapeBlock = appSource.slice(nativeEscapeStart, nativeEscapeEnd);
+    expect(nativeEscapeBlock.indexOf("closeSelectedActionsMenu()")).toBeLessThan(
+      nativeEscapeBlock.indexOf("deleteSelectedUnitOrAnnotation()"),
+    );
+  });
+
   it("routes Escape in unit-selected context to the same destructive handler as Delete and Backspace", () => {
     const shortcutsSource = readSource("src/hooks/useShortcuts.ts");
 

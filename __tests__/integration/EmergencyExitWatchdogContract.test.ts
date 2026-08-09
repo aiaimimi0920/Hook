@@ -11,7 +11,7 @@ const main = readFileSync(resolve(root, "src-tauri/src/main.rs"), "utf8");
 const lib = readFileSync(resolve(root, "src-tauri/src/lib.rs"), "utf8");
 
 describe("Hook emergency exit watchdog contract", () => {
-    it("runs outside the Tauri event loop and terminates the parent on physical double Escape", () => {
+    it("runs outside the Tauri event loop and terminates the parent on physical triple Escape", () => {
         expect(main).toContain("emergency_watchdog::parse_parent_pid");
         expect(main.indexOf("emergency_watchdog::parse_parent_pid")).toBeLessThan(
             main.indexOf("hook_lib::run()"),
@@ -20,6 +20,8 @@ describe("Hook emergency exit watchdog contract", () => {
         expect(watchdog).toContain("GetAsyncKeyState");
         expect(watchdog).toContain("TerminateProcess");
         expect(watchdog).toContain("EMERGENCY_ESCAPE_WINDOW");
+        expect(watchdog).toContain("consecutive_presses");
+        expect(watchdog).toContain('"triple_escape"');
         expect(watchdog).toContain("Duration::from_millis(8)");
         expect(watchdog).toContain("validate_direct_parent(parent_pid, actual_parent_pid)");
         expect(watchdog).toContain("creation_flags(CREATE_NO_WINDOW.0)");

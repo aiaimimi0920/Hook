@@ -72,6 +72,40 @@ const findConnectedImageInput = (unit: Unit, links: readonly Link[], capabilitie
     return links.find((link) => link.toUnitId === unit.id && imageInputs.has(link.toPortId));
 };
 
+export const isUnitFormalImagePending = (input: {
+    units: readonly Unit[];
+    links: readonly Link[];
+    unitId: string;
+    capabilities?: readonly ArtCapability[];
+    visited?: Set<string>;
+}): boolean => {
+    const visited = input.visited ?? new Set<string>();
+    if (visited.has(input.unitId)) return false;
+    visited.add(input.unitId);
+
+    const unit = input.units.find((candidate) => candidate.id === input.unitId);
+    if (!unit) return false;
+    if (unit.type === "art") {
+        return unit.data.processing === true ||
+            unit.data.nodeStatus === "running" ||
+            unit.data.nodeStatus === "pending";
+    }
+
+    const relaysUpstream =
+        unit.params?.image !== DISABLED_PREFIX &&
+        unit.data.stickerEditPropagation?.acceptUpstream !== false &&
+        !unit.data.stickerEditPropagation?.locallyEdited;
+    if (!relaysUpstream) return false;
+
+    const connectedInput = findConnectedImageInput(unit, input.links, input.capabilities);
+    if (!connectedInput) return false;
+    return isUnitFormalImagePending({
+        ...input,
+        unitId: connectedInput.fromUnitId,
+        visited,
+    });
+};
+
 const imageOutputAliases = new Set(["output", "output_image", "image", "result", "preview"]);
 
 const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
@@ -118,12 +152,20 @@ export const resolveUnitOutputValue = (input: {
         return outputs.output;
     }
 
+    // An Art's visual preview and its output-port value are separate contracts.
+    // Workflow Arts may publish a fast preview while their formal output is
+    // still processing, so never expose previewSrc as an Art output fallback.
+    if (unit.type === "art") {
+        return undefined;
+    }
+
     if (isImageOutputPort(unit, input.portId, input.capabilities)) {
         return resolveUnitImageFromGraph({
             units: input.units,
             links: input.links,
             capabilities: input.capabilities,
             unitId: input.unitId,
+            visited,
         });
     }
 
@@ -136,6 +178,7 @@ export const resolveConnectedUnitImageForPort = (input: {
     unitId: string;
     portId: string;
     capabilities?: readonly ArtCapability[];
+    visited?: Set<string>;
 }): string | undefined => {
     const link = input.links.find(
         (candidate) =>
@@ -150,6 +193,7 @@ export const resolveConnectedUnitImageForPort = (input: {
         capabilities: input.capabilities,
         unitId: link.fromUnitId,
         portId: link.fromPortId || "output",
+        visited: input.visited,
     });
     const directValue =
         getObjectField(upstreamValue, ["value", "data", "src", "previewSrc", "url", "path"]) ??
@@ -472,12 +516,18 @@ export const resolveUnitImageFromGraph = (input: {
 
     if (unit.type === "sticker") {
         const imageInputDisabled = unit.params?.image === DISABLED_PREFIX;
-        if (!imageInputDisabled) {
+        const relaysUpstream =
+            unit.data.stickerEditPropagation?.acceptUpstream !== false &&
+            !unit.data.stickerEditPropagation?.locallyEdited;
+        if (!imageInputDisabled && relaysUpstream) {
             const connectedInput = findConnectedImageInput(unit, input.links, input.capabilities);
             if (connectedInput) {
-                const upstream = resolveUnitImageFromGraph({
-                    ...input,
-                    unitId: connectedInput.fromUnitId,
+                const upstream = resolveConnectedUnitImageForPort({
+                    units: input.units,
+                    links: input.links,
+                    capabilities: input.capabilities,
+                    unitId: unit.id,
+                    portId: connectedInput.toPortId,
                     visited,
                 });
                 if (upstream) return upstream;
@@ -508,19 +558,10 @@ export const resolveUnitImageFromGraph = (input: {
 };
 
 /**
- * Canvas display-image resolver — the simpler, capability-agnostic variant
- * extracted verbatim from app.tsx's former inline `resolveUnitImage`. It decides
- * which image a node shows on the canvas. Priority: the node's own generated
- * `previewSrc`, then an upstream image connected on a fixed set of input ports
- * (`image` / `input_image` / `input`), then the node's own `src`. A `visited`
- * set guards against link cycles (A -> B -> A).
- *
- * This INTENTIONALLY DIFFERS from `resolveUnitImageFromGraph` above, which is
- * capability-aware and, for stickers, resolves upstream BEFORE `previewSrc` and
- * additionally honors `DISABLED_PREFIX` / `image_path`. The two resolvers are
- * kept separate on purpose; the divergence is pinned by a test in
- * `resolveCanvasDisplayImage.test.ts`. Do not unify them without a deliberate
- * behavior-change decision.
+ * Canvas display-image resolver. Art nodes own their generated preview, while
+ * an untouched sticker is a transparent image relay and resolves its connected
+ * source before any cached local preview. A locally edited sticker remains a
+ * real image boundary and therefore keeps its own preview priority.
  */
 export const resolveCanvasDisplayImage = (input: {
     units: readonly Unit[];
@@ -536,25 +577,45 @@ export const resolveCanvasDisplayImage = (input: {
     const unit = input.units.find((item) => item.id === input.unitId);
     if (!unit) return undefined;
 
-    // 1. Generated Result (Highest Priority)
-    if (unit.data.previewSrc) {
-        return unit.data.previewSrc;
-    }
-
-    // 2. Upstream Resolution (Pass-Through) on a fixed set of image input ports,
-    // checked BEFORE falling back to the original `src`.
     const link = input.links.find(
         (l) =>
             l.toUnitId === input.unitId &&
             (l.toPortId === "image" || l.toPortId === "input_image" || l.toPortId === "input"),
     );
 
-    if (link) {
-        const upstream = resolveCanvasDisplayImage({ ...input, unitId: link.fromUnitId, visited });
+    const stickerInputEnabled =
+        unit.type !== "sticker" || unit.params?.image !== DISABLED_PREFIX;
+    const isTransparentStickerRelay =
+        unit.type === "sticker" &&
+        stickerInputEnabled &&
+        unit.data.stickerEditPropagation?.acceptUpstream !== false &&
+        !unit.data.stickerEditPropagation?.locallyEdited;
+
+    const connectedOutput = () =>
+        link
+            ? resolveConnectedUnitImageForPort({
+                  units: input.units,
+                  links: input.links,
+                  unitId: unit.id,
+                  portId: link.toPortId,
+                  visited,
+              })
+            : undefined;
+
+    if (isTransparentStickerRelay && link) {
+        const upstream = connectedOutput();
         if (upstream) return upstream;
     }
 
-    // 3. Fallback to Source (Original Screenshot / Upload)
+    if (unit.data.previewSrc) {
+        return unit.data.previewSrc;
+    }
+
+    if (!isTransparentStickerRelay && stickerInputEnabled && link) {
+        const upstream = connectedOutput();
+        if (upstream) return upstream;
+    }
+
     return unit.data.src;
 };
 
@@ -574,10 +635,11 @@ export const resolveUnitExecutionInputImage = (input: {
             : undefined;
     }
 
-    return resolveUnitImageFromGraph({
+    return resolveConnectedUnitImageForPort({
         units: input.units,
         links: input.links,
         capabilities: input.capabilities,
-        unitId: connectedInput.fromUnitId,
+        unitId: unit.id,
+        portId: connectedInput.toPortId,
     });
 };

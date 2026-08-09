@@ -4,6 +4,11 @@ import { Portal } from "solid-js/web";
 import { Unit } from "../types/unit";
 import { ArtCapability } from "../services/protocol";
 import { api } from "../services/api";
+import { syncService } from "../services/syncService";
+import {
+    OVERLAY_GLOBAL_MOUSE_UP_EVENT,
+    type OverlaySyntheticMousePayload,
+} from "../services/overlaySyntheticEvents";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import {
     registerDragFollowerElement,
@@ -14,6 +19,7 @@ interface UnitAddNodeMenuProps {
   unit?: Unit;
   availableArts?: ArtCapability[];
   onAddNode: (artId: string) => void;
+  onClose?: () => void;
   showActions: boolean;
   currentPos: { x: number; y: number };
 }
@@ -22,8 +28,18 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
     let menuRootRef: HTMLDivElement | undefined;
     let scrollContainerRef: HTMLDivElement | undefined;
     let scrollTrackRef: HTMLDivElement | undefined;
+    let searchInputRef: HTMLInputElement | undefined;
     let dragFollowerRegistration: { unitId: string; element: HTMLDivElement } | null = null;
     let scrollThumbDragCleanup: (() => void) | undefined;
+    let menuRectSyncRafId: number | null = null;
+    let suppressClickArtId: string | null = null;
+    let suppressClickTimer: number | null = null;
+    let pendingArtActivation: {
+        artId: string;
+        clientX: number;
+        clientY: number;
+    } | null = null;
+    let lastLoggedMenuRect = "";
     let lastSearchQuery = "";
     const [searchQuery, setSearchQuery] = createSignal("");
     const [scrollMetrics, setScrollMetrics] = createSignal({
@@ -59,6 +75,31 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                 .some((value) => value.toLocaleLowerCase().includes(query)),
         );
     });
+
+    const closeMenu = (event?: Event) => {
+        event?.preventDefault();
+        event?.stopPropagation();
+        props.onClose?.();
+    };
+
+    const clearSearch = (event: Event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setSearchQuery("");
+        searchInputRef?.focus();
+    };
+
+    const handleSearchKeyDown = (event: KeyboardEvent) => {
+        const togglesMenu =
+            (event.key === "!" || event.key === "1" || event.code === "Digit1")
+            && event.shiftKey
+            && !event.ctrlKey
+            && !event.altKey
+            && !event.metaKey;
+        if (event.key === "Escape" || togglesMenu) {
+            closeMenu(event);
+        }
+    };
 
     const syncScrollMetrics = () => {
         if (!scrollContainerRef) return;
@@ -143,26 +184,172 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
         setManualScrollTop(ratio * getMaxScrollTop());
     };
 
-    // Register Rect for Hit Testing
-    createEffect(() => {
-        if (props.showActions && !props.unit?.data.minified) {
-            const u = props.unit;
-            // Center of unit
-            const cx = u ? u.x + u.w / 2 : props.currentPos.x;
-            const cy = u ? u.y + u.h / 2 : props.currentPos.y;
+    const menuRectId = () => `actions-menu-${props.unit?.id ?? "global"}`;
 
-            addOrUpdateRect({
-                  id: `actions-menu-${u?.id ?? "global"}`,
-                  x: cx - 125, // Width 250 / 2
-                  y: cy - 150, // Height 300 / 2
-                  width: 250,
-                  height: 300,
-                  name: "ACTIONS_MENU"
-            });
-            onCleanup(() => removeRect(`actions-menu-${u?.id ?? "global"}`));
-        } else {
-             removeRect(`actions-menu-${props.unit?.id ?? "global"}`);
+    const requestBackendRectSync = () => {
+        queueMicrotask(() => void syncService.updateBackendRects());
+    };
+
+    const cancelMenuRectSync = () => {
+        if (menuRectSyncRafId === null) return;
+        window.cancelAnimationFrame(menuRectSyncRafId);
+        menuRectSyncRafId = null;
+    };
+
+    const syncMenuHitRect = () => {
+        menuRectSyncRafId = null;
+        if (!menuRootRef || !props.showActions || props.unit?.data.minified) return;
+
+        const rect = menuRootRef.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+        addOrUpdateRect({
+            id: menuRectId(),
+            x: rect.left,
+            y: rect.top,
+            width: rect.width,
+            height: rect.height,
+            name: "ACTIONS_MENU",
+        });
+        requestBackendRectSync();
+
+        const rectLog = `${rect.left.toFixed(1)},${rect.top.toFixed(1)},${rect.width.toFixed(1)},${rect.height.toFixed(1)}`;
+        if (rectLog !== lastLoggedMenuRect) {
+            lastLoggedMenuRect = rectLog;
+            void api.debugLogEvent(
+                "add-art-menu-hit-rect",
+                `id=${props.unit?.id ?? "global"} rect=${rectLog} dpr=${window.devicePixelRatio || 1}`,
+            );
         }
+    };
+
+    const scheduleMenuRectSync = () => {
+        cancelMenuRectSync();
+        menuRectSyncRafId = window.requestAnimationFrame(syncMenuHitRect);
+    };
+
+    const beginArtActivation = (
+        event: MouseEvent & { currentTarget: HTMLButtonElement },
+        artId: string,
+    ) => {
+        event.stopPropagation();
+        if (event.button !== 0) return;
+        suppressClickArtId = null;
+        if (suppressClickTimer !== null) window.clearTimeout(suppressClickTimer);
+        suppressClickTimer = null;
+        pendingArtActivation = {
+            artId,
+            clientX: event.clientX,
+            clientY: event.clientY,
+        };
+        void api.debugLogEvent(
+            "add-art-menu-mouse-down",
+            `art=${artId} x=${event.clientX.toFixed(1)} y=${event.clientY.toFixed(1)} trusted=${event.isTrusted ? 1 : 0}`,
+        );
+    };
+
+    const addArtNode = (artId: string, source: "native-mouseup" | "mouseup" | "click") => {
+        void api.debugLogEvent("add-art-menu-activate", `art=${artId} source=${source}`);
+        props.onAddNode(artId);
+    };
+
+    const completePendingArtActivation = (
+        clientX: number,
+        clientY: number,
+        source: "native-mouseup" | "mouseup",
+        expectedArtId?: string,
+    ) => {
+        const pending = pendingArtActivation;
+        pendingArtActivation = null;
+        if (!pending || (expectedArtId && pending.artId !== expectedArtId)) {
+            return;
+        }
+        const distance = Math.hypot(clientX - pending.clientX, clientY - pending.clientY);
+        if (distance > 4) {
+            void api.debugLogEvent(
+                "add-art-menu-activation-rejected",
+                `art=${pending.artId} source=${source} distance=${distance.toFixed(1)}`,
+            );
+            return;
+        }
+
+        suppressClickArtId = pending.artId;
+        if (suppressClickTimer !== null) window.clearTimeout(suppressClickTimer);
+        suppressClickTimer = window.setTimeout(() => {
+            suppressClickArtId = null;
+            suppressClickTimer = null;
+        }, 500);
+        addArtNode(pending.artId, source);
+    };
+
+    const completeArtActivation = (
+        event: MouseEvent & { currentTarget: HTMLButtonElement },
+        artId: string,
+    ) => {
+        event.stopPropagation();
+        if (event.button !== 0) return;
+        completePendingArtActivation(event.clientX, event.clientY, "mouseup", artId);
+    };
+
+    const handleNativeOverlayMouseUp = (event: Event) => {
+        const detail = (event as CustomEvent<OverlaySyntheticMousePayload>).detail;
+        if (!detail || !pendingArtActivation) return;
+        const clientX = detail.x ?? detail.globalX;
+        const clientY = detail.y ?? detail.globalY;
+        if (typeof clientX !== "number" || typeof clientY !== "number") {
+            const artId = pendingArtActivation.artId;
+            pendingArtActivation = null;
+            void api.debugLogEvent(
+                "add-art-menu-activation-rejected",
+                `art=${artId} source=native-mouseup reason=missing-coordinates`,
+            );
+            return;
+        }
+        completePendingArtActivation(clientX, clientY, "native-mouseup");
+    };
+
+    const handleArtClick = (event: MouseEvent, artId: string) => {
+        event.stopPropagation();
+        if (suppressClickArtId === artId) {
+            suppressClickArtId = null;
+            if (suppressClickTimer !== null) window.clearTimeout(suppressClickTimer);
+            suppressClickTimer = null;
+            return;
+        }
+        addArtNode(artId, "click");
+    };
+
+    // Register the rendered menu bounds, rather than reconstructing them from
+    // sticker coordinates. The native input shield must cover exactly the DOM
+    // area that elementFromPoint will use for synthetic pointer dispatch.
+    createEffect(() => {
+        const rectId = menuRectId();
+        const visible = props.showActions && !props.unit?.data.minified;
+        const layoutSignature = `${props.currentPos.x}:${props.currentPos.y}:${props.unit?.w ?? 0}:${props.unit?.h ?? 0}`;
+        void layoutSignature;
+        if (!visible) {
+            cancelMenuRectSync();
+            removeRect(rectId);
+            requestBackendRectSync();
+            return;
+        }
+
+        syncMenuHitRect();
+        scheduleMenuRectSync();
+        const handleWindowResize = () => scheduleMenuRectSync();
+        window.addEventListener("resize", handleWindowResize);
+        let observer: ResizeObserver | undefined;
+        if (typeof ResizeObserver !== "undefined" && menuRootRef) {
+            observer = new ResizeObserver(scheduleMenuRectSync);
+            observer.observe(menuRootRef);
+        }
+
+        onCleanup(() => {
+            observer?.disconnect();
+            window.removeEventListener("resize", handleWindowResize);
+            cancelMenuRectSync();
+            removeRect(rectId);
+            requestBackendRectSync();
+        });
     });
 
     createEffect(syncDragFollowerRegistration);
@@ -180,11 +367,13 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
     onMount(() => {
         syncScrollMetrics();
         const rafId = requestAnimationFrame(syncScrollMetrics);
-        const handleWindowResize = () => syncScrollMetrics();
-        window.addEventListener("resize", handleWindowResize);
+        const handleScrollWindowResize = () => syncScrollMetrics();
+        window.addEventListener("resize", handleScrollWindowResize);
+        window.addEventListener(OVERLAY_GLOBAL_MOUSE_UP_EVENT, handleNativeOverlayMouseUp);
         onCleanup(() => {
             cancelAnimationFrame(rafId);
-            window.removeEventListener("resize", handleWindowResize);
+            window.removeEventListener("resize", handleScrollWindowResize);
+            window.removeEventListener(OVERLAY_GLOBAL_MOUSE_UP_EVENT, handleNativeOverlayMouseUp);
             clearScrollThumbDrag();
         });
     });
@@ -195,6 +384,10 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
             unregisterDragFollowerElement(registration.unitId, registration.element);
             dragFollowerRegistration = null;
         }
+        if (suppressClickTimer !== null) window.clearTimeout(suppressClickTimer);
+        pendingArtActivation = null;
+        suppressClickArtId = null;
+        suppressClickTimer = null;
     });
 
     return (
@@ -204,6 +397,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                     ref={(element) => {
                         menuRootRef = element;
                         syncDragFollowerRegistration();
+                        scheduleMenuRectSync();
                     }}
                     id={`actions-menu-${props.unit?.id ?? "global"}`}
                     data-hook-drag-follow-unit-id={props.unit?.id}
@@ -228,23 +422,53 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                     }}
                 >
                     <div class="hook-terminal-shell hook-terminal-shell--strong flex h-full w-full flex-col overflow-hidden transition duration-200 ease-out animate-in fade-in zoom-in-95">
-                        <div class="flex-shrink-0 border-b border-white/10 p-2">
-                            <input
-                                data-add-art-search
-                                type="search"
-                                value={searchQuery()}
-                                placeholder="搜索 Art"
-                                aria-label="搜索 Art"
-                                class="h-8 w-full rounded border border-white/10 bg-black/25 px-2.5 text-xs text-white outline-none placeholder:text-white/30 focus:border-lime-300/60 focus:bg-black/40"
-                                onInput={(event) => setSearchQuery(event.currentTarget.value)}
-                                onFocus={() => void api.focusOverlayWindow()}
-                                onPointerDown={(event) => {
-                                    event.stopPropagation();
-                                    void api.focusOverlayWindow();
-                                }}
+                        <div class="flex flex-shrink-0 items-center gap-1.5 border-b border-white/10 p-2">
+                            <div class="relative min-w-0 flex-1">
+                                <input
+                                    ref={searchInputRef}
+                                    data-add-art-search
+                                    type="text"
+                                    value={searchQuery()}
+                                    placeholder="搜索 Art"
+                                    aria-label="搜索 Art"
+                                    class="h-8 w-full rounded border border-white/10 bg-black/25 px-2.5 pr-8 text-xs text-white outline-none placeholder:text-white/30 focus:border-lime-300/60 focus:bg-black/40"
+                                    onInput={(event) => setSearchQuery(event.currentTarget.value)}
+                                    onKeyDown={handleSearchKeyDown}
+                                    onFocus={() => void api.focusOverlayWindow()}
+                                    onPointerDown={(event) => {
+                                        event.stopPropagation();
+                                        void api.focusOverlayWindow();
+                                    }}
+                                    onMouseDown={(event) => event.stopPropagation()}
+                                    onClick={(event) => event.stopPropagation()}
+                                />
+                                <Show when={searchQuery().length > 0}>
+                                    <button
+                                        data-add-art-clear
+                                        type="button"
+                                        aria-label="清空搜索"
+                                        title="清空搜索"
+                                        class="absolute right-1 top-1 flex h-6 w-6 items-center justify-center text-sm text-white/45 hover:text-white"
+                                        onPointerDown={(event) => event.stopPropagation()}
+                                        onMouseDown={(event) => event.stopPropagation()}
+                                        onClick={clearSearch}
+                                    >
+                                        ×
+                                    </button>
+                                </Show>
+                            </div>
+                            <button
+                                data-add-art-close
+                                type="button"
+                                aria-label="关闭 Art 菜单"
+                                title="关闭"
+                                class="flex h-8 w-8 flex-none items-center justify-center border border-white/10 text-base text-white/55 hover:border-white/25 hover:text-white"
+                                onPointerDown={(event) => event.stopPropagation()}
                                 onMouseDown={(event) => event.stopPropagation()}
-                                onClick={(event) => event.stopPropagation()}
-                            />
+                                onClick={closeMenu}
+                            >
+                                ×
+                            </button>
                         </div>
 
                         <div class="relative flex flex-1 min-h-0 w-full">
@@ -270,13 +494,12 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                                             {(art) => (
                                                 <button
                                                     data-add-art-id={art.id}
+                                                    type="button"
                                                     class="hook-terminal-list-item group relative overflow-hidden flex items-center w-full px-2.5 py-2 text-sm transition-all cursor-pointer active:scale-[0.98] text-white"
                                                     style={{ color: "white" }}
-                                                    onClick={(event) => {
-                                                        event.stopPropagation();
-                                                        props.onAddNode(art.id);
-                                                    }}
-                                                    onMouseDown={(event) => event.stopPropagation()}
+                                                    onMouseDown={(event) => beginArtActivation(event, art.id)}
+                                                    onMouseUp={(event) => completeArtActivation(event, art.id)}
+                                                    onClick={(event) => handleArtClick(event, art.id)}
                                                 >
                                                     <div class="hook-terminal-icon-tile flex h-7 w-7 items-center justify-center mr-2.5 transition-colors">
                                                         <span class="text-sm">❖</span>

@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
     createOverlaySyntheticDispatcher,
+    shouldResetOverlaySyntheticOnGlobalMouseUp,
     type OverlaySyntheticDispatcher,
 } from "../../src/services/overlaySyntheticEvents";
 
@@ -143,6 +144,36 @@ afterEach(() => {
 });
 
 describe("overlaySyntheticEvents", () => {
+    it("keeps synthetic down state through a bubbling Tauri mouseup so click is delivered", () => {
+        h.setHit(() => h.a);
+        let clicks = 0;
+        h.a.addEventListener("click", () => {
+            clicks += 1;
+        });
+        const globalMouseUp = (event: MouseEvent) => {
+            if (shouldResetOverlaySyntheticOnGlobalMouseUp(true, event.isTrusted)) {
+                h.d.reset();
+            }
+        };
+        document.addEventListener("mouseup", globalMouseUp);
+
+        try {
+            h.d.dispatch("mousedown", { x: 10, y: 10 });
+            h.d.dispatch("mouseup", { x: 10, y: 10 });
+        } finally {
+            document.removeEventListener("mouseup", globalMouseUp);
+        }
+
+        expect(clicks).toBe(1);
+    });
+
+    it("only leaves reset ownership to the dispatcher for untrusted Tauri mouseup events", () => {
+        expect(shouldResetOverlaySyntheticOnGlobalMouseUp(true, false)).toBe(false);
+        expect(shouldResetOverlaySyntheticOnGlobalMouseUp(true, true)).toBe(true);
+        expect(shouldResetOverlaySyntheticOnGlobalMouseUp(false, false)).toBe(true);
+        expect(shouldResetOverlaySyntheticOnGlobalMouseUp(false, true)).toBe(true);
+    });
+
     it("1. dispatches leave-then-enter mouse transitions when hover target changes", () => {
         h.setHit(() => h.a);
         h.d.dispatch("mousemove", { x: 10, y: 10 });

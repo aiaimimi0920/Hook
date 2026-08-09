@@ -3,6 +3,18 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("Hook opportunistic ArtLoom connection", () => {
+  it("starts the native instantiation listener during Tauri setup", () => {
+    const backendSource = readFileSync(
+      resolve(process.cwd(), "src-tauri", "src", "lib.rs"),
+      "utf8",
+    );
+
+    expect(backendSource).toContain(
+      "mock_artloom::ensure_artloom_listener(app.handle(), &mock_artloom)",
+    );
+    expect(backendSource).toContain("artloom_listener_ready :: started={listener_started}");
+  });
+
   it("attempts the ArtLoom capability handshake at startup even in standalone boot profile", () => {
     const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
 

@@ -105,6 +105,10 @@ export const CanvasUnits: Component<CanvasUnitsProps> = (props) => {
               onDoubleTap={(e) => props.onDoubleClick(e, u.id)}
 
               onDelete={() => props.onDelete(u.id)}
+              onCloseActions={() => {
+                  uiActions.closeActions(u.id);
+                  queueMicrotask(() => void syncService.updateBackendRects());
+              }}
               onAddNode={(artId) => {
                   props.onAddNode(u.id, artId);
                   uiActions.closeActions(u.id);

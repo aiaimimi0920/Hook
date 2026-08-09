@@ -33,6 +33,8 @@ export type OverlaySyntheticEventType =
     | "wheel"
     | "contextmenu";
 
+export const OVERLAY_GLOBAL_MOUSE_UP_EVENT = "hook:overlay-global-mouse-up";
+
 export interface OverlaySyntheticDeps {
     /** Document the synthetic events are dispatched against. */
     doc: Document;
@@ -60,6 +62,16 @@ export interface OverlaySyntheticDispatcher {
     relayPointerMove: (event: MouseEvent) => void;
     reset: () => void;
     readonly moveRelayActive: boolean;
+}
+
+export function shouldResetOverlaySyntheticOnGlobalMouseUp(
+    tauriRuntime: boolean,
+    isTrusted: boolean,
+): boolean {
+    // In Tauri, an untrusted mouseup was dispatched by this engine. Resetting
+    // from the bubbling App handler would erase the down target before the
+    // dispatcher can synthesize the matching click.
+    return !tauriRuntime || isTrusted;
 }
 
 export function createOverlaySyntheticDispatcher(

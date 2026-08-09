@@ -72,12 +72,13 @@ describe("Color Transfer shader node contract", () => {
     expect(source).not.toContain('renderer.toDataURL("image/png")');
   });
 
-  it("keeps shader parameter changes on the local reactive fast path", () => {
+  it("keeps pure shader changes local while hybrid previews reach formal execution", () => {
     const source = readFileSync(resolve(process.cwd(), "src", "hooks", "useNodeParameters.ts"), "utf8");
-    const shaderFastPath = source.indexOf("Shader Arts are entirely reactive in ShaderPreview");
+    const shaderFastPath = source.indexOf("Shader preview is reactive in ShaderPreview");
     const imageResolution = source.indexOf("resolveUnitExecutionInputImage({", shaderFastPath);
 
     expect(shaderFastPath).toBeGreaterThan(-1);
+    expect(source).toContain("requiresFormalExecutionAfterPreview");
     expect(imageResolution).toBeGreaterThan(shaderFastPath);
     expect(source).not.toContain("renderer.setUniform(paramId");
   });

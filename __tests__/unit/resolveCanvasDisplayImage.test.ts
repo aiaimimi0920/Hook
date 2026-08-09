@@ -88,10 +88,7 @@ describe("resolveCanvasDisplayImage", () => {
         expect(resolveCanvasDisplayImage({ units, links, unitId: "A" })).toBe("AS");
     });
 
-    it("9. DIVERGES from resolveUnitImageFromGraph for a sticker with both previewSrc and an upstream", () => {
-        // Same graph, two resolvers. The canvas resolver prefers the node's own
-        // previewSrc; the capability-aware graph resolver prefers the upstream
-        // image for stickers. This pins the intentional behavioral difference.
+    it("9. ignores a cached sticker preview while relaying an upstream image", () => {
         const units = [
             mkUnit({
                 id: "target",
@@ -102,7 +99,104 @@ describe("resolveCanvasDisplayImage", () => {
         ];
         const links = [imageLink("up", "target", "image")];
 
-        expect(resolveCanvasDisplayImage({ units, links, unitId: "target" })).toBe("PREVIEW");
+        expect(resolveCanvasDisplayImage({ units, links, unitId: "target" })).toBe("UP_SRC");
         expect(resolveUnitImageFromGraph({ units, links, unitId: "target" })).toBe("UP_SRC");
+    });
+
+    it("10. passes A through untouched B and C despite differently sized cached previews", () => {
+        const units = [
+            mkUnit({
+                id: "A",
+                w: 100,
+                h: 100,
+                data: { previewSrc: "A_100x100", src: "A_SOURCE" },
+            }),
+            mkUnit({
+                id: "B",
+                w: 100,
+                h: 200,
+                data: {
+                    previewSrc: "B_CONTAINED_100x200",
+                    stickerEditPropagation: { locallyEdited: false },
+                },
+            }),
+            mkUnit({
+                id: "C",
+                w: 200,
+                h: 200,
+                data: {
+                    previewSrc: "C_CONTAINED_200x200",
+                    stickerEditPropagation: { locallyEdited: false },
+                },
+            }),
+        ];
+        const links = [imageLink("A", "B"), imageLink("B", "C")];
+
+        expect(resolveCanvasDisplayImage({ units, links, unitId: "C" })).toBe("A_100x100");
+    });
+
+    it("11. keeps an edited B preview as the boundary for downstream C", () => {
+        const units = [
+            mkUnit({ id: "A", w: 100, h: 100, data: { previewSrc: "A_100x100" } }),
+            mkUnit({
+                id: "B",
+                w: 100,
+                h: 200,
+                data: {
+                    previewSrc: "B_EDITED_100x200",
+                    stickerEditPropagation: { locallyEdited: true },
+                },
+            }),
+            mkUnit({
+                id: "C",
+                w: 200,
+                h: 200,
+                data: { previewSrc: "C_STALE", stickerEditPropagation: { locallyEdited: false } },
+            }),
+        ];
+        const links = [imageLink("A", "B"), imageLink("B", "C")];
+
+        expect(resolveCanvasDisplayImage({ units, links, unitId: "C" })).toBe("B_EDITED_100x200");
+    });
+
+    it("12. displays a workflow Art's formal output downstream instead of its shader preview", () => {
+        const units = [
+            mkUnit({
+                id: "workflow-art",
+                type: "art",
+                artId: "hook-wf-color-transfer-compress",
+                outputs: [{ id: "output", type: "image", direction: "output" }],
+                data: {
+                    previewSrc: "SHADER_PREVIEW",
+                    outputs: { output: "COMPRESSED_FORMAL" },
+                },
+            }),
+            mkUnit({ id: "target", data: { src: "TARGET_ORIGINAL" } }),
+        ];
+        const links = [imageLink("workflow-art", "target")];
+
+        expect(resolveCanvasDisplayImage({ units, links, unitId: "workflow-art" })).toBe("SHADER_PREVIEW");
+        expect(resolveCanvasDisplayImage({ units, links, unitId: "target" })).toBe("COMPRESSED_FORMAL");
+        expect(resolveUnitImageFromGraph({ units, links, unitId: "target" })).toBe("COMPRESSED_FORMAL");
+    });
+
+    it("13. does not leak an Art preview downstream before a formal output exists", () => {
+        const units = [
+            mkUnit({
+                id: "workflow-art",
+                type: "art",
+                artId: "hook-wf-color-transfer-compress",
+                outputs: [{ id: "output", type: "image", direction: "output" }],
+                data: { previewSrc: "SHADER_PREVIEW" },
+            }),
+            mkUnit({
+                id: "target",
+                data: { previewSrc: "LAST_FORMAL", src: "TARGET_ORIGINAL" },
+            }),
+        ];
+        const links = [imageLink("workflow-art", "target")];
+
+        expect(resolveCanvasDisplayImage({ units, links, unitId: "target" })).toBe("LAST_FORMAL");
+        expect(resolveUnitImageFromGraph({ units, links, unitId: "target" })).toBe("LAST_FORMAL");
     });
 });

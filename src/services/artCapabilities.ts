@@ -18,3 +18,41 @@ export const supportsShaderPreview = (
     const metadata = capabilityMetadata(capability);
     return metadata?.preview === "shader" || metadata?.shader === true;
 };
+
+export const requiresFormalExecutionAfterPreview = (
+    capability: Pick<
+        ArtCapability,
+        "capabilities" | "metadata" | "execution" | "execution_type"
+    > | undefined,
+): boolean => {
+    if (capabilityMetadata(capability)?.requiresFormalExecution === true) return true;
+    const executionType = capability?.execution_type || capability?.execution?.type;
+    return executionType === "workflow";
+};
+
+const imageInputPorts = (capability: ArtCapability | undefined) =>
+    capability?.inputs?.filter((input) => {
+        const type = `${input.type || ""} ${input.execution_type || ""}`.toLowerCase();
+        return type.includes("image") || input.widget === "image_link";
+    }) || [];
+
+export const shaderInputPortName = (capability: ArtCapability | undefined): string | undefined => {
+    const configured = capabilityMetadata(capability)?.shaderInput;
+    if (typeof configured === "string" && configured.trim()) return configured.trim();
+
+    const inputs = imageInputPorts(capability);
+    return inputs.find((input) => ["input", "input_image", "image"].includes(input.name.toLowerCase()))
+        ?.name || inputs[0]?.name;
+};
+
+export const shaderReferenceInputPortName = (
+    capability: ArtCapability | undefined,
+): string | undefined => {
+    const configured = capabilityMetadata(capability)?.shaderReferenceInput;
+    if (typeof configured === "string" && configured.trim()) return configured.trim();
+
+    const inputs = imageInputPorts(capability);
+    const primary = shaderInputPortName(capability);
+    return inputs.find((input) => input.name.toLowerCase() === "reference")?.name
+        || inputs.find((input) => input.name !== primary)?.name;
+};

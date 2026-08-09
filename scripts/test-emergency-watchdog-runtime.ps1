@@ -166,22 +166,24 @@ try {
         throw "The watchdog remained after its parent exited normally"
     }
 
-    $escape = Start-WatchdogParent -Name "double-escape" -LifetimeMs 600000
+    $escape = Start-WatchdogParent -Name "triple-escape" -LifetimeMs 600000
     Start-Sleep -Milliseconds 150
     Send-Key -VirtualKey 0x1B
     Start-Sleep -Milliseconds 90
     Send-Key -VirtualKey 0x1B
+    Start-Sleep -Milliseconds 90
+    Send-Key -VirtualKey 0x1B
     if (-not (Wait-ProcessGone -ProcessId $escape.ParentPid)) {
-        throw "Double Escape did not terminate the watchdog parent"
+        throw "Triple Escape did not terminate the watchdog parent"
     }
     if (-not (Wait-ProcessGone -ProcessId $escape.WatchdogPid)) {
-        throw "The watchdog remained after Double Escape"
+        throw "The watchdog remained after Triple Escape"
     }
     $escapeLog = [IO.File]::ReadAllText(
         (Join-Path $escape.Directory "hook-runtime.log")
     )
-    if ($escapeLog -notmatch "source=double_escape") {
-        throw "The Double Escape termination source was not logged"
+    if ($escapeLog -notmatch "source=triple_escape") {
+        throw "The Triple Escape termination source was not logged"
     }
 
     $chord = Start-WatchdogParent -Name "backup-chord" -LifetimeMs 600000

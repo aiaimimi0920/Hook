@@ -15,6 +15,10 @@ pub mod talk_connector;
 pub mod tea_client;
 pub mod voice;
 
+#[cfg(all(test, target_os = "windows"))]
+#[link(name = "hook_test_manifest", kind = "static")]
+extern "C" {}
+
 use capture::{CaptureMetadata, CaptureResponse};
 use capture_coords::{normalize_global_physical_to_local_logical, CaptureWindowMetrics};
 use file_naming::{
@@ -442,6 +446,25 @@ struct AppSettingsState {
     save_lock: Mutex<()>,
 }
 
+static RUNTIME_HOOK_CACHE_SETTINGS: OnceLock<Mutex<app_settings::CacheSettings>> = OnceLock::new();
+static SESSION_FILE_IO_LOCK: Mutex<()> = Mutex::new(());
+
+fn set_runtime_hook_cache_settings(settings: app_settings::CacheSettings) {
+    let cache = RUNTIME_HOOK_CACHE_SETTINGS
+        .get_or_init(|| Mutex::new(app_settings::CacheSettings::default()));
+    if let Ok(mut current) = cache.lock() {
+        *current = settings;
+    }
+}
+
+fn runtime_hook_cache_settings() -> app_settings::CacheSettings {
+    RUNTIME_HOOK_CACHE_SETTINGS
+        .get_or_init(|| Mutex::new(app_settings::CacheSettings::default()))
+        .lock()
+        .map(|settings| settings.clone())
+        .unwrap_or_default()
+}
+
 impl AppSettingsState {
     fn new(settings: app_settings::AppSettings) -> Self {
         Self {
@@ -544,7 +567,9 @@ fn save_app_settings(
     state: tauri::State<'_, AppSettingsState>,
     settings: app_settings::AppSettings,
 ) -> Result<app_settings::AppSettings, String> {
-    state.save(&effective_app_data_dir(&app)?, settings)
+    let saved = state.save(&effective_app_data_dir(&app)?, settings)?;
+    set_runtime_hook_cache_settings(saved.cache.clone());
+    Ok(saved)
 }
 
 const RUNTIME_LOG_QUEUE_CAPACITY: usize = 512;
@@ -677,9 +702,8 @@ const MAX_IMAGE_PIXELS: u64 = 100_000_000;
 // a caller can submit thousands of max-size frames and exhaust memory. This caps
 // the frame count; combined with the per-frame pixel limit it bounds peak memory.
 const MAX_STITCH_FRAME_COUNT: usize = 512;
+#[cfg(test)]
 const CLIPBOARD_CACHE_MAX_AGE_SECS: u64 = 7 * 24 * 60 * 60;
-const CLIPBOARD_CACHE_MAX_BYTES: u64 = 256 * 1024 * 1024;
-const CLIPBOARD_CACHE_TARGET_BYTES: u64 = 128 * 1024 * 1024;
 const SESSION_IMAGE_ASSET_RETENTION_SECS: u64 = 30 * 24 * 60 * 60;
 
 fn decode_base64_image_data(base64_image: &str) -> Result<Vec<u8>, String> {
@@ -731,11 +755,12 @@ fn clipboard_cache_dir() -> PathBuf {
 
 fn cleanup_clipboard_cache() -> Result<(), String> {
     let dir = clipboard_cache_dir();
+    let settings = runtime_hook_cache_settings();
     cleanup_clipboard_cache_dir(
         &dir,
         SystemTime::now(),
-        CLIPBOARD_CACHE_MAX_BYTES,
-        CLIPBOARD_CACHE_TARGET_BYTES,
+        settings.temp_cache_max_bytes,
+        settings.temp_cache_max_bytes / 2,
     )
 }
 
@@ -749,7 +774,8 @@ fn cleanup_clipboard_cache_dir(
         return Ok(());
     }
 
-    let max_age = std::time::Duration::from_secs(CLIPBOARD_CACHE_MAX_AGE_SECS);
+    let retention_days = runtime_hook_cache_settings().temp_cache_retention_days;
+    let max_age = std::time::Duration::from_secs(u64::from(retention_days) * 24 * 60 * 60);
     let mut entries = Vec::new();
     for entry in fs::read_dir(dir).map_err(|e| format!("Failed to read clipboard cache: {}", e))? {
         let entry = entry.map_err(|e| format!("Failed to inspect clipboard cache: {}", e))?;
@@ -763,7 +789,9 @@ fn cleanup_clipboard_cache_dir(
                 .file_name()
                 .to_string_lossy()
                 .starts_with("native-drag-");
-            if is_native_drag_staging && now.duration_since(modified).unwrap_or_default() > max_age
+            if is_native_drag_staging
+                && retention_days > 0
+                && now.duration_since(modified).unwrap_or_default() > max_age
             {
                 let _ = fs::remove_dir_all(entry.path());
             }
@@ -772,7 +800,7 @@ fn cleanup_clipboard_cache_dir(
         if !metadata.is_file() {
             continue;
         }
-        if now.duration_since(modified).unwrap_or_default() > max_age {
+        if retention_days > 0 && now.duration_since(modified).unwrap_or_default() > max_age {
             let _ = fs::remove_file(entry.path());
             continue;
         }
@@ -780,6 +808,9 @@ fn cleanup_clipboard_cache_dir(
     }
 
     let mut total_bytes: u64 = entries.iter().map(|(_, _, len)| *len).sum();
+    if max_total_bytes == 0 {
+        return Ok(());
+    }
     if total_bytes < max_total_bytes {
         return Ok(());
     }
@@ -800,11 +831,12 @@ fn cleanup_clipboard_cache_dir(
 fn ensure_clipboard_cache_dir() -> Result<PathBuf, String> {
     let cache_dir = clipboard_cache_dir();
     fs::create_dir_all(&cache_dir).map_err(|e| format!("Failed to create cache dir: {}", e))?;
+    let settings = runtime_hook_cache_settings();
     let _ = cleanup_clipboard_cache_dir(
         &cache_dir,
         SystemTime::now(),
-        CLIPBOARD_CACHE_MAX_BYTES,
-        CLIPBOARD_CACHE_TARGET_BYTES,
+        settings.temp_cache_max_bytes,
+        settings.temp_cache_max_bytes / 2,
     );
     Ok(cache_dir)
 }
@@ -1383,10 +1415,9 @@ fn read_clipboard_image() -> Result<Option<String>, String> {
 }
 
 fn capture_window_metrics(window: &tauri::WebviewWindow) -> Option<CaptureWindowMetrics> {
-    let monitor = window.current_monitor().ok().flatten()?;
-    let position = monitor.position();
-    let physical_size = monitor.size();
-    let scale_factor = monitor.scale_factor();
+    let position = window.inner_position().ok()?;
+    let physical_size = window.inner_size().ok()?;
+    let scale_factor = window.scale_factor().ok()?;
 
     Some(CaptureWindowMetrics {
         physical_origin_x: position.x as f64,
@@ -2387,17 +2418,28 @@ static RDEV_EMERGENCY_ESCAPE_TRACKER: OnceLock<Mutex<EmergencyEscapeTracker>> = 
 #[derive(Default)]
 struct EmergencyEscapeTracker {
     last_press: Option<Instant>,
+    consecutive_presses: u8,
 }
 
 #[cfg(target_os = "windows")]
 impl EmergencyEscapeTracker {
     fn record_press(&mut self, now: Instant) -> bool {
-        let should_exit = self
+        let continues_sequence = self
             .last_press
             .map(|last_press| now.duration_since(last_press) < EMERGENCY_ESCAPE_WINDOW)
             .unwrap_or(false);
+        self.consecutive_presses = if continues_sequence {
+            self.consecutive_presses.saturating_add(1)
+        } else {
+            1
+        };
         self.last_press = Some(now);
-        should_exit
+        if self.consecutive_presses < 3 {
+            return false;
+        }
+        self.consecutive_presses = 0;
+        self.last_press = None;
+        true
     }
 }
 
@@ -2602,11 +2644,11 @@ fn handle_emergency_escape_transition_with(
     append_runtime_log_line(&format!("emergency_escape_press :: source={}", source));
     if should_exit {
         append_runtime_log_line_sync(&format!(
-            "[{}] emergency_double_escape_exit :: source={}",
+            "[{}] emergency_triple_escape_exit :: source={}",
             runtime_log_timestamp(),
             source
         ));
-        prepare_for_hook_process_exit("double_escape");
+        prepare_for_hook_process_exit("triple_escape");
         std::process::exit(0);
     }
     true
@@ -4760,18 +4802,19 @@ mod input_lifecycle_hardening_tests {
     }
 
     #[test]
-    fn double_escape_requires_two_distinct_presses_inside_the_emergency_window() {
+    fn triple_escape_requires_three_distinct_presses_inside_the_emergency_window() {
         let started_at = Instant::now();
         let mut tracker = EmergencyEscapeTracker::default();
 
         assert!(!tracker.record_press(started_at));
-        assert!(
-            tracker.record_press(started_at + EMERGENCY_ESCAPE_WINDOW - Duration::from_millis(1))
-        );
+        assert!(!tracker.record_press(started_at + Duration::from_millis(100)));
+        assert!(tracker.record_press(started_at + Duration::from_millis(200)));
 
         let mut expired_tracker = EmergencyEscapeTracker::default();
         assert!(!expired_tracker.record_press(started_at));
         assert!(!expired_tracker.record_press(started_at + EMERGENCY_ESCAPE_WINDOW));
+        assert!(!expired_tracker
+            .record_press(started_at + EMERGENCY_ESCAPE_WINDOW + Duration::from_millis(100)));
     }
 
     #[test]
@@ -6287,19 +6330,25 @@ fn update_pin_rects(
     state: tauri::State<SharedHitMap>,
     rects: Vec<mouse_monitor::Rect>,
 ) {
+    let window = app.get_webview_window("main");
+    let global_rects = window
+        .as_ref()
+        .and_then(|window| window.inner_position().ok())
+        .map(|origin| mouse_monitor::offset_rects(&rects, origin.x, origin.y))
+        .unwrap_or(rects);
     let active = state.active.lock().map(|guard| *guard).unwrap_or(false);
     if let Ok(mut rectangles) = state.rectangles.lock() {
-        *rectangles = rects.clone();
+        *rectangles = global_rects.clone();
     } else {
         append_runtime_log_line("update_pin_rects_lock_failed");
         return;
     }
     if let Ok(mut overlay_rectangles) = overlay_mouse_hit_map().lock() {
-        *overlay_rectangles = rects.clone();
+        *overlay_rectangles = global_rects.clone();
     }
 
-    if let Some(window) = app.get_webview_window("main") {
-        sync_overlay_input_shield_region(&window, &rects, active);
+    if let Some(window) = window {
+        sync_overlay_input_shield_region(&window, &global_rects, active);
         refresh_overlay_interactivity_for_current_cursor(&window, &state);
     }
 }
@@ -6661,6 +6710,40 @@ pub struct SessionData {
     pub reference_library: Vec<FrozenStickerEntry>,
     #[serde(default)]
     pub workflow_asset_archive_index: WorkflowAssetArchiveIndex,
+}
+
+pub(crate) fn clear_persisted_session_library(
+    app: &tauri::AppHandle,
+    action: &str,
+) -> Result<(), String> {
+    let app_dir = effective_app_data_dir(app)?;
+    let session_file = app_dir.join("session.json");
+    let _guard = SESSION_FILE_IO_LOCK
+        .lock()
+        .map_err(|_| "Session file I/O lock is poisoned".to_string())?;
+    clear_persisted_session_library_file(&session_file, action)
+}
+
+fn clear_persisted_session_library_file(session_file: &Path, action: &str) -> Result<(), String> {
+    if !session_file.is_file() {
+        return Ok(());
+    }
+    let mut session: SessionData =
+        serde_json::from_slice(&fs::read(&session_file).map_err(|error| error.to_string())?)
+            .map_err(|error| {
+                format!("Failed to read Hook session before clearing library: {error}")
+            })?;
+    match action {
+        "clearRecycleBin" => session.recycle_bin.clear(),
+        "clearReferenceLibrary" => session.reference_library.clear(),
+        _ => return Err("Unsupported Hook session library clear action".to_string()),
+    }
+    let json = serde_json::to_vec_pretty(&session).map_err(|error| error.to_string())?;
+    let mut file = File::create(&session_file).map_err(|error| error.to_string())?;
+    file.write_all(&json).map_err(|error| error.to_string())?;
+    file.flush().map_err(|error| error.to_string())?;
+    file.sync_all().map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -7139,6 +7222,9 @@ fn save_session(
     }
 
     let session_file = app_dir.join("session.json");
+    let _session_guard = SESSION_FILE_IO_LOCK
+        .lock()
+        .map_err(|_| "Session file I/O lock is poisoned".to_string())?;
     let existing_archive_index = if session_file.exists() {
         fs::read_to_string(&session_file)
             .ok()
@@ -7167,6 +7253,8 @@ fn save_session(
 
     let mut file = File::create(session_file).map_err(|e| e.to_string())?;
     file.write_all(json.as_bytes()).map_err(|e| e.to_string())?;
+    file.flush().map_err(|e| e.to_string())?;
+    file.sync_all().map_err(|e| e.to_string())?;
 
     if let Err(error) =
         cleanup_unreferenced_session_image_assets(&images_dir, &session_data, SystemTime::now())
@@ -7202,6 +7290,9 @@ fn restore_loaded_session_stickers(stickers: &mut [StickerData]) {
 fn load_session(app: tauri::AppHandle) -> Result<SessionData, String> {
     let app_dir = effective_app_data_dir(&app)?;
     let session_file = app_dir.join("session.json");
+    let _session_guard = SESSION_FILE_IO_LOCK
+        .lock()
+        .map_err(|_| "Session file I/O lock is poisoned".to_string())?;
 
     if !session_file.exists() {
         return Ok(SessionData {
@@ -8047,8 +8138,16 @@ fn sync_overlay_input_shield_region(
 
     let union_region = empty_region;
     for rect in shield_rects {
-        let next_region =
-            unsafe { CreateRectRgn(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height) };
+        let local_left = rect.x.saturating_sub(main_rect.left);
+        let local_top = rect.y.saturating_sub(main_rect.top);
+        let next_region = unsafe {
+            CreateRectRgn(
+                local_left,
+                local_top,
+                local_left.saturating_add(rect.width),
+                local_top.saturating_add(rect.height),
+            )
+        };
         let _ = unsafe {
             CombineRgn(
                 Some(union_region),
@@ -10421,10 +10520,26 @@ pub fn run() {
                     append_runtime_log_line(&format!("app_settings_load_failed :: {error}"));
                     error
                 })?;
+            set_runtime_hook_cache_settings(initial_app_settings.cache.clone());
             app.manage(AppSettingsState::new(initial_app_settings));
 
-            // Initialize Mock ArtLoom
-            app.manage(MockArtLoom::new());
+            // Workflow instantiation is a native desktop coordination channel,
+            // so it must stay available even when capability loading is disabled
+            // or the frontend has not completed its ArtLoom handshake yet.
+            let mock_artloom = MockArtLoom::new();
+            let listener_started =
+                mock_artloom::ensure_artloom_listener(app.handle(), &mock_artloom).map_err(
+                    |error| {
+                        append_runtime_log_line(&format!(
+                            "artloom_listener_start_failed :: {error}"
+                        ));
+                        error
+                    },
+                )?;
+            app.manage(mock_artloom);
+            append_runtime_log_line(&format!(
+                "artloom_listener_ready :: started={listener_started}"
+            ));
             if let Err(error) = cleanup_clipboard_cache() {
                 append_runtime_log_line(&format!("clipboard_cache_cleanup_failed :: {}", error));
             }
@@ -11555,6 +11670,52 @@ mod app_cli_tests {
             remaining_size <= 100,
             "cache should be trimmed to target size"
         );
+    }
+
+    #[test]
+    fn clipboard_cache_cleanup_keeps_recent_files_when_capacity_is_unlimited() {
+        let root = std::env::temp_dir().join(format!(
+            "hook-cache-unlimited-test-{}-{}",
+            std::process::id(),
+            file_timestamp_component()
+        ));
+        std::fs::create_dir_all(&root).expect("create unlimited cache test dir");
+        let first = root.join("first.png");
+        let second = root.join("second.png");
+        std::fs::write(&first, vec![1u8; 80]).expect("write first file");
+        std::fs::write(&second, vec![2u8; 80]).expect("write second file");
+
+        cleanup_clipboard_cache_dir(&root, SystemTime::now(), 0, 0)
+            .expect("unlimited cleanup succeeds");
+
+        assert!(first.is_file());
+        assert!(second.is_file());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn session_library_clear_is_persisted_before_the_control_command_completes() {
+        let root = std::env::temp_dir().join(format!(
+            "hook-session-library-clear-test-{}-{}",
+            std::process::id(),
+            file_timestamp_component()
+        ));
+        std::fs::create_dir_all(&root).expect("create session clear test dir");
+        let session_file = root.join("session.json");
+        std::fs::write(
+            &session_file,
+            r#"{"stickers":[],"links":[],"recycleBin":[{"entryId":"r","sourceStickerId":"s","createdAt":"2026-08-09T00:00:00Z","snapshot":{"id":"s","src":"","x":0,"y":0,"w":1,"h":1,"minified":false,"savedRect":null,"cropOffset":null,"opacityNormal":1,"opacityMini":1,"previewSrc":null,"filePath":null,"rasterizedAnnotationLayerSrc":null,"annotationState":null,"imageEditState":null,"captureMeta":null}}],"referenceLibrary":[]}"#,
+        )
+        .expect("write session clear fixture");
+
+        clear_persisted_session_library_file(&session_file, "clearRecycleBin")
+            .expect("clear persisted recycle bin");
+        let session: SessionData =
+            serde_json::from_slice(&std::fs::read(&session_file).expect("read cleared session"))
+                .expect("parse cleared session");
+
+        assert!(session.recycle_bin.is_empty());
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

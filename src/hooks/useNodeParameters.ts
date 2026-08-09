@@ -9,8 +9,12 @@ import {
     resolveUnitExecutionInputImage,
 } from "../services/graphImageResolution";
 import { deriveUnitExecutionConfig } from "../services/nodeExecutionConfig";
-import { supportsShaderPreview } from "../services/artCapabilities";
+import {
+    requiresFormalExecutionAfterPreview,
+    supportsShaderPreview,
+} from "../services/artCapabilities";
 import { findArtCapability } from "../services/artCapabilityLookup";
+import { artExecutionRequests } from "../services/artExecutionRequests";
 import {
     DISABLED_PREFIX,
     PARAM_ui_resize,
@@ -102,7 +106,7 @@ export function useNodeParameters() {
                          if (shaderArtId && canvas) {
                              shaderCache.getRenderer(shaderArtId, unitId, canvas)?.render();
                          }
-                         return;
+                         if (!requiresFormalExecutionAfterPreview(artCap)) return;
                     }
 
                     // For now, just trigger processing like before
@@ -186,11 +190,9 @@ export function useNodeParameters() {
             }
         }
 
-        // Shader Arts are entirely reactive in ShaderPreview. The store update
-        // above changes uniforms immediately, while source/reference changes
-        // trigger a contextual LUT refresh there. Keep the hot slider path out
-        // of graph image resolution and backend dispatch, and persist only the
-        // final value instead of repeating the same work for every mouse event.
+        // Shader preview is reactive in ShaderPreview. Pure shader Arts stay on
+        // the local hot path; hybrid workflow Arts still execute their formal
+        // backend output after a final, manual, or upstream-triggered change.
         if (artCapability && supportsShaderPreview(artCapability) && runtimeArtId) {
             if (isManualTrigger) {
                 const canvas = document.getElementById(`shader-canvas-${unitId}`) as HTMLCanvasElement;
@@ -198,10 +200,11 @@ export function useNodeParameters() {
                     shaderCache.getRenderer(runtimeArtId, unitId, canvas)?.render();
                 }
             }
-            if (isFinal || isManualTrigger || isUpstreamTrigger) {
+            if (!requiresFormalExecutionAfterPreview(artCapability)
+                && (isFinal || isManualTrigger || isUpstreamTrigger)) {
                 void syncService.performWorkflowSync();
             }
-            return;
+            if (!requiresFormalExecutionAfterPreview(artCapability)) return;
         }
 
         // If param-driven but NOT final (dragging slider), SKIP backend execution
@@ -274,6 +277,13 @@ export function useNodeParameters() {
           });
 
           // Dispatch Action
+          const requestId = artExecutionRequests.begin(unitId);
+          graphStore.actions.updateUnitData(unitId, {
+              processing: true,
+              progress: 0,
+              nodeStatus: "running",
+              errorMessage: undefined,
+          });
           try {
             void api.debugLogEvent(
                 "art-dispatch-update-node-param",
@@ -284,12 +294,14 @@ export function useNodeParameters() {
                     `trigger=${triggerSource}`,
                     `hasInput=${inputImage ? "true" : "false"}`,
                     `auxKeys=${Object.keys(auxiliaryInputImages).join(",") || "none"}`,
+                    `request=${requestId}`,
                 ].join(" "),
             );
             await api.dispatchAction({
                      action: "update_node_param",
                      payload: {
                          node_id: unitId,
+                         request_id: requestId,
                          param_key: paramId,
                          value: effectiveValue,
                          input_image: inputImage,
@@ -307,6 +319,14 @@ export function useNodeParameters() {
 
           } catch (e) {
               console.error("Failed to update param:", e);
+              if (artExecutionRequests.isLatest(unitId, requestId)) {
+                  graphStore.actions.updateUnitData(unitId, {
+                      processing: false,
+                      nodeStatus: "error",
+                      errorMessage: e instanceof Error ? e.message : String(e),
+                  });
+                  artExecutionRequests.finish(unitId, requestId);
+              }
           }
     };
 

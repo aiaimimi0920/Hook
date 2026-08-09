@@ -16,7 +16,7 @@ import { StickerContextMenuLayer } from "./components/StickerContextMenuLayer";
 import { AppSettingsDialog } from "./components/AppSettingsDialog";
 import { sanitizeHistoryState } from "./services/historyModel";
 import { normalizeStickerToolSettings } from "./services/toolSettings";
-import { addRecycleBinEntry } from "./services/stickerLibraryModel";
+import { addRecycleBinEntry, pruneRecycleBinEntries } from "./services/stickerLibraryModel";
 import { captureFrozenStickerSnapshot } from "./services/stickerSnapshot";
 
 // Stores & Services
@@ -41,6 +41,7 @@ import {
     selectedStickerAnnotationId,
     longCaptureSession,
     draggingStickerId,
+    unitUiState,
 } from "./store/uiStore";
 
 
@@ -49,6 +50,8 @@ import { syncService } from "./services/syncService";
 import { shaderCache } from "./services/shaderCache";
 import {
     createOverlaySyntheticDispatcher,
+    OVERLAY_GLOBAL_MOUSE_UP_EVENT,
+    shouldResetOverlaySyntheticOnGlobalMouseUp,
     type OverlaySyntheticMousePayload,
 } from "./services/overlaySyntheticEvents";
 import { resolveCanvasDisplayImage } from "./services/graphImageResolution";
@@ -59,7 +62,11 @@ import {
     mergeCandidateRuntimeState,
     prefetchCandidateAssets,
 } from "./services/artCandidateCache";
-import { supportsShaderPreview } from "./services/artCapabilities";
+import {
+  requiresFormalExecutionAfterPreview,
+  supportsShaderPreview,
+} from "./services/artCapabilities";
+import { findArtCapability } from "./services/artCapabilityLookup";
 import { resolveDeletionPlan } from "./services/deletionPlan";
 import { composeTeaTicketText, summarizeUnitsForTea } from "./services/teaTicketText";
 import type { BootProfile } from "./services/bootProfile";
@@ -78,14 +85,20 @@ import {
     type WorkflowSnapshotPayload,
 } from "./services/workflowPayload";
 import { normalizeImageSourceForDisplay } from "./services/imageSource";
-import { loadCurrentAppSettings } from "./services/appSettings";
-import { DEFAULT_APP_SETTINGS, type AppSettings } from "./types/appSettings";
+import {
+    getCurrentAppSettings,
+    loadCurrentAppSettings,
+    normalizeHookCacheSettings,
+    saveCurrentAppSettings,
+} from "./services/appSettings";
+import { DEFAULT_APP_SETTINGS, type AppSettings, type HookCacheSettings } from "./types/appSettings";
 import {
     buildWorkflowInstantiation,
     mergeInstantiatedLinks,
     mergeInstantiatedUnits,
 } from "./services/workflowInstantiation";
 import { refreshArtLoomCapabilitiesOnStartup } from "./services/artLoomStartup";
+import { artExecutionRequests } from "./services/artExecutionRequests";
 import {
     restoredSessionNeedsCapabilityRefresh,
     sessionSnapshotNeedsCapabilityRefresh,
@@ -109,6 +122,11 @@ type VoiceHotkeyPayload = {
     event: unknown;
     kind: string;
     statusHint: string;
+};
+
+type HookCacheControlPayload = {
+    action?: "settings" | "clearRecycleBin" | "clearReferenceLibrary";
+    settings?: Partial<HookCacheSettings>;
 };
 
 type VoiceSessionPayload = {
@@ -234,6 +252,14 @@ export default function App() {
       }, 0);
   };
 
+  const closeSelectedActionsMenu = () => {
+      const id = selectedStickerId();
+      if (!id || !unitUiState[id]?.showActions) return false;
+      uiActions.closeActions(id);
+      scheduleOverlayHitTestRefresh();
+      return true;
+  };
+
   const applyStickerHistorySnapshot = async (direction: "undo" | "redo") => {
       const id = selectedStickerId();
       if (!id) return;
@@ -352,6 +378,16 @@ export default function App() {
 
   const handleArtDelivery = async (delivery: ArtDelivery) => {
       const unitId = delivery.art_id;
+      const phase = delivery.phase ?? "final";
+      const isCurrentDelivery = () =>
+          artExecutionRequests.isLatest(unitId, delivery.request_id);
+      if (!isCurrentDelivery()) {
+          void api.debugLogEvent(
+              "art-delivery-discarded-stale",
+              `unit=${unitId} request=${delivery.request_id || "missing"}`,
+          );
+          return;
+      }
       const unit = graphStore.units.find((item) => item.id === unitId);
       if (!unit) return;
       const candidateState = extractArtDeliveryCandidatesState(delivery.delivery);
@@ -374,6 +410,7 @@ export default function App() {
               errorMessage: delivery.error || "Art execution failed",
               imageSearchRecoveryPending: candidateRecoveryPending,
           });
+          artExecutionRequests.finish(unitId, delivery.request_id);
           if (candidateRecoveryPending) {
               void prefetchCandidateAssets({
                   unitId,
@@ -420,6 +457,7 @@ export default function App() {
                   progress: 1,
                   errorMessage: undefined,
               });
+              artExecutionRequests.finish(unitId, delivery.request_id);
               await syncService.performWorkflowSync();
               return;
           case "value":
@@ -432,19 +470,60 @@ export default function App() {
               break;
       }
 
+      if (!isCurrentDelivery()) {
+          void api.debugLogEvent(
+              "art-delivery-discarded-after-read",
+              `unit=${unitId} request=${delivery.request_id || "missing"}`,
+          );
+          return;
+      }
+      const currentUnit = graphStore.units.find((item) => item.id === unitId);
+      if (!currentUnit) {
+          artExecutionRequests.finish(unitId, delivery.request_id);
+          return;
+      }
+
+      if (phase === "preview") {
+          if (previewSrc) {
+              graphStore.actions.updateUnitData(unitId, {
+                  previewSrc,
+                  processing: true,
+                  nodeStatus: "running",
+                  errorMessage: undefined,
+                  restoredPreviewLocked: false,
+              });
+              artExecutionRequests.markPreview(unitId, delivery.request_id, previewSrc);
+              void api.debugLogEvent(
+                  "art-delivery-applied-preview",
+                  `unit=${unitId} request=${delivery.request_id || "missing"}`,
+              );
+          }
+          return;
+      }
+
+      const workflowPreviewSrc = artExecutionRequests.getPreview(
+          unitId,
+          delivery.request_id,
+      );
+      const currentMergedCandidates = mergeCandidateRuntimeState(
+          currentUnit.data.resultCandidates,
+          candidateState.resultCandidates,
+      );
+
       const nextOutputs = mergeArtDeliveryOutputs({
-          currentOutputs: unit.data.outputs,
+          currentOutputs: currentUnit.data.outputs,
           valueOutputs: outputValues,
           previewSrc,
           filePath,
       });
+      const replacesImageResult = ["shared_memory", "shm", "base64", "file_path"]
+          .includes(delivery.delivery.type);
 
       graphStore.actions.updateUnitData(unitId, {
-          previewSrc: previewSrc || unit.data.previewSrc,
-          filePath,
-          resultHandle,
+          previewSrc: workflowPreviewSrc ?? previewSrc ?? currentUnit.data.previewSrc,
+          ...(replacesImageResult ? { filePath, resultHandle } : {}),
           outputs: nextOutputs,
-          resultCandidates: mergedCandidates,
+          resultCandidates: currentMergedCandidates,
           selectedResultIndex: candidateState.selectedResultIndex,
           processing: false,
           progress: 1,
@@ -453,9 +532,14 @@ export default function App() {
           errorMessage: undefined,
           imageSearchRecoveryPending: false,
       });
+      void api.debugLogEvent(
+          "art-delivery-applied-final",
+          `unit=${unitId} request=${delivery.request_id || "missing"} preservedPreview=${Boolean(workflowPreviewSrc)}`,
+      );
+      artExecutionRequests.finish(unitId, delivery.request_id);
       void prefetchCandidateAssets({
           unitId,
-          candidates: mergedCandidates,
+          candidates: currentMergedCandidates,
           selectedIndex: candidateState.selectedResultIndex,
       });
       propagateFromUnit(unitId);
@@ -502,6 +586,7 @@ export default function App() {
 
           ids.forEach((id) => graphStore.actions.removeUnit(id));
           ids.forEach((id) => {
+              artExecutionRequests.invalidate(id);
               // Clear all per-unit UI state keyed by unit id so deleting a unit
               // does not leak history/panel/notice entries for its dead id.
               uiActions.clearStickerHistory(id);
@@ -583,6 +668,7 @@ export default function App() {
           onUndoEdit: () => applyStickerHistorySnapshot("undo"),
           onRedoEdit: () => applyStickerHistorySnapshot("redo"),
           onDelete: deleteSelectedUnitOrAnnotation,
+          onCloseActions: closeSelectedActionsMenu,
           onCancelSelection: async () => {
               invalidateCaptureSessionLifecycle();
               nativeCapturePointerActive = false;
@@ -915,6 +1001,9 @@ export default function App() {
                   })();
                   return;
               }
+              if (closeSelectedActionsMenu()) {
+                  return;
+              }
               if (selectedStickerId()) {
                   deleteSelectedUnitOrAnnotation();
               }
@@ -1042,6 +1131,9 @@ export default function App() {
                           }),
                       );
                   } else {
+                      window.dispatchEvent(new CustomEvent(OVERLAY_GLOBAL_MOUSE_UP_EVENT, {
+                          detail: event.payload,
+                      }));
                       overlaySynthetic.dispatch("mouseup", event.payload);
                   }
               },
@@ -1075,6 +1167,36 @@ export default function App() {
               }
           });
 
+          const unlistenHookCacheControl = await listen<HookCacheControlPayload>(
+              "hook/cache_control",
+              async (event) => {
+                  const action = event.payload?.action;
+                  if (action === "settings" && event.payload.settings) {
+                      const cache = normalizeHookCacheSettings(event.payload.settings);
+                      const saved = await saveCurrentAppSettings({
+                          ...getCurrentAppSettings(),
+                          cache,
+                      });
+                      setAppSettings(saved);
+                      const pruned = pruneRecycleBinEntries(graphStore.recycleBin);
+                      if (pruned.length !== graphStore.recycleBin.length) {
+                          graphStore.setRecycleBin(pruned);
+                          await syncService.performWorkflowSync();
+                      }
+                      return;
+                  }
+                  if (action === "clearRecycleBin") {
+                      graphStore.setRecycleBin([]);
+                      await syncService.performWorkflowSync();
+                      return;
+                  }
+                  if (action === "clearReferenceLibrary") {
+                      graphStore.setReferenceLibrary([]);
+                      await syncService.performWorkflowSync();
+                  }
+              },
+          );
+
           const unlistenConnectionState = await listen<{ connected?: boolean }>(
               "art/loom_connection_state",
               async (event) => {
@@ -1102,10 +1224,22 @@ export default function App() {
           const unlistenDelivery = await artLoom.listenForDelivery((delivery) => {
               handleArtDelivery(delivery).catch((error) => {
                   console.error("Failed to process art delivery", error);
+                  if (!artExecutionRequests.isLatest(delivery.art_id, delivery.request_id)) {
+                      return;
+                  }
+                  if (delivery.phase === "preview") {
+                      void api.debugLogEvent(
+                          "art-delivery-preview-read-failed",
+                          `unit=${delivery.art_id} request=${delivery.request_id || "missing"} error=${error instanceof Error ? error.message : String(error)}`,
+                      );
+                      return;
+                  }
                   graphStore.actions.updateUnitData(delivery.art_id, {
                       processing: false,
                       nodeStatus: "error",
+                      errorMessage: error instanceof Error ? error.message : String(error),
                   });
+                  artExecutionRequests.finish(delivery.art_id, delivery.request_id);
               });
           });
 
@@ -1136,6 +1270,7 @@ export default function App() {
               unlistenOverlayContextMenu,
               unlistenInstantiate,
               unlistenCapabilitiesUpdated,
+              unlistenHookCacheControl,
               unlistenConnectionState,
               unlistenProgress,
               unlistenDelivery,
@@ -1178,6 +1313,11 @@ export default function App() {
       }
 
       await syncService.restoreSession(bootProfile || undefined, preloadedSession);
+      const retainedRecycleEntries = pruneRecycleBinEntries(graphStore.recycleBin);
+      if (retainedRecycleEntries.length !== graphStore.recycleBin.length) {
+          graphStore.setRecycleBin(retainedRecycleEntries);
+          await syncService.performWorkflowSync();
+      }
 
       // A restored session can already contain installed Art nodes even when the
       // boot profile keeps ArtLoom's startup handshake disabled. Without a
@@ -1295,7 +1435,9 @@ export default function App() {
       if (!tauriRuntime || !isSelecting()) {
           handleSelectionEnd(e);
       }
-      overlaySynthetic.reset();
+      if (shouldResetOverlaySyntheticOnGlobalMouseUp(tauriRuntime, e.isTrusted)) {
+          overlaySynthetic.reset();
+      }
 
       setLinkingState(prev => ({ ...prev, isLinking: false }));
   };
@@ -1519,15 +1661,32 @@ export default function App() {
             onLinkHover={handleLinkHover}
 
             onRendered={(id, dataUrl) => {
+                const renderedUnit = graphStore.units.find((unit) => unit.id === id);
+                const capability = renderedUnit
+                    ? findArtCapability(graphStore.capabilities, renderedUnit.artId)
+                    : undefined;
+                const isIntermediateShaderPreview =
+                    supportsShaderPreview(capability)
+                    && requiresFormalExecutionAfterPreview(capability);
                 graphStore.actions.updateUnitData(id, {
                     previewSrc: dataUrl,
-                    processing: false,
-                    progress: 1,
                     restoredPreviewLocked: false,
-                    nodeStatus: "completed",
                     errorMessage: undefined,
+                    ...(isIntermediateShaderPreview
+                        ? {}
+                        : {
+                              outputs: mergeArtDeliveryOutputs({
+                                  currentOutputs: renderedUnit?.data.outputs,
+                                  previewSrc: dataUrl,
+                              }),
+                              processing: false,
+                              progress: 1,
+                              nodeStatus: "completed" as const,
+                          }),
                 });
-                propagateFromUnit(id);
+                if (!isIntermediateShaderPreview) {
+                    propagateFromUnit(id);
+                }
                 void syncService.performWorkflowSync();
             }}
 

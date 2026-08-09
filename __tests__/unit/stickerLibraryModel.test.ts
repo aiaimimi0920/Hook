@@ -8,6 +8,8 @@ import {
     restoreRecycleBinEntry,
     setReferenceEntry,
 } from "../../src/services/stickerLibraryModel";
+import { setCurrentAppSettings } from "../../src/services/appSettings";
+import { DEFAULT_APP_SETTINGS } from "../../src/types/appSettings";
 
 const createEntry = (index: number): FrozenStickerEntry => ({
     entryId: `entry-${index}`,
@@ -44,6 +46,20 @@ describe("stickerLibraryModel", () => {
         expect(entries).toHaveLength(15);
         expect(entries[0].entryId).toBe("entry-1");
         expect(entries[14].entryId).toBe("entry-15");
+    });
+
+    it("keeps every recycle-bin entry when the configured limit is unlimited", () => {
+        setCurrentAppSettings({
+            ...DEFAULT_APP_SETTINGS,
+            cache: { ...DEFAULT_APP_SETTINGS.cache, recycleBinMaxEntries: 0 },
+        });
+        const entries = Array.from({ length: 60 }).reduce<FrozenStickerEntry[]>(
+            (acc, _, index) => addRecycleBinEntry(acc, createEntry(index)),
+            [],
+        );
+        setCurrentAppSettings(DEFAULT_APP_SETTINGS);
+
+        expect(entries).toHaveLength(60);
     });
 
     it("restores an entry and removes it from the recycle bin", () => {

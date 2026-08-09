@@ -86,7 +86,7 @@ describe("Hook sticker drag-out contract", () => {
   });
 
   it("supports file-backed stickers when dragging out to a Windows folder", () => {
-    expect(unitViewSource).toContain("const dragOutFilePath = props.unit.data.filePath");
+    expect(unitViewSource).toContain('const dragOutFilePath = exportPlan?.kind === "path"');
     expect(unitViewSource).toContain('const fileUrl = encodeURI(`file://${normalizedFilePath}`);');
     expect(unitViewSource).toContain('e.dataTransfer!.setData("text/uri-list", fileUrl);');
     expect(unitViewSource).toContain('e.dataTransfer!.setData("text/plain", dragOutFilePath);');

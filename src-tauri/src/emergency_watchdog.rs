@@ -44,17 +44,28 @@ pub fn spawn_for_current_process() -> Result<u32, String> {
 #[derive(Default)]
 struct WatchdogEscapeTracker {
     last_press: Option<Instant>,
+    consecutive_presses: u8,
 }
 
 #[cfg(target_os = "windows")]
 impl WatchdogEscapeTracker {
     fn record_press(&mut self, now: Instant) -> bool {
-        let should_exit = self
+        let continues_sequence = self
             .last_press
             .map(|last| now.duration_since(last) < super::EMERGENCY_ESCAPE_WINDOW)
             .unwrap_or(false);
+        self.consecutive_presses = if continues_sequence {
+            self.consecutive_presses.saturating_add(1)
+        } else {
+            1
+        };
         self.last_press = Some(now);
-        should_exit
+        if self.consecutive_presses < 3 {
+            return false;
+        }
+        self.consecutive_presses = 0;
+        self.last_press = None;
+        true
     }
 }
 
@@ -189,7 +200,7 @@ pub fn run(parent_pid: u32) -> i32 {
         }
 
         let escape_is_down = physical_key_down(VK_ESCAPE);
-        let double_escape =
+        let triple_escape =
             escape_is_down && !escape_was_down && escape_tracker.record_press(Instant::now());
         escape_was_down = escape_is_down;
 
@@ -197,9 +208,9 @@ pub fn run(parent_pid: u32) -> i32 {
         let emergency_chord = chord_is_down && !chord_was_down;
         chord_was_down = chord_is_down;
 
-        if double_escape || emergency_chord {
-            let source = if double_escape {
-                "double_escape"
+        if triple_escape || emergency_chord {
+            let source = if triple_escape {
+                "triple_escape"
             } else {
                 "ctrl_alt_shift_f12"
             };
@@ -248,17 +259,19 @@ mod tests {
 
     #[cfg(target_os = "windows")]
     #[test]
-    fn watchdog_uses_the_same_double_escape_window_as_the_main_hook() {
+    fn watchdog_uses_the_same_triple_escape_window_as_the_main_hook() {
         let started_at = Instant::now();
         let mut tracker = WatchdogEscapeTracker::default();
         assert!(!tracker.record_press(started_at));
-        assert!(tracker.record_press(
-            started_at + super::super::EMERGENCY_ESCAPE_WINDOW - Duration::from_millis(1)
-        ));
+        assert!(!tracker.record_press(started_at + Duration::from_millis(100)));
+        assert!(tracker.record_press(started_at + Duration::from_millis(200)));
 
         let mut expired = WatchdogEscapeTracker::default();
         assert!(!expired.record_press(started_at));
         assert!(!expired.record_press(started_at + super::super::EMERGENCY_ESCAPE_WINDOW));
+        assert!(!expired.record_press(
+            started_at + super::super::EMERGENCY_ESCAPE_WINDOW + Duration::from_millis(100)
+        ));
     }
 
     #[cfg(target_os = "windows")]

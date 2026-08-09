@@ -11,4 +11,12 @@ describe("Hook add-node action menu contract", () => {
     expect(canvasUnitsSource).toContain("uiActions.closeActions(u.id)");
     expect(canvasUnitsSource).toMatch(/props\.onAddNode\(u\.id,\s*artId\)[\s\S]*uiActions\.closeActions\(u\.id\)/);
   });
+
+  it("constructs selected workflow Arts from their capability instead of empty node shells", () => {
+    const unitActionsSource = readFileSync(resolve(process.cwd(), "src", "hooks", "useUnitActions.ts"), "utf8");
+
+    expect(unitActionsSource).toContain("buildStandaloneArtNodeUnit");
+    expect(unitActionsSource).toContain("getPrimaryImageInputPort(canonicalArtId)");
+    expect(unitActionsSource).not.toMatch(/graphStore\.actions\.addUnit\(\{[\s\S]*?params:\s*\{\},\s*inputs:\s*\[\],\s*outputs:\s*\[\]/);
+  });
 });

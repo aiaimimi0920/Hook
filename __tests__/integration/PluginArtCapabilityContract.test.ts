@@ -69,4 +69,15 @@ describe("plugin Art capability boundary", () => {
     expect(tauriEntry).not.toContain("mod cli_engine;");
     expect(existsSync(resolve(process.cwd(), "src-tauri", "src", "cli_engine.rs"))).toBe(false);
   });
+
+  it("waits longer than Loom's framework process budget for Art results", () => {
+    const backend = source("src-tauri/src/mock_artloom.rs");
+
+    expect(backend).toContain("const LOOM_FRAMEWORK_PROCESS_TIMEOUT_SECS: u64 = 120;");
+    expect(backend).toContain("const ARTLOOM_WS_RESPONSE_GRACE_SECS: u64 = 30;");
+    expect(backend).toContain(
+      "LOOM_FRAMEWORK_PROCESS_TIMEOUT_SECS + ARTLOOM_WS_RESPONSE_GRACE_SECS",
+    );
+    expect(backend).not.toContain("const ARTLOOM_WS_READ_TIMEOUT_SECS: u64 = 30;");
+  });
 });

@@ -14,7 +14,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 };
 
 describe("overlay synthetic pointer reset contract", () => {
-  it("resets frontend synthetic overlay drag state when capture begins and when a global mouse-up finishes interaction, so post-capture sticker drags do not inherit stale locked pointer targets", () => {
+  it("resets synthetic overlay state at safe ownership boundaries without erasing a pending Tauri synthetic click", () => {
     const appSource = readSource("src/app.tsx");
     // The synthetic engine (reset + dispatch logic) now lives in its own module;
     // app.tsx keeps the capture-begin and global-mouse-up call sites that reset it.
@@ -45,7 +45,9 @@ describe("overlay synthetic pointer reset contract", () => {
     expect(resetBlock).toContain("overlaySyntheticPrimaryButtonDown = false;");
     expect(resetBlock).toContain("overlaySyntheticMoveRelayActive = false;");
     expect(beginCaptureBlock).toContain("overlaySynthetic.reset();");
+    expect(globalMouseUpBlock).toContain("shouldResetOverlaySyntheticOnGlobalMouseUp(tauriRuntime, e.isTrusted)");
     expect(globalMouseUpBlock).toContain("overlaySynthetic.reset();");
+    expect(overlaySource).toContain("return !tauriRuntime || isTrusted;");
     expect(dispatchBlock).toContain("if (type === \"mousedown\") {");
     expect(dispatchBlock).toContain("resetOverlaySyntheticPointerState();");
   });

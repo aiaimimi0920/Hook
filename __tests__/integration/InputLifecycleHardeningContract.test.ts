@@ -185,7 +185,7 @@ describe("input lifecycle hardening contract", () => {
     );
   });
 
-  it("counts double Escape before every focus, cursor, and native-dialog gate", () => {
+  it("counts triple Escape before every focus, cursor, and native-dialog gate", () => {
     const rustSource = readSource("src-tauri/src/lib.rs");
     const keyboardHook = sourceBetween(
       rustSource,
@@ -200,7 +200,8 @@ describe("input lifecycle hardening contract", () => {
 
     expect(rustSource).toContain("static ESCAPE_KEY_DOWN: AtomicBool");
     expect(rustSource).toContain("struct EmergencyEscapeTracker");
-    expect(rustSource).toContain("emergency_double_escape_exit");
+    expect(rustSource).toContain("emergency_triple_escape_exit");
+    expect(rustSource).toContain("consecutive_presses");
     expect(keyboardHook.indexOf("handle_emergency_escape_transition")).toBeLessThan(
       keyboardHook.indexOf("overlay_keyboard_capture_should_handle_current_cursor"),
     );
@@ -227,7 +228,7 @@ describe("input lifecycle hardening contract", () => {
     expect(rustSource).toContain("SystemParametersInfoW(SPI_SETCURSORS");
     expect(setupBlock).toContain("restore_system_cursors_unconditionally();");
     expect(panicBlock).toContain('prepare_for_hook_process_exit("panic")');
-    expect(rustSource).toContain('prepare_for_hook_process_exit("double_escape")');
+    expect(rustSource).toContain('prepare_for_hook_process_exit("triple_escape")');
     expect(rustSource).toContain('prepare_for_hook_process_exit("tauri_run_returned")');
   });
 

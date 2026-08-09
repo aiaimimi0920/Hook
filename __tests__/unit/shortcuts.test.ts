@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { render } from "solid-js/web";
 import { ShortcutManager } from "../../src/services/shortcuts";
-import { shouldIgnoreGlobalShortcut } from "../../src/hooks/useShortcuts";
+import {
+    isActionsMenuDismissShortcut,
+    shouldIgnoreGlobalShortcut,
+    useShortcuts,
+} from "../../src/hooks/useShortcuts";
 
 describe("ShortcutManager legacy Hook shortcuts", () => {
     it("dispatches Shift+1 to the selected unit actions menu", () => {
@@ -58,5 +63,100 @@ describe("ShortcutManager legacy Hook shortcuts", () => {
         expect(shouldIgnoreGlobalShortcut(input, "Tab")).toBe(true);
         expect(shouldIgnoreGlobalShortcut(textarea, "a")).toBe(true);
         expect(shouldIgnoreGlobalShortcut(shell, "Escape")).toBe(false);
+    });
+
+    it("recognizes Escape and Shift+1 as active actions-menu dismiss shortcuts", () => {
+        expect(isActionsMenuDismissShortcut({
+            key: "Escape",
+            shiftKey: false,
+            ctrlKey: false,
+            altKey: false,
+            metaKey: false,
+        })).toBe(true);
+        expect(isActionsMenuDismissShortcut({
+            key: "!",
+            shiftKey: true,
+            ctrlKey: false,
+            altKey: false,
+            metaKey: false,
+        })).toBe(true);
+        expect(isActionsMenuDismissShortcut({
+            key: "1",
+            code: "Digit1",
+            shiftKey: true,
+            ctrlKey: false,
+            altKey: false,
+            metaKey: false,
+        })).toBe(true);
+        expect(isActionsMenuDismissShortcut({
+            key: "!",
+            shiftKey: true,
+            ctrlKey: true,
+            altKey: false,
+            metaKey: false,
+        })).toBe(false);
+    });
+
+    it("closes an open actions menu before preserving Escape deletion when the menu is closed", () => {
+        const host = document.createElement("div");
+        const input = document.createElement("input");
+        document.body.append(host);
+        let menuOpen = true;
+        let closeCalls = 0;
+        let deleteCalls = 0;
+        const dispose = render(() => {
+            useShortcuts({
+                contextProvider: () => "unit-selected",
+                handlers: {
+                    onCloseActions: () => {
+                        if (!menuOpen) return false;
+                        menuOpen = false;
+                        closeCalls += 1;
+                        return true;
+                    },
+                    onDelete: () => {
+                        deleteCalls += 1;
+                    },
+                },
+            });
+            return input;
+        }, host);
+        input.focus();
+
+        const closeWithEscape = new KeyboardEvent("keydown", {
+            key: "Escape",
+            bubbles: true,
+            cancelable: true,
+        });
+        input.dispatchEvent(closeWithEscape);
+        expect(closeWithEscape.defaultPrevented).toBe(true);
+        expect(closeCalls).toBe(1);
+        expect(deleteCalls).toBe(0);
+
+        const deleteWithEscape = new KeyboardEvent("keydown", {
+            key: "Escape",
+            bubbles: true,
+            cancelable: true,
+        });
+        input.dispatchEvent(deleteWithEscape);
+        expect(deleteWithEscape.defaultPrevented).toBe(true);
+        expect(closeCalls).toBe(1);
+        expect(deleteCalls).toBe(1);
+
+        menuOpen = true;
+        const closeWithShiftOne = new KeyboardEvent("keydown", {
+            key: "1",
+            code: "Digit1",
+            shiftKey: true,
+            bubbles: true,
+            cancelable: true,
+        });
+        input.dispatchEvent(closeWithShiftOne);
+        expect(closeWithShiftOne.defaultPrevented).toBe(true);
+        expect(closeCalls).toBe(2);
+        expect(deleteCalls).toBe(1);
+
+        dispose();
+        host.remove();
     });
 });

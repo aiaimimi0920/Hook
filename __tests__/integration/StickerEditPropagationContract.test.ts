@@ -9,12 +9,15 @@ describe("sticker edit propagation contract", () => {
   it("stores sticker edit propagation state on units and applies graph-wide downstream patches", () => {
     const unitTypesSource = readSource("src/types/unit.ts");
     const graphStoreSource = readSource("src/store/graphStore.ts");
+    const syncServiceSource = readSource("src/services/syncService.ts");
 
     expect(unitTypesSource).toContain("stickerEditPropagation?: StickerEditPropagationState");
     expect(graphStoreSource).toContain("buildStickerEditPropagationPatches");
     expect(graphStoreSource).toContain("markStickerEditPropagationLocally");
     expect(graphStoreSource).toContain("updateStickerEditData");
     expect(graphStoreSource).toContain("propagateStickerEditsFrom");
+    expect(graphStoreSource).toContain("propagateStickerEditsFrom(link.fromUnitId)");
+    expect(syncServiceSource).toContain("graphStore.actions.reconcileStickerEditPropagation()");
   });
 
   it("marks direct sticker annotation edits as local and propagates the committed edit downstream", () => {

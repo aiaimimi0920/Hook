@@ -3,11 +3,30 @@ import {
     type FrozenStickerEntry,
     instantiateStickerFromFrozenSnapshot,
 } from "./stickerSnapshot";
+import { getCurrentAppSettings } from "./appSettings";
+
+export const pruneRecycleBinEntries = (
+    entries: FrozenStickerEntry[],
+    now = Date.now(),
+): FrozenStickerEntry[] => {
+    const { recycleBinMaxEntries, recycleBinRetentionDays } = getCurrentAppSettings().cache;
+    const oldestAllowed = recycleBinRetentionDays > 0
+        ? now - recycleBinRetentionDays * 24 * 60 * 60 * 1000
+        : Number.NEGATIVE_INFINITY;
+    const retained = entries
+        .filter((entry) => {
+            const createdAt = Date.parse(entry.createdAt);
+            return !Number.isFinite(createdAt) || createdAt >= oldestAllowed;
+        });
+    return recycleBinMaxEntries === 0
+        ? retained
+        : retained.slice(-recycleBinMaxEntries);
+};
 
 export const addRecycleBinEntry = (
     entries: FrozenStickerEntry[],
     next: FrozenStickerEntry,
-): FrozenStickerEntry[] => [...entries, next].slice(-15);
+): FrozenStickerEntry[] => pruneRecycleBinEntries([...entries, next]);
 
 export const restoreRecycleBinEntry = (
     entries: FrozenStickerEntry[],

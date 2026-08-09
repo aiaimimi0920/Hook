@@ -22,6 +22,52 @@ interface BuildStickerEditPropagationPatchesInput {
     sourceUnitId: string;
 }
 
+interface StickerPropagationSource {
+    unitId: string;
+    revision: number;
+    frame: { w: number; h: number };
+    contentFrame: { x: number; y: number; w: number; h: number };
+    annotationState?: StickerAnnotationState;
+    imageEditState?: StickerImageEditState;
+}
+
+const propagationSourceFromUnit = (unit: Unit): StickerPropagationSource => ({
+    unitId: unit.id,
+    revision: unit.data.stickerEditPropagation?.revision ?? 0,
+    frame: { w: unit.w, h: unit.h },
+    contentFrame: resolveStickerContentFrame(unit),
+    annotationState: unit.data.annotationState,
+    imageEditState: unit.data.imageEditState,
+});
+
+const resolveEffectivePropagationSource = (
+    sourceUnit: Unit,
+    units: ReadonlyMap<string, Unit>,
+): StickerPropagationSource => {
+    const visited = new Set<string>();
+    let current = sourceUnit;
+
+    while (!visited.has(current.id)) {
+        visited.add(current.id);
+        const propagation = current.data.stickerEditPropagation;
+        if (
+            propagation?.locallyEdited ||
+            propagation?.acceptUpstream === false ||
+            !propagation?.upstreamSourceUnitId
+        ) {
+            break;
+        }
+
+        const upstream = units.get(propagation.upstreamSourceUnitId);
+        if (!upstream || upstream.type !== "sticker") {
+            break;
+        }
+        current = upstream;
+    }
+
+    return propagationSourceFromUnit(current);
+};
+
 const cloneAnnotationState = (state: StickerAnnotationState): StickerAnnotationState =>
     structuredClone(state);
 
@@ -420,7 +466,7 @@ export const buildStickerEditPropagationPatches = ({
     const patches: StickerEditPropagationPatch[] = [];
     const visitedEdges = new Set<string>();
 
-    const visit = (fromUnitId: string) => {
+    const visit = (fromUnitId: string, propagationSource: StickerPropagationSource) => {
         const sourceUnit = workingUnits.get(fromUnitId);
         if (!sourceUnit || sourceUnit.type !== "sticker") return;
 
@@ -435,16 +481,15 @@ export const buildStickerEditPropagationPatches = ({
             if (!shouldAcceptUpstreamStickerEdit(targetUnit)) return;
 
             const annotationState = mapStickerAnnotationStateToContainedFrame(
-                sourceUnit.data.annotationState,
-                sourceUnit,
+                propagationSource.annotationState,
+                propagationSource.frame,
                 targetUnit,
             );
             const imageEditState = mapStickerImageEditStateToContainedFrame(
-                sourceUnit.data.imageEditState,
-                sourceUnit,
+                propagationSource.imageEditState,
+                propagationSource.frame,
                 targetUnit,
             );
-            const sourceContentFrame = resolveStickerContentFrame(sourceUnit);
             const data: Partial<Unit["data"]> = {
                 annotationState,
                 imageEditState,
@@ -452,10 +497,10 @@ export const buildStickerEditPropagationPatches = ({
                     ...targetUnit.data.stickerEditPropagation,
                     acceptUpstream: targetUnit.data.stickerEditPropagation?.acceptUpstream ?? true,
                     locallyEdited: false,
-                    upstreamSourceUnitId: sourceUnit.id,
-                    upstreamSourceRevision: sourceUnit.data.stickerEditPropagation?.revision ?? 0,
-                    upstreamSourceFrame: { w: sourceUnit.w, h: sourceUnit.h },
-                    upstreamContentFrame: sourceContentFrame,
+                    upstreamSourceUnitId: propagationSource.unitId,
+                    upstreamSourceRevision: propagationSource.revision,
+                    upstreamSourceFrame: propagationSource.frame,
+                    upstreamContentFrame: propagationSource.contentFrame,
                 },
             };
 
@@ -468,10 +513,18 @@ export const buildStickerEditPropagationPatches = ({
             };
             workingUnits.set(targetUnit.id, nextTarget);
             patches.push({ unitId: targetUnit.id, data });
-            visit(targetUnit.id);
+            // An untouched intermediate sticker is a transparent relay. Keep
+            // mapping from the same effective source instead of treating the
+            // relay's own frame as a newly edited image boundary.
+            visit(targetUnit.id, propagationSource);
         });
     };
 
-    visit(sourceUnitId);
+    const sourceUnit = workingUnits.get(sourceUnitId);
+    if (!sourceUnit || sourceUnit.type !== "sticker") return patches;
+    // Link creation propagates from the immediate source node. If that node is
+    // an untouched relay, continue from its effective upstream source so adding
+    // B -> C does not turn B's frame into a second containment boundary.
+    visit(sourceUnitId, resolveEffectivePropagationSource(sourceUnit, workingUnits));
     return patches;
 };

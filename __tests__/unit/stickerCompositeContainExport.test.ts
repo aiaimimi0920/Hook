@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { renderStickerComposite, renderStickerCompositeWithAnnotations } from "../../src/services/stickerExport";
+import {
+    renderStickerComposite,
+    renderStickerCompositeWithAnnotations,
+    resolveDirectStickerExportImageSrc,
+} from "../../src/services/stickerExport";
 import { graphStore } from "../../src/store/graphStore";
 import type { Unit } from "../../src/types/unit";
 
@@ -164,79 +168,23 @@ describe("sticker composite export base-image placement", () => {
         expect(baseImageDraw?.slice(2)).toEqual([25, 0, 50, 100, 75, 0, 50, 100]);
     });
 
-    it("uses the same upstream-resolved base image that the sticker is visibly showing before compositing effects", async () => {
-        const drawCalls: Array<[string, ...unknown[]]> = [];
-        const canvases: Array<{ width: number; height: number }> = [];
-
-        vi.stubGlobal("document", {
-            createElement: (tagName: string) => {
-                expect(tagName).toBe("canvas");
-                const canvas = {
-                    width: 0,
-                    height: 0,
-                    getContext: () => ({
-                        save: () => drawCalls.push(["save"]),
-                        restore: () => drawCalls.push(["restore"]),
-                        beginPath: () => drawCalls.push(["beginPath"]),
-                        closePath: () => drawCalls.push(["closePath"]),
-                        roundRect: () => drawCalls.push(["roundRect"]),
-                        clip: () => drawCalls.push(["clip"]),
-                        drawImage: (...args: unknown[]) => drawCalls.push(["drawImage", ...args]),
-                        fillRect: (...args: unknown[]) => drawCalls.push(["fillRect", ...args]),
-                        strokeRect: (...args: unknown[]) => drawCalls.push(["strokeRect", ...args]),
-                        set globalAlpha(value: number) {
-                            drawCalls.push(["globalAlpha", value]);
-                        },
-                        set strokeStyle(value: string) {
-                            drawCalls.push(["strokeStyle", value]);
-                        },
-                        set lineWidth(value: number) {
-                            drawCalls.push(["lineWidth", value]);
-                        },
-                    }),
-                    toDataURL: () => "data:image/png;base64,OUT",
-                };
-                canvases.push(canvas);
-                return canvas;
-            },
-        });
-
-        class FakeImage {
-            onload: (() => void) | null = null;
-            onerror: (() => void) | null = null;
-            width = 0;
-            height = 0;
-            naturalWidth = 0;
-            naturalHeight = 0;
-            set src(value: string) {
-                if (value.includes("UPSTREAM_SQUARE")) {
-                    this.width = 100;
-                    this.height = 100;
-                    this.naturalWidth = 100;
-                    this.naturalHeight = 100;
-                } else {
-                    this.width = 200;
-                    this.height = 100;
-                    this.naturalWidth = 200;
-                    this.naturalHeight = 100;
-                }
-                this.onload?.();
-            }
-        }
-        vi.stubGlobal("Image", FakeImage);
-
+    it("passes an untouched sticker's connected Art formal output through byte-for-byte", async () => {
         const upstream: Unit = {
-            id: "upstream-sticker",
-            type: "sticker",
+            id: "upstream-art",
+            type: "art",
+            artId: "workflow-preview-formal",
             x: 0,
             y: 0,
             w: 100,
             h: 100,
             params: {},
             inputs: [],
-            outputs: [],
+            outputs: [{ id: "output", type: "image", direction: "output" }],
             data: {
-                src: "data:image/png;base64,UPSTREAM_SQUARE",
+                previewSrc: "data:image/png;base64,SHADER_PREVIEW",
+                outputs: {
+                    output: "data:image/png;base64,COMPRESSED_FORMAL",
+                },
             },
         };
         const target = makeUnit();
@@ -248,28 +196,43 @@ describe("sticker composite export base-image placement", () => {
             {
                 id: "upstream->target:image",
                 fromUnitId: upstream.id,
-                fromPortId: "output_image",
+                fromPortId: "output",
                 toUnitId: target.id,
                 toPortId: "image",
             },
         ]);
 
-        await renderStickerComposite(target);
-
-        const baseImageDraw = drawCalls.find(
-            (call) =>
-                call[0] === "drawImage"
-                && typeof call[2] === "number"
-                && typeof call[3] === "number"
-                && typeof call[4] === "number"
-                && typeof call[5] === "number",
+        await expect(renderStickerComposite(target)).resolves.toBe(
+            "data:image/png;base64,COMPRESSED_FORMAL",
         );
-        const imageContentCropDraw = drawCalls.find(
-            (call) => call[0] === "drawImage" && call.length === 10,
+    });
+
+    it("requires Canvas rendering when the sticker changes the connected image", () => {
+        const unit = makeUnit();
+        const input = { unit, units: [unit], links: [] };
+
+        expect(resolveDirectStickerExportImageSrc(input)).toBe(
+            "data:image/png;base64,BASE",
         );
 
-        expect(baseImageDraw?.slice(2)).toEqual([50, 0, 100, 100]);
-        expect(imageContentCropDraw?.slice(2)).toEqual([50, 0, 100, 100, 0, 0, 100, 100]);
-        expect(canvases[canvases.length - 1]).toMatchObject({ width: 100, height: 100 });
+        unit.data.opacityNormal = 0.5;
+        expect(resolveDirectStickerExportImageSrc(input)).toBeUndefined();
+
+        unit.data.opacityNormal = 1;
+        unit.data.annotationState = {
+            serialCounter: 1,
+            elements: [
+                {
+                    id: "annotation",
+                    type: "text",
+                    x: 0,
+                    y: 0,
+                    text: "edited",
+                    zIndex: 1,
+                    style: { color: "#ffffff", width: 1 },
+                },
+            ],
+        };
+        expect(resolveDirectStickerExportImageSrc(input)).toBeUndefined();
     });
 });

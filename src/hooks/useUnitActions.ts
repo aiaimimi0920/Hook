@@ -10,10 +10,11 @@ import {
 import { resolveStickerSurfaceDoubleClickTarget } from "../services/stickerDoubleClick";
 import { useNodeParameters } from "./useNodeParameters";
 import { DEFAULT_EXECUTION_CONFIG, type Unit } from "../types/unit";
-import { resolveUnitImageFromGraph } from "../services/graphImageResolution";
+import { resolveConnectedUnitImageForPort } from "../services/graphImageResolution";
 import { getCapabilityInputsForPorts } from "../services/artPorts";
 import { deriveUnitExecutionConfig } from "../services/nodeExecutionConfig";
 import { findArtCapability } from "../services/artCapabilityLookup";
+import { buildStandaloneArtNodeUnit } from "../services/artNodeFactory";
 
 const getSourceImageFrame = (unit: Unit): { w: number; h: number } => {
     const savedRect = unit.data.savedRect;
@@ -73,12 +74,15 @@ export function useUnitActions() {
                     handleParamChange(childId, targetParam, val, true, "upstream");
                 }, 10);
             } else if (childUnit.type === 'sticker') {
-                // STICKER: Pass-through
-                const inputValue = resolveUnitImageFromGraph({
+                // STICKER: consume the linked output port. For workflow Arts,
+                // this remains empty until the formal result arrives and never
+                // falls back to the Art's faster visual preview.
+                const inputValue = resolveConnectedUnitImageForPort({
                     units: graphStore.units,
                     links: graphStore.links,
                     capabilities: graphStore.capabilities,
-                    unitId: fromUnitId,
+                    unitId: childId,
+                    portId: l.toPortId,
                 });
 
                 if (inputValue) {
@@ -186,18 +190,35 @@ export function useUnitActions() {
              const capability = findArtCapability(graphStore.capabilities, artId);
              const canonicalArtId = capability?.id ?? artId;
              const newId = crypto.randomUUID();
-             graphStore.actions.addUnit({
-                 id: newId, type: 'art', artId: canonicalArtId,
-                 x: u.x + u.w + 50, y: u.y, w: sourceFrame.w, h: sourceFrame.h,
-                 params: {}, inputs: [], outputs: [],
-                 data: {
-                     executionConfig: deriveUnitExecutionConfig({ capability }),
-                 }
-             });
+             const node = capability
+                 ? buildStandaloneArtNodeUnit({
+                       id: newId,
+                       capability,
+                       x: u.x + u.w + 50,
+                       y: u.y,
+                       w: sourceFrame.w,
+                       h: sourceFrame.h,
+                   })
+                 : {
+                       id: newId,
+                       type: "art" as const,
+                       artId: canonicalArtId,
+                       x: u.x + u.w + 50,
+                       y: u.y,
+                       w: sourceFrame.w,
+                       h: sourceFrame.h,
+                       params: {},
+                       inputs: [],
+                       outputs: [],
+                       data: {
+                           executionConfig: deriveUnitExecutionConfig({ capability }),
+                       },
+                   };
+             graphStore.actions.addUnit(node);
              graphStore.actions.addLink({
                  id: crypto.randomUUID(),
                  fromUnitId: fromId, fromPortId: 'output',
-                 toUnitId: newId, toPortId: getPrimaryImageInputPort(artId)
+                 toUnitId: newId, toPortId: getPrimaryImageInputPort(canonicalArtId)
              });
              syncService.updateBackendRects();
              syncService.performWorkflowSync();

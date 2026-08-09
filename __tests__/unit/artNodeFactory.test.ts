@@ -137,4 +137,39 @@ describe("standalone ArtNode factory", () => {
 
         expect(ports.inputs.map((input) => input.id)).toEqual(["input", "reference"]);
     });
+
+    it("builds a workflow Art with its declared image port and default parameters", () => {
+        const workflowCapability: ArtCapability = {
+            id: "local-workflow-art",
+            label: "本地流程",
+            description: "",
+            supported_transports: ["file_path"],
+            execution_type: "workflow",
+            execution: { workflow_id: "workflow-1" },
+            params: [
+                { id: "strength", label: "强度", widget: "slider", default: 0.75 },
+            ],
+            inputs: [{ name: "input", label: "输入", type: "image" }],
+            outputs: [{ name: "result", label: "结果", type: "image" }],
+        };
+
+        const unit = buildStandaloneArtNodeUnit({
+            id: "workflow-node",
+            capability: workflowCapability,
+            x: 320,
+            y: 180,
+            w: 100,
+            h: 200,
+        });
+
+        expect(unit).toMatchObject({
+            type: "art",
+            artId: "local-workflow-art",
+            w: 100,
+            h: 200,
+            params: { strength: 0.75 },
+            inputs: [{ id: "input", type: "image", direction: "input" }],
+            outputs: [{ id: "result", type: "image", direction: "output" }],
+        });
+    });
 });

@@ -68,6 +68,7 @@ const previewContext: FileNamingContext = {
 const cloneSettings = (settings: AppSettings): AppSettings => ({
     schemaVersion: settings.schemaVersion,
     fileNaming: { ...settings.fileNaming },
+    cache: { ...settings.cache },
 });
 
 export const AppSettingsDialog: Component<Props> = (props) => {

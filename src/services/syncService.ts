@@ -436,40 +436,55 @@ const executeSyncCycle = async () => {
 
 const scheduler = new SyncScheduler(executeSyncCycle);
 
-export const syncService = {
-    updateBackendRects: async () => {
-        const dpr = window.devicePixelRatio || 1;
+let backendRectSyncRequested = false;
+let backendRectSyncPromise: Promise<void> | null = null;
 
-        // 1. Base Units
-        const rects = graphStore.units.map(u => ({
-            id: u.id,
-            x: Math.round(u.x * dpr),
-            y: Math.round(u.y * dpr),
-            width: Math.round(u.w * dpr),
-            height: Math.round(u.h * dpr),
-            name: u.data.minified ? "MINI" : "FULL"
-        }));
+const syncLatestBackendRects = async () => {
+    const dpr = window.devicePixelRatio || 1;
+    const rects = graphStore.units.map(u => ({
+        id: u.id,
+        x: Math.round(u.x * dpr),
+        y: Math.round(u.y * dpr),
+        width: Math.round(u.w * dpr),
+        height: Math.round(u.h * dpr),
+        name: u.data.minified ? "MINI" : "FULL"
+    }));
 
-        // 2. Dynamic UI Registry (Overlays)
-        const overlays = extraRects();
-        overlays.forEach(r => {
-            rects.push({
-                id: r.name,
-                x: Math.round(r.x * dpr),
-                y: Math.round(r.y * dpr),
-                width: Math.round(r.width * dpr),
-                height: Math.round(r.height * dpr),
-                name: r.name
-            });
+    extraRects().forEach(r => {
+        rects.push({
+            id: r.name,
+            x: Math.round(r.x * dpr),
+            y: Math.round(r.y * dpr),
+            width: Math.round(r.width * dpr),
+            height: Math.round(r.height * dpr),
+            name: r.name
         });
+    });
 
-        try {
-            await api.updatePinRects(rects);
+    try {
+        await api.updatePinRects(rects);
+    } catch (e) {
+        console.error("Failed to update backend rects:", e);
+    }
+};
 
-        } catch (e) {
-            console.error("Failed to update backend rects:", e);
-        }
-    },
+const requestBackendRectSync = () => {
+    backendRectSyncRequested = true;
+    if (!backendRectSyncPromise) {
+        backendRectSyncPromise = (async () => {
+            while (backendRectSyncRequested) {
+                backendRectSyncRequested = false;
+                await syncLatestBackendRects();
+            }
+        })().finally(() => {
+            backendRectSyncPromise = null;
+        });
+    }
+    return backendRectSyncPromise;
+};
+
+export const syncService = {
+    updateBackendRects: requestBackendRectSync,
 
     restoreSession: async (
         bootProfile?: BootProfile,
@@ -508,6 +523,7 @@ export const syncService = {
                  // Populate Stores
                  graphStore.actions.replaceUnits(loadedUnits);
                  graphStore.setLinks(loadedLinks);
+                 graphStore.actions.reconcileStickerEditPropagation();
                  graphStore.setStickerGroups((sessionData.groups || []) as StickerGroup[]);
                  graphStore.setRecycleBin((sessionData.recycleBin || []) as any);
                  graphStore.setReferenceLibrary((sessionData.referenceLibrary || []) as any);

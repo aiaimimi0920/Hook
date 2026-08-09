@@ -15,7 +15,10 @@ import {
     paintMosaicGrid,
     renderBlurToCanvas,
 } from "./stickerEffects";
-import { resolveUnitImageFromGraph } from "./graphImageResolution";
+import {
+    isUnitFormalImagePending,
+    resolveUnitImageFromGraph,
+} from "./graphImageResolution";
 import {
     buildSerialAnnotationMetrics,
     HIGHLIGHTER_LAYER_OPACITY,
@@ -34,6 +37,7 @@ import {
 } from "./stickerGeometry";
 import { loadImage, drawStrokePath, applyLineDash } from "./stickerCanvas";
 import { resolveStickerContentFrame } from "./stickerEditPropagation";
+import { requiresBakedStickerSyncImage } from "./syncedImagePayload";
 
 // Render-order rank, mirrored from stickerAnnotationModel.annotationRenderRank
 // (kept inline to avoid a services→components dependency). Blur sits below
@@ -469,8 +473,30 @@ export const resolveStickerCompositeBaseImageSrc = (input: {
     return displaySrc || input.unit.data.previewSrc || input.unit.data.src;
 };
 
+export const resolveDirectStickerExportImageSrc = (input: {
+    unit: Unit;
+    units: readonly Unit[];
+    links: readonly Link[];
+    capabilities?: readonly ArtCapability[];
+}) => {
+    if (input.unit.type !== "sticker" || requiresBakedStickerSyncImage(input.unit)) {
+        return undefined;
+    }
+
+    const source = resolveStickerCompositeBaseImageSrc(input);
+    return source?.startsWith("data:image/") ? source : undefined;
+};
+
 const resolveRuntimeStickerCompositeBaseImageSrc = (unit: Unit) =>
     resolveStickerCompositeBaseImageSrc({
+        unit,
+        units: graphStore.units,
+        links: graphStore.links,
+        capabilities: graphStore.capabilities,
+    });
+
+const resolveRuntimeDirectStickerExportImageSrc = (unit: Unit) =>
+    resolveDirectStickerExportImageSrc({
         unit,
         units: graphStore.units,
         links: graphStore.links,
@@ -623,6 +649,20 @@ export const renderStickerCompositeWithAnnotations = async (
 };
 
 export const renderStickerComposite = async (unit: Unit): Promise<string> => {
+    if (isUnitFormalImagePending({
+        unitId: unit.id,
+        units: graphStore.units,
+        links: graphStore.links,
+        capabilities: graphStore.capabilities,
+    })) {
+        throw new Error("Formal image output is still processing");
+    }
+
+    const directSource = resolveRuntimeDirectStickerExportImageSrc(unit);
+    if (directSource) {
+        return directSource;
+    }
+
     const composite = await renderStickerCompositeWithAnnotations(
         unit,
         unit.data.annotationState?.elements || [],

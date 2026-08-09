@@ -26,7 +26,7 @@ describe("unit drag export planning", () => {
         const unit = mkUnit({
             id: "unit-1234",
             type: "art",
-            data: { previewSrc: "data:image/png;base64,ART" },
+            data: { outputs: { output: "data:image/png;base64,ART" } },
         });
         expect(
             resolveUnitDragExportPlan({ unit, capabilityLabel: "图片压缩" })?.fileNamingContext,
@@ -66,7 +66,10 @@ describe("unit drag export planning", () => {
             id: "art-2",
             type: "art",
             data: {
-                previewSrc: "data:image/png;base64,COMPRESSED",
+                previewSrc: "data:image/png;base64,SHADER_PREVIEW",
+                outputs: {
+                    output: "data:image/png;base64,COMPRESSED_FORMAL",
+                },
             },
         });
 
@@ -74,13 +77,46 @@ describe("unit drag export planning", () => {
             resolveUnitDragExportPlan({
                 unit,
                 capabilityLabel: "Image Compress",
-                displaySrc: "data:image/png;base64,COMPRESSED",
+                displaySrc: "data:image/png;base64,SHADER_PREVIEW",
             }),
         ).toMatchObject({
             kind: "data-url",
-            dataUrl: "data:image/png;base64,COMPRESSED",
+            dataUrl: "data:image/png;base64,COMPRESSED_FORMAL",
             cacheSavedPath: true,
         });
+    });
+
+    it("does not export an Art preview before a formal image output exists", () => {
+        const unit = mkUnit({
+            id: "art-preview-only",
+            type: "art",
+            data: {
+                previewSrc: "data:image/png;base64,SHADER_PREVIEW",
+            },
+        });
+
+        expect(
+            resolveUnitDragExportPlan({
+                unit,
+                displaySrc: "data:image/png;base64,SHADER_PREVIEW",
+            }),
+        ).toBeNull();
+    });
+
+    it("does not export a stale Art formal output while a newer result is processing", () => {
+        const unit = mkUnit({
+            id: "art-processing",
+            type: "art",
+            data: {
+                processing: true,
+                outputs: { output: "data:image/png;base64,STALE_FORMAL" },
+            },
+        });
+
+        expect(resolveUnitDragExportPlan({
+            unit,
+            formalImagePending: true,
+        })).toBeNull();
     });
 
     it("keeps sticker exports on the rendered composite path when no reusable file exists", () => {

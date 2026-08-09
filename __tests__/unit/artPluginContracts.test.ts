@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { extractArtDeliveryCandidatesState } from "../../src/services/artDeliveryCandidates";
-import { supportsShaderPreview } from "../../src/services/artCapabilities";
+import {
+    requiresFormalExecutionAfterPreview,
+    shaderInputPortName,
+    shaderReferenceInputPortName,
+    supportsShaderPreview,
+} from "../../src/services/artCapabilities";
 
 describe("generic Art plugin contracts", () => {
     it("reads generic candidate metadata without requiring the legacy imageSearch field", () => {
@@ -63,5 +68,61 @@ describe("generic Art plugin contracts", () => {
                 metadata: { capabilities: { preview: "image" } },
             }),
         ).toBe(false);
+    });
+
+    it("describes hybrid workflow preview and formal execution separately", () => {
+        const capability = {
+            id: "workflow-art",
+            label: "Workflow Art",
+            description: "",
+            supported_transports: ["socket" as const],
+            params: [],
+            inputs: [
+                { name: "input", label: "Source", type: "image" },
+                { name: "input_2", label: "Reference", type: "image" },
+            ],
+            metadata: {
+                capabilities: {
+                    preview: "shader",
+                    requiresFormalExecution: true,
+                    shaderInput: "input",
+                    shaderReferenceInput: "input_2",
+                },
+            },
+        };
+
+        expect(requiresFormalExecutionAfterPreview(capability)).toBe(true);
+        expect(shaderInputPortName(capability)).toBe("input");
+        expect(shaderReferenceInputPortName(capability)).toBe("input_2");
+    });
+
+    it("falls back to the second image input for contextual shader previews", () => {
+        const capability = {
+            id: "legacy-shader-art",
+            label: "Legacy Shader Art",
+            description: "",
+            supported_transports: ["socket" as const],
+            params: [],
+            inputs: [
+                { name: "image", label: "Source", type: "image" },
+                { name: "style", label: "Style", type: "image" },
+            ],
+        };
+
+        expect(shaderInputPortName(capability)).toBe("image");
+        expect(shaderReferenceInputPortName(capability)).toBe("style");
+    });
+
+    it("keeps restored workflow previews formal before extended metadata arrives", () => {
+        expect(
+            requiresFormalExecutionAfterPreview({
+                execution_type: "workflow",
+            }),
+        ).toBe(true);
+        expect(
+            requiresFormalExecutionAfterPreview({
+                execution: { type: "workflow" },
+            }),
+        ).toBe(true);
     });
 });

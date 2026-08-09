@@ -3,6 +3,7 @@ use image::{Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 use shared_memory::ShmemConf;
 use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::hash::{Hash, Hasher};
 use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -273,6 +274,8 @@ pub enum ArtLoomAction {
     #[serde(rename = "update_node_param")]
     UpdateNodeParam {
         node_id: String,
+        #[serde(default)]
+        request_id: Option<String>,
         param_key: String,
         value: serde_json::Value,
         input_image: Option<String>,
@@ -317,10 +320,14 @@ unsafe impl Send for SafeShmem {}
 const MAX_SHMEM_ENTRIES: usize = 12;
 const SHARED_MEMORY_ART_INPUT_MIN_BYTES: usize = 256 * 1024;
 
-// Read timeout for the forward-to-ArtLoom WebSocket. Bounds how long a worker
-// thread will block waiting for a processed image before giving up, so a hung
-// backend cannot leak threads/sockets indefinitely.
-const ARTLOOM_WS_READ_TIMEOUT_SECS: u64 = 30;
+// Loom allows one framework process to run for up to 120 seconds. Keep the
+// client wait above that budget so a valid long-running workflow is not
+// reported as failed just before Loom returns, while still bounding hung
+// worker threads and sockets.
+const LOOM_FRAMEWORK_PROCESS_TIMEOUT_SECS: u64 = 120;
+const ARTLOOM_WS_RESPONSE_GRACE_SECS: u64 = 30;
+const ARTLOOM_WS_READ_TIMEOUT_SECS: u64 =
+    LOOM_FRAMEWORK_PROCESS_TIMEOUT_SECS + ARTLOOM_WS_RESPONSE_GRACE_SECS;
 
 pub struct MockArtLoomState {
     pub session_id: String,
@@ -379,6 +386,29 @@ impl MockArtLoom {
             loaded_arts: Mutex::new(Vec::new()),
         }
     }
+}
+
+fn claim_artloom_listener_start(state: &mut MockArtLoomState) -> bool {
+    if state.listener_started {
+        return false;
+    }
+    state.listener_started = true;
+    true
+}
+
+pub fn ensure_artloom_listener(
+    app_handle: &AppHandle,
+    state: &MockArtLoom,
+) -> Result<bool, String> {
+    let should_start = {
+        let mut state_guard = state.state.lock().map_err(|error| error.to_string())?;
+        state_guard.set_app_handle(app_handle.clone());
+        claim_artloom_listener_start(&mut state_guard)
+    };
+    if should_start {
+        start_listener(app_handle.clone(), state.state.clone());
+    }
+    Ok(should_start)
 }
 
 fn artloom_ws_url() -> String {
@@ -776,6 +806,58 @@ fn attach_image_search_delivery(
     delivery.insert("imageSearch".to_owned(), image_search.clone());
 }
 
+fn emit_rgba_art_ready(
+    app_handle: &AppHandle,
+    state: &Arc<Mutex<MockArtLoomState>>,
+    node_id: &str,
+    request_id: &str,
+    image: &RgbaImage,
+    phase: &str,
+    image_search: Option<&serde_json::Value>,
+) -> bool {
+    let buffer = image.as_raw();
+    let shmem_id = format!("artloom-shm-{}", Uuid::new_v4());
+    let shmem = match ShmemConf::new()
+        .size(buffer.len())
+        .os_id(&shmem_id)
+        .create()
+    {
+        Ok(memory) => memory,
+        Err(error) => {
+            println!("Failed to create Shmem: {error}");
+            return false;
+        }
+    };
+
+    unsafe {
+        std::ptr::copy_nonoverlapping(buffer.as_ptr(), shmem.as_ptr(), buffer.len());
+    }
+    if let Ok(mut state) = state.lock() {
+        state.store_shmem(shmem_id.clone(), SafeShmem(shmem));
+    }
+
+    let mut payload = serde_json::json!({
+        "art_id": node_id,
+        "request_id": request_id,
+        "phase": phase,
+        "status": 200,
+        "delivery": {
+            "type": "shared_memory",
+            "handle": shmem_id,
+            "size": buffer.len(),
+            "width": image.width(),
+            "height": image.height()
+        }
+    });
+    attach_image_search_delivery(&mut payload, image_search);
+    let emitted = app_handle.emit("art/ready", payload).is_ok();
+    crate::append_runtime_log_line(&format!(
+        "mock_artloom_art_ready_emitted :: node_id={} request_id={} phase={} delivery=shared_memory",
+        node_id, request_id, phase
+    ));
+    emitted
+}
+
 fn utf8_snippet(value: &str, max_bytes: usize) -> &str {
     if value.len() <= max_bytes {
         return value;
@@ -789,9 +871,30 @@ fn utf8_snippet(value: &str, max_bytes: usize) -> &str {
     &value[..end]
 }
 
+fn image_reference_log_summary(value: &str) -> String {
+    let value = value.trim();
+    let kind = if value.starts_with("data:image/") {
+        "data-url"
+    } else if std::path::Path::new(value).is_file() {
+        "path"
+    } else if value.contains("://") {
+        "url"
+    } else {
+        "value"
+    };
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    value.hash(&mut hasher);
+    format!(
+        "kind={kind};len={};hash={:016x}",
+        value.len(),
+        hasher.finish()
+    )
+}
+
 fn emit_art_error_with_image_search(
     app_handle: &AppHandle,
     node_id: &str,
+    request_id: &str,
     error: impl AsRef<str>,
     image_search: Option<&serde_json::Value>,
 ) {
@@ -803,6 +906,7 @@ fn emit_art_error_with_image_search(
     };
     let mut payload = serde_json::json!({
         "art_id": node_id,
+        "request_id": request_id,
         "status": 500,
         "error": message,
         "delivery": {
@@ -811,11 +915,43 @@ fn emit_art_error_with_image_search(
     });
     attach_image_search_delivery(&mut payload, image_search);
 
+    crate::append_runtime_log_line(&format!(
+        "mock_artloom_art_ready_error :: node_id={} request_id={} error={}",
+        node_id,
+        request_id,
+        utf8_snippet(message, 200)
+    ));
     let _ = app_handle.emit("art/ready", payload);
 }
 
-fn emit_art_error(app_handle: &AppHandle, node_id: &str, error: impl AsRef<str>) {
-    emit_art_error_with_image_search(app_handle, node_id, error, None);
+fn emit_art_error(app_handle: &AppHandle, node_id: &str, request_id: &str, error: impl AsRef<str>) {
+    emit_art_error_with_image_search(app_handle, node_id, request_id, error, None);
+}
+
+fn artloom_listener_subscription_message() -> String {
+    serde_json::json!({
+        "method": "subscribe",
+        "params": {
+            "channels": ["art_hook/instantiate", "art_loom/arts_updated", "art_hook/cache_control"]
+        }
+    })
+    .to_string()
+}
+
+fn hook_cache_settings_event(settings: &serde_json::Value) -> serde_json::Value {
+    let read = |snake: &str, camel: &str| {
+        settings
+            .get(snake)
+            .or_else(|| settings.get(camel))
+            .cloned()
+            .unwrap_or(serde_json::Value::Null)
+    };
+    serde_json::json!({
+        "recycleBinMaxEntries": read("recycle_bin_max_entries", "recycleBinMaxEntries"),
+        "recycleBinRetentionDays": read("recycle_bin_retention_days", "recycleBinRetentionDays"),
+        "tempCacheMaxBytes": read("temp_cache_max_bytes", "tempCacheMaxBytes"),
+        "tempCacheRetentionDays": read("temp_cache_retention_days", "tempCacheRetentionDays"),
+    })
 }
 
 // Background Listener Function
@@ -830,6 +966,20 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<MockArtLoomState>>) {
             match connect(ws_url.as_str()) {
                 Ok((mut socket, _)) => {
                     println!("[MockArtLoom] Listener connected to ArtLoom.");
+                    if let Err(error) =
+                        socket.send(Message::Text(artloom_listener_subscription_message()))
+                    {
+                        eprintln!("[MockArtLoom] Failed to subscribe listener: {error}");
+                        thread::sleep(Duration::from_secs(2));
+                        continue;
+                    }
+                    if let Err(error) = socket.send(Message::Text(
+                        serde_json::json!({ "method": "get_settings" }).to_string(),
+                    )) {
+                        eprintln!("[MockArtLoom] Failed to request settings: {error}");
+                        thread::sleep(Duration::from_secs(2));
+                        continue;
+                    }
                     if let Ok(mut guard) = state.lock() {
                         guard.backend_connected = true;
                     }
@@ -854,6 +1004,48 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<MockArtLoomState>>) {
                                             );
                                             let _ = app
                                                 .emit("art/capabilities_updated", &json["params"]);
+                                        } else if method == "art_hook/cache_control" {
+                                            let mut params = json["params"].clone();
+                                            let mut emitted = false;
+                                            if params["action"].as_str() == Some("settings") {
+                                                params["settings"] =
+                                                    hook_cache_settings_event(&params["settings"]);
+                                            } else if let Some(
+                                                action @ ("clearRecycleBin"
+                                                | "clearReferenceLibrary"),
+                                            ) = params["action"].as_str()
+                                            {
+                                                let _ =
+                                                    app.emit("hook/cache_control", params.clone());
+                                                emitted = true;
+                                                // Apply the in-memory clear before committing the
+                                                // same change to the session file. A concurrent
+                                                // workflow sync will then also observe empty data.
+                                                thread::sleep(Duration::from_millis(120));
+                                                if let Err(error) =
+                                                    crate::clear_persisted_session_library(
+                                                        &app, action,
+                                                    )
+                                                {
+                                                    crate::append_runtime_log_line(&format!(
+                                                        "hook_cache_control_persist_failed :: action={} error={}",
+                                                        action, error
+                                                    ));
+                                                }
+                                            }
+                                            if !emitted {
+                                                let _ = app.emit("hook/cache_control", params);
+                                            }
+                                        }
+                                    } else if json["type"].as_str() == Some("settings") {
+                                        if json["data"]["hook_cache"].is_object() {
+                                            let _ = app.emit(
+                                                "hook/cache_control",
+                                                serde_json::json!({
+                                                    "action": "settings",
+                                                    "settings": hook_cache_settings_event(&json["data"]["hook_cache"]),
+                                                }),
+                                            );
                                         }
                                     }
                                 }
@@ -886,6 +1078,43 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<MockArtLoomState>>) {
             thread::sleep(Duration::from_secs(1));
         }
     });
+}
+
+#[cfg(test)]
+mod artloom_listener_subscription_tests {
+    use super::*;
+
+    #[test]
+    fn native_listener_subscribes_to_instantiation_and_art_updates() {
+        let message: serde_json::Value =
+            serde_json::from_str(&artloom_listener_subscription_message())
+                .expect("subscription message");
+        assert_eq!(message["method"], "subscribe");
+        assert_eq!(
+            message["params"]["channels"],
+            serde_json::json!([
+                "art_hook/instantiate",
+                "art_loom/arts_updated",
+                "art_hook/cache_control"
+            ])
+        );
+    }
+
+    #[test]
+    fn native_listener_start_claim_is_idempotent() {
+        let artloom = MockArtLoom::new();
+        let mut state = artloom.state.lock().expect("lock ArtLoom state");
+
+        assert!(claim_artloom_listener_start(&mut state));
+        assert!(!claim_artloom_listener_start(&mut state));
+    }
+
+    #[test]
+    fn artloom_response_timeout_covers_loom_framework_process_budget() {
+        assert!(ARTLOOM_WS_RESPONSE_GRACE_SECS > 0);
+        assert!(ARTLOOM_WS_READ_TIMEOUT_SECS > LOOM_FRAMEWORK_PROCESS_TIMEOUT_SECS);
+        assert_eq!(ARTLOOM_WS_READ_TIMEOUT_SECS, 150);
+    }
 }
 
 // =========================================================================
@@ -945,19 +1174,14 @@ pub async fn artloom_handshake(
         *loaded = arts.clone();
     }
 
-    // START LISTENER THREAD (Persistent connection for IPC)
+    // Keep the listener independent from capability negotiation. Native setup
+    // already starts it so workflow instantiation works before the frontend
+    // requests a capability handshake.
     {
         let mut s = state.state.lock().map_err(|e| e.to_string())?;
-        // Store AppHandle first
-        s.set_app_handle(app_handle.clone());
         s.negotiated_transport = transport.clone();
-
-        if !s.listener_started {
-            s.listener_started = true;
-            let state_arc = state.state.clone();
-            start_listener(app_handle.clone(), state_arc);
-        }
     }
+    ensure_artloom_listener(&app_handle, state.inner())?;
 
     let backend_connected = {
         let s = state.state.lock().map_err(|e| e.to_string())?;
@@ -995,6 +1219,7 @@ pub async fn artloom_dispatch_action(
     match &action {
         ArtLoomAction::UpdateNodeParam {
             node_id,
+            request_id,
             param_key,
             art_id,
             input_image,
@@ -1002,8 +1227,9 @@ pub async fn artloom_dispatch_action(
             ..
         } => {
             crate::append_runtime_log_line(&format!(
-                "artloom_dispatch_action_update_node_param :: node_id={} param_key={} art_id={} has_input_image={} aux_keys={}",
+                "artloom_dispatch_action_update_node_param :: node_id={} request_id={} param_key={} art_id={} has_input_image={} aux_keys={}",
                 node_id,
+                request_id.as_deref().unwrap_or("generated-by-backend"),
                 param_key,
                 art_id.as_deref().unwrap_or(""),
                 input_image.as_ref().map(|value| !value.trim().is_empty()).unwrap_or(false),
@@ -1033,6 +1259,7 @@ pub async fn artloom_dispatch_action(
     match action {
         ArtLoomAction::UpdateNodeParam {
             node_id,
+            request_id,
             param_key,
             value,
             input_image,
@@ -1043,6 +1270,9 @@ pub async fn artloom_dispatch_action(
             origin_workflow_id,
             origin_node_id,
         } => {
+            let request_id = request_id
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or_else(|| Uuid::new_v4().to_string());
             // Scope for lock
             {
                 let mut s = state.state.lock().map_err(|e| e.to_string())?;
@@ -1233,7 +1463,7 @@ pub async fn artloom_dispatch_action(
                                         "Failed to prepare ArtLoom input transport: {error}"
                                     );
                                     println!("[MOCK_ARTLOOM] {message}");
-                                    emit_art_error(&app_handle, &_node_id, message);
+                                    emit_art_error(&app_handle, &_node_id, &request_id, message);
                                     return;
                                 }
                             };
@@ -1269,7 +1499,6 @@ pub async fn artloom_dispatch_action(
                             let runtime_params = loom_ahrp_runtime_params(&def, &resolved_params);
 
                             // Build AHRP Request - matching ArtLoom's InputData schema!
-                            let request_id = uuid::Uuid::new_v4().to_string();
                             let ahrp_request = serde_json::json!({
                                 "method": "art/process",
                                 "params": {
@@ -1282,12 +1511,28 @@ pub async fn artloom_dispatch_action(
                                 }
                             });
 
+                            let aux_input_summary = {
+                                let mut entries = resolved_input_images
+                                    .iter()
+                                    .map(|(key, value)| {
+                                        format!("{}[{}]", key, image_reference_log_summary(value))
+                                    })
+                                    .collect::<Vec<_>>();
+                                entries.sort();
+                                if entries.is_empty() {
+                                    "none".to_string()
+                                } else {
+                                    entries.join(",")
+                                }
+                            };
+
                             crate::append_runtime_log_line(&format!(
-                                "mock_artloom_forward_art_process :: art_id={} request_id={} input_type={} has_reference_input_image={} param_keys={}",
+                                "mock_artloom_forward_art_process :: node_id={} art_id={} request_id={} input_type={} aux_inputs={} param_keys={}",
+                                _node_id,
                                 art_type,
                                 request_id,
                                 input_transport,
-                                resolved_input_images.contains_key("reference"),
+                                aux_input_summary,
                                 {
                                     let mut keys = resolved_params.keys().cloned().collect::<Vec<_>>();
                                     keys.sort();
@@ -1326,7 +1571,12 @@ pub async fn artloom_dispatch_action(
                                             let message =
                                                 format!("Failed to encode ArtLoom request: {}", e);
                                             println!("[MOCK_ARTLOOM] {}", message);
-                                            emit_art_error(&app_handle, &_node_id, message);
+                                            emit_art_error(
+                                                &app_handle,
+                                                &_node_id,
+                                                &request_id,
+                                                message,
+                                            );
                                             let _ = socket.close(None);
                                             return;
                                         }
@@ -1335,7 +1585,12 @@ pub async fn artloom_dispatch_action(
                                         let message =
                                             format!("Failed to send ArtLoom request: {}", e);
                                         println!("[MOCK_ARTLOOM] {}", message);
-                                        emit_art_error(&app_handle, &_node_id, message);
+                                        emit_art_error(
+                                            &app_handle,
+                                            &_node_id,
+                                            &request_id,
+                                            message,
+                                        );
                                         let _ = socket.close(None);
                                         return;
                                     } else {
@@ -1362,6 +1617,9 @@ pub async fn artloom_dispatch_action(
                                                         if json["request_id"].as_str()
                                                             == Some(&request_id)
                                                         {
+                                                            let phase = json["phase"]
+                                                                .as_str()
+                                                                .unwrap_or("final");
                                                             image_search_delivery =
                                                                 extract_artloom_image_search_delivery(
                                                                     &json,
@@ -1371,6 +1629,39 @@ pub async fn artloom_dispatch_action(
                                                                 == Some(200)
                                                                 || json["status"].as_str()
                                                                     == Some("Success");
+                                                            let response_status = json["status"]
+                                                                .as_str()
+                                                                .map(str::to_owned)
+                                                                .or_else(|| {
+                                                                    json["status"].as_u64().map(
+                                                                        |value| value.to_string(),
+                                                                    )
+                                                                })
+                                                                .unwrap_or_else(|| {
+                                                                    "unknown".to_string()
+                                                                });
+                                                            let output_type = json["data"]
+                                                                ["output"]["type"]
+                                                                .as_str()
+                                                                .or_else(|| {
+                                                                    json["data"]["outputs"]
+                                                                        .as_array()
+                                                                        .and_then(|outputs| {
+                                                                            outputs.first()
+                                                                        })
+                                                                        .and_then(|output| {
+                                                                            output["type"].as_str()
+                                                                        })
+                                                                })
+                                                                .unwrap_or("unknown");
+                                                            crate::append_runtime_log_line(&format!(
+                                                                "mock_artloom_art_process_response :: node_id={} art_id={} request_id={} status={} output_type={}",
+                                                                _node_id,
+                                                                art_type,
+                                                                request_id,
+                                                                response_status,
+                                                                output_type
+                                                            ));
                                                             if is_success {
                                                                 // 1. Try Shared Memory Pass-through (Preferred)
                                                                 if let Some(output) = json["data"]
@@ -1389,6 +1680,8 @@ pub async fn artloom_dispatch_action(
                                                                     {
                                                                         let mut payload = serde_json::json!({
                                                                             "art_id": _node_id,
+                                                                            "request_id": request_id,
+                                                                            "phase": phase,
                                                                             "status": 200,
                                                                             "delivery": {
                                                                                 "type": "shared_memory",
@@ -1409,7 +1702,16 @@ pub async fn artloom_dispatch_action(
                                                                                 payload,
                                                                             )
                                                                             .ok();
+                                                                        crate::append_runtime_log_line(&format!(
+                                                                            "mock_artloom_art_ready_emitted :: node_id={} request_id={} phase={} delivery=shared_memory",
+                                                                            _node_id,
+                                                                            request_id,
+                                                                            phase
+                                                                        ));
                                                                         println!("[MOCK_ARTLOOM] Passed through shared memory: {}", handle);
+                                                                        if phase == "preview" {
+                                                                            continue;
+                                                                        }
                                                                         return;
                                                                     }
 
@@ -1502,6 +1804,23 @@ pub async fn artloom_dispatch_action(
                                                                         }
                                                                     }
                                                                 }
+                                                                if phase == "preview" {
+                                                                    if received_processed_output {
+                                                                        let _ = emit_rgba_art_ready(
+                                                                            &app_handle,
+                                                                            &state_arc,
+                                                                            &_node_id,
+                                                                            &request_id,
+                                                                            &img,
+                                                                            "preview",
+                                                                            image_search_delivery
+                                                                                .as_ref(),
+                                                                        );
+                                                                        received_processed_output =
+                                                                            false;
+                                                                    }
+                                                                    continue;
+                                                                }
                                                             } else {
                                                                 let message =
                                                                     extract_artloom_error_message(
@@ -1514,6 +1833,7 @@ pub async fn artloom_dispatch_action(
                                                                 emit_art_error_with_image_search(
                                                                     &app_handle,
                                                                     &_node_id,
+                                                                    &request_id,
                                                                     message,
                                                                     image_search_delivery.as_ref(),
                                                                 );
@@ -1546,13 +1866,19 @@ pub async fn artloom_dispatch_action(
                                         }
                                         let _ = socket.close(None);
                                         if let Some(message) = forward_error {
-                                            emit_art_error(&app_handle, &_node_id, message);
+                                            emit_art_error(
+                                                &app_handle,
+                                                &_node_id,
+                                                &request_id,
+                                                message,
+                                            );
                                             return;
                                         }
                                         if !received_processed_output {
                                             emit_art_error_with_image_search(
                                                 &app_handle,
                                                 &_node_id,
+                                                &request_id,
                                                 "ArtLoom did not return an image output",
                                                 image_search_delivery.as_ref(),
                                             );
@@ -1566,7 +1892,7 @@ pub async fn artloom_dispatch_action(
                                         ws_url, e
                                     );
                                     println!("[MOCK_ARTLOOM] {}", message);
-                                    emit_art_error(&app_handle, &_node_id, message);
+                                    emit_art_error(&app_handle, &_node_id, &request_id, message);
                                     return;
                                 }
                             }
@@ -1578,6 +1904,7 @@ pub async fn artloom_dispatch_action(
                             emit_art_error(
                                 &app_handle,
                                 &_node_id,
+                                &request_id,
                                 format!("Art '{}' is disabled", art_type),
                             );
                             return;
@@ -1587,57 +1914,15 @@ pub async fn artloom_dispatch_action(
                     }
                 }
 
-                // 2. Use Raw RGBA (Compatible with lib.rs expectations)
-                let width = img.width();
-                let height = img.height();
-                let buffer = img.into_raw();
-
-                // 3. Create Shared Memory
-                let shmem_id = format!("artloom-shm-{}", Uuid::new_v4());
-
-                let shmem = match ShmemConf::new()
-                    .size(buffer.len())
-                    .os_id(&shmem_id)
-                    .create()
-                {
-                    Ok(m) => m,
-                    Err(e) => {
-                        println!("Failed to create Shmem: {}", e);
-                        return;
-                    }
-                };
-
-                // 4. Write Data
-                unsafe {
-                    std::ptr::copy_nonoverlapping(buffer.as_ptr(), shmem.as_ptr(), buffer.len());
-                }
-
-                println!("Written {} bytes to Shmem [{}]", buffer.len(), shmem_id);
-
-                // 5. Persist Shmem in State
-                {
-                    if let Ok(mut s) = state_arc.lock() {
-                        s.store_shmem(shmem_id.clone(), SafeShmem(shmem));
-                    }
-                }
-
-                // 6. Emit Delivery Event
-                let payload = serde_json::json!({
-                    "art_id": _node_id,
-                    "status": 200,
-                    "delivery": {
-                         "type": "shared_memory",
-                         "handle": shmem_id,
-                         "size": buffer.len(),
-                         "width": width,
-                         "height": height
-                    }
-                });
-                let mut payload = payload;
-                attach_image_search_delivery(&mut payload, image_search_delivery.as_ref());
-
-                let _ = app_handle.emit("art/ready", payload);
-                println!("Emitted art/ready for {}", _node_id);
+                let _ = emit_rgba_art_ready(
+                    &app_handle,
+                    &state_arc,
+                    &_node_id,
+                    &request_id,
+                    &img,
+                    "final",
+                    image_search_delivery.as_ref(),
+                );
             });
         }
         ArtLoomAction::SyncWorkflow {

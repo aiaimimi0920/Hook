@@ -40,6 +40,39 @@ const isNonEmptyString = (value: string | undefined | null): value is string =>
 const isImageDataUrl = (value: string | undefined | null): value is string =>
     typeof value === "string" && value.startsWith("data:image");
 
+const unwrapImageOutputValue = (value: unknown): string | undefined => {
+    if (typeof value === "string" && isImageDataUrl(value)) {
+        return value;
+    }
+    if (!value || typeof value !== "object") {
+        return undefined;
+    }
+    const record = value as Record<string, unknown>;
+    return [record.data, record.src, record.url]
+        .find((candidate): candidate is string =>
+            isImageDataUrl(typeof candidate === "string" ? candidate : undefined),
+        );
+};
+
+export const resolveArtFormalImageDataUrl = (unit: Unit): string | undefined => {
+    if (unit.type !== "art" || !unit.data.outputs) {
+        return undefined;
+    }
+    const declaredImageOutputs = unit.outputs
+        .filter((port) => port.type === "image")
+        .map((port) => port.id);
+    const outputIds = Array.from(new Set(["output", "output_image", ...declaredImageOutputs]));
+    for (const outputId of outputIds) {
+        const source = unwrapImageOutputValue(unit.data.outputs[outputId]);
+        if (source) {
+            return source;
+        }
+    }
+    return Object.values(unit.data.outputs)
+        .map(unwrapImageOutputValue)
+        .find(isNonEmptyString);
+};
+
 export const resolveNativeDragPreviewPointFromOverlay = (
     payload: NativeDragOverlayPayload | undefined,
 ) => {
@@ -146,7 +179,12 @@ export const resolveUnitDragExportPlan = (input: {
     unit: Unit;
     capabilityLabel?: string;
     displaySrc?: string;
+    formalImagePending?: boolean;
 }): UnitDragExportPlan | null => {
+    if (input.formalImagePending) {
+        return null;
+    }
+
     const fileNamingContext = buildUnitFileNamingContext(input.unit, input.capabilityLabel);
     const displayOverridesStoredStickerImage =
         input.unit.type !== "art" &&
@@ -166,11 +204,7 @@ export const resolveUnitDragExportPlan = (input: {
     }
 
     if (input.unit.type === "art") {
-        const inlineSource = [
-            input.unit.data.previewSrc,
-            input.displaySrc,
-            input.unit.data.src,
-        ].find(isImageDataUrl);
+        const inlineSource = resolveArtFormalImageDataUrl(input.unit);
         if (!inlineSource) {
             return null;
         }
