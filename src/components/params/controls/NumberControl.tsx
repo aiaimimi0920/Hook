@@ -187,7 +187,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
 
   const label = (
     <label
-      class="text-[#EEF1FF]/80 font-medium text-[11px] truncate cursor-context-menu"
+      class="hook-param-label font-medium text-[11px] truncate cursor-context-menu"
       style={{ "min-width": "70px", "max-width": "104px" }}
       onContextMenu={(event) => props.onContextMenu(event)}
     >
@@ -196,12 +196,12 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
   );
 
   const stepper = (
-    <div class="flex items-center shrink-0 overflow-hidden rounded border border-white/10 bg-white/5">
+    <div class="hook-param-stepper flex items-center shrink-0 overflow-hidden rounded border">
       <button
         type="button"
         data-param-step-down
         disabled={props.isDisabled}
-        class="w-5 h-6 flex items-center justify-center text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+        class="hook-param-stepper__button w-5 h-6 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -216,7 +216,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
         min={props.min}
         max={props.max}
         step={props.step ?? "any"}
-        class="w-16 h-6 bg-transparent border-x border-white/10 px-1 text-center text-white/90 text-[11px] placeholder-white/20 focus:outline-none focus:bg-white/10 disabled:opacity-50"
+        class="hook-param-stepper__input w-16 h-6 bg-transparent border-x px-1 text-center text-[11px] focus:outline-none disabled:opacity-50"
         value={draftValue()}
         disabled={props.isDisabled}
         onInput={(event) => {
@@ -256,7 +256,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
         type="button"
         data-param-step-up
         disabled={props.isDisabled}
-        class="w-5 h-6 flex items-center justify-center text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+        class="hook-param-stepper__button w-5 h-6 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -306,11 +306,11 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
               onContextMenu={(event) => props.onContextMenu(event)}
             >
               <div
-                class="absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-full bg-white/12"
+                class="hook-param-slider__track absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-full"
                 style={{ height: "6px" }}
               />
               <div
-                class="absolute left-0 top-1/2 -translate-y-1/2 rounded-full bg-violet-400/80"
+                class="hook-param-slider__fill absolute left-0 top-1/2 -translate-y-1/2 rounded-full"
                 style={{
                   height: "6px",
                   width: `${sliderProgress() * 100}%`,
@@ -334,21 +334,21 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
               >
                 <div
                   data-param-slider-thumb-visual
-                  class="absolute left-1/2"
+                  class="hook-param-slider__thumb absolute left-1/2"
                   style={{
                     bottom: "2px",
                     width: "12px",
                     height: "8px",
-                    background:
-                      isSliderDragging() || isSliderHovered()
-                        ? "rgba(196, 181, 253, 1)"
-                        : "rgba(167, 139, 250, 0.96)",
                     "clip-path": "polygon(50% 100%, 0 0, 100% 0)",
                     "transform-origin": "50% 100%",
+                    background:
+                      isSliderDragging() || isSliderHovered()
+                        ? "color-mix(in srgb, var(--theme-signal) 82%, var(--theme-text))"
+                        : "var(--theme-signal)",
                     filter:
                       isSliderDragging() || isSliderHovered()
-                        ? "drop-shadow(0 0 1px rgba(255,255,255,0.98)) drop-shadow(0 0 8px rgba(167,139,250,0.75))"
-                        : "drop-shadow(0 0 0.5px rgba(255,255,255,0.85)) drop-shadow(0 1px 3px rgba(139,92,246,0.45))",
+                        ? "drop-shadow(0 2px 4px color-mix(in srgb, var(--theme-signal) 34%, transparent))"
+                        : "drop-shadow(0 1px 2px var(--theme-panel))",
                     transform: `translateX(-50%) scale(${
                       isSliderDragging() ? 1.12 : isSliderHovered() ? 1.08 : 1
                     })`,

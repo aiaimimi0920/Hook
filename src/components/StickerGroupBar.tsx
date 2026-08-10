@@ -13,7 +13,7 @@ export const StickerGroupBar: Component = () => {
                 class="hook-terminal-shell hook-terminal-shell--strong absolute left-4 top-4 z-[1150] flex items-center gap-2 px-3 py-2 text-[11px]"
                 onMouseDown={(event) => event.stopPropagation()}
             >
-                <span class="text-white/60">分组</span>
+                <span class="hook-inline-muted">分组</span>
                 <button
                     class="hook-terminal-btn px-2 py-1"
                     classList={{

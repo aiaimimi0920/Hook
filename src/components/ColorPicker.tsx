@@ -437,9 +437,9 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                 onMouseDown={(e) => e.stopPropagation()}
             >
                 <div class="mb-3 flex items-center justify-between">
-                    <span class="text-sm font-semibold text-white">颜色选择器</span>
+                    <span class="text-sm font-semibold">颜色选择器</span>
                     <button
-                        class="text-white/60 hover:text-white"
+                        class="hook-toolbar-button"
                         onClick={() => props.onClose()}
                     >
                         ✕
@@ -448,7 +448,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
 
                 <div
                     ref={svPickerRef}
-                    class="relative mb-3 h-48 cursor-crosshair border border-white/10"
+                    class="hook-color-picker__field relative mb-3 h-48 cursor-crosshair"
                     style={{
                         background: `linear-gradient(to bottom, transparent, black), linear-gradient(to right, white, ${hueGradient()})`,
                     }}
@@ -467,7 +467,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
 
                 <div
                     ref={hueSliderRef}
-                    class="relative mb-3 h-4 cursor-pointer border border-white/10"
+                    class="hook-color-picker__field relative mb-3 h-4 cursor-pointer"
                     style={{
                         background: "linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)",
                     }}
@@ -485,11 +485,11 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                 </div>
 
                 <div class="mb-3 flex items-center gap-2">
-                    <span class="text-sm text-white/70">透明度</span>
+                    <span class="hook-param-label text-sm">透明度</span>
                     <div
                         ref={alphaSliderRef}
                         data-alpha-slider
-                        class="relative h-4 flex-1 cursor-pointer border border-white/10"
+                        class="hook-color-picker__field relative h-4 flex-1 cursor-pointer"
                         style={{
                             background: alphaSliderBackground(),
                             "background-size": "100% 100%, 8px 8px, 8px 8px, 8px 8px, 8px 8px",
@@ -507,13 +507,13 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                             }}
                         />
                     </div>
-                    <span class="text-sm text-white">{Math.round(alpha() * 100)}%</span>
+                    <span class="hook-param-value text-sm">{Math.round(alpha() * 100)}%</span>
                 </div>
 
                 <Show when={props.palette && props.palette.length > 0}>
                     <div class="mb-3">
                         <div class="mb-1 flex h-6 items-center justify-between">
-                            <span class="text-xs text-white/50">调色板</span>
+                            <span class="hook-terminal-caption text-xs">调色板</span>
                             <button
                                 class="hook-terminal-btn hook-terminal-btn--danger px-2 py-0.5 text-xs"
                                 classList={{
@@ -533,10 +533,9 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                                     const isTransparent = !paletteColor || paletteColor.toLowerCase() === "transparent";
                                     return (
                                         <button
-                                            class="h-6 w-6 overflow-hidden border hover:border-white/60"
+                                            class="hook-color-swatch h-6 w-6 overflow-hidden"
                                             classList={{
-                                                "border-white ring-2 ring-white/60": selectedPaletteColor() === paletteColor,
-                                                "border-white/20": selectedPaletteColor() !== paletteColor,
+                                                "hook-color-swatch--selected": selectedPaletteColor() === paletteColor,
                                             }}
                                             style={{
                                                 background: `linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)`,
@@ -569,10 +568,10 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                     </div>
                 </Show>
 
-                <div class="mb-1 text-xs text-white/50">当前颜色（可编辑颜色码）</div>
+                <div class="hook-terminal-caption mb-1 text-xs">当前颜色（可编辑颜色码）</div>
                 <div class="flex items-center gap-3">
                     <div
-                        class="h-12 w-12 flex-shrink-0 border border-white/20"
+                        class="hook-color-picker__preview h-12 w-12 flex-shrink-0"
                         style={{
                             background: `linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)`,
                             "background-size": "8px 8px",
@@ -602,7 +601,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                     </div>
                 </div>
 
-                <div class="sticky bottom-0 mt-3 flex flex-wrap items-center gap-2 bg-slate-900 pt-2">
+                <div class="hook-color-picker__footer sticky bottom-0 mt-3 flex flex-wrap items-center gap-2 pt-2">
                     <button
                         class="hook-terminal-btn hook-terminal-btn--success px-3 py-1 text-sm"
                         onClick={handleApply}

@@ -164,7 +164,7 @@ export const createStickerTopStripPropertyBarFields = (
                 <Show when={!isTransparent()}>
                     <span class="absolute inset-[2px]" style={{ background: current() }} />
                 </Show>
-                <span class="relative z-[1] text-white">
+                <span class="relative z-[1]">
                     <fieldProps.Icon class="h-3.5 w-3.5" />
                 </span>
             </button>
@@ -202,7 +202,7 @@ export const createStickerTopStripPropertyBarFields = (
                 <Show when={!isTransparent()}>
                     <span class="absolute inset-[2px]" style={{ background: fieldProps.value }} />
                 </Show>
-                <span class="relative z-[1] text-white">
+                <span class="relative z-[1]">
                     <fieldProps.Icon class="h-3.5 w-3.5" />
                 </span>
             </button>
@@ -211,7 +211,7 @@ export const createStickerTopStripPropertyBarFields = (
 
     const MiniNumericField: MiniNumericFieldComponent = (fieldProps) => (
         <label class={options.groupedShellClass} title={fieldProps.title}>
-            <fieldProps.Icon class="h-3.5 w-3.5 shrink-0 text-white/70" />
+            <fieldProps.Icon class="hook-property-icon h-3.5 w-3.5 shrink-0" />
             <input
                 class={`${options.compactInputClass} ${fieldProps.inputClass ?? ""}`.trim()}
                 type="text"
@@ -242,7 +242,7 @@ export const createStickerTopStripPropertyBarFields = (
 
     const MiniDeferredNumericField: MiniDeferredNumericFieldComponent = (fieldProps) => (
         <label class={options.groupedShellClass} title={fieldProps.title}>
-            <fieldProps.Icon class="h-3.5 w-3.5 shrink-0 text-white/70" />
+            <fieldProps.Icon class="hook-property-icon h-3.5 w-3.5 shrink-0" />
             <input
                 class={`${options.compactInputClass} ${fieldProps.inputClass ?? ""}`.trim()}
                 type="text"
@@ -265,7 +265,7 @@ export const createStickerTopStripPropertyBarFields = (
             class={`hook-mini-toggle ${options.iconShellClass} w-6`}
             classList={{
                 "hook-mini-toggle--active": fieldProps.enabled,
-                "border-white/10 bg-black/35 text-white/75 hover:border-white/25 hover:bg-white/10": !fieldProps.enabled,
+                "hook-compact-control": !fieldProps.enabled,
             }}
             title={fieldProps.title}
             onClick={() => fieldProps.onToggle()}
@@ -291,7 +291,7 @@ export const createStickerTopStripPropertyBarFields = (
             class="hook-mini-switch flex h-6 w-[42px] shrink-0 items-center justify-between border px-1.5 transition-colors"
             classList={{
                 "hook-mini-switch--active": fieldProps.enabled,
-                "border-white/10 bg-black/35 text-white/75 hover:border-white/25 hover:bg-white/10": !fieldProps.enabled,
+                "hook-compact-control": !fieldProps.enabled,
             }}
             title={fieldProps.title}
             onClick={() => fieldProps.onToggle()}
@@ -346,18 +346,18 @@ export const createStickerTopStripPropertyBarFields = (
                     {fieldProps.Icon
                         ? (() => {
                               const Icon = fieldProps.Icon!;
-                              return <Icon class="h-3.5 w-3.5 shrink-0 text-white/70" />;
+                              return <Icon class="hook-property-icon h-3.5 w-3.5 shrink-0" />;
                           })()
                         : null}
                     <span
-                        class={`truncate text-left text-[10px] text-white ${
+                        class={`truncate text-left text-[10px] ${
                             fieldProps.triggerLabelClass ?? ""
                         }`.trim()}
                     >
                         {selectedOption()?.label ?? fieldProps.value}
                     </span>
                 </span>
-                <span class={`shrink-0 text-[9px] text-white/55 transition-transform ${isOpen() ? "rotate-180" : ""}`}>
+                <span class={`hook-toolbar-shortcut shrink-0 text-[9px] transition-transform ${isOpen() ? "rotate-180" : ""}`}>
                     ▾
                 </span>
             </button>

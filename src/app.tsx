@@ -66,7 +66,10 @@ import {
   requiresFormalExecutionAfterPreview,
   supportsShaderPreview,
 } from "./services/artCapabilities";
-import { findArtCapability } from "./services/artCapabilityLookup";
+import {
+    findArtCapability,
+    findArtCapabilityAfterRefresh,
+} from "./services/artCapabilityLookup";
 import { resolveDeletionPlan } from "./services/deletionPlan";
 import { composeTeaTicketText, summarizeUnitsForTea } from "./services/teaTicketText";
 import type { BootProfile } from "./services/bootProfile";
@@ -100,6 +103,10 @@ import {
 import { refreshArtLoomCapabilitiesOnStartup } from "./services/artLoomStartup";
 import { artExecutionRequests } from "./services/artExecutionRequests";
 import {
+    applyHookGeneralSettings,
+    normalizeHookGeneralSettings,
+} from "./services/hookGeneralSettings";
+import {
     restoredSessionNeedsCapabilityRefresh,
     sessionSnapshotNeedsCapabilityRefresh,
 } from "./services/restoredSessionCapabilities";
@@ -107,7 +114,7 @@ import {
 // Hooks
 import { useDraggable } from "./hooks/useDraggable";
 import { useSelection } from "./hooks/useSelection";
-import { useShortcuts, checkDragModifier } from "./hooks/useShortcuts";
+import { useShortcuts, checkDragModifier, ShortcutManager } from "./hooks/useShortcuts";
 import { useLinking } from "./hooks/useLinking";
 import { useUnitActions } from "./hooks/useUnitActions";
 import { useClipboard } from "./hooks/useClipboard";
@@ -324,17 +331,51 @@ export default function App() {
       }
   };
 
+  let capabilityRefreshPromise: Promise<void> | null = null;
   const refreshCapabilities = async () => {
-      const handshake = await artLoom.connect();
-      const arts = handshake.capabilities?.art_definitions || [];
-      graphStore.setCapabilities(arts);
+      if (capabilityRefreshPromise) return capabilityRefreshPromise;
 
-      const shaderArts = arts.filter((art: ArtCapability) => supportsShaderPreview(art));
-      shaderArts
-          .filter((art) => !isContextualShaderArt(art))
-          .forEach((art: ArtCapability) => {
-          void shaderCache.prefetchShader(art.id);
+      capabilityRefreshPromise = (async () => {
+          const handshake = await artLoom.connect();
+          const arts = handshake.capabilities?.art_definitions || [];
+          graphStore.setCapabilities(arts);
+
+          const shaderArts = arts.filter((art: ArtCapability) => supportsShaderPreview(art));
+          shaderArts
+              .filter((art) => !isContextualShaderArt(art))
+              .forEach((art: ArtCapability) => {
+                  void shaderCache.prefetchShader(art.id);
+              });
+      })();
+
+      try {
+          await capabilityRefreshPromise;
+      } finally {
+          capabilityRefreshPromise = null;
+      }
+  };
+
+  const applyLoomManagedSettings = async (settings: unknown) => {
+      if (!settings || typeof settings !== "object") return;
+      ShortcutManager.applyLoomSettings(settings);
+      const record = settings as Record<string, unknown>;
+      applyHookGeneralSettings(normalizeHookGeneralSettings(
+          record.hook_general || record.hookGeneral,
+      ));
+
+      const hookCache = record.hook_cache || record.hookCache;
+      if (!hookCache || typeof hookCache !== "object") return;
+      const cache = normalizeHookCacheSettings(hookCache);
+      const saved = await saveCurrentAppSettings({
+          ...getCurrentAppSettings(),
+          cache,
       });
+      setAppSettings(saved);
+      const pruned = pruneRecycleBinEntries(graphStore.recycleBin);
+      if (pruned.length !== graphStore.recycleBin.length) {
+          graphStore.setRecycleBin(pruned);
+          await syncService.performWorkflowSync();
+      }
   };
 
   const instantiateWorkflowSnapshot = async (payload: WorkflowSnapshotPayload) => {
@@ -736,6 +777,53 @@ export default function App() {
                   uiActions.setStickerTransformMode("scale");
               }
           },
+          onQuickArt: async (artId) => {
+              const sourceId = selectedStickerId();
+              if (!sourceId) return;
+              void api.debugLogEvent(
+                  "quick-art-shortcut-triggered",
+                  `source=${sourceId} requested=${artId} capabilities=${graphStore.capabilities.length}`,
+              );
+
+              let capability: ArtCapability | undefined;
+              try {
+                  capability = await findArtCapabilityAfterRefresh(
+                      artId,
+                      () => graphStore.capabilities,
+                      async () => {
+                          void api.debugLogEvent(
+                              "quick-art-capability-refresh",
+                              `source=${sourceId} requested=${artId}`,
+                          );
+                          await refreshCapabilities();
+                      },
+                  );
+              } catch (error) {
+                  const message = error instanceof Error ? error.message : String(error);
+                  console.error(`Failed to refresh Art capability for quick binding ${artId}:`, error);
+                  void api.debugLogEvent(
+                      "quick-art-capability-refresh-failed",
+                      `source=${sourceId} requested=${artId} error=${message}`,
+                  );
+                  return;
+              }
+
+              if (!capability) {
+                  console.error(`Quick Art binding references an unavailable Art: ${artId}`);
+                  void api.debugLogEvent(
+                      "quick-art-capability-missing",
+                      `source=${sourceId} requested=${artId} capabilities=${graphStore.capabilities.length}`,
+                  );
+                  return;
+              }
+
+              const nodeId = spawnConnectedNode(sourceId, capability.id);
+              if (!nodeId) return;
+              void api.debugLogEvent(
+                  "quick-art-node-created",
+                  `source=${sourceId} node=${nodeId} requested=${artId} resolved=${capability.id}`,
+              );
+          },
           onToggleOcr: async () => {
                // OCR Logic moved to centralized handler or here (it's small)
                const id = selectedStickerId();
@@ -935,6 +1023,7 @@ export default function App() {
               ctrlKey: boolean;
               shiftKey: boolean;
               altKey: boolean;
+              metaKey?: boolean;
           }>("overlay/global_shortcut", (event) => {
               const payload = event.payload;
               if (!payload?.key) return;
@@ -944,6 +1033,7 @@ export default function App() {
                       ctrlKey: !!payload.ctrlKey,
                       shiftKey: !!payload.shiftKey,
                       altKey: !!payload.altKey,
+                      metaKey: !!payload.metaKey,
                       bubbles: true,
                       cancelable: true,
                   }),
@@ -1051,6 +1141,7 @@ export default function App() {
                   ctrlKey: !!payload.ctrlKey,
                   altKey: !!payload.altKey,
                   shiftKey: !!payload.shiftKey,
+                  metaKey: !!payload.metaKey,
                   buttons: 1,
               });
 
@@ -1197,6 +1288,15 @@ export default function App() {
               },
           );
 
+          const unlistenHookSettings = await listen<{ settings?: unknown }>(
+              "hook/settings_updated",
+              async (event) => {
+                  await applyLoomManagedSettings(event.payload?.settings);
+              },
+          );
+          const initialLoomSettings = await api.getLoomShortcutSettings();
+          await applyLoomManagedSettings(initialLoomSettings);
+
           const unlistenConnectionState = await listen<{ connected?: boolean }>(
               "art/loom_connection_state",
               async (event) => {
@@ -1271,6 +1371,7 @@ export default function App() {
               unlistenInstantiate,
               unlistenCapabilitiesUpdated,
               unlistenHookCacheControl,
+              unlistenHookSettings,
               unlistenConnectionState,
               unlistenProgress,
               unlistenDelivery,
@@ -1581,29 +1682,12 @@ export default function App() {
                 void api.debugLogEvent("render-error", detail);
             }
             return (
-                <div
-                    style={{
-                        position: "fixed",
-                        inset: "0",
-                        "z-index": "2147483647",
-                        background: "rgba(120,0,0,0.95)",
-                        color: "#fff",
-                        font: "12px/1.5 monospace",
-                        "white-space": "pre-wrap",
-                        overflow: "auto",
-                        padding: "16px",
-                    }}
-                >
+                <div class="hook-render-error">
                     {"render-error (click 重试 to recover)\n\n" + detail}
-                    <div style={{ "margin-top": "12px" }}>
+                    <div class="hook-render-error__actions">
                         <button
                             type="button"
-                            style={{
-                                background: "#fff",
-                                color: "#900",
-                                padding: "4px 12px",
-                                "border-radius": "6px",
-                            }}
+                            class="hook-render-error__retry"
                             onClick={reset}
                         >
                             重试

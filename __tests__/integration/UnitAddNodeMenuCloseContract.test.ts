@@ -17,6 +17,8 @@ describe("Hook add-node action menu contract", () => {
 
     expect(unitActionsSource).toContain("buildStandaloneArtNodeUnit");
     expect(unitActionsSource).toContain("getPrimaryImageInputPort(canonicalArtId)");
-    expect(unitActionsSource).not.toMatch(/graphStore\.actions\.addUnit\(\{[\s\S]*?params:\s*\{\},\s*inputs:\s*\[\],\s*outputs:\s*\[\]/);
+    expect(unitActionsSource).toContain("art-node-create-blocked-missing-capability");
+    expect(unitActionsSource).not.toMatch(/const node = capability\s*\?/);
+    expect(unitActionsSource).not.toMatch(/params:\s*\{\},\s*inputs:\s*\[\],\s*outputs:\s*\[\]/);
   });
 });

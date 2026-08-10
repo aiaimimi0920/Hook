@@ -39,9 +39,9 @@ describe("sticker global clipboard shortcut contract", () => {
       'const unlistenVoiceHotkey = await listen<VoiceHotkeyPayload>',
     );
 
-    expect(keyMatcherBlock).toContain("VK_KEY_C");
-    expect(keyMatcherBlock).toContain("VK_KEY_V");
-    expect(keyMatcherBlock).toContain("modifiers.ctrl_pressed");
+    expect(keyMatcherBlock).toContain('shortcut_config::action_matches("copy_unit"');
+    expect(keyMatcherBlock).toContain('shortcut_config::action_matches("paste_unit"');
+    expect(keyMatcherBlock).toContain("runtime_modifiers");
     expect(keyboardHookBlock).toContain("return LRESULT(1);");
     expect(keyboardHookThread).toContain('"trigger-copy"');
     expect(keyboardHookThread).toContain('"trigger-paste"');
@@ -109,12 +109,11 @@ describe("sticker global clipboard shortcut contract", () => {
     expect(keyboardCaptureCursorHelper).toContain("OVERLAY_KEYBOARD_CAPTURE_ACTIVE.load(Ordering::SeqCst)");
     expect(keyboardCaptureCursorHelper).toContain("current_cursor_position_physical()");
     expect(keyboardCaptureCursorHelper).toContain("should_route_overlay_mouse_events(x, y)");
-    expect(keyMatcherBlock).toContain("VK_ESCAPE");
-    expect(keyMatcherBlock).toContain("VK_DELETE");
-    expect(keyMatcherBlock).toContain("VK_BACK");
-    expect(keyMatcherBlock).toContain("VK_KEY_C");
-    expect(keyMatcherBlock).toContain("VK_KEY_V");
-    expect(keyMatcherBlock).toContain("modifiers.ctrl_pressed");
+    expect(keyMatcherBlock).toContain('shortcut_config::action_matches("cancel"');
+    expect(keyMatcherBlock).toContain('shortcut_config::action_matches("delete_unit"');
+    expect(keyMatcherBlock).toContain('shortcut_config::action_matches("copy_unit"');
+    expect(keyMatcherBlock).toContain('shortcut_config::action_matches("paste_unit"');
+    expect(keyMatcherBlock).toContain("runtime_modifiers");
 
     expect(keyboardHookThread).toContain("SetWindowsHookExW(WH_KEYBOARD_LL");
     expect(keyboardHookThread).toContain("WH_KEYBOARD_LL");

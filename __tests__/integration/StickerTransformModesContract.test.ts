@@ -112,8 +112,8 @@ describe("Hook sticker transform modes contract", () => {
         expect(annotationLayerSource).toContain("handleExistingPointerDown");
         expect(annotationLayerSource).toContain("handleCreatePointerDown");
         expect(annotationLayerSource).toContain("handleStickerPointerDown");
-        expect(annotationLayerSource).toContain("ctrlKey");
-        expect(annotationLayerSource).toContain("altKey");
+        expect(annotationLayerSource).toContain('ShortcutManager.isGestureActive(event, "control_quick_rotate")');
+        expect(annotationLayerSource).toContain('ShortcutManager.isGestureActive(event, "control_quick_move")');
         expect(annotationLayerSource).toContain("deltaY");
     });
 

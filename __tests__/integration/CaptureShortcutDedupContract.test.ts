@@ -6,17 +6,14 @@ const readSource = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), relativePath), "utf8");
 
 describe("capture shortcut de-duplication", () => {
-  it("keeps the rdev capture hotkey as a fallback instead of a second active Ctrl+1/Ctrl+3 source", () => {
+  it("keeps rdev as the fallback for Loom-managed global shortcuts", () => {
     const rustSource = readSource("src-tauri/src/lib.rs");
 
-    expect(rustSource).toContain("ctrl_1_global_registered");
-    expect(rustSource).toContain("ctrl_3_global_registered");
-    expect(rustSource).toContain(
-      "!ctrl_1_global_registered_for_rdev.load(Ordering::Relaxed)",
-    );
-    expect(rustSource).toContain(
-      "!ctrl_3_global_registered_for_rdev.load(Ordering::Relaxed)",
-    );
+    expect(rustSource).toContain("fn configured_global_shortcut_is_registered(");
+    expect(rustSource).toContain("fn refresh_configured_global_shortcuts(");
+    expect(rustSource).toContain("shortcut_config::global_action(vk_code, modifiers)");
+    expect(rustSource).toContain("if !handled_by_registered_shortcut {");
+    expect(rustSource).toContain('"rdev_configured_shortcut_triggered :: {action}"');
   });
 
   it("debounces repeated Tauri Ctrl+1/Ctrl+3 pressed events instead of re-entering capture mode", () => {
@@ -24,8 +21,8 @@ describe("capture shortcut de-duplication", () => {
 
     expect(rustSource).toContain("tauri_ctrl_1_last_trigger");
     expect(rustSource).toContain("tauri_ctrl_3_last_trigger");
-    expect(rustSource).toContain("tauri_ctrl1_duplicate_ignored");
-    expect(rustSource).toContain("tauri_ctrl3_duplicate_ignored");
+    expect(rustSource).toContain("tauri_capture_duplicate_ignored");
+    expect(rustSource).toContain("tauri_long_capture_duplicate_ignored");
     expect(rustSource).toContain("Duration::from_millis(500)");
   });
 

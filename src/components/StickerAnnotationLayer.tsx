@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Dynamic, Portal } from "solid-js/web";
 
 import { api } from "../services/api";
+import { ShortcutManager } from "../services/shortcuts";
 import { graphStore } from "../store/graphStore";
 import {
     activeStickerEditTargetId,
@@ -1384,7 +1385,10 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             });
             const onRing = Math.abs(pointToCenter - TRANSFORM_GIZMO_RING_RADIUS) <= TRANSFORM_GIZMO_HIT_PADDING;
 
-            if (transformMode === "rotate" || (transformMode === "select" && event.ctrlKey)) {
+            if (
+                transformMode === "rotate"
+                || (transformMode === "select" && ShortcutManager.isGestureActive(event, "control_quick_rotate"))
+            ) {
                 return onRing ? { kind: "rotate", axis: "xy" } : null;
             }
 
@@ -1392,7 +1396,10 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                 return scaleAxis ? { kind: "scale", axis: scaleAxis } : null;
             }
 
-            if (transformMode === "move" || (transformMode === "select" && event.altKey)) {
+            if (
+                transformMode === "move"
+                || (transformMode === "select" && ShortcutManager.isGestureActive(event, "control_quick_move"))
+            ) {
                 return moveAxis ? { kind: "move", axis: moveAxis } : null;
             }
 
@@ -1428,7 +1435,11 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
 
         void api.focusOverlayWindow();
 
-        if (hit && event.shiftKey && transformMode === "select" && !event.ctrlKey && !event.altKey) {
+        if (
+            hit
+            && transformMode === "select"
+            && ShortcutManager.isGestureActive(event, "control_multi_select")
+        ) {
             const nextIds = isHitSelected
                 ? currentSelectionIds.filter((annotationId) => annotationId !== hit.id)
                 : [...currentSelectionIds, hit.id];
@@ -1449,12 +1460,12 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
         }
 
         if (transformMode === "select") {
-            if (event.ctrlKey && hit) {
+            if (ShortcutManager.isGestureActive(event, "control_quick_rotate") && hit) {
                 event.stopPropagation();
                 event.preventDefault();
                 if (beginTransform("rotate")) return;
             }
-            if (event.altKey && hit) {
+            if (ShortcutManager.isGestureActive(event, "control_quick_move") && hit) {
                 event.stopPropagation();
                 event.preventDefault();
                 if (beginTransform("move")) return;
@@ -1647,7 +1658,12 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             return;
         }
         const transformMode = effectiveTransformMode();
-        if (transformMode !== "select" || !event.ctrlKey || !event.altKey) {
+        const scaleAroundOwnCenters = ShortcutManager.isGestureActive(
+            event,
+            "control_scale_own_center",
+        );
+        const scaleAroundGroupCenter = ShortcutManager.isGestureActive(event, "control_scale");
+        if (transformMode !== "select" || (!scaleAroundOwnCenters && !scaleAroundGroupCenter)) {
             return;
         }
         if (
@@ -1682,7 +1698,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
         const scaleFactor = Math.max(0.5, Math.min(1.5, Math.exp(-deltaY * 0.001)));
         const scale = { x: scaleFactor, y: scaleFactor };
         const transformed =
-            event.shiftKey && targetAnnotations.length > 1
+            scaleAroundOwnCenters && targetAnnotations.length > 1
                 ? scaleAnnotationsAroundOwnCenters(targetAnnotations, scale)
                 : scaleAnnotationsAroundGroupCenter(targetAnnotations, scale);
         const replacements = new Map(transformed.map((annotation) => [annotation.id, annotation]));
@@ -1830,7 +1846,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
 
         return (
             <div
-                class="pointer-events-none fixed z-[10000] rounded-lg border border-white/40 bg-slate-950/90 px-2 py-1 text-[11px] font-semibold text-white shadow-2xl"
+                class="hook-color-sample-tooltip pointer-events-none fixed z-[10000] px-2 py-1 text-[11px] font-semibold"
                 style={{
                     left: `${left}px`,
                     top: `${top}px`,
@@ -1839,7 +1855,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             >
                 <div class="flex items-center gap-2">
                     <span
-                        class="h-5 w-5 rounded border border-white/40"
+                        class="hook-color-sample-tooltip__swatch h-5 w-5"
                         style={{ background: preview.hex }}
                     />
                     <span>取色预览 {preview.hex}</span>
@@ -2679,8 +2695,8 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                         class="absolute z-[20] border bg-transparent px-0 py-0 font-medium outline-none placeholder:text-[rgba(247,252,230,0.55)]"
                         style={{
                             ...pendingTextInputStyle(),
-                            "border-color": "rgba(217, 255, 56, 0.65)",
-                            "box-shadow": "inset 0 0 0 1px rgba(217, 255, 56, 0.2)",
+                            "border-color": "color-mix(in srgb, var(--theme-signal) 65%, transparent)",
+                            "box-shadow": "inset 0 0 0 1px color-mix(in srgb, var(--theme-signal) 20%, transparent)",
                         }}
                         aria-label="输入标注文本"
                         value={draft().value}

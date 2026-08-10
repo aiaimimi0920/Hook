@@ -524,8 +524,8 @@ async fn load_arts_from_loom() -> Option<Vec<ArtDefinition>> {
     let base = manifest.transport.base_url.trim_end_matches('/');
     let endpoint = format!("{base}/v1/artloom-compat/arts");
 
-    let client = reqwest::Client::builder()
-        .no_proxy()
+    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), &endpoint)
+        .ok()?
         .timeout(Duration::from_millis(2000))
         .build()
         .ok()?;
@@ -573,8 +573,8 @@ async fn sync_mcp_servers_to_loom(local: &[LoomMcpServerConfig]) {
         .trim_end_matches('/')
         .to_string();
 
-    let client = match reqwest::Client::builder()
-        .no_proxy()
+    let client = match crate::network_proxy::apply_to_url(reqwest::Client::builder(), &base)
+        .unwrap_or_else(|_| reqwest::Client::builder().no_proxy())
         .timeout(Duration::from_millis(3000))
         .build()
     {
@@ -725,8 +725,8 @@ async fn sync_arts_to_loom(local: &[ArtDefinition]) {
     let existing = load_arts_from_loom().await.unwrap_or_default();
     let merged = merge_arts_by_id(local, &existing);
 
-    let client = match reqwest::Client::builder()
-        .no_proxy()
+    let client = match crate::network_proxy::apply_to_url(reqwest::Client::builder(), &base)
+        .unwrap_or_else(|_| reqwest::Client::builder().no_proxy())
         .timeout(Duration::from_millis(3000))
         .build()
     {
@@ -932,7 +932,12 @@ fn artloom_listener_subscription_message() -> String {
     serde_json::json!({
         "method": "subscribe",
         "params": {
-            "channels": ["art_hook/instantiate", "art_loom/arts_updated", "art_hook/cache_control"]
+            "channels": [
+                "art_hook/instantiate",
+                "art_loom/arts_updated",
+                "art_hook/cache_control",
+                "art_hook/settings_updated"
+            ]
         }
     })
     .to_string()
@@ -952,6 +957,24 @@ fn hook_cache_settings_event(settings: &serde_json::Value) -> serde_json::Value 
         "tempCacheMaxBytes": read("temp_cache_max_bytes", "tempCacheMaxBytes"),
         "tempCacheRetentionDays": read("temp_cache_retention_days", "tempCacheRetentionDays"),
     })
+}
+
+fn apply_hook_settings(app: &AppHandle, settings: &serde_json::Value) {
+    if let Err(error) = crate::network_proxy::apply_loom_settings(settings) {
+        crate::append_runtime_log_line(&format!("hook_proxy_settings_apply_failed :: {error}"));
+    }
+    crate::configure_runtime_log_level_from_loom(settings);
+    match crate::apply_loom_shortcut_settings(app, settings) {
+        Ok(()) => {
+            let _ = app.emit(
+                "hook/settings_updated",
+                serde_json::json!({ "settings": settings }),
+            );
+        }
+        Err(error) => {
+            crate::append_runtime_log_line(&format!("hook_settings_apply_failed :: {error}"))
+        }
+    }
 }
 
 // Background Listener Function
@@ -1036,8 +1059,18 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<MockArtLoomState>>) {
                                             if !emitted {
                                                 let _ = app.emit("hook/cache_control", params);
                                             }
+                                        } else if method == "art_hook/settings_updated" {
+                                            if json["params"]["settings"].is_object() {
+                                                apply_hook_settings(
+                                                    &app,
+                                                    &json["params"]["settings"],
+                                                );
+                                            }
                                         }
                                     } else if json["type"].as_str() == Some("settings") {
+                                        if json["data"].is_object() {
+                                            apply_hook_settings(&app, &json["data"]);
+                                        }
                                         if json["data"]["hook_cache"].is_object() {
                                             let _ = app.emit(
                                                 "hook/cache_control",
@@ -1095,7 +1128,8 @@ mod artloom_listener_subscription_tests {
             serde_json::json!([
                 "art_hook/instantiate",
                 "art_loom/arts_updated",
-                "art_hook/cache_control"
+                "art_hook/cache_control",
+                "art_hook/settings_updated"
             ])
         );
     }
@@ -2322,13 +2356,16 @@ fn try_prefetch_shader_via_loom(
         return Err("Loom shader service manifest has an empty base URL".to_string());
     }
 
-    let client = reqwest::blocking::Client::builder()
-        .no_proxy()
-        .timeout(Duration::from_secs(20))
-        .build()
-        .map_err(|error| format!("Failed to create Loom shader prefetch client: {error}"))?;
-
     let endpoint = format!("{base}/v1/python-arts/shader/prefetch");
+    let client = crate::network_proxy::apply_blocking_to_url(
+        reqwest::blocking::Client::builder(),
+        &endpoint,
+    )
+    .map_err(|error| format!("Failed to configure Loom shader proxy: {error}"))?
+    .timeout(Duration::from_secs(20))
+    .build()
+    .map_err(|error| format!("Failed to create Loom shader prefetch client: {error}"))?;
+
     let body = serde_json::json!({
         "artId": art_id,
         "params": {

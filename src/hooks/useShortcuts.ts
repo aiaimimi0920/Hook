@@ -34,6 +34,7 @@ interface ShortcutHandlers {
   onTransformMove?: () => void | Promise<void>;
   onTransformRotate?: () => void | Promise<void>;
   onTransformScale?: () => void | Promise<void>;
+  onQuickArt?: (artId: string) => void | Promise<void>;
   onCloseActions?: () => boolean;
 }
 
@@ -55,11 +56,14 @@ export function isActionsMenuDismissShortcut(
   event: Pick<KeyboardEvent, "key" | "shiftKey" | "ctrlKey" | "altKey" | "metaKey"> & { code?: string },
 ): boolean {
   if (event.key === "Escape") return true;
-  return (event.key === "!" || event.key === "1" || event.code === "Digit1")
-    && event.shiftKey
-    && !event.ctrlKey
-    && !event.altKey
-    && !event.metaKey;
+  return ShortcutManager.matchesShortcutEvent("toggle-actions", {
+    key: event.key,
+    code: event.code || "",
+    shiftKey: event.shiftKey,
+    ctrlKey: event.ctrlKey,
+    altKey: event.altKey,
+    metaKey: event.metaKey,
+  });
 }
 
 /**
@@ -72,6 +76,7 @@ export function useShortcuts(options: UseShortcutsOptions) {
 
     // Register handlers
     const { handlers } = options;
+    ShortcutManager.setQuickBindingHandler(handlers.onQuickArt || null);
 
     if (handlers.onCopy) ShortcutManager.register('copy', handlers.onCopy);
     if (handlers.onPaste) ShortcutManager.register('paste', handlers.onPaste);
@@ -177,6 +182,7 @@ export function useShortcuts(options: UseShortcutsOptions) {
       ShortcutManager.unregister('transform-move-editing');
       ShortcutManager.unregister('transform-rotate-editing');
       ShortcutManager.unregister('transform-scale-editing');
+      ShortcutManager.setQuickBindingHandler(null);
     });
   });
 }

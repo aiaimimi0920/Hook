@@ -23,7 +23,7 @@ export const UnitActionsMenu: Component<UnitActionsMenuProps> = (props) => {
             style={{ flex: 3 }}
         >
                 {/* Border Separator (Absolute Right) */}
-                <div class="absolute right-0 top-3 bottom-3 w-[1px] bg-white/5" />
+                <div class="hook-actions-separator absolute right-0 top-3 bottom-3 w-[1px]" />
 
                 {/* Content with Margin */}
             <div class="hook-actions-shell__title ml-3 max-w-[calc(100%-24px)]">
@@ -53,8 +53,6 @@ export const UnitActionsMenu: Component<UnitActionsMenuProps> = (props) => {
                 onDblClick={(e) => e.stopPropagation()}
                 title="单次触发执行"
             >
-                <div class="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-
                 {/* Small Play Icon */}
                 <svg class="w-3 h-3 fill-current shrink-0" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                 <span class="text-[10px] font-bold tracking-wider uppercase truncate">执行</span>
@@ -63,7 +61,7 @@ export const UnitActionsMenu: Component<UnitActionsMenuProps> = (props) => {
 
         {/* Part 3: Expand Button (Flex 1) - Filled Rectangle - Dark Glass */ }
         <div
-            class="min-w-0 flex h-full border-l border-white/5"
+            class="hook-actions-border min-w-0 flex h-full border-l"
             style={{ flex: 1 }}
         >
             <button
@@ -77,10 +75,9 @@ export const UnitActionsMenu: Component<UnitActionsMenuProps> = (props) => {
                 onDblClick={(e) => e.stopPropagation()}
                 title="展开设置"
             >
-                <div class="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                 {/* Right Arrow Icon */}
                 <svg
-                    class="w-4 h-4 transition-transform group-hover:text-white"
+                    class="w-4 h-4 transition-transform"
                     style={{ transform: props.expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
                     fill="none"
                     stroke="currentColor"

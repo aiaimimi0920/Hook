@@ -71,11 +71,11 @@ interface OpenMiniDropdownMenu {
 }
 
 const iconShellClass =
-    "flex h-6 shrink-0 items-center justify-center border border-white/10 bg-black/35 text-white/80 transition-colors hover:border-white/25 hover:bg-white/10";
+    "hook-compact-control flex h-6 shrink-0 items-center justify-center transition-colors";
 const groupedShellClass =
-    "flex h-6 shrink-0 items-center gap-0.5 border border-white/10 bg-black/35 px-0.5 text-white/85";
+    "hook-compact-control flex h-6 shrink-0 items-center gap-0.5 px-0.5";
 const compactInputClass =
-    "h-4 w-[28px] bg-transparent text-center text-[10px] text-white outline-none placeholder:text-white/30";
+    "hook-compact-input h-4 w-[28px] text-center text-[10px] outline-none";
 
 const dashOptions: Array<{ key: "solid" | "dash-1" | "dash-2"; label: string; title: string }> = [
     { key: "solid", label: "━", title: "实线" },
@@ -795,7 +795,7 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
     return (
         <>
             <div
-                class="pointer-events-auto flex h-[40px] items-center gap-1.5 overflow-hidden border-b border-white/15 px-1.5"
+                class="hook-property-strip pointer-events-auto flex h-[40px] items-center gap-1.5 overflow-hidden border-b px-1.5"
                 onPointerDown={(event) => {
                     event.stopPropagation();
                     void api.focusOverlayWindow();
@@ -827,7 +827,7 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
                             }}
                             data-top-strip-menu="true"
                             data-top-strip-property-popup="true"
-                            class="pointer-events-auto fixed z-[1305] overflow-hidden border border-white/15 bg-[rgba(7,10,7,0.96)] shadow-[0_10px_30px_rgba(0,0,0,0.45)]"
+                            class="hook-toolbar-menu pointer-events-auto fixed z-[1305] overflow-hidden"
                             style={{
                                 left: `${menu().anchor.x}px`,
                                 top: `${menu().anchor.y + menu().anchor.height + 4}px`,
@@ -849,9 +849,9 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
                                     {(option) => (
                                         <button
                                             type="button"
-                                            class="flex h-7 w-full items-center px-2 text-left text-[11px] text-white transition-colors hover:bg-white/10"
+                                            class="hook-toolbar-menu-item flex h-7 w-full items-center px-2 text-left text-[11px] transition-colors"
                                             classList={{
-                                                "bg-white/12 text-[#d9ff38]": menu().value === option.value,
+                                                "hook-toolbar-menu-item--active": menu().value === option.value,
                                             }}
                                             title={option.title ?? option.label}
                                             onClick={() => {

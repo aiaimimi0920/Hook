@@ -9,7 +9,9 @@ mod loom_config;
 pub mod loom_connector;
 mod mock_artloom; // Integration
 mod mouse_monitor;
+mod network_proxy;
 mod screenshot;
+mod shortcut_config;
 mod single_instance;
 pub mod talk_connector;
 pub mod tea_client;
@@ -84,9 +86,11 @@ use windows::Win32::UI::Controls::Dialogs::{
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, VK_BACK, VK_CONTROL, VK_DELETE, VK_ESCAPE, VK_LBUTTON, VK_LMENU, VK_LSHIFT,
-    VK_MENU, VK_RMENU, VK_RSHIFT, VK_SHIFT, VK_TAB,
+    GetAsyncKeyState, VK_CONTROL, VK_ESCAPE, VK_LBUTTON, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU,
+    VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SHIFT,
 };
+#[cfg(all(test, target_os = "windows"))]
+use windows::Win32::UI::Input::KeyboardAndMouse::{VK_BACK, VK_DELETE, VK_TAB};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Shell::{
     IShellWindows, IWebBrowser2, SHChangeNotify, ShellWindows, SHCNE_UPDATEDIR, SHCNE_UPDATEITEM,
@@ -334,7 +338,7 @@ pub fn hook_help_text() -> &'static str {
         "  -V, --version             Print version\n",
         "\n",
         "Emergency exit:\n",
-        "  Double-press Esc within 400 ms, or press Ctrl+Alt+Shift+F12.\n",
+        "  Press Esc three times within 400 ms, or press Ctrl+Alt+Shift+F12.\n",
         "\n",
         "Environment:\n",
         "  HOOK_SELF_CHECK_OUTPUT          Optional file path for --self-check JSON output\n",
@@ -574,7 +578,48 @@ fn save_app_settings(
 
 const RUNTIME_LOG_QUEUE_CAPACITY: usize = 512;
 static RUNTIME_LOG_SENDER: OnceLock<mpsc::SyncSender<String>> = OnceLock::new();
+static RUNTIME_LOG_LEVEL: AtomicU8 = AtomicU8::new(3);
 static INSTALLED_FONT_FAMILIES: OnceLock<Vec<String>> = OnceLock::new();
+
+fn runtime_log_message_level(message: &str) -> u8 {
+    let message = message.to_ascii_lowercase();
+    if message.contains("failed")
+        || message.contains("error")
+        || message.contains("panic")
+        || message.contains("fatal")
+    {
+        1
+    } else if message.contains("warn")
+        || message.contains("unavailable")
+        || message.contains("ignored")
+        || message.contains("missing")
+    {
+        2
+    } else if message.contains("debug") {
+        4
+    } else {
+        3
+    }
+}
+
+pub(crate) fn configure_runtime_log_level_from_loom(settings: &serde_json::Value) {
+    let value = settings
+        .get("system")
+        .and_then(|system| {
+            system
+                .get("hook_log_level")
+                .or_else(|| system.get("hookLogLevel"))
+        })
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("info");
+    let level = match value {
+        "error" => 1,
+        "warn" => 2,
+        "debug" => 4,
+        _ => 3,
+    };
+    RUNTIME_LOG_LEVEL.store(level, Ordering::Relaxed);
+}
 
 fn append_runtime_log_line_sync(line: &str) {
     let dir = runtime_log_dir();
@@ -607,6 +652,9 @@ fn runtime_log_sender() -> &'static mpsc::SyncSender<String> {
 }
 
 pub(crate) fn append_runtime_log_line(message: &str) {
+    if runtime_log_message_level(message) > RUNTIME_LOG_LEVEL.load(Ordering::Relaxed) {
+        return;
+    }
     let timestamp = runtime_log_timestamp();
     let line = format!("[{}] {}", timestamp, message);
     let _ = runtime_log_sender().try_send(line);
@@ -1012,10 +1060,10 @@ async fn download_remote_image_bytes_with_reqwest(
     url: &str,
     referer: Option<&str>,
 ) -> Result<(Option<String>, Vec<u8>), String> {
-    let client = reqwest::Client::builder()
+    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), url)
+        .map_err(|e| format!("Failed to configure remote image proxy: {}", e))?
         .timeout(Duration::from_secs(20))
         .user_agent(IMAGE_SEARCH_FETCH_USER_AGENT)
-        .no_proxy()
         .build()
         .map_err(|e| format!("Failed to build remote image client: {}", e))?;
     let mut request = client
@@ -1463,6 +1511,7 @@ struct ModifierSnapshot {
     ctrl_pressed: bool,
     alt_pressed: bool,
     shift_pressed: bool,
+    meta_pressed: bool,
 }
 
 fn emit_capture_mouse_event(
@@ -1494,6 +1543,7 @@ fn emit_capture_mouse_event(
             "ctrlKey": modifiers.ctrl_pressed,
             "altKey": modifiers.alt_pressed,
             "shiftKey": modifiers.shift_pressed,
+            "metaKey": modifiers.meta_pressed,
             "nativeDragPreflight": native_drag_preflight,
         });
         if let Some(sample) = sample.as_ref() {
@@ -1510,6 +1560,7 @@ fn emit_capture_mouse_event(
             "ctrlKey": modifiers.ctrl_pressed,
             "altKey": modifiers.alt_pressed,
             "shiftKey": modifiers.shift_pressed,
+            "metaKey": modifiers.meta_pressed,
             "nativeDragPreflight": native_drag_preflight,
         });
         if let Some(sample) = sample.as_ref() {
@@ -1527,6 +1578,8 @@ fn current_modifier_snapshot() -> ModifierSnapshot {
         alt_pressed: unsafe { GetAsyncKeyState(VK_MENU.0 as i32) } < 0,
         shift_pressed: unsafe { GetAsyncKeyState(VK_SHIFT.0 as i32) } < 0
             || OVERLAY_SHIFT_KEY_DOWN.load(Ordering::SeqCst),
+        meta_pressed: unsafe { GetAsyncKeyState(VK_LWIN.0 as i32) } < 0
+            || unsafe { GetAsyncKeyState(VK_RWIN.0 as i32) } < 0,
     }
 }
 
@@ -1536,6 +1589,7 @@ fn current_modifier_snapshot() -> ModifierSnapshot {
         ctrl_pressed: false,
         alt_pressed: false,
         shift_pressed: false,
+        meta_pressed: false,
     }
 }
 
@@ -1561,6 +1615,7 @@ fn emit_overlay_wheel_event(
             "ctrlKey": modifiers.ctrl_pressed,
             "altKey": modifiers.alt_pressed,
             "shiftKey": modifiers.shift_pressed,
+            "metaKey": modifiers.meta_pressed,
             "deltaY": -delta_y,
         });
         let _ = window.emit(event_name, payload);
@@ -1573,6 +1628,7 @@ fn emit_overlay_wheel_event(
             "ctrlKey": modifiers.ctrl_pressed,
             "altKey": modifiers.alt_pressed,
             "shiftKey": modifiers.shift_pressed,
+            "metaKey": modifiers.meta_pressed,
             "deltaY": -delta_y,
         });
         let _ = window.emit(event_name, payload);
@@ -2295,6 +2351,7 @@ enum OverlayKeyboardHookEvent {
         ctrl: bool,
         shift: bool,
         alt: bool,
+        meta: bool,
     },
 }
 
@@ -2310,6 +2367,8 @@ struct ForwardedShortcutPayload {
     shift_key: bool,
     #[serde(rename = "altKey")]
     alt_key: bool,
+    #[serde(rename = "metaKey")]
+    meta_key: bool,
 }
 
 #[cfg(target_os = "windows")]
@@ -2980,7 +3039,17 @@ unsafe extern "system" fn capture_mouse_hook_proc(
         overlay_pointer_source_owns_session(OverlayPointerSource::LowLevelHook);
     let overlay_pointer_session_active =
         OVERLAY_POINTER_STATE.load(Ordering::SeqCst) != OVERLAY_POINTER_STATE_NONE;
+    let configured_drag_out_active = shortcut_config::gesture_matches(
+        "drag_out",
+        shortcut_config::Modifiers {
+            ctrl: modifiers.ctrl_pressed,
+            alt: modifiers.alt_pressed,
+            shift: modifiers.shift_pressed,
+            meta: modifiers.meta_pressed,
+        },
+    ) && is_pointer_over_sticker_body_synthetic_rect(x, y);
     if modifiers.alt_pressed
+        && !configured_drag_out_active
         && should_passthrough_foreign_alt_mouse_input(
             true,
             capture_active,
@@ -3040,9 +3109,17 @@ unsafe extern "system" fn capture_mouse_hook_proc(
                 let source = OverlayPointerSource::LowLevelHook;
                 match claim_overlay_pointer_down(&OVERLAY_POINTER_STATE, source) {
                     OverlayPointerDownTransition::Started => {
-                        let shift_sticker_native_drag_preflight = modifiers.shift_pressed
-                            && is_pointer_over_sticker_body_synthetic_rect(x, y);
-                        if shift_sticker_native_drag_preflight {
+                        let configured_sticker_native_drag_preflight =
+                            shortcut_config::gesture_matches(
+                                "drag_out",
+                                shortcut_config::Modifiers {
+                                    ctrl: modifiers.ctrl_pressed,
+                                    alt: modifiers.alt_pressed,
+                                    shift: modifiers.shift_pressed,
+                                    meta: modifiers.meta_pressed,
+                                },
+                            ) && is_pointer_over_sticker_body_synthetic_rect(x, y);
+                        if configured_sticker_native_drag_preflight {
                             OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(false, Ordering::SeqCst);
                             OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(false, Ordering::SeqCst);
                             OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE
@@ -3578,11 +3655,6 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
 fn install_capture_mouse_hook_thread(_window: tauri::WebviewWindow) {}
 
 #[cfg(target_os = "windows")]
-const VK_KEY_C: u32 = b'C' as u32;
-#[cfg(target_os = "windows")]
-const VK_KEY_V: u32 = b'V' as u32;
-
-#[cfg(target_os = "windows")]
 fn update_overlay_modifier_key_state(vk_code: u32, pressed: bool) {
     if vk_code == VK_SHIFT.0 as u32
         || vk_code == VK_LSHIFT.0 as u32
@@ -3597,16 +3669,22 @@ fn overlay_keyboard_hook_event_for_keydown(
     vk_code: u32,
     modifiers: ModifierSnapshot,
 ) -> Option<OverlayKeyboardHookEvent> {
-    if vk_code == VK_ESCAPE.0 as u32 {
+    let runtime_modifiers = shortcut_config::Modifiers {
+        ctrl: modifiers.ctrl_pressed,
+        alt: modifiers.alt_pressed,
+        shift: modifiers.shift_pressed,
+        meta: modifiers.meta_pressed,
+    };
+    if shortcut_config::action_matches("cancel", vk_code, runtime_modifiers) {
         return Some(OverlayKeyboardHookEvent::Escape);
     }
-    if vk_code == VK_DELETE.0 as u32 || vk_code == VK_BACK.0 as u32 {
+    if shortcut_config::action_matches("delete_unit", vk_code, runtime_modifiers) {
         return Some(OverlayKeyboardHookEvent::Delete);
     }
-    if modifiers.ctrl_pressed && vk_code == VK_KEY_C {
+    if shortcut_config::action_matches("copy_unit", vk_code, runtime_modifiers) {
         return Some(OverlayKeyboardHookEvent::Copy);
     }
-    if modifiers.ctrl_pressed && vk_code == VK_KEY_V {
+    if shortcut_config::action_matches("paste_unit", vk_code, runtime_modifiers) {
         return Some(OverlayKeyboardHookEvent::Paste);
     }
     None
@@ -3614,10 +3692,15 @@ fn overlay_keyboard_hook_event_for_keydown(
 
 #[cfg(target_os = "windows")]
 fn overlay_keyboard_hook_should_consume_keyup(vk_code: u32, modifiers: ModifierSnapshot) -> bool {
-    vk_code == VK_ESCAPE.0 as u32
-        || vk_code == VK_DELETE.0 as u32
-        || vk_code == VK_BACK.0 as u32
-        || (modifiers.ctrl_pressed && (vk_code == VK_KEY_C || vk_code == VK_KEY_V))
+    let runtime_modifiers = shortcut_config::Modifiers {
+        ctrl: modifiers.ctrl_pressed,
+        alt: modifiers.alt_pressed,
+        shift: modifiers.shift_pressed,
+        meta: modifiers.meta_pressed,
+    };
+    ["cancel", "delete_unit", "copy_unit", "paste_unit"]
+        .into_iter()
+        .any(|action| shortcut_config::action_matches(action, vk_code, runtime_modifiers))
 }
 
 #[cfg(target_os = "windows")]
@@ -3646,6 +3729,250 @@ fn overlay_keyboard_hook_should_capture_semantic_keyup(
 enum RdevAppScopedShortcut {
     Escape,
     Delete,
+}
+
+#[cfg(target_os = "windows")]
+fn rdev_key_to_vk_code(key: rdev::Key) -> Option<u32> {
+    use rdev::Key;
+    match key {
+        Key::Escape => Some(0x1B),
+        Key::Delete => Some(0x2E),
+        Key::Backspace => Some(0x08),
+        Key::Tab => Some(0x09),
+        Key::Space => Some(0x20),
+        Key::F1 => Some(0x70),
+        Key::F2 => Some(0x71),
+        Key::F3 => Some(0x72),
+        Key::F4 => Some(0x73),
+        Key::F5 => Some(0x74),
+        Key::F6 => Some(0x75),
+        Key::F7 => Some(0x76),
+        Key::F8 => Some(0x77),
+        Key::F9 => Some(0x78),
+        Key::F10 => Some(0x79),
+        Key::F11 => Some(0x7A),
+        Key::F12 => Some(0x7B),
+        Key::Num0 => Some(b'0' as u32),
+        Key::Num1 => Some(b'1' as u32),
+        Key::Num2 => Some(b'2' as u32),
+        Key::Num3 => Some(b'3' as u32),
+        Key::Num4 => Some(b'4' as u32),
+        Key::Num5 => Some(b'5' as u32),
+        Key::Num6 => Some(b'6' as u32),
+        Key::Num7 => Some(b'7' as u32),
+        Key::Num8 => Some(b'8' as u32),
+        Key::Num9 => Some(b'9' as u32),
+        Key::KeyA => Some(b'A' as u32),
+        Key::KeyB => Some(b'B' as u32),
+        Key::KeyC => Some(b'C' as u32),
+        Key::KeyD => Some(b'D' as u32),
+        Key::KeyE => Some(b'E' as u32),
+        Key::KeyF => Some(b'F' as u32),
+        Key::KeyG => Some(b'G' as u32),
+        Key::KeyH => Some(b'H' as u32),
+        Key::KeyI => Some(b'I' as u32),
+        Key::KeyJ => Some(b'J' as u32),
+        Key::KeyK => Some(b'K' as u32),
+        Key::KeyL => Some(b'L' as u32),
+        Key::KeyM => Some(b'M' as u32),
+        Key::KeyN => Some(b'N' as u32),
+        Key::KeyO => Some(b'O' as u32),
+        Key::KeyP => Some(b'P' as u32),
+        Key::KeyQ => Some(b'Q' as u32),
+        Key::KeyR => Some(b'R' as u32),
+        Key::KeyS => Some(b'S' as u32),
+        Key::KeyT => Some(b'T' as u32),
+        Key::KeyU => Some(b'U' as u32),
+        Key::KeyV => Some(b'V' as u32),
+        Key::KeyW => Some(b'W' as u32),
+        Key::KeyX => Some(b'X' as u32),
+        Key::KeyY => Some(b'Y' as u32),
+        Key::KeyZ => Some(b'Z' as u32),
+        _ => None,
+    }
+}
+
+fn configured_global_shortcuts() -> &'static Mutex<Vec<Shortcut>> {
+    static SHORTCUTS: OnceLock<Mutex<Vec<Shortcut>>> = OnceLock::new();
+    SHORTCUTS.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+fn shortcut_code_for_key(key: &str) -> Option<Code> {
+    match shortcut_config::vk_code_for_key(key)? {
+        0x09 => Some(Code::Tab),
+        0x20 => Some(Code::Space),
+        0x70 => Some(Code::F1),
+        0x71 => Some(Code::F2),
+        0x72 => Some(Code::F3),
+        0x73 => Some(Code::F4),
+        0x74 => Some(Code::F5),
+        0x75 => Some(Code::F6),
+        0x76 => Some(Code::F7),
+        0x77 => Some(Code::F8),
+        0x78 => Some(Code::F9),
+        0x79 => Some(Code::F10),
+        0x7A => Some(Code::F11),
+        0x7B => Some(Code::F12),
+        value if (b'0' as u32..=b'9' as u32).contains(&value) => Some(match value {
+            v if v == b'0' as u32 => Code::Digit0,
+            v if v == b'1' as u32 => Code::Digit1,
+            v if v == b'2' as u32 => Code::Digit2,
+            v if v == b'3' as u32 => Code::Digit3,
+            v if v == b'4' as u32 => Code::Digit4,
+            v if v == b'5' as u32 => Code::Digit5,
+            v if v == b'6' as u32 => Code::Digit6,
+            v if v == b'7' as u32 => Code::Digit7,
+            v if v == b'8' as u32 => Code::Digit8,
+            _ => Code::Digit9,
+        }),
+        value if (b'A' as u32..=b'Z' as u32).contains(&value) => Some(match value {
+            v if v == b'A' as u32 => Code::KeyA,
+            v if v == b'B' as u32 => Code::KeyB,
+            v if v == b'C' as u32 => Code::KeyC,
+            v if v == b'D' as u32 => Code::KeyD,
+            v if v == b'E' as u32 => Code::KeyE,
+            v if v == b'F' as u32 => Code::KeyF,
+            v if v == b'G' as u32 => Code::KeyG,
+            v if v == b'H' as u32 => Code::KeyH,
+            v if v == b'I' as u32 => Code::KeyI,
+            v if v == b'J' as u32 => Code::KeyJ,
+            v if v == b'K' as u32 => Code::KeyK,
+            v if v == b'L' as u32 => Code::KeyL,
+            v if v == b'M' as u32 => Code::KeyM,
+            v if v == b'N' as u32 => Code::KeyN,
+            v if v == b'O' as u32 => Code::KeyO,
+            v if v == b'P' as u32 => Code::KeyP,
+            v if v == b'Q' as u32 => Code::KeyQ,
+            v if v == b'R' as u32 => Code::KeyR,
+            v if v == b'S' as u32 => Code::KeyS,
+            v if v == b'T' as u32 => Code::KeyT,
+            v if v == b'U' as u32 => Code::KeyU,
+            v if v == b'V' as u32 => Code::KeyV,
+            v if v == b'W' as u32 => Code::KeyW,
+            v if v == b'X' as u32 => Code::KeyX,
+            v if v == b'Y' as u32 => Code::KeyY,
+            _ => Code::KeyZ,
+        }),
+        _ => None,
+    }
+}
+
+fn tauri_shortcut_from_chord(chord: &shortcut_config::Chord) -> Option<Shortcut> {
+    let mut modifiers = Modifiers::empty();
+    if chord.modifiers.ctrl {
+        modifiers |= Modifiers::CONTROL;
+    }
+    if chord.modifiers.alt {
+        modifiers |= Modifiers::ALT;
+    }
+    if chord.modifiers.shift {
+        modifiers |= Modifiers::SHIFT;
+    }
+    if chord.modifiers.meta {
+        modifiers |= Modifiers::SUPER;
+    }
+    Some(Shortcut::new(
+        (!modifiers.is_empty()).then_some(modifiers),
+        shortcut_code_for_key(&chord.key)?,
+    ))
+}
+
+fn configured_global_action_for_shortcut(shortcut: &Shortcut) -> Option<&'static str> {
+    ["capture", "long_capture", "toggle_sticker_toolbar"]
+        .into_iter()
+        .find(|action| {
+            shortcut_config::chords_for_action(action)
+                .iter()
+                .filter_map(tauri_shortcut_from_chord)
+                .any(|candidate| candidate.id() == shortcut.id())
+        })
+}
+
+fn configured_global_shortcut_is_registered(
+    vk_code: u32,
+    modifiers: shortcut_config::Modifiers,
+) -> bool {
+    let Some(action) = shortcut_config::global_action(vk_code, modifiers) else {
+        return false;
+    };
+    let Some(candidate) = shortcut_config::chords_for_action(action)
+        .iter()
+        .find(|chord| {
+            shortcut_config::vk_code_for_key(&chord.key) == Some(vk_code)
+                && chord.modifiers == modifiers
+        })
+        .and_then(tauri_shortcut_from_chord)
+    else {
+        return false;
+    };
+    configured_global_shortcuts()
+        .lock()
+        .map(|shortcuts| {
+            shortcuts
+                .iter()
+                .any(|shortcut| shortcut.id() == candidate.id())
+        })
+        .unwrap_or(false)
+}
+
+fn refresh_configured_global_shortcuts(app: &tauri::AppHandle) -> Result<(), String> {
+    let mut desired = ["capture", "long_capture", "toggle_sticker_toolbar"]
+        .into_iter()
+        .flat_map(shortcut_config::chords_for_action)
+        .filter_map(|chord| tauri_shortcut_from_chord(&chord))
+        .collect::<Vec<_>>();
+    desired.sort_by_key(Shortcut::id);
+    desired.dedup_by_key(|shortcut| shortcut.id());
+
+    let mut registered = configured_global_shortcuts()
+        .lock()
+        .map_err(|_| "lock configured global shortcuts".to_owned())?;
+    let mut newly_registered = Vec::new();
+    for shortcut in &desired {
+        if registered
+            .iter()
+            .any(|current| current.id() == shortcut.id())
+        {
+            continue;
+        }
+        if let Err(error) = app.global_shortcut().register(*shortcut) {
+            for rollback in newly_registered {
+                let _ = app.global_shortcut().unregister(rollback);
+            }
+            for previous in registered.drain(..) {
+                let _ = app.global_shortcut().unregister(previous);
+            }
+            return Err(format!("register configured global shortcut: {error}"));
+        }
+        newly_registered.push(*shortcut);
+    }
+    for shortcut in registered.iter() {
+        if !desired.iter().any(|next| next.id() == shortcut.id()) {
+            app.global_shortcut()
+                .unregister(*shortcut)
+                .map_err(|error| format!("unregister previous global shortcut: {error}"))?;
+        }
+    }
+    *registered = desired;
+    Ok(())
+}
+
+pub(crate) fn apply_loom_shortcut_settings(
+    app: &tauri::AppHandle,
+    settings: &serde_json::Value,
+) -> Result<(), String> {
+    shortcut_config::apply_settings(settings)?;
+    if let Err(error) = refresh_configured_global_shortcuts(app) {
+        append_runtime_log_line(&format!(
+            "refresh_configured_global_shortcuts_failed :: {error}"
+        ));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn get_loom_shortcut_settings() -> Option<serde_json::Value> {
+    shortcut_config::current_settings()
 }
 
 #[cfg(target_os = "windows")]
@@ -3739,10 +4066,11 @@ fn should_passthrough_foreign_alt_mouse_input(
 // `shift`/`alt` mirror the DOM KeyboardEvent the frontend reconstructs.
 #[cfg(target_os = "windows")]
 struct ForwardedShortcut {
-    key: &'static str,
+    key: String,
     ctrl: bool,
     shift: bool,
     alt: bool,
+    meta: bool,
 }
 
 #[cfg(target_os = "windows")]
@@ -3753,72 +4081,27 @@ fn overlay_keyboard_should_consume_forwarded_shortcut(shortcut: &ForwardedShortc
     !shortcut.alt
 }
 
-// Maps a physical key + modifier state to the DOM shortcut it should trigger,
-// for the "unit-selected" sticker shortcuts that are handled in the webview DOM
-// (i.e. NOT the native semantic set Escape/Delete/Copy/Paste, and NOT the global
-// shortcuts Ctrl+E/1/2/3). Kept in sync with src/services/shortcuts.ts; a
-// contract test guards the mapping.
+// Maps a physical key + modifier state through the Loom-managed runtime table.
+// Semantic Escape/Delete/Copy/Paste and true global shortcuts keep their native
+// adapters; the remaining selected-sticker actions are forwarded to the DOM.
 #[cfg(target_os = "windows")]
 fn overlay_keyboard_forwardable_shortcut(
     vk_code: u32,
     modifiers: ModifierSnapshot,
 ) -> Option<ForwardedShortcut> {
-    let ctrl = modifiers.ctrl_pressed;
-    let shift = modifiers.shift_pressed;
-    let alt = modifiers.alt_pressed;
-    let none = !ctrl && !shift && !alt;
-    let only_ctrl = ctrl && !shift && !alt;
-    let only_shift = shift && !ctrl && !alt;
-    let only_alt = alt && !ctrl && !shift;
-
-    let make = |key: &'static str| {
-        Some(ForwardedShortcut {
-            key,
-            ctrl,
-            shift,
-            alt,
-        })
+    let runtime_modifiers = shortcut_config::Modifiers {
+        ctrl: modifiers.ctrl_pressed,
+        alt: modifiers.alt_pressed,
+        shift: modifiers.shift_pressed,
+        meta: modifiers.meta_pressed,
     };
-
-    if none && vk_code == VK_TAB.0 as u32 {
-        return make("Tab"); // toggle-params
-    }
-    if only_shift && vk_code == b'1' as u32 {
-        return make("!"); // toggle-actions (Shift+1)
-    }
-    if only_alt && vk_code == b'2' as u32 {
-        return make("2"); // toggle-ocr
-    }
-    if only_alt && vk_code == b'3' as u32 {
-        return make("3"); // toggle-translation
-    }
-    if only_ctrl {
-        let key = match vk_code {
-            v if v == b'S' as u32 => Some("s"), // save
-            v if v == b'Z' as u32 => Some("z"), // undo-edit
-            v if v == b'Y' as u32 => Some("y"), // redo-edit
-            v if v == b'H' as u32 => Some("h"), // toggle-history
-            v if v == b'O' as u32 => Some("o"), // open-image
-            v if v == b'4' as u32 => Some("4"), // toggle-clean-view
-            _ => None,
-        };
-        if let Some(key) = key {
-            return make(key);
-        }
-    }
-    if none {
-        let key = match vk_code {
-            v if v == b'Q' as u32 => Some("q"), // transform-select
-            v if v == b'W' as u32 => Some("w"), // transform-move
-            v if v == b'E' as u32 => Some("e"), // transform-rotate
-            v if v == b'R' as u32 => Some("r"), // transform-scale
-            _ => None,
-        };
-        if let Some(key) = key {
-            return make(key);
-        }
-    }
-    None
+    shortcut_config::frontend_shortcut(vk_code, runtime_modifiers).map(|chord| ForwardedShortcut {
+        key: chord.key,
+        ctrl: chord.modifiers.ctrl,
+        shift: chord.modifiers.shift,
+        alt: chord.modifiers.alt,
+        meta: chord.modifiers.meta,
+    })
 }
 
 #[cfg(all(test, target_os = "windows"))]
@@ -3833,6 +4116,7 @@ mod overlay_forwardable_shortcut_tests {
             ctrl_pressed: ctrl,
             alt_pressed: alt,
             shift_pressed: shift,
+            meta_pressed: false,
         }
     }
 
@@ -3845,10 +4129,10 @@ mod overlay_forwardable_shortcut_tests {
     }
 
     #[test]
-    fn forwards_shift_1_as_bang() {
+    fn forwards_shift_1_using_configured_physical_key() {
         let sc = overlay_keyboard_forwardable_shortcut(b'1' as u32, mods(false, true, false))
             .expect("Shift+1 should forward");
-        assert_eq!(sc.key, "!");
+        assert_eq!(sc.key, "1");
         assert!(sc.shift && !sc.ctrl && !sc.alt);
     }
 
@@ -3935,6 +4219,7 @@ mod overlay_semantic_shortcut_focus_tests {
             ctrl_pressed: ctrl,
             alt_pressed: alt,
             shift_pressed: shift,
+            meta_pressed: false,
         }
     }
 
@@ -4052,6 +4337,7 @@ mod input_lifecycle_hardening_tests {
             ctrl_pressed: false,
             alt_pressed: false,
             shift_pressed: false,
+            meta_pressed: false,
         }
     }
 
@@ -4980,11 +5266,8 @@ unsafe extern "system" fn overlay_keyboard_hook_proc(
     }
 
     if vk_code == VK_ESCAPE.0 as u32 {
-        if key_pressed && !handle_emergency_escape_transition(true, "keyboard_hook") {
-            if overlay_keyboard_capture_should_handle_current_cursor() {
-                return LRESULT(1);
-            }
-            return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+        if key_pressed {
+            handle_emergency_escape_transition(true, "keyboard_hook");
         }
         if key_released {
             handle_emergency_escape_transition(false, "keyboard_hook");
@@ -5052,6 +5335,7 @@ unsafe extern "system" fn overlay_keyboard_hook_proc(
                         ctrl: shortcut.ctrl,
                         shift: shortcut.shift,
                         alt: shortcut.alt,
+                        meta: shortcut.meta,
                     });
                     if should_consume {
                         return LRESULT(1);
@@ -5093,6 +5377,7 @@ fn install_overlay_keyboard_hook_thread(window: tauri::WebviewWindow) {
                         ctrl,
                         shift,
                         alt,
+                        meta,
                     } => {
                         append_runtime_log_line(&format!(
                             "overlay_keyboard_hook_emit :: shortcut {}",
@@ -5105,6 +5390,7 @@ fn install_overlay_keyboard_hook_thread(window: tauri::WebviewWindow) {
                                 ctrl_key: ctrl,
                                 shift_key: shift,
                                 alt_key: alt,
+                                meta_key: meta,
                             },
                         );
                     }
@@ -7782,7 +8068,17 @@ fn route_overlay_input_shield_mouse_message(message: u32, wparam: WPARAM) -> Opt
         OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst);
     let overlay_pointer_session_active =
         OVERLAY_POINTER_STATE.load(Ordering::SeqCst) != OVERLAY_POINTER_STATE_NONE;
+    let configured_drag_out_active = shortcut_config::gesture_matches(
+        "drag_out",
+        shortcut_config::Modifiers {
+            ctrl: modifiers.ctrl_pressed,
+            alt: modifiers.alt_pressed,
+            shift: modifiers.shift_pressed,
+            meta: modifiers.meta_pressed,
+        },
+    ) && is_pointer_over_sticker_body_synthetic_rect(x, y);
     if modifiers.alt_pressed
+        && !configured_drag_out_active
         && should_passthrough_foreign_alt_mouse_input(
             true,
             CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst),
@@ -7830,9 +8126,17 @@ fn route_overlay_input_shield_mouse_message(message: u32, wparam: WPARAM) -> Opt
                 let source = OverlayPointerSource::InputShield;
                 match claim_overlay_pointer_down(&OVERLAY_POINTER_STATE, source) {
                     OverlayPointerDownTransition::Started => {
-                        let shift_sticker_native_drag_preflight = modifiers.shift_pressed
-                            && is_pointer_over_sticker_body_synthetic_rect(x, y);
-                        if shift_sticker_native_drag_preflight {
+                        let configured_sticker_native_drag_preflight =
+                            shortcut_config::gesture_matches(
+                                "drag_out",
+                                shortcut_config::Modifiers {
+                                    ctrl: modifiers.ctrl_pressed,
+                                    alt: modifiers.alt_pressed,
+                                    shift: modifiers.shift_pressed,
+                                    meta: modifiers.meta_pressed,
+                                },
+                            ) && is_pointer_over_sticker_body_synthetic_rect(x, y);
+                        if configured_sticker_native_drag_preflight {
                             OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(false, Ordering::SeqCst);
                             OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE
                                 .store(true, Ordering::SeqCst);
@@ -10313,29 +10617,36 @@ pub fn run() {
                 let voice_hotkeys = voice_hotkeys.clone();
                 move |app, shortcut, event| {
                     if event.state == ShortcutState::Pressed {
-                        if shortcut.matches(Modifiers::CONTROL, Code::Digit1) {
-                            if !should_accept_tauri_shortcut_trigger(
-                                &tauri_ctrl_1_last_trigger,
-                                "tauri_ctrl1_duplicate_ignored",
-                            ) {
-                                return;
-                            }
-                            println!("Global Shortcut Ctrl+1 Triggered");
-                            if let Some(window) = app.get_webview_window("main") {
-                                println!("Window found. Processing shortcut...");
-                                enter_capture_mode(&window);
-                            }
-                        } else if shortcut.matches(Modifiers::CONTROL, Code::Digit3) {
-                            if !should_accept_tauri_shortcut_trigger(
-                                &tauri_ctrl_3_last_trigger,
-                                "tauri_ctrl3_duplicate_ignored",
-                            ) {
-                                return;
-                            }
-                            println!("Global Shortcut Ctrl+3 Triggered");
-                            if let Some(window) = app.get_webview_window("main") {
-                                println!("Window found. Processing long screenshot shortcut...");
-                                enter_long_capture_mode(&window);
+                        if let Some(action) = configured_global_action_for_shortcut(shortcut) {
+                            match action {
+                                "capture" => {
+                                    if !should_accept_tauri_shortcut_trigger(
+                                        &tauri_ctrl_1_last_trigger,
+                                        "tauri_capture_duplicate_ignored",
+                                    ) {
+                                        return;
+                                    }
+                                    if let Some(window) = app.get_webview_window("main") {
+                                        enter_capture_mode(&window);
+                                    }
+                                }
+                                "long_capture" => {
+                                    if !should_accept_tauri_shortcut_trigger(
+                                        &tauri_ctrl_3_last_trigger,
+                                        "tauri_long_capture_duplicate_ignored",
+                                    ) {
+                                        return;
+                                    }
+                                    if let Some(window) = app.get_webview_window("main") {
+                                        enter_long_capture_mode(&window);
+                                    }
+                                }
+                                "toggle_sticker_toolbar" => {
+                                    if let Some(window) = app.get_webview_window("main") {
+                                        trigger_toggle_sticker_toolbar(&window);
+                                    }
+                                }
+                                _ => {}
                             }
                         } else if shortcut.matches(Modifiers::CONTROL, Code::Digit2) {
                             println!("Global Shortcut Ctrl+2 Triggered (OCR)");
@@ -10343,12 +10654,6 @@ pub fn run() {
                                 if let Err(e) = window.emit("trigger-ocr", ()) {
                                     println!("Failed to emit trigger-ocr: {}", e);
                                 }
-                            }
-                        } else if shortcut.matches(Modifiers::CONTROL, Code::KeyE) {
-                            println!("Global Shortcut Ctrl+E Triggered");
-                            if let Some(window) = app.get_webview_window("main") {
-                                println!("Window found. Processing sticker toolbar shortcut...");
-                                trigger_toggle_sticker_toolbar(&window);
                             }
                         } else if shortcut
                             .matches(Modifiers::CONTROL | Modifiers::ALT, Code::Space)
@@ -10399,8 +10704,14 @@ pub fn run() {
         )
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+                if shortcut_config::close_to_tray_enabled() {
+                    api.prevent_close();
+                    append_runtime_log_line("window_close_requested :: action=tray");
+                    let _ = window.hide();
+                } else {
+                    append_runtime_log_line("window_close_requested :: action=exit");
+                    window.app_handle().exit(0);
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -10429,6 +10740,7 @@ pub fn run() {
             load_tool_settings,
             save_app_settings,
             load_app_settings,
+            get_loom_shortcut_settings,
             get_installed_fonts,
             initialize_overlay,
             get_boot_profile,
@@ -10546,41 +10858,21 @@ pub fn run() {
 
             #[cfg(desktop)]
             {
-                // Register Ctrl+1, Ctrl+2, Ctrl+3, Ctrl+E, and voice toggle Ctrl+Alt+Space.
-                let ctrl_1 = Shortcut::new(Some(Modifiers::CONTROL), Code::Digit1);
+                // Loom-managed shortcuts are registered from the shared runtime
+                // snapshot. OCR and emergency voice remain fixed native controls.
                 let ctrl_2 = Shortcut::new(Some(Modifiers::CONTROL), Code::Digit2);
-                let ctrl_3 = Shortcut::new(Some(Modifiers::CONTROL), Code::Digit3);
-                let ctrl_e = Shortcut::new(Some(Modifiers::CONTROL), Code::KeyE);
                 let ctrl_alt_space =
                     Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space);
-                let ctrl_1_global_registered = Arc::new(AtomicBool::new(false));
-                let ctrl_3_global_registered = Arc::new(AtomicBool::new(false));
-
-                if let Err(e) = app.global_shortcut().register(ctrl_1) {
-                    println!("Warning: Failed to register Ctrl+1: {}", e);
-                    append_runtime_log_line(&format!("register_ctrl1_failed :: {}", e));
-                } else {
-                    append_runtime_log_line("register_ctrl1_success");
-                    ctrl_1_global_registered.store(true, Ordering::Relaxed);
+                if let Err(error) = refresh_configured_global_shortcuts(app.handle()) {
+                    append_runtime_log_line(&format!(
+                        "register_loom_shortcuts_failed :: {error}"
+                    ));
                 }
                 if let Err(e) = app.global_shortcut().register(ctrl_2) {
                      println!("Warning: Failed to register Ctrl+2: {}", e);
                      append_runtime_log_line(&format!("register_ctrl2_failed :: {}", e));
                 } else {
                      append_runtime_log_line("register_ctrl2_success");
-                }
-                if let Err(e) = app.global_shortcut().register(ctrl_3) {
-                     println!("Warning: Failed to register Ctrl+3: {}", e);
-                     append_runtime_log_line(&format!("register_ctrl3_failed :: {}", e));
-                } else {
-                     append_runtime_log_line("register_ctrl3_success");
-                     ctrl_3_global_registered.store(true, Ordering::Relaxed);
-                }
-                if let Err(e) = app.global_shortcut().register(ctrl_e) {
-                     println!("Warning: Failed to register Ctrl+E: {}", e);
-                     append_runtime_log_line(&format!("register_ctrle_failed :: {}", e));
-                } else {
-                      append_runtime_log_line("register_ctrle_success");
                 }
                 if let Err(e) = app.global_shortcut().register(ctrl_alt_space) {
                     println!("Warning: Failed to register Ctrl+Alt+Space: {}", e);
@@ -10681,20 +10973,23 @@ pub fn run() {
                 let hit_map_clone = hit_map.clone();
                 let capture_input_state_clone = capture_input_state.clone();
                 let long_capture_sessions_clone = long_capture_sessions.clone();
-                let ctrl_1_global_registered_for_rdev = ctrl_1_global_registered.clone();
-                let ctrl_3_global_registered_for_rdev = ctrl_3_global_registered.clone();
-
                 // Start Global Event Listener (Inputs)
                 std::thread::spawn(move || {
                     struct RdevInputRuntimeState {
                         is_ignoring_events: bool,
                         ctrl_pressed: bool,
+                        alt_pressed: bool,
+                        shift_pressed: bool,
+                        meta_pressed: bool,
                         last_capture_trigger: std::time::Instant,
                     }
 
                     let input_runtime_state = std::sync::Mutex::new(RdevInputRuntimeState {
                         is_ignoring_events: false,
                         ctrl_pressed: false,
+                        alt_pressed: false,
+                        shift_pressed: false,
+                        meta_pressed: false,
                         last_capture_trigger: std::time::Instant::now()
                             - std::time::Duration::from_secs(2),
                     });
@@ -10719,7 +11014,85 @@ pub fn run() {
                         if NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst) {
                             input_state.is_ignoring_events = true;
                             input_state.ctrl_pressed = false;
+                            input_state.alt_pressed = false;
+                            input_state.shift_pressed = false;
+                            input_state.meta_pressed = false;
                             return;
+                        }
+
+                        match &event.event_type {
+                            rdev::EventType::KeyPress(rdev::Key::ControlLeft)
+                            | rdev::EventType::KeyPress(rdev::Key::ControlRight) => {
+                                input_state.ctrl_pressed = true;
+                            }
+                            rdev::EventType::KeyRelease(rdev::Key::ControlLeft)
+                            | rdev::EventType::KeyRelease(rdev::Key::ControlRight) => {
+                                input_state.ctrl_pressed = false;
+                            }
+                            rdev::EventType::KeyPress(rdev::Key::Alt)
+                            | rdev::EventType::KeyPress(rdev::Key::AltGr) => {
+                                input_state.alt_pressed = true;
+                            }
+                            rdev::EventType::KeyRelease(rdev::Key::Alt)
+                            | rdev::EventType::KeyRelease(rdev::Key::AltGr) => {
+                                input_state.alt_pressed = false;
+                            }
+                            rdev::EventType::KeyPress(rdev::Key::ShiftLeft)
+                            | rdev::EventType::KeyPress(rdev::Key::ShiftRight) => {
+                                input_state.shift_pressed = true;
+                            }
+                            rdev::EventType::KeyRelease(rdev::Key::ShiftLeft)
+                            | rdev::EventType::KeyRelease(rdev::Key::ShiftRight) => {
+                                input_state.shift_pressed = false;
+                            }
+                            rdev::EventType::KeyPress(rdev::Key::MetaLeft)
+                            | rdev::EventType::KeyPress(rdev::Key::MetaRight) => {
+                                input_state.meta_pressed = true;
+                            }
+                            rdev::EventType::KeyRelease(rdev::Key::MetaLeft)
+                            | rdev::EventType::KeyRelease(rdev::Key::MetaRight) => {
+                                input_state.meta_pressed = false;
+                            }
+                            _ => {}
+                        }
+
+                        if let rdev::EventType::KeyPress(key) = &event.event_type {
+                            if let Some(vk_code) = rdev_key_to_vk_code(*key) {
+                                let modifiers = shortcut_config::Modifiers {
+                                    ctrl: input_state.ctrl_pressed,
+                                    alt: input_state.alt_pressed,
+                                    shift: input_state.shift_pressed,
+                                    meta: input_state.meta_pressed,
+                                };
+                                if let Some(action) =
+                                    shortcut_config::global_action(vk_code, modifiers)
+                                {
+                                    let handled_by_registered_shortcut =
+                                        configured_global_shortcut_is_registered(
+                                            vk_code,
+                                            modifiers,
+                                        );
+                                    if !handled_by_registered_shortcut {
+                                        let elapsed = input_state.last_capture_trigger.elapsed();
+                                        if elapsed > std::time::Duration::from_millis(500) {
+                                            input_state.last_capture_trigger =
+                                                std::time::Instant::now();
+                                            match action {
+                                                "capture" => enter_capture_mode(&window),
+                                                "long_capture" => enter_long_capture_mode(&window),
+                                                "toggle_sticker_toolbar" => {
+                                                    trigger_toggle_sticker_toolbar(&window)
+                                                }
+                                                _ => {}
+                                            }
+                                            append_runtime_log_line(&format!(
+                                                "rdev_configured_shortcut_triggered :: {action}"
+                                            ));
+                                            return;
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         match &event.event_type {
@@ -10733,7 +11106,21 @@ pub fn run() {
                             }
                             rdev::EventType::KeyPress(rdev::Key::Num1) => {
                                 if input_state.ctrl_pressed
-                                    && !ctrl_1_global_registered_for_rdev.load(Ordering::Relaxed)
+                                    && !configured_global_shortcut_is_registered(
+                                        b'1' as u32,
+                                        shortcut_config::Modifiers {
+                                            ctrl: true,
+                                            ..shortcut_config::Modifiers::default()
+                                        },
+                                    )
+                                    && shortcut_config::action_matches(
+                                        "capture",
+                                        b'1' as u32,
+                                        shortcut_config::Modifiers {
+                                            ctrl: true,
+                                            ..shortcut_config::Modifiers::default()
+                                        },
+                                    )
                                     && input_state.last_capture_trigger.elapsed()
                                         > std::time::Duration::from_millis(500)
                                 {
@@ -10744,7 +11131,21 @@ pub fn run() {
                             }
                             rdev::EventType::KeyPress(rdev::Key::Num3) => {
                                 if input_state.ctrl_pressed
-                                    && !ctrl_3_global_registered_for_rdev.load(Ordering::Relaxed)
+                                    && !configured_global_shortcut_is_registered(
+                                        b'3' as u32,
+                                        shortcut_config::Modifiers {
+                                            ctrl: true,
+                                            ..shortcut_config::Modifiers::default()
+                                        },
+                                    )
+                                    && shortcut_config::action_matches(
+                                        "long_capture",
+                                        b'3' as u32,
+                                        shortcut_config::Modifiers {
+                                            ctrl: true,
+                                            ..shortcut_config::Modifiers::default()
+                                        },
+                                    )
                                     && input_state.last_capture_trigger.elapsed()
                                         > std::time::Duration::from_millis(500)
                                 {
@@ -10754,6 +11155,23 @@ pub fn run() {
                                 }
                             }
                             rdev::EventType::KeyPress(rdev::Key::Escape) => {
+                                let modifiers = shortcut_config::Modifiers {
+                                    ctrl: input_state.ctrl_pressed,
+                                    alt: input_state.alt_pressed,
+                                    shift: input_state.shift_pressed,
+                                    meta: input_state.meta_pressed,
+                                };
+                                if !shortcut_config::action_matches(
+                                    "cancel",
+                                    0x1B,
+                                    modifiers,
+                                ) && !shortcut_config::action_matches(
+                                    "delete_unit",
+                                    0x1B,
+                                    modifiers,
+                                ) {
+                                    return;
+                                }
                                 if overlay_keyboard_capture_should_handle_current_cursor() {
                                     append_runtime_log_line(
                                         "rdev_escape_skipped_overlay_keyboard_capture",
@@ -10783,6 +11201,27 @@ pub fn run() {
                             }
                             rdev::EventType::KeyPress(rdev::Key::Delete)
                             | rdev::EventType::KeyPress(rdev::Key::Backspace) => {
+                                let vk_code = match event.event_type {
+                                    rdev::EventType::KeyPress(rdev::Key::Delete) => 0x2E,
+                                    _ => 0x08,
+                                };
+                                let modifiers = shortcut_config::Modifiers {
+                                    ctrl: input_state.ctrl_pressed,
+                                    alt: input_state.alt_pressed,
+                                    shift: input_state.shift_pressed,
+                                    meta: input_state.meta_pressed,
+                                };
+                                if !shortcut_config::action_matches(
+                                    "delete_unit",
+                                    vk_code,
+                                    modifiers,
+                                ) && !shortcut_config::action_matches(
+                                    "cancel",
+                                    vk_code,
+                                    modifiers,
+                                ) {
+                                    return;
+                                }
                                 if overlay_keyboard_capture_should_handle_current_cursor() {
                                     append_runtime_log_line(
                                         "rdev_delete_skipped_overlay_keyboard_capture",

@@ -5,12 +5,21 @@ import { resolve } from "node:path";
 const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
 describe("hook terminal theme contract", () => {
-    it("defines the Neuro yellow-green terminal tokens instead of the old lavender theme", () => {
+    it("defines canonical Neuro colors once and maps Hook semantics through aliases", () => {
         const css = readSource("src/app.css");
 
-        expect(css).toContain("--theme-signal: #d9ff38;");
-        expect(css).toContain("--theme-success: #22c55e;");
-        expect(css).toContain("--theme-panel: rgba(11, 14, 18, 0.92);");
+        expect(css).toContain("--neuro-signal-yellow: #d9ff38;");
+        expect(css).toContain("--neuro-signal-green: #22c55e;");
+        expect(css).toContain("--neuro-info-blue: #06b6d4;");
+        expect(css).toContain("--neuro-danger-red: #f43f5e;");
+        expect(css).toContain("--neuro-panel: #0e1218;");
+        expect(css).toContain("--theme-signal: var(--neuro-signal-yellow);");
+        expect(css).toContain("--theme-success: var(--neuro-signal-green);");
+        expect(css).toContain("--theme-info: var(--neuro-info-blue);");
+        expect(css).toContain("--theme-danger: var(--neuro-danger-red);");
+        expect(css.match(/#d9ff38/g)).toHaveLength(1);
+        expect(css.match(/#22c55e/g)).toHaveLength(1);
+        expect(css).not.toMatch(/^\s*color:\s*var\(--theme-signal\);/m);
         expect(css).toContain("--radius-lg: 0px;");
         expect(css).not.toContain("Lavender Dream Theme");
         expect(css).not.toContain("--primary: #B1B2FF;");
@@ -62,5 +71,40 @@ describe("hook terminal theme contract", () => {
         expect(propertyBarFields).toContain("hook-mini-toggle--active");
         expect(propertyBarFields).toContain("hook-mini-switch--active");
         expect(propertyBar).not.toContain("border-cyan-400");
+    });
+
+    it("routes parameter chrome through semantic tokens without purple hardcoding", () => {
+        const paramControl = readSource("src/components/params/UnitParamControl.tsx");
+        const numberControl = readSource("src/components/params/controls/NumberControl.tsx");
+        const links = readSource("src/components/CanvasLinks.tsx");
+
+        expect(paramControl).toContain("hook-param-link-port");
+        expect(numberControl).toContain("hook-param-slider__fill");
+        expect(numberControl).not.toMatch(/violet|167,\s*139,\s*250|139,\s*92,\s*246/i);
+        expect(links).toContain('stroke="var(--theme-info-text)"');
+        expect(links).toContain('stroke="var(--theme-signal)"');
+    });
+
+    it("keeps shared shells and high-frequency overlays on semantic surface classes", () => {
+        const css = readSource("src/app.css");
+        const unitView = readSource("src/components/UnitView.tsx");
+        const paramsPanel = readSource("src/components/UnitParamsPanel.tsx");
+        const colorPicker = readSource("src/components/ColorPicker.tsx");
+        const addNodeMenu = readSource("src/components/UnitAddNodeMenu.tsx");
+        const topStrip = readSource("src/components/StickerTopStrip.tsx");
+
+        expect(css).toContain("--theme-backdrop-blur: 0px;");
+        expect(css).toContain("backdrop-filter: none;");
+        expect(css).toContain(".hook-art-error-overlay");
+        expect(css).toContain(".hook-param-group-header");
+        expect(unitView).toContain("hook-enhancement-notice");
+        expect(unitView).not.toContain("bg-slate-950/90");
+        expect(paramsPanel).toContain("hook-param-group-header");
+        expect(colorPicker).toContain("hook-color-picker__footer");
+        expect(colorPicker).not.toContain("bg-slate-900");
+        expect(addNodeMenu).toContain("hook-terminal-input");
+        expect(addNodeMenu).not.toContain("bg-black/25");
+        expect(topStrip).toContain("hook-toolbar-idle");
+        expect(topStrip).not.toContain("bg-white/5");
     });
 });

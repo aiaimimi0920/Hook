@@ -102,11 +102,11 @@ const buildStripInteractiveRect = (root: HTMLDivElement, unitId: string) => {
     };
 };
 
-const toolbarButtonClass = "hook-toolbar-button flex h-[50px] w-[50px] items-center justify-center pb-1 pr-1 text-white transition-colors";
-const toolbarButtonRightBorderClass = `${toolbarButtonClass} border-r border-white/15`;
-const toolbarButtonLeftBorderClass = `${toolbarButtonClass} border-l border-white/15`;
+const toolbarButtonClass = "hook-toolbar-button flex h-[50px] w-[50px] items-center justify-center pb-1 pr-1 transition-colors";
+const toolbarButtonRightBorderClass = `${toolbarButtonClass} hook-actions-border border-r`;
+const toolbarButtonLeftBorderClass = `${toolbarButtonClass} hook-actions-border border-l`;
 const toolbarCornerToggleClass =
-    "hook-toolbar-corner-toggle absolute bottom-0 right-0 z-10 flex h-6 w-6 items-center justify-center border-l border-t border-white/15 transition-colors";
+    "hook-toolbar-corner-toggle hook-actions-border absolute bottom-0 right-0 z-10 flex h-6 w-6 items-center justify-center border-l border-t transition-colors";
 const toolbarMenuClass = "hook-toolbar-menu pointer-events-auto absolute left-0 top-full z-[1215] mt-1 min-w-[132px]";
 const toolbarMenuItemClass = "hook-toolbar-menu-item flex h-10 w-full items-center gap-2 px-3 text-left text-[12px] transition-colors";
 
@@ -484,7 +484,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             class={toolbarButtonRightBorderClass}
                             classList={{
                                 "hook-toolbar-button--active": isModeSelected(),
-                                "bg-white/5 hover:bg-white/10": !isModeSelected(),
+                                "hook-toolbar-idle": !isModeSelected(),
                             }}
                             aria-label={`${currentTransformOption().label}模式`}
                             title={`${currentTransformOption().label} (${currentTransformOption().shortcut})`}
@@ -528,13 +528,13 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                                                 class={toolbarMenuItemClass}
                                                 classList={{
                                                     "hook-toolbar-menu-item--active": currentTransformMode() === item.mode,
-                                                    "hover:bg-white/10": currentTransformMode() !== item.mode,
+                                                    "hook-toolbar-menu-idle": currentTransformMode() !== item.mode,
                                                 }}
                                                 onClick={() => applyTransformMode(item.mode)}
                                             >
                                                 <option.Icon class="h-4 w-4 shrink-0" />
                                                 <span>{item.label}</span>
-                                                <span class="ml-auto text-[10px] text-white/40">{item.shortcut}</span>
+                                                <span class="hook-toolbar-shortcut ml-auto text-[10px]">{item.shortcut}</span>
                                             </button>
                                         );
                                     }}
@@ -549,7 +549,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             class={toolbarButtonRightBorderClass}
                             classList={{
                                 "hook-toolbar-button--active": isShapeSelected(),
-                                "bg-white/5 hover:bg-white/10": !isShapeSelected(),
+                                "hook-toolbar-idle": !isShapeSelected(),
                             }}
                             aria-label={`${currentShapeOption().label}图形工具`}
                             title={currentShapeOption().label}
@@ -591,7 +591,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                                             class={toolbarMenuItemClass}
                                             classList={{
                                                 "hook-toolbar-menu-item--active": currentShapeTool() === item.mode,
-                                                "hover:bg-white/10": currentShapeTool() !== item.mode,
+                                                "hook-toolbar-menu-idle": currentShapeTool() !== item.mode,
                                             }}
                                             onClick={() => applyCreateTool(item.mode)}
                                         >
@@ -610,7 +610,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             class={toolbarButtonClass}
                             classList={{
                                 "hook-toolbar-button--active": isLineSelected(),
-                                "bg-white/5 hover:bg-white/10": !isLineSelected(),
+                                "hook-toolbar-idle": !isLineSelected(),
                             }}
                             aria-label="直线工具"
                             title="直线"
@@ -649,7 +649,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                                             class={toolbarMenuItemClass}
                                             classList={{
                                                 "hook-toolbar-menu-item--active": isLineSelected(),
-                                                "hover:bg-white/10": !isLineSelected(),
+                                                "hook-toolbar-menu-idle": !isLineSelected(),
                                             }}
                                             onClick={() => applyCreateTool(item.mode)}
                                         >
@@ -668,7 +668,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             class={toolbarButtonRightBorderClass}
                             classList={{
                                 "hook-toolbar-button--active": isBrushSelected(),
-                                "bg-white/5 hover:bg-white/10": !isBrushSelected(),
+                                "hook-toolbar-idle": !isBrushSelected(),
                             }}
                             aria-label="画笔工具"
                             title="画笔"
@@ -685,7 +685,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             class={toolbarButtonClass}
                             classList={{
                                 "hook-toolbar-button--active": isLabelSelected(),
-                                "bg-white/5 hover:bg-white/10": !isLabelSelected(),
+                                "hook-toolbar-idle": !isLabelSelected(),
                             }}
                             aria-label={`${currentLabelOption().label}标记工具`}
                             title={currentLabelOption().label}
@@ -727,7 +727,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                                             class={toolbarMenuItemClass}
                                             classList={{
                                                 "hook-toolbar-menu-item--active": currentLabelTool() === item.mode,
-                                                "hover:bg-white/10": currentLabelTool() !== item.mode,
+                                                "hook-toolbar-menu-idle": currentLabelTool() !== item.mode,
                                             }}
                                             onClick={() => applyCreateTool(item.mode)}
                                         >
@@ -746,7 +746,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             class={toolbarButtonClass}
                             classList={{
                                 "hook-toolbar-button--active": isEffectSelected(),
-                                "bg-white/5 hover:bg-white/10": !isEffectSelected(),
+                                "hook-toolbar-idle": !isEffectSelected(),
                             }}
                             aria-label={`${currentEffectOption().label}效果工具`}
                             title={currentEffectOption().label}
@@ -788,7 +788,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                                             class={toolbarMenuItemClass}
                                             classList={{
                                                 "hook-toolbar-menu-item--active": currentEffectTool() === item.mode,
-                                                "hover:bg-white/10": currentEffectTool() !== item.mode,
+                                                "hook-toolbar-menu-idle": currentEffectTool() !== item.mode,
                                             }}
                                             onClick={() => applyCreateTool(item.mode)}
                                         >
@@ -807,7 +807,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             class={toolbarButtonLeftBorderClass}
                             classList={{
                                 "hook-toolbar-button--active": isEraserSelected(),
-                                "bg-white/5 hover:bg-white/10": !isEraserSelected(),
+                                "hook-toolbar-idle": !isEraserSelected(),
                             }}
                             aria-label="橡皮擦工具"
                             title="橡皮擦"
@@ -824,7 +824,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             class={toolbarButtonLeftBorderClass}
                             classList={{
                                 "hook-toolbar-button--active": isCropSelected(),
-                                "bg-white/5 hover:bg-white/10": !isCropSelected(),
+                                "hook-toolbar-idle": !isCropSelected(),
                             }}
                             aria-label="裁剪工具"
                             title="裁剪"
@@ -840,8 +840,8 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             type="button"
                             class={toolbarButtonLeftBorderClass}
                             classList={{
-                                "bg-white/5 hover:bg-white/10": isHistoryEnabled(),
-                                "bg-white/5 text-white/35": !isHistoryEnabled(),
+                                "hook-toolbar-idle": isHistoryEnabled(),
+                                "hook-toolbar-disabled": !isHistoryEnabled(),
                             }}
                             aria-label={currentHistoryOption().label}
                             title={currentHistoryOption().label}
@@ -886,8 +886,8 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                                                 class={toolbarMenuItemClass}
                                                 classList={{
                                                     "hook-toolbar-menu-item--active": currentHistoryAction() === item.mode,
-                                                    "text-white/85 hover:bg-white/10": currentHistoryAction() !== item.mode && enabled,
-                                                    "text-white/35": !enabled,
+                                                    "hook-toolbar-menu-idle": currentHistoryAction() !== item.mode && enabled,
+                                                    "hook-toolbar-disabled": !enabled,
                                                 }}
                                                 onClick={() => {
                                                     setCurrentHistoryAction(item.mode);
@@ -909,8 +909,8 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             type="button"
                             class={toolbarButtonLeftBorderClass}
                             classList={{
-                                "bg-white/5 hover:bg-white/10": isRasterizeEnabled(),
-                                "bg-white/5 text-white/35": !isRasterizeEnabled(),
+                                "hook-toolbar-idle": isRasterizeEnabled(),
+                                "hook-toolbar-disabled": !isRasterizeEnabled(),
                             }}
                             aria-label={currentRasterizeOption().label}
                             title={currentRasterizeOption().label}
@@ -955,8 +955,8 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                                                 class={toolbarMenuItemClass}
                                                 classList={{
                                                     "hook-toolbar-menu-item--active": currentRasterizeScope() === item.mode,
-                                                    "text-white/85 hover:bg-white/10": currentRasterizeScope() !== item.mode && enabled,
-                                                    "text-white/35": !enabled,
+                                                    "hook-toolbar-menu-idle": currentRasterizeScope() !== item.mode && enabled,
+                                                    "hook-toolbar-disabled": !enabled,
                                                 }}
                                                 onClick={() => {
                                                     setCurrentRasterizeScope(item.mode);

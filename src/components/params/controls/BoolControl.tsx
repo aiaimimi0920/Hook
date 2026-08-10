@@ -15,7 +15,7 @@ export const BoolControl: Component<BoolControlProps> = (props) => {
   return (
     <div class="flex items-center gap-3 w-full h-6">
       <label
-        class="text-[#EEF1FF]/80 font-medium text-[11px] shrink-0 truncate cursor-context-menu"
+        class="hook-param-label font-medium text-[11px] shrink-0 truncate cursor-context-menu"
         style={{ "min-width": "70px" }}
       >
         {props.label}
@@ -25,7 +25,7 @@ export const BoolControl: Component<BoolControlProps> = (props) => {
           class="flex items-center gap-2 cursor-pointer group"
           classList={{ "pointer-events-none opacity-50": props.isDisabled }}
         >
-          <span class="text-white/50 text-[10px] uppercase tracking-wider group-hover:text-white/70 transition-colors">
+          <span class="hook-param-value text-[10px] uppercase tracking-wider transition-colors">
             {props.value ? "On" : "Off"}
           </span>
           <div
@@ -38,7 +38,7 @@ export const BoolControl: Component<BoolControlProps> = (props) => {
             onContextMenu={(event) => props.onContextMenu(event)}
           >
             <Show when={props.value}>
-              <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <svg class="hook-param-check w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
               </svg>
             </Show>

@@ -48,8 +48,8 @@ export const CanvasSelection: Component = () => {
                             top: `${preciseRect()!.y}px`,
                             width: `${preciseRect()!.w}px`,
                             height: `${preciseRect()!.h}px`,
-                            "border-color": "#FFFF00",
-                            "background-color": "rgba(255, 255, 0, 0.3)"
+                            "border-color": "var(--theme-signal)",
+                            "background-color": "color-mix(in srgb, var(--theme-signal) 30%, transparent)"
                         }}
                     />
                 </Show>
@@ -66,7 +66,7 @@ export const CanvasSelection: Component = () => {
                     top: `${session().rect.y}px`,
                     width: `${session().rect.w}px`,
                     height: `${session().rect.h}px`,
-                    outline: "2px solid rgba(217, 255, 56, 0.95)",
+                    outline: "2px solid color-mix(in srgb, var(--theme-signal) 95%, transparent)",
                     "outline-offset": "0px",
                 }}
             >
@@ -90,8 +90,8 @@ export const CanvasSelection: Component = () => {
                   top: `${selectionRect()!.y}px`,
                   width: `${selectionRect()!.w}px`,
                   height: `${selectionRect()!.h}px`,
-                  "border-color": "rgba(217, 255, 56, 0.92)",
-                  "background-color": "rgba(217, 255, 56, 0.1)",
+                  "border-color": "color-mix(in srgb, var(--theme-signal) 92%, transparent)",
+                  "background-color": "color-mix(in srgb, var(--theme-signal) 10%, transparent)",
               }}
           />
       </Show>

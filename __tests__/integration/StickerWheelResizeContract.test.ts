@@ -16,7 +16,7 @@ const rustSource = readFileSync(resolve(process.cwd(), "src-tauri/src/lib.rs"), 
 
 describe("Hook sticker wheel resize contract", () => {
     it("keeps the minified ctrl+wheel guard without focusing the sticker container during wheel opacity edits", () => {
-        expect(unitViewSource).toContain("if (e.ctrlKey) {");
+        expect(unitViewSource).toContain("ShortcutManager.isGestureActive(e, 'sticker_resize')");
         expect(unitViewSource).toContain("if (isMinified()) return;");
         expect(unitViewSource).not.toContain("e.currentTarget.focus();");
         expect(unitViewSource).not.toContain("event.currentTarget.focus();");

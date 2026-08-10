@@ -22,6 +22,7 @@ export type OverlaySyntheticMousePayload = {
     ctrlKey?: boolean;
     altKey?: boolean;
     shiftKey?: boolean;
+    metaKey?: boolean;
     deltaY?: number;
     nativeDragPreflight?: boolean;
 };
@@ -159,6 +160,7 @@ export function createOverlaySyntheticDispatcher(
             ctrlKey: !!payload.ctrlKey,
             altKey: !!payload.altKey,
             shiftKey: !!payload.shiftKey,
+            metaKey: !!payload.metaKey,
             button,
             buttons,
         });
@@ -403,6 +405,7 @@ export function createOverlaySyntheticDispatcher(
             ctrlKey: event.ctrlKey,
             altKey: event.altKey,
             shiftKey: event.shiftKey,
+            metaKey: event.metaKey,
             button: 0,
             buttons: event.buttons,
         };

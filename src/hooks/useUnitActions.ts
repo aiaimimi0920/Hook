@@ -183,47 +183,39 @@ export function useUnitActions() {
     };
 
     // Extracted from App.tsx - Inline Logic
-    const spawnConnectedNode = (fromId: string, artId: string) => {
+    const spawnConnectedNode = (fromId: string, artId: string): string | null => {
          const u = graphStore.units.find(u => u.id === fromId);
-         if (u) {
-             const sourceFrame = getSourceImageFrame(u);
-             const capability = findArtCapability(graphStore.capabilities, artId);
-             const canonicalArtId = capability?.id ?? artId;
-             const newId = crypto.randomUUID();
-             const node = capability
-                 ? buildStandaloneArtNodeUnit({
-                       id: newId,
-                       capability,
-                       x: u.x + u.w + 50,
-                       y: u.y,
-                       w: sourceFrame.w,
-                       h: sourceFrame.h,
-                   })
-                 : {
-                       id: newId,
-                       type: "art" as const,
-                       artId: canonicalArtId,
-                       x: u.x + u.w + 50,
-                       y: u.y,
-                       w: sourceFrame.w,
-                       h: sourceFrame.h,
-                       params: {},
-                       inputs: [],
-                       outputs: [],
-                       data: {
-                           executionConfig: deriveUnitExecutionConfig({ capability }),
-                       },
-                   };
-             graphStore.actions.addUnit(node);
-             graphStore.actions.addLink({
-                 id: crypto.randomUUID(),
-                 fromUnitId: fromId, fromPortId: 'output',
-                 toUnitId: newId, toPortId: getPrimaryImageInputPort(canonicalArtId)
-             });
-             syncService.updateBackendRects();
-             syncService.performWorkflowSync();
-             queueMicrotask(() => propagateFromUnit(fromId));
+         if (!u) return null;
+
+         const sourceFrame = getSourceImageFrame(u);
+         const capability = findArtCapability(graphStore.capabilities, artId);
+         if (!capability) {
+             const details = `source=${fromId} requested=${artId} capabilities=${graphStore.capabilities.length}`;
+             console.error(`[Art node] Refusing to create an unresolved Art node: ${details}`);
+             void api.debugLogEvent("art-node-create-blocked-missing-capability", details);
+             return null;
          }
+
+         const canonicalArtId = capability.id;
+         const newId = crypto.randomUUID();
+         const node = buildStandaloneArtNodeUnit({
+             id: newId,
+             capability,
+             x: u.x + u.w + 50,
+             y: u.y,
+             w: sourceFrame.w,
+             h: sourceFrame.h,
+         });
+         graphStore.actions.addUnit(node);
+         graphStore.actions.addLink({
+             id: crypto.randomUUID(),
+             fromUnitId: fromId, fromPortId: 'output',
+             toUnitId: newId, toPortId: getPrimaryImageInputPort(canonicalArtId)
+         });
+         syncService.updateBackendRects();
+         syncService.performWorkflowSync();
+         queueMicrotask(() => propagateFromUnit(fromId));
+         return newId;
     };
 
     const showEnhancementUnavailable = (unitId: string, feature: "OCR" | "Translation") => {
@@ -286,10 +278,14 @@ export function useUnitActions() {
                  return;
              }
 
+             const interfaceLanguage = typeof document !== "undefined"
+                 ? document.documentElement.lang
+                 : typeof navigator !== "undefined"
+                     ? navigator.language
+                     : "zh-Hans";
              const targetLang =
-                 typeof navigator !== "undefined" &&
-                 typeof navigator.language === "string" &&
-                 !navigator.language.toLowerCase().startsWith("zh")
+                 typeof interfaceLanguage === "string" &&
+                 !interfaceLanguage.toLowerCase().startsWith("zh")
                      ? "en"
                      : "zh";
 

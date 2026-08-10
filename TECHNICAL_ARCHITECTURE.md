@@ -159,7 +159,7 @@ remains SDR by design.
 - `single_instance.rs` prevents two normal Hook instances from running;
 - `mouse_monitor.rs` supports overlay hit testing and click-through decisions;
 - `emergency_watchdog.rs` is an independent process that can terminate the main
-  process on Double Escape or `Ctrl+Alt+Shift+F12` and restores cursor/input state;
+  process after three Escape presses within 400 ms or `Ctrl+Alt+Shift+F12`, and restores cursor/input state;
 - `app_settings.rs` and `file_naming.rs` own validated settings and atomic visible
   filename allocation.
 

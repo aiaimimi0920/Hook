@@ -76,10 +76,12 @@ pub struct HttpTranscriber {
 
 impl HttpTranscriber {
     pub fn new(endpoint: impl Into<String>) -> Self {
-        Self {
-            endpoint: endpoint.into(),
-            client: reqwest::Client::new(),
-        }
+        let endpoint = endpoint.into();
+        let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), &endpoint)
+            .expect("validated Hook proxy settings should build a voice client")
+            .build()
+            .expect("reqwest voice client builder should not fail");
+        Self { endpoint, client }
     }
 }
 
@@ -135,10 +137,12 @@ pub struct HttpTextProcessor {
 
 impl HttpTextProcessor {
     pub fn new(endpoint: impl Into<String>) -> Self {
-        Self {
-            endpoint: endpoint.into(),
-            client: reqwest::Client::new(),
-        }
+        let endpoint = endpoint.into();
+        let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), &endpoint)
+            .expect("validated Hook proxy settings should build a text processor client")
+            .build()
+            .expect("reqwest text processor client builder should not fail");
+        Self { endpoint, client }
     }
 }
 

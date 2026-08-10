@@ -49,16 +49,16 @@ export const HistoryPanel: Component<HistoryPanelProps> = (props) => {
                 </div>
 
                 <div class="flex flex-col gap-1.5">
-                    <span class="text-white/50">取色历史</span>
+                    <span class="hook-history-caption">取色历史</span>
                     <Show
                         when={colors().length > 0}
-                        fallback={<span class="text-white/30">暂无取色记录</span>}
+                        fallback={<span class="hook-history-empty">暂无取色记录</span>}
                     >
                         <div class="flex flex-wrap gap-1.5">
                             <For each={colors()}>
                                 {(entry) => (
                                     <button
-                                        class="h-6 w-6 border border-white/20 transition-transform hover:scale-110"
+                                        class="hook-color-swatch h-6 w-6 transition-transform hover:scale-110"
                                         style={{ "background-color": entry.hex }}
                                         title={`${entry.hex} — 点击复制并设为当前颜色`}
                                         onClick={() => void copyColor(entry.hex)}
@@ -70,15 +70,15 @@ export const HistoryPanel: Component<HistoryPanelProps> = (props) => {
                 </div>
 
                 <div class="flex min-h-0 flex-col gap-1.5">
-                    <span class="text-white/50">截图历史</span>
+                    <span class="hook-history-caption">截图历史</span>
                     <Show
                         when={screenshots().length > 0}
-                        fallback={<span class="text-white/30">暂无截图记录</span>}
+                        fallback={<span class="hook-history-empty">暂无截图记录</span>}
                     >
                         <div class="grid grid-cols-3 gap-1.5 overflow-y-auto pr-1">
                             <For each={screenshots()}>
                                 {(entry) => (
-                                    <div class="group relative aspect-square overflow-hidden border border-white/15 bg-white/5">
+                                    <div class="hook-history-item group relative aspect-square overflow-hidden">
                                         <img
                                             src={entry.thumbnail}
                                             alt="screenshot"
@@ -87,7 +87,7 @@ export const HistoryPanel: Component<HistoryPanelProps> = (props) => {
                                             onClick={() => props.onReuseScreenshot(entry.thumbnail)}
                                         />
                                         <button
-                                            class="absolute right-0 top-0 hidden bg-black/70 px-1 text-[10px] text-red-200 group-hover:block"
+                                            class="hook-history-remove absolute right-0 top-0 hidden px-1 text-[10px] group-hover:block"
                                             title="从历史中删除"
                                             onClick={(event) => {
                                                 event.stopPropagation();

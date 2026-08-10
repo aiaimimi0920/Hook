@@ -306,10 +306,16 @@ fn loom_connector_builds_brain_plan_invoke_envelope_for_hook_caller() {
 
 #[test]
 fn loom_connector_disables_system_http_proxy_for_loopback_capability_calls() {
-    let source = include_str!("../src/loom_connector.rs");
+    let connector_source = include_str!("../src/loom_connector.rs");
+    let proxy_source = include_str!("../src/network_proxy.rs");
 
     assert!(
-        source.contains(".no_proxy()"),
+        connector_source.contains("network_proxy::apply_to_url"),
+        "Loom capability calls must use the shared Hook proxy policy"
+    );
+    assert!(
+        proxy_source.contains("endpoint_is_loopback(endpoint)")
+            && proxy_source.contains("return Ok(builder.no_proxy())"),
         "Loom local capability calls must not send loopback bearer tokens through system HTTP proxies"
     );
 }

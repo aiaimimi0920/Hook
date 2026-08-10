@@ -41,14 +41,14 @@ export const SelectControl: Component<SelectControlProps> = (props) => {
   return (
     <div class="flex items-center gap-3 w-full h-6">
       <label
-        class="text-[#EEF1FF]/80 font-medium text-[11px] shrink-0 truncate cursor-context-menu"
+        class="hook-param-label font-medium text-[11px] shrink-0 truncate cursor-context-menu"
         style={{ "min-width": "70px" }}
       >
         {props.label}
       </label>
       <select
         id={props.id}
-        class="flex-1 min-w-0 h-6 bg-white/5 border border-white/10 rounded px-2 text-white/90 text-[11px] focus:outline-none hover:bg-white/10 transition-colors"
+        class="hook-param-control flex-1 min-w-0 h-6 border rounded px-2 text-[11px] focus:outline-none transition-colors"
         value={currentKey()}
         disabled={props.isDisabled}
         onChange={(event) => {

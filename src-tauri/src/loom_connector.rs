@@ -296,8 +296,7 @@ pub async fn invoke_brain_plan_with_manifest(
         manifest.transport.base_url.trim_end_matches('/')
     );
 
-    let mut builder = reqwest::Client::builder()
-        .no_proxy()
+    let mut builder = crate::network_proxy::apply_to_url(reqwest::Client::builder(), &endpoint)?
         .timeout(Duration::from_millis(timeout_ms))
         .build()?
         .post(endpoint)

@@ -132,11 +132,10 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
                         <For each={getVisibleInputs()}>
                             {(port, i) => (
                                 <div
-                                    class={`rounded-full border border-white/50 transition-all cursor-pointer shadow-sm relative group/port hover:scale-110`}
+                                    class="hook-panel-port rounded-full transition-all cursor-pointer relative group/port hover:scale-110"
                                     data-port-name={port.name}
                                     data-node-port="true"
                                     style={{
-                                        "background-color": "#10b981",
                                         "width": isMinified() ? "8px" : "24px",
                                         "height": isMinified() ? "8px" : "24px",
                                         "flex-shrink": 0, // Prevent squashing
@@ -175,12 +174,11 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
                         <For each={getVisibleOutputs()}>
                             {(port, i) => (
                                 <div
-                                    class={`rounded-full border border-white/50 transition-all cursor-cell shadow-sm relative group/port hover:scale-110`}
+                                    class="hook-panel-port rounded-full transition-all cursor-cell relative group/port hover:scale-110"
                                     data-port-name={port.name}
                                     data-node-port="true"
                                     title={port.label || "Output"}
                                     style={{
-                                        "background-color": "#10b981",
                                         "width": isMinified() ? "8px" : "24px",
                                         "height": isMinified() ? "8px" : "24px",
                                         "flex-shrink": 0, // Prevent squashing

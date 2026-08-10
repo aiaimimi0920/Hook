@@ -38,7 +38,7 @@ export const ImageControl: Component<ImageControlProps> = (props) => {
                class={`hook-terminal-btn w-[60%] flex items-center justify-center gap-1 h-6 px-1 text-[10px] transition-all cursor-crosshair active:scale-95 ${
                  isLinked()
                    ? "hook-terminal-btn--active"
-                   : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80"
+                   : ""
                }`}
                disabled={props.isDisabled}
                onMouseDown={(e) => {
@@ -66,8 +66,8 @@ export const ImageControl: Component<ImageControlProps> = (props) => {
         <label
           class={`hook-terminal-btn flex-1 flex items-center justify-center gap-1.5 h-6 px-2 transition-all cursor-pointer relative group ${
             isData()
-              ? "hook-terminal-btn--success text-emerald-100 hover:bg-emerald-500/30"
-              : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10 hover:text-white/80"
+              ? "hook-terminal-btn--success"
+              : ""
           }`}
           classList={{ "pointer-events-none opacity-50": props.isDisabled }}
           onMouseEnter={() => props.onPreview?.(true)}
@@ -97,7 +97,7 @@ export const ImageControl: Component<ImageControlProps> = (props) => {
                 <span class="truncate text-[10px]">{props.value ? "Selected" : "Choose File"}</span>
                 </>
             }>
-                <div class="mr-0.5 h-4 w-4 shrink-0 border border-white/20 bg-cover bg-center" style={{ "background-image": `url(${props.value})` }} />
+                <div class="hook-image-thumb mr-0.5 h-4 w-4 shrink-0 bg-cover bg-center" style={{ "background-image": `url(${props.value})` }} />
                 <span class="truncate text-[9px]">Img</span>
             </Show>
         </label>

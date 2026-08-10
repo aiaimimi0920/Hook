@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { render } from "solid-js/web";
 import { ShortcutManager } from "../../src/services/shortcuts";
 import {
@@ -8,6 +8,10 @@ import {
 } from "../../src/hooks/useShortcuts";
 
 describe("ShortcutManager legacy Hook shortcuts", () => {
+    beforeEach(() => {
+        ShortcutManager.resetToDefaults();
+    });
+
     it("dispatches Shift+1 to the selected unit actions menu", () => {
         let unitMenuCalls = 0;
 
@@ -158,5 +162,106 @@ describe("ShortcutManager legacy Hook shortcuts", () => {
 
         dispose();
         host.remove();
+    });
+
+    it("hot-applies multiple Loom shortcut candidates", () => {
+        let calls = 0;
+        ShortcutManager.applyLoomSettings({
+            shortcuts: {
+                toggle_actions: {
+                    keys: "Ctrl+K / Shift+9",
+                    enabled: true,
+                },
+            },
+        });
+        ShortcutManager.setContextProvider(() => "unit-selected");
+        ShortcutManager.register("toggle-actions", () => {
+            calls += 1;
+        });
+
+        expect(ShortcutManager.handleKeyDown(new KeyboardEvent("keydown", {
+            key: "k",
+            code: "KeyK",
+            ctrlKey: true,
+        }))).toBe(true);
+        expect(ShortcutManager.handleKeyDown(new KeyboardEvent("keydown", {
+            key: "(",
+            code: "Digit9",
+            shiftKey: true,
+        }))).toBe(true);
+        expect(ShortcutManager.handleKeyDown(new KeyboardEvent("keydown", {
+            key: "!",
+            code: "Digit1",
+            shiftKey: true,
+        }))).toBe(false);
+        expect(calls).toBe(2);
+    });
+
+    it("reuses contextual cancel/delete keys without treating them as a runtime conflict", () => {
+        let captureCancels = 0;
+        let unitDeletes = 0;
+        let context = "capture-selecting";
+        ShortcutManager.applyLoomSettings({
+            shortcuts: {
+                cancel: { keys: "Escape / Delete / Backspace", enabled: true },
+                delete_unit: { keys: "Escape / Delete / Backspace", enabled: true },
+            },
+        });
+        ShortcutManager.setContextProvider(() => context);
+        ShortcutManager.register("cancel-selection", () => {
+            captureCancels += 1;
+        });
+        ShortcutManager.register("delete", () => {
+            unitDeletes += 1;
+        });
+
+        expect(ShortcutManager.handleKeyDown(new KeyboardEvent("keydown", { key: "Delete" }))).toBe(true);
+        context = "unit-selected";
+        expect(ShortcutManager.handleKeyDown(new KeyboardEvent("keydown", { key: "Delete" }))).toBe(true);
+        expect(captureCancels).toBe(1);
+        expect(unitDeletes).toBe(1);
+    });
+
+    it("dispatches configured quick Art bindings only for a selected unit", () => {
+        const arts: string[] = [];
+        let context = "canvas";
+        ShortcutManager.applyLoomSettings({
+            quick_bindings: [{ id: "q1", art: "neuro.official/compress", key: "Alt+8 / F8" }],
+        });
+        ShortcutManager.setContextProvider(() => context);
+        ShortcutManager.setQuickBindingHandler((artId) => arts.push(artId));
+
+        expect(ShortcutManager.handleKeyDown(new KeyboardEvent("keydown", {
+            key: "8",
+            code: "Digit8",
+            altKey: true,
+        }))).toBe(false);
+        context = "unit-selected";
+        expect(ShortcutManager.handleKeyDown(new KeyboardEvent("keydown", {
+            key: "F8",
+            code: "F8",
+        }))).toBe(true);
+        expect(ShortcutManager.handleKeyDown(new KeyboardEvent("keydown", {
+            key: "F8",
+            code: "F8",
+            repeat: true,
+        }))).toBe(true);
+        expect(arts).toEqual(["neuro.official/compress"]);
+    });
+
+    it("hot-applies mouse gesture modifier combinations", () => {
+        ShortcutManager.applyLoomSettings({
+            shortcuts: {
+                drag_out: { keys: "Alt+拖动", enabled: true },
+                control_scale: { keys: "Ctrl+Shift+滚轮", enabled: true },
+            },
+        });
+        const alt = { ctrlKey: false, altKey: true, shiftKey: false, metaKey: false } as MouseEvent;
+        const shift = { ctrlKey: false, altKey: false, shiftKey: true, metaKey: false } as MouseEvent;
+        const ctrlShift = { ctrlKey: true, altKey: false, shiftKey: true, metaKey: false } as MouseEvent;
+
+        expect(ShortcutManager.isDragModifierActive(alt, "dragOut")).toBe(true);
+        expect(ShortcutManager.isDragModifierActive(shift, "dragOut")).toBe(false);
+        expect(ShortcutManager.isGestureActive(ctrlShift, "control_scale")).toBe(true);
     });
 });

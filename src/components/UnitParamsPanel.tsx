@@ -716,7 +716,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
 
         <Show when={isArt() && resultCandidates().length > 1}>
             <div class="flex-shrink-0 px-4 pb-3">
-                <div class="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.12em] text-white/55">
+                <div class="hook-panel-caption flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.12em]">
                     <span>候选</span>
                     <span>
                         当前
@@ -746,13 +746,13 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                                     type="button"
                                     data-art-candidate-index={candidate.index}
                                     data-image-search-candidate-index={candidate.index}
-                                    class="flex flex-col gap-1 rounded-lg border bg-white/[0.03] p-1.5 text-left transition-colors hover:bg-white/[0.08]"
+                                    class="hook-candidate-card flex flex-col gap-1 p-1.5 text-left transition-colors"
                                     style={{
                                         border: selected()
-                                            ? "1px solid rgba(163, 230, 53, 0.9)"
-                                            : "1px solid rgba(255, 255, 255, 0.1)",
+                                            ? "1px solid color-mix(in srgb, var(--theme-signal) 90%, transparent)"
+                                            : "1px solid var(--theme-border)",
                                         "box-shadow": selected()
-                                            ? "0 0 0 1px rgba(163, 230, 53, 0.25)"
+                                            ? "0 0 0 1px color-mix(in srgb, var(--theme-signal) 25%, transparent)"
                                             : "none",
                                     }}
                                     onClick={(event) => {
@@ -761,7 +761,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                                     }}
                                 >
                                     <span
-                                        class="overflow-hidden rounded-md border border-white/10 bg-black/25"
+                                        class="hook-candidate-preview overflow-hidden"
                                         style={{
                                             width: "100%",
                                             height: "54px",
@@ -782,10 +782,10 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                                             }}
                                         />
                                     </span>
-                                    <span class="truncate text-[10px] font-semibold text-white/85">
+                                    <span class="hook-candidate-title truncate text-[10px] font-semibold">
                                         {candidate.title || `候选 ${candidate.index + 1}`}
                                     </span>
-                                    <span class="text-[9px] text-white/45">
+                                    <span class="hook-candidate-index text-[9px]">
                                         #{candidate.index + 1}
                                     </span>
                                 </button>
@@ -793,7 +793,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                         }}
                     </For>
                 </div>
-                <div class="mt-2 h-px bg-white/5" />
+                <div class="hook-separator mt-2 h-px" />
             </div>
         </Show>
 
@@ -807,11 +807,11 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                         return (
                             <div class="flex items-center gap-3 w-full h-6 relative group" style={isDisabled() ? { opacity: 0.5 } : {}}>
                                 <Show when={isDisabled()}>
-                                    <div class="absolute top-1/2 left-0 right-0 h-[2px] bg-red-500 z-[60] pointer-events-none" />
+                                    <div class="hook-port-disabled-line absolute top-1/2 left-0 right-0 h-[2px] z-[60] pointer-events-none" />
                                 </Show>
                                 <div
-                                    class="absolute w-6 h-6 rounded-full border border-white/50 shadow-sm cursor-pointer hover:scale-110 transition-transform z-[50]"
-                                    style={{ "background-color": "#10b981", left: "-27px" }}
+                                    class="hook-panel-port absolute w-6 h-6 rounded-full cursor-pointer hover:scale-110 transition-transform z-[50]"
+                                    style={{ left: "-27px" }}
                                     data-port-type="input"
                                     data-port-name={input.name}
                                     data-panel-port="true"
@@ -821,12 +821,12 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                                     onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); toggleParamDisabled(input.name); }}
                                 />
                                 <span class="font-bold text-[11px] truncate relative z-10 drop-shadow-md cursor-context-menu"
-                                    style={{ color: '#FFFFFF', "max-width": "120px" }}
+                                    style={{ color: "var(--theme-text)", "max-width": "120px" }}
                                     title={`${input.label || input.name} (Right-click to disable)`}
                                     onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); toggleParamDisabled(input.name); }}
                                 >{input.label || input.name}</span>
                                 <button
-                                    class={`w-4 h-4 flex items-center justify-center rounded hover:bg-white/10 transition-colors ${isPortVisible(input.name) ? "text-white/50" : "text-white/20"}`}
+                                    class={`hook-port-visibility w-4 h-4 flex items-center justify-center transition-colors ${isPortVisible(input.name) ? "" : "hook-port-visibility--hidden"}`}
                                     onClick={(e) => { e.stopPropagation(); togglePortVisibility(input.name); }}
                                 >
                                     <Show when={isPortVisible(input.name)} fallback={
@@ -838,7 +838,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                                 {/* Inline Widget */}
                                 <Show when={!isArt() && input.name === 'image'}>
                                     <div class="flex-1 flex justify-start min-w-0 ml-2">
-                                         <label class={`flex items-center justify-start gap-1.5 h-5 rounded px-2 border transition-all cursor-pointer relative group ${(props.params.image_path) ? "bg-emerald-500/20 border-emerald-500/40 hover:bg-emerald-500/30" : "bg-white/10 border-white/20 text-white/90 hover:bg-white/20 hover:text-white"}`}
+                                         <label class={`hook-inline-upload flex items-center justify-start gap-1.5 h-5 px-2 transition-all cursor-pointer relative group ${(props.params.image_path) ? "hook-inline-upload--loaded" : ""}`}
                                          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); props.onParamChange("image_path", ""); props.onParamChange("image_filename", ""); }}>
                                              <input type="file" accept="image/*" class="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer z-50 block" onChange={(e) => {
                                                   const file = e.currentTarget.files?.[0];
@@ -861,7 +861,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                         );
                     }}
                  </For>
-                  <div class="h-px bg-white/5 my-1" />
+                  <div class="hook-separator h-px my-1" />
              </div>
         </Show>
 
@@ -873,9 +873,9 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                          const isDisabled = () => props.params[output.name] === DISABLED_PREFIX;
                          return (
                              <div class="flex items-center justify-end gap-3 w-full h-6 relative group" style={isDisabled() ? { opacity: 0.5 } : {}}>
-                                 <Show when={isDisabled()}><div class="absolute top-1/2 left-0 right-0 h-[2px] bg-red-500 z-[60] pointer-events-none" /></Show>
-                                 <div class="absolute w-6 h-6 rounded-full border border-white/50 shadow-sm cursor-cell hover:scale-110 transition-transform z-[50]"
-                                     style={{ "background-color": "#10b981", right: "-27px" }}
+                                 <Show when={isDisabled()}><div class="hook-port-disabled-line absolute top-1/2 left-0 right-0 h-[2px] z-[60] pointer-events-none" /></Show>
+                                 <div class="hook-panel-port absolute w-6 h-6 rounded-full cursor-cell hover:scale-110 transition-transform z-[50]"
+                                     style={{ right: "-27px" }}
                                      data-port-type="output"
                                      data-port-name={output.name}
                                      data-panel-port="true"
@@ -883,21 +883,21 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                                      onMouseDown={(e) => { if (e.button !== 0) return; e.stopPropagation(); props.onLinkStart(output.name, e.clientX, e.clientY); }}
                                      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); toggleParamDisabled(output.name); }}
                                   />
-                                 <button class={`w-4 h-4 flex items-center justify-center rounded hover:bg-white/10 transition-colors mr-1 ${isPortVisible(output.name) ? "text-white/50" : "text-white/20"}`}
+                                 <button class={`hook-port-visibility w-4 h-4 flex items-center justify-center transition-colors mr-1 ${isPortVisible(output.name) ? "" : "hook-port-visibility--hidden"}`}
                                      onClick={(e) => { e.stopPropagation(); togglePortVisibility(output.name); }}>
                                      <Show when={isPortVisible(output.name)} fallback={<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>}>
                                           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                      </Show>
                                  </button>
                                  <span class="font-bold text-[11px] truncate text-right relative z-10 drop-shadow-md cursor-context-menu"
-                                     style={{ color: '#FFFFFF', "max-width": "120px" }}
+                                     style={{ color: "var(--theme-text)", "max-width": "120px" }}
                                      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); toggleParamDisabled(output.name); }}
                                  >{output.label || output.name}</span>
                              </div>
                          );
                      }}
                  </For>
-                  <div class="h-px bg-white/5 my-1" />
+                  <div class="hook-separator h-px my-1" />
              </div>
         </Show>
 
@@ -949,11 +949,11 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                               {(group) => (
                                   <div class="param-group flex flex-col gap-3" data-param-group={group.id}>
                                       <div
-                                          class="flex items-center justify-between gap-2 rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/65"
+                                          class="hook-param-group-header flex items-center justify-between gap-2 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
                                           data-param-group-header={group.id}
                                       >
                                           <span class="truncate">{group.label}</span>
-                                          <span class="text-white/40">{group.params.length}</span>
+                                          <span class="hook-param-group-count">{group.params.length}</span>
                                       </div>
                                       <For each={group.params}>{(param) => renderParamControl(param)}</For>
                                   </div>
@@ -1030,7 +1030,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
              </div>
 
              <Show when={props.unit.type === 'sticker'}>
-                  <div class="h-px w-full bg-white/10 my-2" />
+                  <div class="hook-separator h-px w-full my-2" />
                  <label class="flex items-center justify-between gap-2 cursor-pointer select-none group">
                      <span class="text-[11px] leading-4" style={{ color: "var(--text-secondary)", opacity: "0.9" }}>接受上级贴图编辑传导</span>
                      <input
@@ -1045,11 +1045,11 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                      />
                  </label>
                  <Show when={props.unit.data.stickerEditPropagation?.locallyEdited}>
-                     <div class="mt-1 text-[10px] text-white/35">已本地编辑</div>
+                     <div class="hook-locally-edited mt-1 text-[10px]">已本地编辑</div>
                  </Show>
              </Show>
 
-              <div class="h-px w-full bg-white/10 my-2" />
+              <div class="hook-separator h-px w-full my-2" />
 
              <button
                  class={`hook-terminal-btn w-full flex items-center justify-center gap-2 h-7 text-[11px] font-medium transition-all ${displaySrc() ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}
@@ -1097,10 +1097,10 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                  onDblClick={(e) => e.stopPropagation()}
              >
                  <div class="flex items-center justify-between mb-2">
-                     <span class="text-xs font-bold text-white/90 uppercase tracking-wider">Edit Text</span>
-                      <button class="text-white/40 hover:text-white transition-colors" onClick={closeTextEditor}><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                     <span class="text-xs font-bold uppercase tracking-wider">Edit Text</span>
+                      <button class="hook-toolbar-button" onClick={closeTextEditor}><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
                  </div>
-                 <textarea class="hook-terminal-input w-full h-[150px] p-3 text-[11px] leading-relaxed resize-y min-h-[100px] scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent font-mono mb-3"
+                 <textarea class="hook-terminal-input hook-scrollbar w-full h-[150px] p-3 text-[11px] leading-relaxed resize-y min-h-[100px] font-mono mb-3"
                      value={tempText()}
                      onInput={(e) => { setTempText(e.currentTarget.value); setTextEditorError(null); }}
                      onPointerDown={focusOverlayFromPointerEvent}
@@ -1110,10 +1110,10 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                      autofocus
                  />
                  <Show when={textEditorError()}>
-                     {(message) => <div class="mb-2 text-[10px] leading-4 text-red-300">JSON 格式错误：{message()}</div>}
+                     {(message) => <div class="hook-inline-danger mb-2 text-[10px] leading-4">JSON 格式错误：{message()}</div>}
                  </Show>
                  <div class="flex justify-between items-center mt-auto">
-                     <span class="text-[10px] text-white/30 font-mono self-center">{tempText().length} chars</span>
+                     <span class="hook-inline-muted text-[10px] font-mono self-center">{tempText().length} chars</span>
                      <button class="hook-terminal-btn hook-terminal-btn--success px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
                          onClick={(e) => { e.stopPropagation(); commitTextEditor(); }}>Save Text</button>
                  </div>
@@ -1130,9 +1130,9 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                     "padding": "8px", "color": "var(--text-primary)"
                 }} onMouseDown={(e) => e.stopPropagation()}
             >
-                 <div class="mb-2 flex justify-between items-center text-[10px] text-white/50 font-mono border-b border-white/10 pb-1"><span class="font-bold text-white/80 uppercase tracking-widest">Image Preview</span></div>
-                 <img src={previewSrc()} class="w-full h-auto object-contain bg-black/20 border border-white/5" style={{"max-height": "300px"}} />
-                 <div class="mt-1 text-[9px] text-white/30 font-mono text-right truncate">{(previewSrc().length / 1024).toFixed(1)} KB</div>
+                 <div class="hook-preview-header mb-2 flex justify-between items-center text-[10px] font-mono pb-1"><span class="font-bold uppercase tracking-widest">Image Preview</span></div>
+                 <img src={previewSrc()} class="hook-image-preview-frame w-full h-auto object-contain" style={{"max-height": "300px"}} />
+                 <div class="hook-inline-muted mt-1 text-[9px] font-mono text-right truncate">{(previewSrc().length / 1024).toFixed(1)} KB</div>
             </div>
         )}
     </Show>

@@ -15,8 +15,11 @@ pub async fn read_hook_voice_config(
     base_url: &str,
     auth_token: Option<&str>,
 ) -> Result<Option<VoiceConfig>, String> {
-    let client = reqwest::Client::new();
     let base = base_url.trim_end_matches('/');
+    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base_url)
+        .map_err(|error| error.to_string())?
+        .build()
+        .map_err(|error| error.to_string())?;
     let mut claim = client.get(format!("{base}/v1/configuration/claims?app=hook"));
     if let Some(token) = auth_token {
         claim = claim.bearer_auth(token);

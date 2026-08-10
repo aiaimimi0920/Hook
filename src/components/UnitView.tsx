@@ -38,6 +38,7 @@ import {
 import { normalizeImageSourceForDisplay } from "../services/imageSource";
 import { api, isTauriRuntimeAvailable } from "../services/api";
 import { stickerContextMenuController } from "../services/stickerContextMenuController";
+import { ShortcutManager } from "../services/shortcuts";
 import {
   renderStickerComposite,
   resolveStickerCompositeBaseImageSrc,
@@ -884,12 +885,12 @@ export const UnitView: Component<Props> = (props) => {
       }}
       onDblClick={handleUnitDoubleClick}
       onWheel={(e) => {
-        if (e.ctrlKey) {
+        if (ShortcutManager.isGestureActive(e, 'sticker_resize')) {
             e.preventDefault();
             e.stopPropagation();
             if (isMinified()) return;
             queueWheelResize(e);
-        } else if (e.altKey) {
+        } else if (ShortcutManager.isGestureActive(e, 'sticker_opacity')) {
             e.preventDefault();
             e.stopPropagation();
 
@@ -1269,15 +1270,13 @@ export const UnitView: Component<Props> = (props) => {
 
             <Show when={isArt() && liveUnit().data.nodeStatus === "error"}>
                 <div
-                    class="pointer-events-none absolute inset-0 flex items-center justify-center px-3 text-center"
+                    class="hook-art-error-overlay pointer-events-none absolute inset-0 flex items-center justify-center px-3 text-center"
                     style={{
                         "z-index": 30,
-                        "background-color": "rgba(15, 23, 42, 0.82)",
-                        color: "#fecaca",
                     }}
                 >
                     <div style={{ "max-height": "70%", overflow: "hidden" }}>
-                        <div class="text-xs font-semibold" style={{ color: "#fca5a5" }}>
+                        <div class="hook-art-error-overlay__title text-xs font-semibold">
                             执行失败
                         </div>
                         <div class="mt-1 text-[11px] leading-snug break-words">
@@ -1336,7 +1335,7 @@ export const UnitView: Component<Props> = (props) => {
             <Show when={enhancementNotices[props.unit.id]}>
                 {(notice) => (
                     <div
-                        class="enhancement-notice absolute left-2 right-2 top-2 rounded-xl border border-amber-300/35 bg-slate-950/90 p-3 text-left text-white shadow-2xl backdrop-blur-md"
+                        class="enhancement-notice hook-enhancement-notice absolute left-2 right-2 top-2 p-3 text-left"
                         style={{ "z-index": 40, "pointer-events": "auto" }}
                         onMouseDown={(event) => {
                             event.stopPropagation();
@@ -1353,15 +1352,15 @@ export const UnitView: Component<Props> = (props) => {
                     >
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
-                                <div class="text-[11px] font-semibold text-amber-100">
+                                <div class="hook-enhancement-notice__title text-[11px] font-semibold">
                                     {notice().title}
                                 </div>
-                                <div class="mt-1 text-[10px] leading-snug text-white/70">
+                                <div class="hook-enhancement-notice__copy mt-1 text-[10px] leading-snug">
                                     {notice().message}
                                 </div>
                             </div>
                             <button
-                                class="shrink-0 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                                class="hook-terminal-btn shrink-0 px-2 py-1 text-[10px]"
                                 onMouseDown={(event) => {
                                     event.stopPropagation();
                                 }}

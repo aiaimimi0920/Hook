@@ -107,7 +107,7 @@ export const CanvasLinks: Component = () => {
              if (!cleanView) {
                  paths.push({
                      x1: bodyX1, y1: bodyY1, x2: bodyX2, y2: bodyY2,
-                     dashed: false, color: "#9CA3AF"
+                     dashed: false, color: "var(--theme-text-muted)"
                  });
              }
 
@@ -139,7 +139,7 @@ export const CanvasLinks: Component = () => {
              if (showDashed) {
                  paths.push({
                      x1: pX1, y1: pY1, x2: pX2, y2: pY2,
-                     dashed: true, color: "#9CA3AF"
+                     dashed: true, color: "var(--theme-text-muted)"
                  });
              }
 
@@ -208,7 +208,7 @@ export const CanvasLinks: Component = () => {
       >
         <defs>
             <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                <polygon points="0 0, 10 3.5, 0 7" fill="#9CA3AF" />
+                <polygon points="0 0, 10 3.5, 0 7" fill="var(--theme-text-muted)" />
             </marker>
         </defs>
 
@@ -217,7 +217,7 @@ export const CanvasLinks: Component = () => {
              <path
                 d={`M ${linkingState().startX} ${linkingState().startY} C ${linkingState().startX + 50} ${linkingState().startY}, ${mousePos().x - 50} ${mousePos().y}, ${mousePos().x} ${mousePos().y}`}
                 fill="none"
-                stroke="#AAC4FF"
+                stroke="var(--theme-info-text)"
                 stroke-width="2"
                 stroke-dasharray="5,5"
                 marker-end="url(#arrowhead)"
@@ -248,7 +248,7 @@ export const CanvasLinks: Component = () => {
                         y1={link.source.y + link.source.h / 2}
                         x2={link.target.x + link.target.w / 2}
                         y2={link.target.y + link.target.h / 2}
-                        stroke="#FEF08A"
+                        stroke="var(--theme-signal)"
                         stroke-width="1.5"
                         stroke-dasharray="4,4"
                         opacity="0.5"
@@ -259,7 +259,7 @@ export const CanvasLinks: Component = () => {
                         width={link.target.w + 4}
                         height={link.target.h + 4}
                         fill="none"
-                        stroke="#FEF08A"
+                        stroke="var(--theme-signal)"
                         stroke-width="1.5"
                         stroke-dasharray="4,4"
                         rx="6"
@@ -276,7 +276,7 @@ export const CanvasLinks: Component = () => {
                      <path
                         d={`M ${link().source.x + link().source.w / 2} ${link().source.y + link().source.h / 2} C ${link().source.x + link().source.w / 2 + 50} ${link().source.y + link().source.h / 2}, ${link().target.x + link().target.w / 2 - 50} ${link().target.y + link().target.h / 2}, ${link().target.x + link().target.w / 2} ${link().target.y + link().target.h / 2}`}
                         fill="none"
-                        stroke="#FACC15"
+                        stroke="var(--theme-signal)"
                         stroke-width="2"
                         stroke-dasharray="8,4"
                         class="animate-pulse"
@@ -287,7 +287,7 @@ export const CanvasLinks: Component = () => {
                         width={link().target.w + 8}
                         height={link().target.h + 8}
                         fill="none"
-                        stroke="#FACC15"
+                        stroke="var(--theme-signal)"
                         stroke-width="2"
                         stroke-dasharray="8,4"
                         rx="8"

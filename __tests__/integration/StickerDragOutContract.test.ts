@@ -296,7 +296,7 @@ describe("Hook sticker drag-out contract", () => {
     );
   });
 
-  it("bypasses synthetic drag state before a Shift sticker body press hands off to native drag", () => {
+  it("bypasses synthetic drag state before the configured sticker drag-out gesture hands off to native drag", () => {
     const hookProcSection = extractRustSection(
       "unsafe extern \"system\" fn capture_mouse_hook_proc(",
       "fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow)",
@@ -308,10 +308,10 @@ describe("Hook sticker drag-out contract", () => {
     );
 
     expect(rustSource).toContain("fn is_pointer_over_sticker_body_synthetic_rect(x: f64, y: f64) -> bool");
-    expect(hookProcSection).toContain("let shift_sticker_native_drag_preflight =");
-    expect(hookProcSection).toMatch(
-      /modifiers\.shift_pressed\s*&&\s*is_pointer_over_sticker_body_synthetic_rect\(x, y\)/,
-    );
+    expect(hookProcSection).toContain("let configured_sticker_native_drag_preflight =");
+    expect(hookProcSection).toContain("shortcut_config::gesture_matches(");
+    expect(hookProcSection).toContain('"drag_out"');
+    expect(hookProcSection).toContain("is_pointer_over_sticker_body_synthetic_rect(x, y)");
     expect(hookProcSection).toContain("OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE");
     expect(hookProcSection).toContain(".store(true, Ordering::SeqCst);");
     expect(hookProcSection).toContain("native_drag_preflight: true");

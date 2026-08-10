@@ -627,6 +627,9 @@ export const api = {
     saveAppSettings: (settings: AppSettings): Promise<AppSettings> =>
         safeInvoke("save_app_settings", { settings }, () => settings, false),
 
+    getLoomShortcutSettings: (): Promise<unknown | null> =>
+        safeInvoke("get_loom_shortcut_settings", undefined, () => null, false),
+
     getInstalledFonts: (): Promise<string[]> =>
         safeInvoke("get_installed_fonts", undefined, () => [], false),
 
