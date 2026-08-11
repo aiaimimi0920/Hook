@@ -23,6 +23,8 @@ import {
   computeStickerWheelResizeFrame,
 } from "../services/stickerEditing";
 import { ShaderPreview } from "./ShaderPreview";
+import { DeclarativeSurface } from "./DeclarativeSurface";
+import { JavaScriptSurface } from "./JavaScriptSurface";
 import { UnitParamsPanel } from "./UnitParamsPanel";
 import { UnitAddNodeMenu } from "./UnitAddNodeMenu";
 import { UnitPorts } from "./UnitPorts";
@@ -46,6 +48,7 @@ import {
 import {
   shaderInputPortName,
   shaderReferenceInputPortName,
+  supportsSurface,
   supportsShaderPreview,
 } from "../services/artCapabilities";
 import {
@@ -73,6 +76,10 @@ import {
     bakedSyncPreviewCacheRevision,
     resolveCachedBakedSyncPreview,
 } from "../services/syncImageCache";
+import { surfaceStore } from "../store/surfaceStore";
+import { surfaceResourceStore } from "../store/surfaceResourceStore";
+import { artLoom } from "../services/client";
+import { surfaceAttachmentRequests } from "../services/surfaceAttachmentRequests";
 
 interface Props {
   unit: Unit;
@@ -222,6 +229,46 @@ export const UnitView: Component<Props> = (props) => {
   };
   const showSelectionBorder = () => true;
   const isShaderArt = () => isArt() && supportsShaderPreview(props.capability);
+  const surfaceState = () => isArt() ? surfaceStore.byUnit[props.unit.id] : undefined;
+  const hasDeclarativeSurface = () => !!surfaceState();
+  createEffect(() => {
+      const leases = surfaceState()?.snapshot.resourceLeases ?? [];
+      for (const lease of leases) {
+          if (
+              lease.transport.kind !== "loom_resource" &&
+              lease.transport.kind !== "shared_memory"
+          ) continue;
+          const resourceId = lease.resource.resourceId;
+          if (!surfaceResourceStore.actions.begin(resourceId)) continue;
+          void artLoom.fetchSurfaceResource(lease).catch((error) => {
+              surfaceResourceStore.actions.fail(resourceId);
+              graphStore.actions.updateUnitData(props.unit.id, {
+                  nodeStatus: "error",
+                  errorMessage: error instanceof Error
+                      ? error.message
+                      : "Surface resource fetch failed",
+              });
+          });
+      }
+  });
+  createEffect(() => {
+      const artId = props.unit.artId;
+      if (
+          !artId ||
+          !supportsSurface(props.capability) ||
+          hasDeclarativeSurface() ||
+          !surfaceAttachmentRequests.begin(props.unit.id)
+      ) {
+          return;
+      }
+      void artLoom.attachSurface(artId, props.unit.id).catch((error) => {
+          surfaceAttachmentRequests.fail(props.unit.id);
+          graphStore.actions.updateUnitData(props.unit.id, {
+              nodeStatus: "error",
+              errorMessage: error instanceof Error ? error.message : "Surface attach failed",
+          });
+      });
+  });
   const effectiveParams = () =>
       isArt()
           ? resolveEffectiveNodeParams({
@@ -976,8 +1023,54 @@ export const UnitView: Component<Props> = (props) => {
             "opacity": getOpacity(),
             "z-index": "1" // Ensure it covers the tucked-under ports
         }}>
+            <Show when={surfaceState()} keyed>
+                {(surface) => (
+                    <Show
+                        when={(surface.snapshot.runtime ?? "declarative") === "javascript"}
+                        fallback={(
+                            <DeclarativeSurface
+                                unitId={props.unit.id}
+                                snapshot={surface.snapshot}
+                                generation={surface.generation}
+                                interactive={!isMinified()}
+                                resolveResource={surfaceResourceStore.actions.resolve}
+                                onEvent={(event) => {
+                                    void artLoom.dispatchSurfaceEvent(event).catch((error) => {
+                                        graphStore.actions.updateUnitData(props.unit.id, {
+                                            nodeStatus: "error",
+                                            errorMessage: error instanceof Error
+                                                ? error.message
+                                                : "Surface event dispatch failed",
+                                        });
+                                    });
+                                }}
+                            />
+                        )}
+                    >
+                        <JavaScriptSurface
+                            unitId={props.unit.id}
+                            snapshot={surface.snapshot}
+                            generation={surface.generation}
+                            lifecycle={surface.lifecycle}
+                            interactive={!isMinified()}
+                            resolveResource={surfaceResourceStore.actions.resolve}
+                            onEvent={(event) => {
+                                void artLoom.dispatchSurfaceEvent(event).catch((error) => {
+                                    graphStore.actions.updateUnitData(props.unit.id, {
+                                        nodeStatus: "error",
+                                        errorMessage: error instanceof Error
+                                            ? error.message
+                                            : "Surface event dispatch failed",
+                                    });
+                                });
+                            }}
+                        />
+                    </Show>
+                )}
+            </Show>
+
             {/* SHADER ART: Use ShaderPreview for real-time rendering */}
-            <Show when={isShaderArt() && getArtId()}>
+            <Show when={!hasDeclarativeSurface() && isShaderArt() && getArtId()}>
                 {/* Wrapper for Crop/Minify Logic - Mimics img tag behavior */}
                 <div style={(() => {
                     if (isMinified()) {
@@ -1022,7 +1115,7 @@ export const UnitView: Component<Props> = (props) => {
             {/* A minified sticker is a read-only crop. When the sync cache has a
                 current composite, display that single bitmap instead of asking
                 WebView2 to relayout and repaint every editable SVG annotation. */}
-            <Show when={minifiedBakedPreviewSrc()} keyed>
+            <Show when={!hasDeclarativeSurface() && minifiedBakedPreviewSrc()} keyed>
                 {(src) => {
                     const viewport = getMinifiedAnnotationViewport();
                     return (
@@ -1058,7 +1151,7 @@ export const UnitView: Component<Props> = (props) => {
             </Show>
 
             {/* Standard Image Layer (hidden for Shader Arts) */}
-            <Show when={!isShaderArt()}>
+            <Show when={!hasDeclarativeSurface() && !isShaderArt()}>
             <div
                 class="sticker-image-content-frame"
                 style={(() => {

@@ -43,6 +43,9 @@ image = "0.25.9"
 half = "2.7"
 png = "0.18"
 base64 = "0.22.1"
+ed25519-dalek = { version = "2.2", features = ["rand_core"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+sha2 = "0.10"
 arboard = "3.6.1"
 tauri-plugin-global-shortcut = "2.3.1"
 shared_memory = "0.12.4"

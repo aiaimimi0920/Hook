@@ -14,6 +14,7 @@ import { StickerGroupBar } from "./components/StickerGroupBar";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { StickerContextMenuLayer } from "./components/StickerContextMenuLayer";
 import { AppSettingsDialog } from "./components/AppSettingsDialog";
+import { SurfaceConfirmationDialog } from "./components/SurfaceConfirmationDialog";
 import { sanitizeHistoryState } from "./services/historyModel";
 import { normalizeStickerToolSettings } from "./services/toolSettings";
 import { addRecycleBinEntry, pruneRecycleBinEntries } from "./services/stickerLibraryModel";
@@ -21,6 +22,9 @@ import { captureFrozenStickerSnapshot } from "./services/stickerSnapshot";
 
 // Stores & Services
 import { graphStore } from "./store/graphStore";
+import { SurfaceStateError, surfaceStore } from "./store/surfaceStore";
+import { surfaceResourceStore } from "./store/surfaceResourceStore";
+import { surfaceAttachmentRequests } from "./services/surfaceAttachmentRequests";
 import {
     linkingState,
     setLinkingState,
@@ -120,6 +124,12 @@ import { useUnitActions } from "./hooks/useUnitActions";
 import { useClipboard } from "./hooks/useClipboard";
 import { useFileDrop } from "./hooks/useFileDrop";
 import type { ArtDelivery, ArtCapability } from "./services/protocol";
+import {
+    SURFACE_PROTOCOL_VERSION,
+    type SurfaceConfirmationRequest,
+    type SurfaceLifecycleState,
+    type SurfacePortValue,
+} from "./services/surfaceProtocol";
 import type { Unit } from "./types/unit";
 
 type VoiceStatus = "idle" | "recording" | "transcribing" | "completed" | "failed" | "cancelled" | "unknown";
@@ -169,6 +179,26 @@ const resolveVoiceSessionStatus = (payload: VoiceSessionPayload): VoiceStatus =>
     }
 };
 
+const surfacePortValue = (port: SurfacePortValue): unknown => {
+    switch (port.kind) {
+        case "value":
+            return port.value;
+        case "resource":
+            return port.resource;
+        case "stream":
+            return port.stream;
+    }
+};
+
+const surfacePreviewSource = (port: SurfacePortValue): string | undefined => {
+    if (port.kind !== "value") return undefined;
+    const value = port.value;
+    if (typeof value === "string") return normalizeImageSourceForDisplay(value);
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+    const source = (value as Record<string, unknown>).src;
+    return typeof source === "string" ? normalizeImageSourceForDisplay(source) : undefined;
+};
+
 export default function App() {
   let portsLayerRef: HTMLDivElement | undefined;
   let activeBootProfile: BootProfile | null = null;
@@ -184,6 +214,32 @@ export default function App() {
       fileNaming: { ...DEFAULT_APP_SETTINGS.fileNaming },
   });
   const [appSettingsOpen, setAppSettingsOpen] = createSignal(false);
+  const [surfaceConfirmations, setSurfaceConfirmations] = createSignal<SurfaceConfirmationRequest[]>([]);
+  const [surfaceConfirmationSubmitting, setSurfaceConfirmationSubmitting] = createSignal(false);
+  const [surfaceConfirmationError, setSurfaceConfirmationError] = createSignal<string>();
+
+  const decideCurrentSurfaceConfirmation = async (approved: boolean) => {
+      const current = surfaceConfirmations()[0];
+      if (!current || surfaceConfirmationSubmitting()) return;
+      setSurfaceConfirmationSubmitting(true);
+      setSurfaceConfirmationError(undefined);
+      try {
+          await artLoom.decideSurfaceConfirmation({
+              protocolVersion: SURFACE_PROTOCOL_VERSION,
+              confirmationId: current.confirmationId,
+              instanceId: current.instanceId,
+              attachmentId: current.attachmentId,
+              deviceId: current.deviceId,
+              approved,
+          });
+          setSurfaceConfirmations((requests) =>
+              requests.filter((request) => request.confirmationId !== current.confirmationId));
+      } catch (error) {
+          setSurfaceConfirmationError(error instanceof Error ? error.message : String(error));
+      } finally {
+          setSurfaceConfirmationSubmitting(false);
+      }
+  };
 
   // Hooks Integration
   const { startDrag, handleDragMove, handleDragEnd } = useDraggable();
@@ -587,6 +643,27 @@ export default function App() {
       await syncService.performWorkflowSync();
   };
 
+  const transitionSurfaceLifecycle = async (
+      unitId: string,
+      state: SurfaceLifecycleState,
+  ): Promise<void> => {
+      const current = surfaceStore.byUnit[unitId];
+      if (!current || current.lifecycle === "disposed" || current.lifecycle === state) return;
+      const event = {
+          protocolVersion: "loom.surface.v1" as const,
+          instanceId: current.snapshot.instanceId,
+          attachmentId: current.snapshot.attachmentId,
+          state,
+          revision: current.lifecycleRevision + 1,
+      };
+      if (!surfaceStore.actions.applyLifecycle(unitId, event)) return;
+      try {
+          await artLoom.dispatchSurfaceLifecycle(event);
+      } catch (error) {
+          console.warn(`Failed to move Surface ${unitId} to ${state}:`, error);
+      }
+  };
+
   const deleteSelectedUnitOrAnnotation = () => {
       const plan = resolveDeletionPlan({
           selectedAnnotationId: selectedStickerAnnotationId(),
@@ -611,6 +688,9 @@ export default function App() {
 
       if (plan.kind === "units") {
           const ids = plan.unitIds;
+          ids.forEach((id) => {
+              void transitionSurfaceLifecycle(id, "disposed");
+          });
           const recycleEntries = ids
               .map((id) => graphStore.units.find((unit) => unit.id === id))
               .filter((unit): unit is Unit => !!unit && unit.type === "sticker")
@@ -1312,6 +1392,16 @@ export default function App() {
                   }
               },
           );
+          const onSurfaceVisibilityChange = () => {
+              const state: SurfaceLifecycleState = document.hidden ? "suspended" : "active";
+              for (const unitId of Object.keys(surfaceStore.byUnit)) {
+                  void transitionSurfaceLifecycle(unitId, state);
+              }
+          };
+          document.addEventListener("visibilitychange", onSurfaceVisibilityChange);
+          cleanups.push(() => {
+              document.removeEventListener("visibilitychange", onSurfaceVisibilityChange);
+          });
 
           const unlistenProgress = await artLoom.listenForProgress((artId, progress) => {
               graphStore.actions.updateUnitData(artId, {
@@ -1341,6 +1431,243 @@ export default function App() {
                   });
                   artExecutionRequests.finish(delivery.art_id, delivery.request_id);
               });
+          });
+
+          const unlistenSurfaceSnapshot = await artLoom.listenForSurfaceSnapshot((delivery) => {
+              const unit = graphStore.units.find((candidate) => candidate.id === delivery.hookNodeId);
+              if (!unit || unit.type !== "art") {
+                  console.warn("Ignoring Surface snapshot for unknown non-Art node", delivery.hookNodeId);
+                  return;
+              }
+              try {
+                  surfaceStore.actions.mountSnapshot(
+                      delivery.hookNodeId,
+                      delivery.snapshot,
+                      delivery.generation,
+                  );
+                  surfaceAttachmentRequests.complete(delivery.hookNodeId);
+                  graphStore.actions.updateUnitData(delivery.hookNodeId, {
+                      processing: false,
+                      nodeStatus: "completed",
+                      errorMessage: undefined,
+                  });
+              } catch (error) {
+                  graphStore.actions.updateUnitData(delivery.hookNodeId, {
+                      nodeStatus: "error",
+                      errorMessage: error instanceof Error ? error.message : String(error),
+                  });
+              }
+          });
+
+          const surfaceRemountsInFlight = new Set<string>();
+          const unlistenSurfacePatch = await artLoom.listenForSurfacePatch((delivery) => {
+              const current = surfaceStore.byUnit[delivery.hookNodeId];
+              if (!current || current.snapshot.instanceId !== delivery.patch.instanceId) return;
+              try {
+                  surfaceStore.actions.applyPatch(delivery.hookNodeId, delivery.patch);
+                  surfaceStore.actions.setGeneration(delivery.hookNodeId, delivery.generation);
+              } catch (error) {
+                  if (error instanceof SurfaceStateError && error.code === "revision_conflict") {
+                      const recoveryKey = `${delivery.patch.instanceId}:${current.snapshot.attachmentId}`;
+                      if (!surfaceRemountsInFlight.has(recoveryKey)) {
+                          surfaceRemountsInFlight.add(recoveryKey);
+                          void artLoom.remountSurface(
+                              delivery.patch.instanceId,
+                              current.snapshot.attachmentId,
+                              delivery.hookNodeId,
+                          ).catch((recoveryError) => {
+                              graphStore.actions.updateUnitData(delivery.hookNodeId, {
+                                  nodeStatus: "error",
+                                  errorMessage: recoveryError instanceof Error
+                                      ? recoveryError.message
+                                      : "Surface snapshot recovery failed",
+                              });
+                          }).finally(() => {
+                              surfaceRemountsInFlight.delete(recoveryKey);
+                          });
+                      }
+                      return;
+                  }
+                  graphStore.actions.updateUnitData(delivery.hookNodeId, {
+                      nodeStatus: "error",
+                      errorMessage: error instanceof Error ? error.message : String(error),
+                  });
+              }
+          });
+
+          const unlistenSurfaceGeneration = await artLoom.listenForSurfaceGeneration((delivery) => {
+              const current = surfaceStore.byUnit[delivery.hookNodeId];
+              if (
+                  current?.snapshot.instanceId === delivery.instanceId &&
+                  current.snapshot.attachmentId === delivery.attachmentId
+              ) {
+                  surfaceStore.actions.setGeneration(delivery.hookNodeId, delivery.generation);
+              }
+          });
+
+          const surfaceUnitIdForInstance = (instanceId: string): string | undefined =>
+              Object.entries(surfaceStore.byUnit).find(
+                  ([, state]) => state?.snapshot.instanceId === instanceId,
+              )?.[0];
+
+          const unlistenSurfaceActionAck = await artLoom.listenForSurfaceActionAck((ack) => {
+              if (ack.status !== "awaiting_confirmation") {
+                  setSurfaceConfirmations((requests) => requests.filter(
+                      (request) => request.requestId !== ack.requestId,
+                  ));
+              }
+              const unitId = surfaceUnitIdForInstance(ack.instanceId);
+              if (!unitId) return;
+              if (ack.status === "awaiting_confirmation") {
+                  graphStore.actions.updateUnitData(unitId, {
+                      processing: false,
+                      nodeStatus: "idle",
+                      errorMessage: undefined,
+                  });
+                  return;
+              }
+              if (ack.status === "queued" || ack.status === "running" || ack.status === "accepted") {
+                  graphStore.actions.updateUnitData(unitId, {
+                      processing: true,
+                      nodeStatus: "running",
+                      errorMessage: undefined,
+                  });
+                  return;
+              }
+              if (ack.status === "succeeded") {
+                  graphStore.actions.updateUnitData(unitId, {
+                      processing: false,
+                      progress: 1,
+                      nodeStatus: "completed",
+                      errorMessage: undefined,
+                  });
+                  return;
+              }
+              if (["failed", "cancelled", "interrupted"].includes(ack.status)) {
+                  graphStore.actions.updateUnitData(unitId, {
+                      processing: false,
+                      nodeStatus: ack.status === "cancelled" ? "idle" : "error",
+                      errorMessage: ack.error?.message,
+                  });
+              }
+          });
+
+          const unlistenSurfaceConfirmation = await artLoom.listenForSurfaceConfirmation((request) => {
+              if (request.protocolVersion !== SURFACE_PROTOCOL_VERSION) return;
+              if (request.expiresAtMs <= Date.now()) {
+                  void artLoom.decideSurfaceConfirmation({
+                      protocolVersion: SURFACE_PROTOCOL_VERSION,
+                      confirmationId: request.confirmationId,
+                      instanceId: request.instanceId,
+                      attachmentId: request.attachmentId,
+                      deviceId: request.deviceId,
+                      approved: false,
+                  });
+                  return;
+              }
+              setSurfaceConfirmations((current) => current.some(
+                  (candidate) => candidate.confirmationId === request.confirmationId,
+              ) ? current : [...current, request]);
+          });
+
+          const unlistenSurfaceProgress = await artLoom.listenForSurfaceProgress((progress) => {
+              const unitId = surfaceUnitIdForInstance(progress.instanceId);
+              const current = unitId ? surfaceStore.byUnit[unitId] : undefined;
+              if (!unitId || !current || current.generation !== progress.generation) return;
+              if (typeof progress.value === "number") {
+                  graphStore.actions.updateUnitData(unitId, {
+                      processing: progress.value < 1,
+                      nodeStatus: progress.value < 1 ? "running" : "completed",
+                      progress: Math.max(0, Math.min(1, progress.value)),
+                  });
+              }
+          });
+
+          const unlistenSurfacePreview = await artLoom.listenForSurfacePreview((delivery) => {
+              if (!surfaceStore.actions.acceptPreviewCommit(delivery.hookNodeId, delivery.commit)) {
+                  return;
+              }
+              const previewSrc = surfacePreviewSource(delivery.commit.value);
+              if (!previewSrc) return;
+              graphStore.actions.updateUnitData(delivery.hookNodeId, {
+                  previewSrc,
+                  processing: true,
+                  nodeStatus: "running",
+                  errorMessage: undefined,
+              });
+          });
+
+          const unlistenSurfaceResult = await artLoom.listenForSurfaceResult((delivery) => {
+              if (!surfaceStore.actions.acceptResultCommit(delivery.hookNodeId, delivery.commit)) {
+                  return;
+              }
+              const unit = graphStore.units.find((candidate) => candidate.id === delivery.hookNodeId);
+              if (!unit || unit.type !== "art") return;
+              const outputs = Object.fromEntries(
+                  Object.entries(delivery.commit.outputs).map(([portId, value]) => [
+                      portId,
+                      surfacePortValue(value),
+                  ]),
+              );
+              graphStore.actions.updateUnitData(delivery.hookNodeId, {
+                  outputs,
+                  processing: false,
+                  progress: 1,
+                  nodeStatus: "completed",
+                  errorMessage: undefined,
+              });
+              propagateFromUnit(delivery.hookNodeId);
+              void syncService.performWorkflowSync();
+          });
+
+          const unlistenSurfaceFailure = await artLoom.listenForSurfaceFailure((delivery) => {
+              const unitId = delivery.hookNodeId
+                  ?? surfaceUnitIdForInstance(delivery.failure.instanceId);
+              const current = unitId ? surfaceStore.byUnit[unitId] : undefined;
+              if (!unitId || !current || current.generation !== delivery.failure.generation) return;
+              graphStore.actions.updateUnitData(unitId, {
+                  processing: false,
+                  nodeStatus: "error",
+                  errorMessage: delivery.failure.error.message,
+              });
+          });
+
+          const unlistenSurfaceLifecycle = await artLoom.listenForSurfaceLifecycle((delivery) => {
+              const applied = surfaceStore.actions.applyLifecycle(
+                  delivery.hookNodeId,
+                  delivery.event,
+              );
+              if (applied && delivery.event.state === "disposed") {
+                  setSurfaceConfirmations((requests) => requests.filter((request) =>
+                      request.instanceId !== delivery.event.instanceId
+                      || request.attachmentId !== delivery.event.attachmentId));
+                  surfaceStore.actions.clear(delivery.hookNodeId);
+                  surfaceAttachmentRequests.clear(delivery.hookNodeId);
+              }
+          });
+
+          const unlistenSurfaceDispose = await artLoom.listenForSurfaceDispose((delivery) => {
+              const current = surfaceStore.byUnit[delivery.hookNodeId];
+              if (
+                  current?.snapshot.instanceId === delivery.instanceId &&
+                  current.snapshot.attachmentId === delivery.attachmentId
+              ) {
+                  setSurfaceConfirmations((requests) => requests.filter((request) =>
+                      request.instanceId !== delivery.instanceId
+                      || request.attachmentId !== delivery.attachmentId));
+                  surfaceStore.actions.clear(delivery.hookNodeId);
+              }
+          });
+
+          const unlistenSurfaceResource = await artLoom.listenForSurfaceResource((delivery) => {
+              if (!surfaceResourceStore.actions.complete(
+                  delivery.resourceId,
+                  delivery.dataUrl,
+                  delivery.expiresAtMs,
+              )) {
+                  surfaceResourceStore.actions.fail(delivery.resourceId);
+                  console.warn("Ignoring invalid or expired Surface resource", delivery.resourceId);
+              }
           });
 
           cleanups.push(
@@ -1375,6 +1702,18 @@ export default function App() {
               unlistenConnectionState,
               unlistenProgress,
               unlistenDelivery,
+              unlistenSurfaceSnapshot,
+              unlistenSurfacePatch,
+              unlistenSurfaceGeneration,
+              unlistenSurfaceActionAck,
+              unlistenSurfaceConfirmation,
+              unlistenSurfaceProgress,
+              unlistenSurfacePreview,
+              unlistenSurfaceResult,
+              unlistenSurfaceFailure,
+              unlistenSurfaceLifecycle,
+              unlistenSurfaceDispose,
+              unlistenSurfaceResource,
           );
 
           onWindowMouseMove = (e: MouseEvent) => {
@@ -1471,8 +1810,14 @@ export default function App() {
           return;
       }
 
+      await api.debugLogEvent(
+          "frontend-initialized",
+          `capabilities=${graphStore.capabilities.length} units=${graphStore.units.length}`,
+      );
+
       onCleanup(() => {
           cleanups.forEach((fn) => fn());
+          surfaceResourceStore.actions.clearAll();
           if (onWindowMouseMove) {
               window.removeEventListener("mousemove", onWindowMouseMove);
           }
@@ -1812,6 +2157,13 @@ export default function App() {
             settings={appSettings()}
             onClose={() => setAppSettingsOpen(false)}
             onSaved={setAppSettings}
+        />
+
+        <SurfaceConfirmationDialog
+            request={surfaceConfirmations()[0]}
+            submitting={surfaceConfirmationSubmitting()}
+            error={surfaceConfirmationError()}
+            onDecision={(approved) => void decideCurrentSurfaceConfirmation(approved)}
         />
 
         {/* DEBUG: Visual Mouse Tracker Removed */}

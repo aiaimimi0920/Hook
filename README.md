@@ -89,6 +89,7 @@ Useful checks:
 ```powershell
 npm run typecheck
 npm run test:performance
+npm run test:surface-browser
 npm run test:parallel
 npm test
 cargo fmt --check --manifest-path src-tauri\Cargo.toml
@@ -98,6 +99,67 @@ npm run build
 
 `npm run verify:local` runs the complete serial verification chain and then
 builds/packages a local release. It is not a lightweight lint-only command.
+
+`npm run test:surface-browser` launches an isolated headless Chromium, imports
+the production JavaScript Surface document builder, and exercises healthy,
+timer, DOM, CPU long-task, and heap-growth budget paths. It does not launch a
+second native Hook process or bypass Hook's global single-instance safety mutex.
+
+Validate a built native candidate in two stages. Preflight only hashes the
+candidate, checks the CDP dependency/port, and reports any live Hook main or
+watchdog process; it never launches or stops Hook:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\Invoke-HookNativeCandidateAcceptance.ps1 `
+  -HookExe ..\release\Hook\candidate\hook.exe `
+  -ExpectedSha256 <candidate-sha256> `
+  -PreflightOnly
+```
+
+After every existing Hook instance has been exited normally, remove
+`-PreflightOnly` to run the real WebView2/Tauri IPC probe, global
+single-instance refusal, process-tree memory soak, normal exit, watchdog/CDP
+teardown, and restart check. The script uses isolated app data and WebView2
+storage. It enables `HOOK_NATIVE_ACCEPTANCE=1` only for the spawned candidate so
+the gated clean-exit command can return through the normal Tauri shutdown path;
+it does not rename/bypass the mutex or disable global Hook behavior.
+
+The Phase 69 dual-end gate uses the outer orchestrator instead of treating a
+daemon-only or browser-only smoke as sufficient. It verifies both candidate
+hashes, starts an isolated packaged Loom daemon and fixture Art Store, installs
+the real dashboard Surface, and delegates to the native Hook runner:
+
+```powershell
+# Safe while another Hook is running: hashes/files/ports/processes only.
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\Invoke-HookLoomSurfaceCandidateAcceptance.ps1 `
+  -HookExe ..\release\Hook\candidate\hook.exe `
+  -ExpectedHookSha256 <candidate-sha256> `
+  -LoomPackageDir ..\release\Loom\candidate `
+  -PreflightOnly
+
+# Safe isolated Loom-side rehearsal; does not launch Hook.
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\Invoke-HookLoomSurfaceCandidateAcceptance.ps1 `
+  -HookExe ..\release\Hook\candidate\hook.exe `
+  -ExpectedHookSha256 <candidate-sha256> `
+  -LoomPackageDir ..\release\Loom\candidate `
+  -ValidateLoomServicesOnly
+```
+
+With all existing Hook main/watchdog processes normally exited, omit both
+switches for the full packaged Hook GUI → packaged Loom Surface click/resource/
+formal-result loop, ten-minute process-tree soak, clean exit, restart recovery,
+and final listener/process cleanup. The native runner waits for Hook's awaited
+`frontend-initialized` marker before both the first Surface probe and the restart
+probe, so CDP availability alone is not treated as frontend readiness.
+
+When Loom reports a newly registered device as pending, the runner approves that
+exact public-key device through the isolated Loom control plane while Hook waits
+for the bounded authorization transition. Native acceptance exits through the
+normal Tauri run loop and requires exactly one process-exit cleanup record before
+checking watchdog, CDP, and restart recovery.
 
 Build a portable executable directly:
 

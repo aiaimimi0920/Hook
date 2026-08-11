@@ -87,4 +87,25 @@ describe("Hook startup experience contract", () => {
     expect(refreshCall).toBeGreaterThan(firstRestore);
     expect(secondRestore).toBeGreaterThan(refreshCall);
   });
+
+  it("logs native frontend readiness only after startup restore and listener initialization", () => {
+    const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
+    const autoStartIndex = appSource.indexOf("if (bootProfile?.autoStartCapture)");
+    const triggerIndex = appSource.indexOf("await api.triggerCaptureMode();", autoStartIndex);
+    const browserPreviewIndex = appSource.indexOf("if (!tauriRuntimeAvailable)", triggerIndex);
+    const browserPreviewReturnIndex = appSource.indexOf("return;", browserPreviewIndex);
+    const initializedMarkerIndex = appSource.indexOf('"frontend-initialized"');
+
+    expect(autoStartIndex).toBeGreaterThanOrEqual(0);
+    expect(triggerIndex).toBeGreaterThan(autoStartIndex);
+    expect(browserPreviewIndex).toBeGreaterThan(triggerIndex);
+    expect(browserPreviewReturnIndex).toBeGreaterThan(browserPreviewIndex);
+    expect(initializedMarkerIndex).toBeGreaterThan(browserPreviewReturnIndex);
+
+    const initializedCall = appSource.slice(initializedMarkerIndex - 80, initializedMarkerIndex + 240);
+    expect(initializedCall).toContain("await api.debugLogEvent(");
+    expect(initializedCall).toContain(
+      "capabilities=${graphStore.capabilities.length} units=${graphStore.units.length}",
+    );
+  });
 });

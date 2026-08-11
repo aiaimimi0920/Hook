@@ -27,6 +27,8 @@ import {
     clearAllSyncImageCaches,
     clearSyncImageCachesForUnit,
 } from "../services/syncImageCache";
+import { surfaceStore } from "./surfaceStore";
+import { surfaceAttachmentRequests } from "../services/surfaceAttachmentRequests";
 
 // Core Data Stores
 const [units, setUnits] = createStore<Unit[]>([]);
@@ -60,6 +62,8 @@ const addUnit = (unit: Unit) => {
 
 const removeUnit = (id: string) => {
     shaderCache.disposeUnit(id);
+    surfaceStore.actions.clear(id);
+    surfaceAttachmentRequests.clear(id);
     clearImageSearchPrefetchGenerationForUnit(id);
     clearSyncImageCachesForUnit(id);
     setUnits((prev) => prev.filter((u) => u.id !== id));
@@ -73,6 +77,8 @@ const removeUnit = (id: string) => {
 const replaceUnits = (nextUnits: Unit[]) => {
     clearAllImageSearchPrefetchGenerations();
     clearAllSyncImageCaches();
+    surfaceStore.actions.clearAll();
+    surfaceAttachmentRequests.clearAll();
     shaderCache.retainRenderersForUnits(new Set(nextUnits.map((unit) => unit.id)));
     setUnitParams(reconcile({}));
     setUnitExecConfig(reconcile({}));

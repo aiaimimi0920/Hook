@@ -1,4 +1,5 @@
 import type { ArtCapability, ArtCapabilityMetadata } from "./protocol";
+import type { SurfacePackageManifest } from "./surfaceProtocol";
 
 const capabilityMetadata = (
     capability: Pick<ArtCapability, "capabilities" | "metadata"> | undefined,
@@ -28,6 +29,31 @@ export const requiresFormalExecutionAfterPreview = (
     if (capabilityMetadata(capability)?.requiresFormalExecution === true) return true;
     const executionType = capability?.execution_type || capability?.execution?.type;
     return executionType === "workflow";
+};
+
+export const surfacePackageManifest = (
+    capability: Pick<ArtCapability, "capabilities" | "metadata"> | undefined,
+): SurfacePackageManifest | undefined => capabilityMetadata(capability)?.surface;
+
+export const supportsDeclarativeSurface = (
+    capability: Pick<ArtCapability, "capabilities" | "metadata"> | undefined,
+): boolean => {
+    const surface = surfacePackageManifest(capability);
+    return !!surface && (
+        surface.variants.some((variant) => variant.runtime === "declarative") ||
+        typeof surface.fallbackScene === "string"
+    );
+};
+
+export const supportsSurface = (
+    capability: Pick<ArtCapability, "capabilities" | "metadata"> | undefined,
+): boolean => {
+    const surface = surfacePackageManifest(capability);
+    return !!surface && (
+        surface.variants.some((variant) =>
+            variant.runtime === "declarative" || variant.runtime === "javascript") ||
+        typeof surface.fallbackScene === "string"
+    );
 };
 
 const imageInputPorts = (capability: ArtCapability | undefined) =>

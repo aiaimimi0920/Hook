@@ -1,0 +1,27 @@
+.javascript-surface-host,
+.javascript-surface-frame,
+.javascript-surface-fallback {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.javascript-surface-host {
+    overflow: hidden;
+}
+
+.javascript-surface-frame {
+    z-index: 2;
+    border: 0;
+    opacity: 0;
+    background: transparent;
+}
+
+.javascript-surface-frame.is-ready {
+    opacity: 1;
+}
+
+.javascript-surface-fallback {
+    z-index: 1;
+}

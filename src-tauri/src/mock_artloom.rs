@@ -39,6 +39,26 @@ pub struct ArtLoomCapabilities {
     pub supported_unit_types: Vec<String>, // "sticker", "link", "art"
     pub supported_interactions: Vec<String>, // "drag", "resize", "connect"
     pub art_definitions: Vec<ArtDefinition>,
+    pub surface: SurfaceHostCapabilities,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceHostCapabilities {
+    pub api_version: String,
+    pub runtimes: Vec<String>,
+    pub nodes: Vec<String>,
+    pub transports: Vec<String>,
+    pub capabilities: Vec<String>,
+    pub input: SurfaceInputCapabilities,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SurfaceInputCapabilities {
+    pub pointer: bool,
+    pub hover: bool,
+    pub touch: bool,
+    pub keyboard: bool,
 }
 
 // Deserialize a string field tolerating an explicit JSON `null` (which serde's
@@ -296,6 +316,30 @@ pub enum ArtLoomAction {
         workflow_id: String,
         snapshot: serde_json::Value, // Full JSON of the workflow (nodes + edges)
     },
+    #[serde(rename = "surface_event")]
+    SurfaceEvent { event: serde_json::Value },
+    #[serde(rename = "surface_lifecycle")]
+    SurfaceLifecycle { event: serde_json::Value },
+    #[serde(rename = "surface_confirmation")]
+    SurfaceConfirmation { decision: serde_json::Value },
+    #[serde(rename = "surface_cancel")]
+    SurfaceCancel { request: serde_json::Value },
+    #[serde(rename = "surface_resource")]
+    SurfaceResource { lease: serde_json::Value },
+    #[serde(rename = "surface_attach")]
+    SurfaceAttach {
+        art_id: String,
+        hook_node_id: String,
+        #[serde(default)]
+        device_id: Option<String>,
+        capabilities: serde_json::Value,
+    },
+    #[serde(rename = "surface_remount")]
+    SurfaceRemount {
+        instance_id: String,
+        attachment_id: String,
+        hook_node_id: String,
+    },
     // Future: ConnectNodes, specific functionality
 }
 
@@ -406,9 +450,28 @@ pub fn ensure_artloom_listener(
         claim_artloom_listener_start(&mut state_guard)
     };
     if should_start {
-        start_listener(app_handle.clone(), state.state.clone());
+        let remote_surface = crate::loom_connector::read_default_loom_manifest()
+            .ok()
+            .is_some_and(|manifest| !loom_base_url_is_loopback(&manifest.transport.base_url));
+        if remote_surface {
+            start_remote_surface_poll_listener(app_handle.clone(), state.state.clone());
+        } else {
+            start_listener(app_handle.clone(), state.state.clone());
+        }
     }
     Ok(should_start)
+}
+
+fn loom_base_url_is_loopback(base_url: &str) -> bool {
+    let lower = base_url.trim().to_ascii_lowercase();
+    lower.starts_with("http://127.0.0.1:")
+        || lower.starts_with("https://127.0.0.1:")
+        || lower.starts_with("http://localhost:")
+        || lower.starts_with("https://localhost:")
+        || matches!(
+            lower.as_str(),
+            "http://127.0.0.1" | "https://127.0.0.1" | "http://localhost" | "https://localhost"
+        )
 }
 
 fn artloom_ws_url() -> String {
@@ -936,7 +999,8 @@ fn artloom_listener_subscription_message() -> String {
                 "art_hook/instantiate",
                 "art_loom/arts_updated",
                 "art_hook/cache_control",
-                "art_hook/settings_updated"
+                "art_hook/settings_updated",
+                "surface"
             ]
         }
     })
@@ -1066,6 +1130,8 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<MockArtLoomState>>) {
                                                     &json["params"]["settings"],
                                                 );
                                             }
+                                        } else if method.starts_with("surface/") {
+                                            emit_surface_push(&app, method, &json["params"]);
                                         }
                                     } else if json["type"].as_str() == Some("settings") {
                                         if json["data"].is_object() {
@@ -1113,12 +1179,131 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<MockArtLoomState>>) {
     });
 }
 
+fn start_remote_surface_poll_listener(app: AppHandle, state: Arc<Mutex<MockArtLoomState>>) {
+    thread::spawn(move || {
+        let runtime = match tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                crate::append_runtime_log_line(&format!(
+                    "surface_remote_poll_runtime_failed :: error={error}"
+                ));
+                return;
+            }
+        };
+        runtime.block_on(async move {
+            let mut cursor = 0_u64;
+            loop {
+                let result = poll_remote_surface_once(&app, cursor).await;
+                match result {
+                    Ok((next, messages)) => {
+                        cursor = next;
+                        if let Ok(mut guard) = state.lock() {
+                            guard.backend_connected = true;
+                        }
+                        let _ = app.emit(
+                            "art/loom_connection_state",
+                            serde_json::json!({ "connected": true }),
+                        );
+                        for message in messages {
+                            if let Some(method) =
+                                message.get("method").and_then(serde_json::Value::as_str)
+                            {
+                                emit_surface_push(&app, method, &message["params"]);
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        if let Ok(mut guard) = state.lock() {
+                            guard.backend_connected = false;
+                        }
+                        let _ = app.emit(
+                            "art/loom_connection_state",
+                            serde_json::json!({ "connected": false }),
+                        );
+                        crate::append_runtime_log_line(&format!(
+                            "surface_remote_poll_failed :: error={error}"
+                        ));
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                    }
+                }
+            }
+        });
+    });
+}
+
+async fn poll_remote_surface_once(
+    app: &AppHandle,
+    cursor: u64,
+) -> Result<(u64, Vec<serde_json::Value>), String> {
+    let manifest = crate::loom_connector::read_default_loom_manifest()
+        .map_err(|error| format!("read Loom manifest for Surface stream: {error}"))?;
+    let base = manifest.transport.base_url.trim_end_matches('/');
+    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
+        .map_err(|error| format!("configure Surface stream client: {error}"))?
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|error| format!("build Surface stream client: {error}"))?;
+    let response = authorization
+        .apply(client.get(format!(
+            "{base}/v1/surfaces/stream?after={cursor}&timeoutMs=20000"
+        )))
+        .send()
+        .await
+        .map_err(|error| format!("poll Loom Surface stream: {error}"))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|error| format!("read Loom Surface stream: {error}"))?;
+    if !status.is_success() {
+        if status.as_u16() == 401 {
+            crate::device_session::invalidate_surface_sessions(base);
+        }
+        return Err(format!("Loom Surface stream returned {status}: {body}"));
+    }
+    let response: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|error| format!("parse Loom Surface stream: {error}"))?;
+    let next = response
+        .get("next")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(cursor);
+    let messages = response
+        .get("messages")
+        .and_then(serde_json::Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    Ok((next, messages))
+}
+
+fn emit_surface_push(app: &AppHandle, method: &str, params: &serde_json::Value) {
+    if matches!(
+        method,
+        "surface/snapshot"
+            | "surface/patch"
+            | "surface/generation"
+            | "surface/action_ack"
+            | "surface/confirmation"
+            | "surface/progress"
+            | "surface/preview"
+            | "surface/result"
+            | "surface/failure"
+            | "surface/lifecycle"
+            | "surface/dispose"
+    ) {
+        let _ = app.emit(method, params);
+    }
+}
+
 #[cfg(test)]
 mod artloom_listener_subscription_tests {
     use super::*;
 
     #[test]
-    fn native_listener_subscribes_to_instantiation_and_art_updates() {
+    fn native_listener_subscribes_to_art_and_surface_updates() {
         let message: serde_json::Value =
             serde_json::from_str(&artloom_listener_subscription_message())
                 .expect("subscription message");
@@ -1129,9 +1314,66 @@ mod artloom_listener_subscription_tests {
                 "art_hook/instantiate",
                 "art_loom/arts_updated",
                 "art_hook/cache_control",
-                "art_hook/settings_updated"
+                "art_hook/settings_updated",
+                "surface"
             ])
         );
+    }
+
+    #[test]
+    fn surface_attach_action_preserves_host_capabilities() {
+        let action = serde_json::from_value::<ArtLoomAction>(serde_json::json!({
+            "action": "surface_attach",
+            "payload": {
+                "art_id": "neuro.official/stock",
+                "hook_node_id": "hook-node:stock",
+                "capabilities": {
+                    "apiVersion": "1.0",
+                    "runtimes": ["declarative"],
+                    "nodes": ["column", "text"],
+                    "transports": [],
+                    "capabilities": [],
+                    "input": {
+                        "pointer": true,
+                        "hover": true,
+                        "touch": true,
+                        "keyboard": true
+                    }
+                }
+            }
+        }))
+        .expect("deserialize Surface attach action");
+        assert!(matches!(
+            action,
+            ArtLoomAction::SurfaceAttach {
+                art_id,
+                hook_node_id,
+                ..
+            } if art_id == "neuro.official/stock" && hook_node_id == "hook-node:stock"
+        ));
+    }
+
+    #[test]
+    fn surface_remount_action_preserves_recovery_identity() {
+        let action = serde_json::from_value::<ArtLoomAction>(serde_json::json!({
+            "action": "surface_remount",
+            "payload": {
+                "instance_id": "instance:stock",
+                "attachment_id": "attachment:hook-stock",
+                "hook_node_id": "hook-node:stock"
+            }
+        }))
+        .expect("deserialize Surface remount action");
+        assert!(matches!(
+            action,
+            ArtLoomAction::SurfaceRemount {
+                instance_id,
+                attachment_id,
+                hook_node_id,
+            } if instance_id == "instance:stock"
+                && attachment_id == "attachment:hook-stock"
+                && hook_node_id == "hook-node:stock"
+        ));
     }
 
     #[test]
@@ -1239,6 +1481,26 @@ pub async fn artloom_handshake(
             ],
             supported_interactions: vec!["drag".to_string(), "resize".to_string()],
             art_definitions: arts,
+            surface: SurfaceHostCapabilities {
+                api_version: "1.0".to_owned(),
+                runtimes: vec!["declarative".to_owned()],
+                nodes: [
+                    "view", "row", "column", "stack", "scroll", "text", "image", "icon", "button",
+                    "input", "textarea", "number", "slider", "switch", "select", "progress",
+                    "divider", "spacer",
+                ]
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+                transports: Vec::new(),
+                capabilities: Vec::new(),
+                input: SurfaceInputCapabilities {
+                    pointer: true,
+                    hover: true,
+                    touch: true,
+                    keyboard: true,
+                },
+            },
         },
     })
 }
@@ -1287,6 +1549,114 @@ pub async fn artloom_dispatch_action(
         }
         ArtLoomAction::SyncWorkflow { workflow_id, .. } => {
             println!("AHRP Action: SyncWorkflow id={}", workflow_id);
+        }
+        ArtLoomAction::SurfaceEvent { event } => {
+            crate::append_runtime_log_line(&format!(
+                "artloom_dispatch_surface_event :: instance_id={} attachment_id={} event_id={} node_id={} action={}",
+                event
+                    .get("instanceId")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or(""),
+                event
+                    .get("attachmentId")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or(""),
+                event
+                    .get("eventId")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or(""),
+                event
+                    .get("nodeId")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or(""),
+                event
+                    .get("action")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("")
+            ));
+        }
+        ArtLoomAction::SurfaceLifecycle { event } => {
+            crate::append_runtime_log_line(&format!(
+                "artloom_dispatch_surface_lifecycle :: instance_id={} attachment_id={} state={} revision={}",
+                event
+                    .get("instanceId")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or(""),
+                event
+                    .get("attachmentId")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or(""),
+                event
+                    .get("state")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or(""),
+                event
+                    .get("revision")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or_default(),
+            ));
+        }
+        ArtLoomAction::SurfaceConfirmation { decision } => {
+            crate::append_runtime_log_line(&format!(
+                "artloom_dispatch_surface_confirmation :: confirmation_id={} instance_id={} approved={}",
+                decision
+                    .get("confirmationId")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or(""),
+                decision
+                    .get("instanceId")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or(""),
+                decision
+                    .get("approved")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false),
+            ));
+        }
+        ArtLoomAction::SurfaceCancel { request } => {
+            crate::append_runtime_log_line(&format!(
+                "artloom_dispatch_surface_cancel :: request_id={} instance_id={}",
+                request
+                    .get("requestId")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or(""),
+                request
+                    .get("instanceId")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or(""),
+            ));
+        }
+        ArtLoomAction::SurfaceResource { lease } => {
+            crate::append_runtime_log_line(&format!(
+                "artloom_dispatch_surface_resource :: resource_id={}",
+                lease
+                    .pointer("/resource/resourceId")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("")
+            ));
+        }
+        ArtLoomAction::SurfaceAttach {
+            art_id,
+            hook_node_id,
+            device_id,
+            ..
+        } => {
+            crate::append_runtime_log_line(&format!(
+                "artloom_dispatch_surface_attach :: art_id={} hook_node_id={} device_id={}",
+                art_id,
+                hook_node_id,
+                device_id.as_deref().unwrap_or("device-000-local")
+            ));
+        }
+        ArtLoomAction::SurfaceRemount {
+            instance_id,
+            attachment_id,
+            hook_node_id,
+        } => {
+            crate::append_runtime_log_line(&format!(
+                "artloom_dispatch_surface_remount :: instance_id={} attachment_id={} hook_node_id={}",
+                instance_id, attachment_id, hook_node_id
+            ));
         }
     }
 
@@ -1990,9 +2360,535 @@ pub async fn artloom_dispatch_action(
                 }
             });
         }
+        ArtLoomAction::SurfaceEvent { event } => {
+            send_surface_event_to_loom(&app, event).await?;
+        }
+        ArtLoomAction::SurfaceLifecycle { event } => {
+            send_surface_lifecycle_to_loom(&app, event).await?;
+        }
+        ArtLoomAction::SurfaceConfirmation { decision } => {
+            send_surface_confirmation_to_loom(&app, decision).await?;
+        }
+        ArtLoomAction::SurfaceCancel { request } => {
+            send_surface_cancel_to_loom(&app, request).await?;
+        }
+        ArtLoomAction::SurfaceResource { lease } => {
+            fetch_surface_resource_from_loom(&app, &lease).await?;
+        }
+        ArtLoomAction::SurfaceAttach {
+            art_id,
+            hook_node_id,
+            device_id: _,
+            capabilities,
+        } => {
+            attach_surface_via_loom(&app, &art_id, &hook_node_id, capabilities).await?;
+        }
+        ArtLoomAction::SurfaceRemount {
+            instance_id,
+            attachment_id,
+            hook_node_id,
+        } => {
+            remount_surface_via_loom(&app, &instance_id, &attachment_id, &hook_node_id).await?;
+        }
     }
 
     Ok(())
+}
+
+async fn send_surface_event_to_loom(
+    app: &AppHandle,
+    event: serde_json::Value,
+) -> Result<(), String> {
+    let instance_id = event
+        .get("instanceId")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "Surface event has no instance id".to_owned())?;
+    let manifest = crate::loom_connector::read_default_loom_manifest()
+        .map_err(|error| format!("read Loom manifest for Surface event: {error}"))?;
+    let base = manifest.transport.base_url.trim_end_matches('/');
+    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
+        .map_err(|error| format!("configure Surface event client: {error}"))?
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|error| format!("build Surface event client: {error}"))?;
+    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let response = authorization
+        .apply(client.post(format!("{base}/v1/surfaces/instances/{instance_id}/events")))
+        .json(&event)
+        .send()
+        .await
+        .map_err(|error| format!("Surface event request failed: {error}"))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|error| format!("read Surface event response: {error}"))?;
+    if !status.is_success() {
+        return Err(format!("Surface event request returned {status}: {body}"));
+    }
+    Ok(())
+}
+
+async fn attach_surface_via_loom(
+    app: &AppHandle,
+    art_id: &str,
+    hook_node_id: &str,
+    capabilities: serde_json::Value,
+) -> Result<(), String> {
+    let manifest = crate::loom_connector::read_default_loom_manifest()
+        .map_err(|error| format!("read Loom manifest for Surface attach: {error}"))?;
+    let base = manifest.transport.base_url.trim_end_matches('/');
+    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
+        .map_err(|error| format!("configure Surface HTTP client: {error}"))?
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|error| format!("build Surface HTTP client: {error}"))?;
+    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let send_json = |request: reqwest::RequestBuilder| async {
+        let response = request
+            .send()
+            .await
+            .map_err(|error| format!("Surface request failed: {error}"))?;
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .map_err(|error| format!("read Surface response: {error}"))?;
+        if !status.is_success() {
+            return Err(format!("Surface request returned {status}: {body}"));
+        }
+        serde_json::from_str::<serde_json::Value>(&body)
+            .map_err(|error| format!("parse Surface response: {error}"))
+    };
+
+    let mounted = send_json(
+        authorization
+            .apply(client.post(format!("{base}/v1/surfaces/attach")))
+            .json(&serde_json::json!({
+                "artId": art_id,
+                "hookNodeId": hook_node_id,
+                "deviceId": authorization.device_id,
+                "capabilities": capabilities,
+                "persistence": "persistent",
+            })),
+    )
+    .await?;
+    let instance_id = mounted
+        .pointer("/instance/descriptor/instanceId")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "Surface attach response has no instance id".to_owned())?;
+    let attachments = mounted
+        .pointer("/instance/attachments")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| "Surface attach response has no attachments".to_owned())?;
+    let (attachment_id, attachment) = attachments
+        .iter()
+        .find(|(_, attachment)| {
+            attachment
+                .pointer("/descriptor/hookNodeId")
+                .and_then(serde_json::Value::as_str)
+                == Some(hook_node_id)
+        })
+        .ok_or_else(|| "Surface attach response has no matching attachment".to_owned())?;
+    let snapshot = mounted
+        .pointer(&format!(
+            "/instance/attachments/{}/snapshot",
+            escape_json_pointer_token(attachment_id)
+        ))
+        .cloned()
+        .ok_or_else(|| "Surface mount response has no snapshot".to_owned())?;
+    let generation = mounted
+        .pointer("/instance/descriptor/generation")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or_default();
+    let lifecycle_revision = attachment
+        .get("lifecycleRevision")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(1);
+    app.emit(
+        "surface/snapshot",
+        serde_json::json!({
+            "hookNodeId": hook_node_id,
+            "snapshot": snapshot,
+            "generation": generation,
+        }),
+    )
+    .map_err(|error| format!("emit mounted Surface snapshot: {error}"))?;
+    send_surface_lifecycle_to_loom(
+        app,
+        serde_json::json!({
+            "protocolVersion": "loom.surface.v1",
+            "instanceId": instance_id,
+            "attachmentId": attachment_id,
+            "state": "active",
+            "revision": lifecycle_revision.saturating_add(1),
+        }),
+    )
+    .await?;
+    Ok(())
+}
+
+async fn remount_surface_via_loom(
+    app: &AppHandle,
+    instance_id: &str,
+    attachment_id: &str,
+    hook_node_id: &str,
+) -> Result<(), String> {
+    let manifest = crate::loom_connector::read_default_loom_manifest()
+        .map_err(|error| format!("read Loom manifest for Surface remount: {error}"))?;
+    let base = manifest.transport.base_url.trim_end_matches('/');
+    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
+        .map_err(|error| format!("configure Surface remount client: {error}"))?
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|error| format!("build Surface remount client: {error}"))?;
+    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let mut mount_url = reqwest::Url::parse(base)
+        .map_err(|error| format!("parse Surface remount base URL: {error}"))?;
+    mount_url
+        .path_segments_mut()
+        .map_err(|_| "Surface remount base URL cannot carry path segments".to_owned())?
+        .extend(["v1", "surfaces", "instances", instance_id, "mount"]);
+    let response = authorization
+        .apply(client.post(mount_url))
+        .json(&serde_json::json!({ "attachmentId": attachment_id }))
+        .send()
+        .await
+        .map_err(|error| format!("Surface remount request failed: {error}"))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|error| format!("read Surface remount response: {error}"))?;
+    if !status.is_success() {
+        return Err(format!("Surface remount request returned {status}: {body}"));
+    }
+    let mounted = serde_json::from_str::<serde_json::Value>(&body)
+        .map_err(|error| format!("parse Surface remount response: {error}"))?;
+    let snapshot = mounted
+        .pointer(&format!(
+            "/instance/attachments/{}/snapshot",
+            escape_json_pointer_token(attachment_id)
+        ))
+        .cloned()
+        .ok_or_else(|| "Surface remount response has no snapshot".to_owned())?;
+    let generation = mounted
+        .pointer("/instance/descriptor/generation")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or_default();
+    app.emit(
+        "surface/snapshot",
+        serde_json::json!({
+            "hookNodeId": hook_node_id,
+            "snapshot": snapshot,
+            "generation": generation,
+        }),
+    )
+    .map_err(|error| format!("emit recovered Surface snapshot: {error}"))?;
+    Ok(())
+}
+
+async fn send_surface_lifecycle_to_loom(
+    app: &AppHandle,
+    event: serde_json::Value,
+) -> Result<(), String> {
+    let instance_id = event
+        .get("instanceId")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "Surface lifecycle event has no instance id".to_owned())?;
+    let manifest = crate::loom_connector::read_default_loom_manifest()
+        .map_err(|error| format!("read Loom manifest for Surface lifecycle: {error}"))?;
+    let base = manifest.transport.base_url.trim_end_matches('/');
+    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
+        .map_err(|error| format!("configure Surface lifecycle client: {error}"))?
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|error| format!("build Surface lifecycle client: {error}"))?;
+    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let request = authorization
+        .apply(client.post(format!(
+            "{base}/v1/surfaces/instances/{instance_id}/lifecycle"
+        )))
+        .json(&event);
+    let response = request
+        .send()
+        .await
+        .map_err(|error| format!("Surface lifecycle request failed: {error}"))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|error| format!("read Surface lifecycle response: {error}"))?;
+    if !status.is_success() {
+        return Err(format!(
+            "Surface lifecycle request returned {status}: {body}"
+        ));
+    }
+    Ok(())
+}
+
+async fn send_surface_confirmation_to_loom(
+    app: &AppHandle,
+    decision: serde_json::Value,
+) -> Result<(), String> {
+    let manifest = crate::loom_connector::read_default_loom_manifest()
+        .map_err(|error| format!("read Loom manifest for Surface confirmation: {error}"))?;
+    let base = manifest.transport.base_url.trim_end_matches('/');
+    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
+        .map_err(|error| format!("configure Surface confirmation client: {error}"))?
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|error| format!("build Surface confirmation client: {error}"))?;
+    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let request = authorization
+        .apply(client.post(format!("{base}/v1/surfaces/confirmations/decision")))
+        .json(&decision);
+    let response = request
+        .send()
+        .await
+        .map_err(|error| format!("Surface confirmation request failed: {error}"))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|error| format!("read Surface confirmation response: {error}"))?;
+    if !status.is_success() {
+        return Err(format!(
+            "Surface confirmation request returned {status}: {body}"
+        ));
+    }
+    Ok(())
+}
+
+async fn send_surface_cancel_to_loom(
+    app: &AppHandle,
+    mut request_body: serde_json::Value,
+) -> Result<(), String> {
+    let manifest = crate::loom_connector::read_default_loom_manifest()
+        .map_err(|error| format!("read Loom manifest for Surface cancellation: {error}"))?;
+    let base = manifest.transport.base_url.trim_end_matches('/');
+    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
+        .map_err(|error| format!("configure Surface cancellation client: {error}"))?
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|error| format!("build Surface cancellation client: {error}"))?;
+    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    request_body["deviceId"] = serde_json::Value::String(authorization.device_id.clone());
+    let request = authorization
+        .apply(client.post(format!("{base}/v1/surfaces/actions/cancel")))
+        .json(&request_body);
+    let response = request
+        .send()
+        .await
+        .map_err(|error| format!("Surface cancellation request failed: {error}"))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|error| format!("read Surface cancellation response: {error}"))?;
+    if !status.is_success() {
+        return Err(format!(
+            "Surface cancellation request returned {status}: {body}"
+        ));
+    }
+    Ok(())
+}
+
+async fn fetch_surface_resource_from_loom(
+    app: &AppHandle,
+    lease: &serde_json::Value,
+) -> Result<(), String> {
+    use sha2::{Digest as _, Sha256};
+
+    const MAX_SURFACE_RESOURCE_BYTES: usize = 16 * 1024 * 1024;
+    let resource_id = lease
+        .pointer("/resource/resourceId")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "Surface resource lease has no resource id".to_owned())?;
+    let lease_id = lease
+        .get("leaseId")
+        .and_then(serde_json::Value::as_str)
+        .filter(|lease_id| {
+            !lease_id.is_empty()
+                && lease_id.len() <= 160
+                && lease_id.bytes().all(|byte| {
+                    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':' | b'/')
+                })
+        })
+        .ok_or_else(|| "Surface resource lease id is invalid".to_owned())?;
+    let digest = resource_id
+        .strip_prefix("sha256:")
+        .filter(|digest| digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .ok_or_else(|| "Surface resource id is not a SHA-256 digest".to_owned())?;
+    let expected_size = lease
+        .pointer("/resource/size")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| "Surface resource lease has no size".to_owned())?;
+    if expected_size == 0 || expected_size > MAX_SURFACE_RESOURCE_BYTES as u64 {
+        return Err("Surface resource size exceeds the Hook budget".to_owned());
+    }
+    let expires_at_ms = lease
+        .get("expiresAtMs")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| "Surface resource lease has no expiry".to_owned())?;
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|error| format!("read system clock for Surface resource: {error}"))?
+        .as_millis() as u64;
+    if expires_at_ms <= now_ms || expires_at_ms > now_ms.saturating_add(60 * 60 * 1_000) {
+        return Err("Surface resource lease is expired or exceeds the lease budget".to_owned());
+    }
+    let mime = lease
+        .pointer("/resource/mime")
+        .and_then(serde_json::Value::as_str)
+        .filter(|mime| !mime.trim().is_empty() && mime.len() <= 160 && mime.is_ascii())
+        .ok_or_else(|| "Surface resource MIME type is invalid".to_owned())?;
+    let transport_kind = lease
+        .pointer("/transport/kind")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "Surface resource transport is missing".to_owned())?;
+    let verify_digest = |bytes: &[u8]| -> Result<(), String> {
+        if bytes.len() as u64 != expected_size || bytes.len() > MAX_SURFACE_RESOURCE_BYTES {
+            return Err("Surface resource size does not match its descriptor".to_owned());
+        }
+        let actual = Sha256::digest(bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        if !actual.eq_ignore_ascii_case(digest) {
+            return Err("Surface resource failed digest validation".to_owned());
+        }
+        Ok(())
+    };
+    let to_data_url = |bytes: Vec<u8>| -> Result<String, String> {
+        if mime != "application/x-neuro-rgba8" {
+            return Ok(format!(
+                "data:{mime};base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(bytes)
+            ));
+        }
+        let width = lease
+            .pointer("/resource/width")
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|value| u32::try_from(value).ok())
+            .filter(|value| *value > 0)
+            .ok_or_else(|| "Surface RGBA resource has no valid width".to_owned())?;
+        let height = lease
+            .pointer("/resource/height")
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|value| u32::try_from(value).ok())
+            .filter(|value| *value > 0)
+            .ok_or_else(|| "Surface RGBA resource has no valid height".to_owned())?;
+        let rgba_size = u64::from(width)
+            .checked_mul(u64::from(height))
+            .and_then(|pixels| pixels.checked_mul(4))
+            .ok_or_else(|| "Surface RGBA dimensions overflow".to_owned())?;
+        if rgba_size != bytes.len() as u64 {
+            return Err("Surface RGBA dimensions do not match its payload".to_owned());
+        }
+        let image = RgbaImage::from_raw(width, height, bytes)
+            .ok_or_else(|| "Surface RGBA payload is invalid".to_owned())?;
+        let mut encoded = Cursor::new(Vec::new());
+        image
+            .write_to(&mut encoded, image::ImageFormat::Png)
+            .map_err(|error| format!("encode Surface RGBA resource: {error}"))?;
+        Ok(format!(
+            "data:image/png;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(encoded.into_inner())
+        ))
+    };
+    let emit_resource = |data_url: String| -> Result<(), String> {
+        app.emit(
+            "surface/resource",
+            serde_json::json!({
+                "leaseId": lease_id,
+                "resourceId": resource_id,
+                "dataUrl": data_url,
+                "expiresAtMs": expires_at_ms,
+            }),
+        )
+        .map_err(|error| format!("emit Surface resource: {error}"))
+    };
+    if transport_kind == "shared_memory" {
+        if mime != "application/x-neuro-rgba8" {
+            return Err("Surface shared memory uses an unsupported MIME type".to_owned());
+        }
+        let handle = lease
+            .pointer("/transport/handle")
+            .and_then(serde_json::Value::as_str)
+            .filter(|handle| {
+                !handle.is_empty()
+                    && handle.len() <= 160
+                    && handle.bytes().all(|byte| {
+                        byte.is_ascii_alphanumeric()
+                            || matches!(byte, b'-' | b'_' | b'.' | b':' | b'/')
+                    })
+            })
+            .ok_or_else(|| "Surface shared-memory handle is invalid".to_owned())?;
+        let memory = ShmemConf::new()
+            .size(expected_size as usize)
+            .os_id(handle)
+            .open()
+            .map_err(|error| format!("open Surface shared memory: {error}"))?;
+        let bytes =
+            unsafe { std::slice::from_raw_parts(memory.as_ptr(), expected_size as usize).to_vec() };
+        verify_digest(&bytes)?;
+        return emit_resource(to_data_url(bytes)?);
+    }
+    if transport_kind != "loom_resource" {
+        return Err("Surface resource transport is not supported".to_owned());
+    }
+    let path = lease
+        .pointer("/transport/path")
+        .and_then(serde_json::Value::as_str)
+        .filter(|path| {
+            *path == format!("/v1/surfaces/resources/{digest}")
+                && !path.contains('?')
+                && !path.contains('#')
+        })
+        .ok_or_else(|| "Surface resource path is invalid".to_owned())?;
+    let manifest = crate::loom_connector::read_default_loom_manifest()
+        .map_err(|error| format!("read Loom manifest for Surface resource: {error}"))?;
+    let base = manifest.transport.base_url.trim_end_matches('/');
+    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
+        .map_err(|error| format!("configure Surface resource client: {error}"))?
+        .timeout(Duration::from_secs(20))
+        .build()
+        .map_err(|error| format!("build Surface resource client: {error}"))?;
+    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let request = authorization
+        .apply(client.get(format!("{base}{path}")))
+        .header("X-Loom-Surface-Lease", lease_id);
+    let response = request
+        .send()
+        .await
+        .map_err(|error| format!("Surface resource request failed: {error}"))?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "Surface resource request returned {}",
+            response.status()
+        ));
+    }
+    if response
+        .content_length()
+        .is_some_and(|size| size > MAX_SURFACE_RESOURCE_BYTES as u64)
+    {
+        return Err("Surface resource response exceeds the Hook budget".to_owned());
+    }
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| format!("read Surface resource response: {error}"))?;
+    verify_digest(&bytes)?;
+    emit_resource(to_data_url(bytes.to_vec())?)
+}
+
+fn escape_json_pointer_token(value: &str) -> String {
+    value.replace('~', "~0").replace('/', "~1")
 }
 
 /// Helper to resolve image path from UUID

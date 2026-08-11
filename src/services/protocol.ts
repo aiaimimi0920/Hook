@@ -1,3 +1,5 @@
+import type { SurfaceHostCapabilities, SurfacePackageManifest } from "./surfaceProtocol";
+
 export type TransportMode = 'shared_memory' | 'socket' | 'cloudflare_relay';
 export type ArtExecutionType =
     | 'script'
@@ -84,6 +86,7 @@ export interface ArtCapabilityMetadata {
     shaderReferenceInput?: string;
     parameterEditor?: string;
     shader?: boolean;
+    surface?: SurfacePackageManifest;
     [key: string]: unknown;
 }
 
@@ -97,6 +100,7 @@ export interface HandshakeResponse {
     server_name: string;
     capabilities: {
         art_definitions: ArtCapability[];
+        surface?: SurfaceHostCapabilities;
         // Add other fields if needed, e.g. supported_interactions
     };
     negotiated_transport: TransportMode;

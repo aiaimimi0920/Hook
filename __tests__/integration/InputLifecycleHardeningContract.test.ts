@@ -229,7 +229,12 @@ describe("input lifecycle hardening contract", () => {
     expect(setupBlock).toContain("restore_system_cursors_unconditionally();");
     expect(panicBlock).toContain('prepare_for_hook_process_exit("panic")');
     expect(rustSource).toContain('prepare_for_hook_process_exit("triple_escape")');
+    expect(rustSource).toContain('prepare_for_hook_process_exit("tauri_exit_requested")');
+    expect(rustSource).toContain('prepare_for_hook_process_exit("tauri_exit")');
     expect(rustSource).toContain('prepare_for_hook_process_exit("tauri_run_returned")');
+    expect(rustSource).toContain("PROCESS_EXIT_CLEANUP_STARTED.swap(true, Ordering::SeqCst)");
+    expect(rustSource).toContain("let exit_code = app.run_return");
+    expect(rustSource).toContain("std::process::exit(exit_code);");
   });
 
   it("deduplicates the same bubbling mouse event across root and window handlers", () => {

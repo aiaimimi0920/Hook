@@ -1,0 +1,183 @@
+.surface-confirmation-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: var(--theme-overlay);
+}
+
+.surface-confirmation-dialog {
+    width: min(520px, calc(100vw - 32px));
+    max-height: min(680px, calc(100vh - 32px));
+    overflow: auto;
+    color: var(--theme-text);
+    background: var(--neuro-panel);
+    border: 1px solid var(--theme-border-danger);
+    box-shadow: var(--shadow-float);
+    clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);
+}
+
+.surface-confirmation-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 12px;
+    min-height: 72px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--theme-border);
+    background: color-mix(in srgb, var(--theme-danger) 10%, var(--neuro-surface));
+}
+
+.surface-confirmation-signal {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    color: var(--theme-danger-text);
+    border: 1px solid var(--theme-border-danger);
+    font: 700 20px/1 ui-monospace, monospace;
+}
+
+.surface-confirmation-kicker {
+    color: var(--theme-danger-text);
+    font: 600 10px/1.2 ui-monospace, monospace;
+    letter-spacing: 0.12em;
+}
+
+.surface-confirmation-header h2 {
+    margin: 4px 0 0;
+    font-size: 20px;
+    line-height: 1.2;
+}
+
+.surface-confirmation-risk {
+    color: var(--theme-danger-text);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.surface-confirmation-content {
+    display: grid;
+    gap: 14px;
+    padding: 18px;
+}
+
+.surface-confirmation-content p {
+    margin: 0;
+    color: var(--theme-text-secondary);
+    line-height: 1.65;
+}
+
+.surface-confirmation-content strong {
+    color: var(--theme-text);
+    font-family: ui-monospace, monospace;
+}
+
+.surface-confirmation-meta {
+    display: grid;
+    margin: 0;
+    border-block: 1px solid var(--theme-border);
+}
+
+.surface-confirmation-meta div {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--theme-line);
+}
+
+.surface-confirmation-meta div:last-child {
+    border-bottom: 0;
+}
+
+.surface-confirmation-meta dt {
+    color: var(--theme-text-muted);
+}
+
+.surface-confirmation-meta dd {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+    color: var(--theme-text);
+    font-family: ui-monospace, monospace;
+}
+
+.surface-confirmation-payload {
+    color: var(--theme-text-secondary);
+    border: 1px solid var(--theme-border);
+    background: var(--theme-control);
+}
+
+.surface-confirmation-payload summary {
+    padding: 10px 12px;
+    cursor: pointer;
+    color: var(--theme-text);
+}
+
+.surface-confirmation-payload pre {
+    max-height: 180px;
+    margin: 0;
+    overflow: auto;
+    padding: 12px;
+    border-top: 1px solid var(--theme-border);
+    color: var(--theme-text-secondary);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.surface-confirmation-content .surface-confirmation-error {
+    color: var(--theme-danger-text);
+}
+
+.surface-confirmation-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--theme-border);
+    background: var(--neuro-surface);
+}
+
+.surface-confirmation-button {
+    min-width: 104px;
+    min-height: 38px;
+    padding: 0 16px;
+    border: 1px solid var(--theme-border);
+    color: var(--theme-text);
+    background: var(--theme-control);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+}
+
+.surface-confirmation-button:hover:not(:disabled),
+.surface-confirmation-button:focus-visible {
+    border-color: var(--theme-signal);
+    outline: 2px solid color-mix(in srgb, var(--theme-signal) 52%, transparent);
+    outline-offset: 2px;
+}
+
+.surface-confirmation-button--approve {
+    color: var(--theme-danger-text);
+    border-color: var(--theme-border-danger);
+    background: var(--theme-danger-soft);
+}
+
+.surface-confirmation-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.56;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .surface-confirmation-dialog {
+        animation: surface-confirmation-enter 160ms ease-out;
+    }
+}
+
+@keyframes surface-confirmation-enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}

@@ -2,6 +2,7 @@ mod app_settings;
 mod capture;
 mod capture_coords;
 mod capture_windows;
+mod device_session;
 pub mod emergency_watchdog;
 mod file_naming;
 mod long_capture;
@@ -178,6 +179,27 @@ struct BootProfile {
     auto_start_capture: bool,
     art_loom_enabled: bool,
     art_loom_ws_url: String,
+}
+
+const NATIVE_ACCEPTANCE_ENV: &str = "HOOK_NATIVE_ACCEPTANCE";
+
+fn native_acceptance_enabled_value(value: Option<&str>) -> bool {
+    value
+        .map(str::trim)
+        .map(str::to_ascii_lowercase)
+        .is_some_and(|value| matches!(value.as_str(), "1" | "true" | "yes" | "on"))
+}
+
+fn native_acceptance_enabled() -> bool {
+    native_acceptance_enabled_value(std::env::var(NATIVE_ACCEPTANCE_ENV).ok().as_deref())
+}
+
+fn native_acceptance_marker_is_valid(marker: &str) -> bool {
+    !marker.is_empty()
+        && marker.len() <= 128
+        && marker
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
 }
 
 fn read_env_bool(key: &str, default: bool) -> bool {
@@ -2374,6 +2396,7 @@ struct ForwardedShortcutPayload {
 #[cfg(target_os = "windows")]
 static CAPTURE_MOUSE_EVENT_QUEUE: OnceLock<Arc<CaptureMouseEventQueue>> = OnceLock::new();
 static DESKTOP_COLOR_PICKER_ACTIVE: AtomicBool = AtomicBool::new(false);
+static PROCESS_EXIT_CLEANUP_STARTED: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "windows")]
 static OVERLAY_KEYBOARD_EVENT_SENDER: OnceLock<mpsc::SyncSender<OverlayKeyboardHookEvent>> =
     OnceLock::new();
@@ -5567,6 +5590,9 @@ fn restore_system_cursors_unconditionally() {
 fn restore_system_cursors_unconditionally() {}
 
 fn prepare_for_hook_process_exit(reason: &str) {
+    if PROCESS_EXIT_CLEANUP_STARTED.swap(true, Ordering::SeqCst) {
+        return;
+    }
     #[cfg(target_os = "windows")]
     {
         CAPTURE_MOUSE_HOOK_ACTIVE.store(false, Ordering::SeqCst);
@@ -5578,7 +5604,11 @@ fn prepare_for_hook_process_exit(reason: &str) {
         hide_overlay_input_shield_window();
     }
     restore_system_cursors_unconditionally();
-    append_runtime_log_line(&format!("hook_process_exit_cleanup :: reason={}", reason));
+    append_runtime_log_line_sync(&format!(
+        "[{}] hook_process_exit_cleanup :: reason={}",
+        runtime_log_timestamp(),
+        reason
+    ));
 }
 
 fn set_capture_input_runtime_active(active: bool) {
@@ -10180,6 +10210,29 @@ fn get_boot_profile() -> BootProfile {
 }
 
 #[tauri::command]
+fn request_native_acceptance_exit(app: tauri::AppHandle, marker: String) -> Result<(), String> {
+    if !native_acceptance_enabled() {
+        return Err(format!(
+            "native acceptance exit is disabled; set {NATIVE_ACCEPTANCE_ENV}=1 before process start"
+        ));
+    }
+    if !native_acceptance_marker_is_valid(&marker) {
+        return Err(
+            "native acceptance exit marker must be 1-128 ASCII letters, digits, '-' or '_'"
+                .to_string(),
+        );
+    }
+
+    append_runtime_log_line_sync(&format!(
+        "[{}] native_acceptance_exit_requested :: marker={}",
+        runtime_log_timestamp(),
+        marker
+    ));
+    app.exit(0);
+    Ok(())
+}
+
+#[tauri::command]
 fn show_canvas_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
         show_canvas_window_impl(&window);
@@ -10609,7 +10662,7 @@ pub fn run() {
         voice::hotkey::HotkeyStateMachine::new_toggle("Ctrl+Alt+Space"),
     ));
 
-    let run_result = tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new().with_handler({
                 let tauri_ctrl_1_last_trigger = tauri_ctrl_1_last_trigger.clone();
@@ -10742,9 +10795,10 @@ pub fn run() {
             load_app_settings,
             get_loom_shortcut_settings,
             get_installed_fonts,
-            initialize_overlay,
-            get_boot_profile,
-            get_voice_settings_summary,
+             initialize_overlay,
+             get_boot_profile,
+             request_native_acceptance_exit,
+             get_voice_settings_summary,
             talk_capture_voice_once,
             loom_brain_plan,
             show_canvas_window,
@@ -11340,15 +11394,44 @@ pub fn run() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!());
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+    let exit_code = app.run_return(|_app_handle, event| match event {
+        tauri::RunEvent::ExitRequested { .. } => {
+            prepare_for_hook_process_exit("tauri_exit_requested");
+        }
+        tauri::RunEvent::Exit => prepare_for_hook_process_exit("tauri_exit"),
+        _ => {}
+    });
     prepare_for_hook_process_exit("tauri_run_returned");
-    run_result.expect("error while running tauri application");
+    std::process::exit(exit_code);
 }
 
 #[cfg(test)]
 mod app_cli_tests {
     use super::*;
     use image::Rgb;
+
+    #[test]
+    fn native_acceptance_exit_requires_an_explicit_truthy_environment_value() {
+        for enabled in ["1", "true", "TRUE", "yes", "on", " on "] {
+            assert!(native_acceptance_enabled_value(Some(enabled)));
+        }
+        for disabled in ["", "0", "false", "no", "off", "unexpected"] {
+            assert!(!native_acceptance_enabled_value(Some(disabled)));
+        }
+        assert!(!native_acceptance_enabled_value(None));
+    }
+
+    #[test]
+    fn native_acceptance_exit_marker_is_bounded_and_log_safe() {
+        assert!(native_acceptance_marker_is_valid("restart-0123456789ab"));
+        assert!(native_acceptance_marker_is_valid("first_exit"));
+        assert!(!native_acceptance_marker_is_valid(""));
+        assert!(!native_acceptance_marker_is_valid("line\nbreak"));
+        assert!(!native_acceptance_marker_is_valid("contains space"));
+        assert!(!native_acceptance_marker_is_valid(&"a".repeat(129)));
+    }
 
     fn solid_rows(width: u32, rows: &[[u8; 3]]) -> image::RgbImage {
         let mut image = image::RgbImage::new(width, rows.len() as u32);
