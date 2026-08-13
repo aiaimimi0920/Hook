@@ -25,7 +25,7 @@
   --neuro-overlay: rgba(4, 6, 10, 0.78);
   --neuro-shadow: rgba(0, 0, 0, 0.38);
 
-  /* Hook compatibility aliases consumed by existing components. */
+  /* Hook component tokens mapped onto the canonical Neuro palette. */
   --theme-signal: var(--neuro-signal-yellow);
   --theme-signal-text: var(--neuro-signal-text);
   --theme-success: var(--neuro-signal-green);
@@ -57,7 +57,7 @@
   --theme-overlay: var(--neuro-overlay);
   --theme-backdrop-blur: 0px;
 
-  /* Compatibility aliases for existing controls */
+  /* Control-level semantic tokens */
   --primary: var(--theme-signal);
   --primary-light: color-mix(in srgb, var(--theme-signal) 86%, white);
   --primary-dark: color-mix(in srgb, var(--theme-signal) 82%, black);

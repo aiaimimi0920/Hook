@@ -71,7 +71,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
         const arts = props.availableArts || [];
         if (!query) return arts;
         return arts.filter((art) =>
-            [art.label, art.id, art.qualifiedId]
+            [art.label, art.id]
                 .filter((value): value is string => typeof value === "string")
                 .some((value) => value.toLocaleLowerCase().includes(query)),
         );

@@ -78,22 +78,6 @@ const readGenericMetadata = (
     };
 };
 
-const readLegacyMetadata = (
-    delivery: Record<string, unknown>,
-): ArtResultCandidateMetadata | undefined => {
-    const imageSearch = asRecord(delivery.imageSearch);
-    if (!imageSearch) return undefined;
-    const items = normalizeCandidateList(imageSearch.candidates);
-    if (items.length === 0) return undefined;
-    return {
-        kind: "image.candidates",
-        items,
-        ...(typeof imageSearch.selectedIndex === "number"
-            ? { selectedIndex: Math.floor(imageSearch.selectedIndex) }
-            : {}),
-    };
-};
-
 export const extractArtDeliveryCandidatesState = (
     delivery: unknown,
 ): ArtDeliveryCandidateState => {
@@ -105,7 +89,7 @@ export const extractArtDeliveryCandidatesState = (
         };
     }
 
-    const metadata = readGenericMetadata(record) || readLegacyMetadata(record);
+    const metadata = readGenericMetadata(record);
     if (!metadata || metadata.items.length === 0) {
         return {
             resultCandidates: undefined,

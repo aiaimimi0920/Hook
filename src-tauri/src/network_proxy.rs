@@ -100,24 +100,6 @@ pub fn apply_to_url(
     }
 }
 
-pub fn apply_blocking_to_url(
-    builder: reqwest::blocking::ClientBuilder,
-    endpoint: &str,
-) -> Result<reqwest::blocking::ClientBuilder, reqwest::Error> {
-    if endpoint_is_loopback(endpoint) {
-        return Ok(builder.no_proxy());
-    }
-    let proxy = proxy_store()
-        .read()
-        .map(|proxy| proxy.clone())
-        .unwrap_or_default();
-    match proxy {
-        RuntimeProxy::System => Ok(builder),
-        RuntimeProxy::Disabled => Ok(builder.no_proxy()),
-        RuntimeProxy::Custom(url) => Ok(builder.proxy(Proxy::all(url)?)),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

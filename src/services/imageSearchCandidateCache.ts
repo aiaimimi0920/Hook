@@ -3,7 +3,7 @@ import { mergeArtDeliveryOutputs } from "./artDeliveryOutputs";
 import { normalizeImageSourceForDisplay } from "./imageSource";
 import { logger } from "./logger";
 import { syncService } from "./syncService";
-import type { DeliveryImageSearchCandidate } from "./protocol";
+import type { ArtResultCandidate } from "./protocol";
 import type { Unit } from "../types/unit";
 import { graphStore } from "../store/graphStore";
 import {
@@ -13,7 +13,7 @@ import {
 } from "./imageSearchPrefetchGeneration";
 
 type ImageSearchCandidateRuntimeFields = Pick<
-    DeliveryImageSearchCandidate,
+    ArtResultCandidate,
     "cachedImagePath" | "cachedImageSrc" | "cachedThumbnailPath" | "cachedThumbnailSrc"
 >;
 
@@ -26,7 +26,7 @@ const IMAGE_SEARCH_RUNTIME_FIELDS: (keyof ImageSearchCandidateRuntimeFields)[] =
 
 const remoteImageDownloadsInFlight = new Map<string, Promise<string>>();
 
-const candidateFullImageDisplaySrc = (candidate: DeliveryImageSearchCandidate) =>
+const candidateFullImageDisplaySrc = (candidate: ArtResultCandidate) =>
     candidate.cachedImageSrc ||
     normalizeImageSourceForDisplay(candidate.cachedImagePath) ||
     normalizeImageSourceForDisplay(candidate.preview) ||
@@ -37,7 +37,7 @@ const normalizeCandidatePreviewSrc = (src: string | null | undefined) =>
     normalizeImageSourceForDisplay(src) || src || undefined;
 
 const pickImageSearchCandidateRuntimeFields = (
-    candidate: DeliveryImageSearchCandidate | undefined,
+    candidate: ArtResultCandidate | undefined,
 ): Partial<ImageSearchCandidateRuntimeFields> => {
     if (!candidate) return {};
 
@@ -55,14 +55,14 @@ const isNonEmptyString = (value: unknown): value is string =>
     typeof value === "string" && value.length > 0;
 
 const getImageSearchCandidateByIndex = (
-    candidates: DeliveryImageSearchCandidate[] | undefined,
+    candidates: ArtResultCandidate[] | undefined,
     candidateIndex: number,
 ) => candidates?.find((candidate) => candidate.index === candidateIndex);
 
 const mergeImageSearchCandidatePatch = (
-    candidates: DeliveryImageSearchCandidate[] | undefined,
+    candidates: ArtResultCandidate[] | undefined,
     candidateIndex: number,
-    patch: Partial<DeliveryImageSearchCandidate>,
+    patch: Partial<ArtResultCandidate>,
 ) => {
     if (!Array.isArray(candidates) || candidates.length === 0) {
         return candidates;
@@ -105,7 +105,7 @@ const cacheRemoteImagePath = async (url: string, referer?: string) => {
 
 export const isRecoverableImageSearchExecutionFailure = (
     errorMessage: string | undefined,
-    candidates: DeliveryImageSearchCandidate[] | undefined,
+    candidates: ArtResultCandidate[] | undefined,
 ) =>
     Array.isArray(candidates) &&
     candidates.length > 0 &&
@@ -113,7 +113,7 @@ export const isRecoverableImageSearchExecutionFailure = (
     errorMessage.includes("图片搜索已返回候选结果，但图片下载失败");
 
 export const resolveImageSearchCandidateCardPreviewSrc = (
-    candidate: DeliveryImageSearchCandidate,
+    candidate: ArtResultCandidate,
     options?: {
         isSelected?: boolean;
         selectedPreviewSrc?: string;
@@ -136,11 +136,11 @@ export const resolveImageSearchCandidateCardPreviewSrc = (
     candidate.imageUrl;
 
 export const orderImageSearchCandidatePrefetchQueue = (
-    candidates: DeliveryImageSearchCandidate[] | undefined,
+    candidates: ArtResultCandidate[] | undefined,
     selectedIndex?: number,
 ) => {
     if (!Array.isArray(candidates) || candidates.length === 0) {
-        return [] as DeliveryImageSearchCandidate[];
+        return [] as ArtResultCandidate[];
     }
 
     const preferred =
@@ -152,8 +152,8 @@ export const orderImageSearchCandidatePrefetchQueue = (
 };
 
 export const mergeImageSearchCandidateRuntimeState = (
-    previousCandidates: DeliveryImageSearchCandidate[] | undefined,
-    nextCandidates: DeliveryImageSearchCandidate[] | undefined,
+    previousCandidates: ArtResultCandidate[] | undefined,
+    nextCandidates: ArtResultCandidate[] | undefined,
 ) => {
     if (!Array.isArray(nextCandidates) || nextCandidates.length === 0) {
         return undefined;
@@ -179,7 +179,7 @@ export const mergeImageSearchCandidateRuntimeState = (
 
 export const buildOptimisticImageSearchSelectionPatch = (
     unit: Unit,
-    candidate: DeliveryImageSearchCandidate,
+    candidate: ArtResultCandidate,
 ): Partial<Unit["data"]> => {
     const previewSrc = candidateFullImageDisplaySrc(candidate);
     const filePath = isNonEmptyString(candidate.cachedImagePath)
@@ -210,7 +210,7 @@ export const buildOptimisticImageSearchSelectionPatch = (
 const updateCachedImageSearchCandidate = (
     unitId: string,
     candidateIndex: number,
-    patch: Partial<DeliveryImageSearchCandidate>,
+    patch: Partial<ArtResultCandidate>,
 ) => {
     const unit = graphStore.units.find((item) => item.id === unitId);
     if (!unit) return;
@@ -270,7 +270,7 @@ const updateCachedImageSearchCandidate = (
 
 const prefetchSingleCandidate = async (
     unitId: string,
-    candidate: DeliveryImageSearchCandidate,
+    candidate: ArtResultCandidate,
     generation: number,
 ) => {
     const liveCandidateBeforeThumb = getImageSearchCandidateByIndex(
@@ -336,7 +336,7 @@ const prefetchSingleCandidate = async (
 
 export const prefetchImageSearchCandidateAssets = async (input: {
     unitId: string;
-    candidates: DeliveryImageSearchCandidate[] | undefined;
+    candidates: ArtResultCandidate[] | undefined;
     selectedIndex?: number;
 }) => {
     const generation = nextImageSearchPrefetchGeneration(input.unitId);

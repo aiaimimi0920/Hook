@@ -1,19 +1,6 @@
 import type { SurfaceHostCapabilities, SurfacePackageManifest } from "./surfaceProtocol";
 
-export type TransportMode = 'shared_memory' | 'socket' | 'cloudflare_relay';
-export type ArtExecutionType =
-    | 'script'
-    | 'python'
-    | 'cloud_api'
-    | 'framework_art'
-    | 'shader'
-    | 'mcp'
-    | 'workflow'
-    | 'cli'
-    | 'cli_wrapper'
-    | 'native'
-    | 'filter';
-
+export type TransportMode = 'websocket' | 'shared_memory' | 'cloudflare_relay';
 export interface ArtParamOption {
     value: string | number | boolean;
     label: string;
@@ -57,12 +44,8 @@ export interface ArtCapability {
     params: ArtParam[];
     enabled?: boolean;
     auto_process?: boolean;
-    execution_type?: ArtExecutionType;
     execution?: Record<string, unknown>;
     defaults?: Record<string, unknown>;
-    qualifiedId?: string;
-    legacyId?: string;
-    capabilities?: ArtCapabilityMetadata;
     metadata?: {
         capabilities?: ArtCapabilityMetadata;
         [key: string]: unknown;
@@ -91,26 +74,67 @@ export interface ArtCapabilityMetadata {
 }
 
 export interface HandshakeRequest {
-    client_name: string;
-    client_version: string;
-    preferred_transports: TransportMode[];
+    protocolVersion: "loom.hook.v1";
+    supportedProtocolVersions: string[];
+    clientId: string;
+    clientVersion: string;
+    platform: string;
+    deviceId?: string;
+    transports: TransportMode[];
+    surface?: SurfaceHostCapabilities;
 }
 
 export interface HandshakeResponse {
-    server_name: string;
+    protocolVersion: "loom.hook.v1";
+    serverName: string;
+    serverVersion: string;
     capabilities: {
-        art_definitions: ArtCapability[];
-        surface?: SurfaceHostCapabilities;
-        // Add other fields if needed, e.g. supported_interactions
+        artDefinitions: ArtCapability[];
+        surface: SurfaceHostCapabilities;
+        operations: string[];
     };
-    negotiated_transport: TransportMode;
-    session_id: string;
+    transport: TransportMode;
+    sessionId: string;
+}
+
+export interface HookResponse<T = unknown> {
+    protocolVersion: "loom.hook.v1";
+    requestId: string;
+    status: "accepted" | "running" | "cancel_requested" | "cancelled" | "succeeded" | "failed";
+    data: T;
+    error?: { code: string; message: string; detail?: string };
+}
+
+export type HookArtPortValue =
+    | { kind: "value"; value: unknown }
+    | { kind: "inline_resource"; mime: string; dataBase64: string; width?: number; height?: number }
+    | { kind: "shared_memory"; handle: string; size: number; width: number; height: number; format: "rgba8" }
+    | { kind: "resource"; resource: Record<string, unknown> };
+
+export interface HookArtPreviewCommit {
+    protocolVersion: "loom.hook.v1";
+    requestId: string;
+    nodeId: string;
+    generation: number;
+    previewRevision: number;
+    portId: string;
+    value: HookArtPortValue;
+}
+
+export interface HookArtResultCommit {
+    protocolVersion: "loom.hook.v1";
+    requestId: string;
+    nodeId: string;
+    generation: number;
+    resultRevision: number;
+    outputs: Record<string, HookArtPortValue>;
+    candidates?: ArtResultCandidateMetadata;
 }
 
 export interface PropChange {
     art_id: string;
     prop_id: string;
-    value: any;
+    value: unknown;
 }
 
 export interface ArtResultCandidate {
@@ -135,34 +159,20 @@ export interface ArtResultCandidateMetadata {
     selectedIndex?: number;
 }
 
-/**
- * Compatibility aliases for the pre-pluginized image-search response shape.
- * New code should use ArtResultCandidate and ArtResultCandidateMetadata.
- */
-export type DeliveryImageSearchCandidate = ArtResultCandidate;
-
-export interface DeliveryImageSearchMetadata {
-    candidates: ArtResultCandidate[];
-    selectedIndex?: number;
-}
-
 export interface DeliveryPayload {
-    type: 'shm' | 'shared_memory' | 'base64' | 'url' | 'socket' | 'shader' | 'file_path' | 'value' | 'json' | 'text' | 'number';
-    handle?: string; // for shm
-    size?: number;   // for shm
-    width?: number;  // for shm/base64
-    height?: number; // for shm/base64
+    type: 'shared_memory' | 'base64' | 'file_path' | 'value';
+    handle?: string; // for shared_memory
+    size?: number;   // for shared_memory
+    width?: number;  // for shared_memory/base64
+    height?: number; // for shared_memory/base64
     data?: string;   // for base64
-    url?: string;    // for url
-    port?: number;   // for socket
     path?: string;   // for file_path
     value?: unknown; // for scalar/value outputs
     outputs?: Record<string, unknown>; // optional explicit port-value map
     candidates?: ArtResultCandidateMetadata;
-    imageSearch?: DeliveryImageSearchMetadata;
 }
 
-// Shader response from Python Art (for real-time preview)
+// Shader response for real-time preview.
 export interface ShaderDeliveryPayload {
     type: 'shader';
     vertex_shader: string;     // GLSL vertex shader code
@@ -175,7 +185,7 @@ export interface ShaderDeliveryPayload {
 
 export interface ArtDelivery {
     art_id: string;
-    request_id?: string;
+    request_id: string;
     phase?: "preview" | "final";
     status: number;
     error?: string;

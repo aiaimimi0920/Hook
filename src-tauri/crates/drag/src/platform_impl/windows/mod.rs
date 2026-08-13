@@ -119,8 +119,15 @@ unsafe extern "system" fn drag_left_button_tracking_hook_proc(
 }
 
 fn install_left_button_tracking_hook() -> Option<LeftButtonTrackingHookGuard> {
-    let hook = unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(drag_left_button_tracking_hook_proc), None, 0) }
-        .ok()?;
+    let hook = unsafe {
+        SetWindowsHookExW(
+            WH_MOUSE_LL,
+            Some(drag_left_button_tracking_hook_proc),
+            None,
+            0,
+        )
+    }
+    .ok()?;
     ACTIVE_DRAG_LEFT_BUTTON_HELD.store(true, Ordering::SeqCst);
     ACTIVE_DRAG_LEFT_BUTTON_TRACKING_ACTIVE.store(true, Ordering::SeqCst);
     Some(LeftButtonTrackingHookGuard(Some(hook)))
@@ -138,7 +145,8 @@ impl IDropSource_Impl for DropSource {
         if fescapepressed.as_bool() {
             DRAGDROP_S_CANCEL
         } else if physical_left_button_down {
-            self.observed_left_button_down.store(true, Ordering::Relaxed);
+            self.observed_left_button_down
+                .store(true, Ordering::Relaxed);
             ACTIVE_DRAG_LEFT_BUTTON_HELD.store(true, Ordering::SeqCst);
             S_OK
         } else if ACTIVE_DRAG_LEFT_BUTTON_HELD.load(Ordering::SeqCst)
@@ -376,12 +384,8 @@ pub fn start_drag<W: HasWindowHandle, F: Fn(DropOutcome) + Send + 'static>(
                         DragMode::Move => DROPEFFECT_MOVE,
                         DragMode::CopyOrMove => DROPEFFECT_COPY | DROPEFFECT_MOVE,
                     };
-                    let drop_result = DoDragDrop(
-                        &data_object,
-                        &drop_source,
-                        effect,
-                        &mut out_dropeffect,
-                    );
+                    let drop_result =
+                        DoDragDrop(&data_object, &drop_source, effect, &mut out_dropeffect);
                     let mut pt = POINT { x: 0, y: 0 };
                     GetCursorPos(&mut pt)?;
                     let outcome = DropOutcome {

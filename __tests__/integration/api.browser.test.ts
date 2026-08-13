@@ -62,11 +62,15 @@ const createLocalStorageMock = () => {
 };
 
 const installBrowserGlobals = (localStorageMock = createLocalStorageMock()) => {
+  const target = new EventTarget();
   vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket);
   vi.stubGlobal('window', {
     setTimeout,
     clearTimeout,
     localStorage: localStorageMock,
+    addEventListener: target.addEventListener.bind(target),
+    removeEventListener: target.removeEventListener.bind(target),
+    dispatchEvent: target.dispatchEvent.bind(target),
   });
   return localStorageMock;
 };
@@ -87,11 +91,12 @@ describe('Hook api browser mode', () => {
     const { api } = await import('../../src/services/api');
 
     const pending = api.dispatchAction({
-      action: 'update_node_param',
+      action: 'update_workflow_node',
       payload: {
-        origin_workflow_id: 'wf-1',
-        origin_node_id: 'node-1',
-        param_key: 'strength',
+        request_id: 'workflow-node-update:req-1',
+        workflow_id: 'wf-1',
+        node_id: 'node-1',
+        parameter_id: 'strength',
         value: 42,
       },
     });
@@ -100,52 +105,98 @@ describe('Hook api browser mode', () => {
     expect(socket).toBeTruthy();
 
     socket!.open();
-    expect(socket!.sent).toEqual([
-      JSON.stringify({
-        method: 'art_loom/update_workflow_node',
-        params: {
-          workflow_id: 'wf-1',
-          node_id: 'node-1',
-          param: 'strength',
-          value: 42,
-        },
-      }),
-    ]);
+    expect(JSON.parse(socket!.sent[0])).toMatchObject({
+      method: 'loom.hook.workflow.node.update',
+      params: {
+        workflowId: 'wf-1',
+        nodeId: 'node-1',
+        parameterId: 'strength',
+        requestId: 'workflow-node-update:req-1',
+        value: 42,
+      },
+    });
 
     socket!.emitMessage({
-      method: 'art_loom/workflow_updated',
+      method: 'loom.hook.workflow.updated',
       params: { workflowId: 'wf-1' },
     });
-    socket!.emitMessage({ type: 'success' });
+    socket!.emitMessage({
+      protocolVersion: 'loom.hook.v1',
+      requestId: 'workflow-node-update:req-1',
+      status: 'succeeded',
+    });
 
     await expect(pending).resolves.toBeUndefined();
   });
 
+  it('browser Art execution emits the formal terminal delivery', async () => {
+    installBrowserGlobals();
+    const ready = vi.fn();
+    window.addEventListener('hook-browser-art-ready', ready);
+    const { api } = await import('../../src/services/api');
+
+    const pending = api.dispatchAction({
+      action: 'execute_art',
+      payload: {
+        node_id: 'node-art',
+        request_id: 'art:req-1',
+        generation: 1,
+        art_id: 'publisher/art',
+        inputs: {},
+        parameters: {},
+        disabled_parameters: [],
+      },
+    });
+    const socket = MockWebSocket.instances.at(-1)!;
+    socket.open();
+    socket.emitMessage({
+      protocolVersion: 'loom.hook.v1',
+      requestId: 'art:req-1',
+      status: 'succeeded',
+      data: {
+        protocolVersion: 'loom.hook.v1',
+        requestId: 'art:req-1',
+        nodeId: 'node-art',
+        generation: 1,
+        resultRevision: 1,
+        outputs: { output: { kind: 'value', value: { ok: true } } },
+      },
+    });
+
+    await expect(pending).resolves.toBeUndefined();
+    expect(ready).toHaveBeenCalledOnce();
+    expect((ready.mock.calls[0][0] as CustomEvent).detail).toMatchObject({
+      art_id: 'node-art',
+      request_id: 'art:req-1',
+      phase: 'final',
+      status: 200,
+      delivery: { type: 'value', value: { ok: true } },
+    });
+  });
+
   it('browser push socket subscribes and only dispatches method payloads', async () => {
     installBrowserGlobals();
-    const { listenBrowserArtLoomMethod } = await import('../../src/services/api');
+    const { listenBrowserLoomHookMethod } = await import('../../src/services/api');
     const handler = vi.fn();
 
-    const unlisten = listenBrowserArtLoomMethod('art_hook/instantiate', handler);
+    const unlisten = listenBrowserLoomHookMethod('loom.hook.workflow.instantiated', handler);
     const socket = MockWebSocket.instances.at(-1);
     expect(socket).toBeTruthy();
 
     socket!.open();
-    expect(socket!.sent).toEqual([
-      JSON.stringify({
-        method: 'subscribe',
-        params: { channels: ['art_hook/instantiate'] },
-      }),
-    ]);
+    expect(JSON.parse(socket!.sent[0])).toMatchObject({
+      method: 'loom.hook.subscribe',
+      params: { events: ['loom.hook.workflow.instantiated'] },
+    });
 
     socket!.emitMessage({ type: 'success', data: { ignored: true } });
     expect(handler).not.toHaveBeenCalled();
 
     socket!.emitMessage({
-      method: 'art_hook/instantiate',
-      params: { workflow_id: 'wf-1', nodes: [] },
+      method: 'loom.hook.workflow.instantiated',
+      params: { workflowId: 'wf-1', nodes: [] },
     });
-    expect(handler).toHaveBeenCalledWith({ workflow_id: 'wf-1', nodes: [] });
+    expect(handler).toHaveBeenCalledWith({ workflowId: 'wf-1', nodes: [] });
 
     unlisten();
     expect(socket!.readyState).toBe(MockWebSocket.CLOSED);
@@ -199,7 +250,7 @@ describe('Hook api browser mode', () => {
     });
   });
 
-  it('performOcr delegates to the ArtLoom IPC websocket request path', async () => {
+  it('performOcr delegates to the Loom Hook websocket request path', async () => {
     installBrowserGlobals();
     const { api } = await import('../../src/services/api');
 
@@ -209,17 +260,16 @@ describe('Hook api browser mode', () => {
     expect(socket).toBeTruthy();
 
     socket!.open();
-    expect(socket!.sent).toEqual([
-      JSON.stringify({
-        method: 'art_loom/ocr_image',
-        params: {
-          image_base64: 'data:image/png;base64,abc123',
-        },
-      }),
-    ]);
+    const ocrRequest = JSON.parse(socket!.sent[0]);
+    expect(ocrRequest).toMatchObject({
+      method: 'loom.hook.ocr.execute',
+      params: { imageBase64: 'data:image/png;base64,abc123' },
+    });
 
     socket!.emitMessage({
-      type: 'success',
+      protocolVersion: 'loom.hook.v1',
+      requestId: ocrRequest.params.requestId,
+      status: 'succeeded',
       data: {
         fullText: 'hello',
         textBlocks: [],
@@ -232,7 +282,7 @@ describe('Hook api browser mode', () => {
     });
   });
 
-  it('translateText delegates to the ArtLoom IPC websocket request path', async () => {
+  it('translateText delegates to the Loom Hook websocket request path', async () => {
     installBrowserGlobals();
     const { api } = await import('../../src/services/api');
 
@@ -242,20 +292,18 @@ describe('Hook api browser mode', () => {
     expect(socket).toBeTruthy();
 
     socket!.open();
-    expect(socket!.sent).toEqual([
-      JSON.stringify({
-        method: 'art_loom/translate_text',
-        params: {
-          text: 'hello',
-          target_lang: 'zh',
-        },
-      }),
-    ]);
+    const translationRequest = JSON.parse(socket!.sent[0]);
+    expect(translationRequest).toMatchObject({
+      method: 'loom.hook.translation.execute',
+      params: { text: 'hello', targetLanguage: 'zh' },
+    });
 
     socket!.emitMessage({
-      type: 'success',
+      protocolVersion: 'loom.hook.v1',
+      requestId: translationRequest.params.requestId,
+      status: 'succeeded',
       data: {
-        translated_text: '你好',
+        translatedText: '你好',
       },
     });
 

@@ -7,9 +7,9 @@ const imageSearchCapability: ArtCapability = {
     label: "图片搜索",
     description: "",
     supported_transports: ["shared_memory"],
-    execution_type: "mcp",
     execution: {
-        tool_name: "brave_image_search",
+        type: "mcp",
+        toolName: "brave_image_search",
     },
     params: [],
     outputs: [{ name: "output", label: "output", type: "image" }],
@@ -20,7 +20,7 @@ const removeBgCapability: ArtCapability = {
     label: "Remove BG",
     description: "",
     supported_transports: ["shared_memory"],
-    execution_type: "cloud_api",
+    execution: { type: "cloud_api" },
     params: [],
     outputs: [{ name: "output", label: "output", type: "image" }],
 };

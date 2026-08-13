@@ -7,10 +7,10 @@ const imageSearchCapability: ArtCapability = {
     label: "图片搜索",
     description: "",
     supported_transports: ["shared_memory"],
-    execution_type: "mcp",
     execution: {
-        tool_name: "brave_image_search",
-        input_schema: {
+        type: "mcp",
+        toolName: "brave_image_search",
+        inputSchema: {
             type: "object",
             properties: {
                 query: { type: "string", minLength: 1, maxLength: 400 },
@@ -97,7 +97,7 @@ describe("standalone ArtNode factory", () => {
             label: "Color Transfer",
             description: "",
             supported_transports: ["shared_memory"],
-            execution_type: "python",
+            execution: { type: "framework_art" },
             params: [
                 { id: "reference_image", label: "Reference Image", widget: "image_link", default: "" },
                 { id: "gamma", label: "Gamma", widget: "number", default: 1 },
@@ -121,7 +121,7 @@ describe("standalone ArtNode factory", () => {
             label: "图片混合",
             description: "",
             supported_transports: ["shared_memory"],
-            execution_type: "script",
+            execution: { type: "framework_art" },
             params: [
                 { id: "reference", label: "参考图", widget: "image_link", default: "" },
                 { id: "mix_ratio", label: "混合比例", widget: "slider", default: 50, min: 0, max: 100 },
@@ -144,8 +144,7 @@ describe("standalone ArtNode factory", () => {
             label: "本地流程",
             description: "",
             supported_transports: ["file_path"],
-            execution_type: "workflow",
-            execution: { workflow_id: "workflow-1" },
+            execution: { type: "workflow", workflowId: "workflow-1" },
             params: [
                 { id: "strength", label: "强度", widget: "slider", default: 0.75 },
             ],

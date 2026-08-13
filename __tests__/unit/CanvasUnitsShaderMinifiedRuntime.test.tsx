@@ -61,7 +61,7 @@ const CAPABILITY: ArtCapability = {
     label: "Color Transfer",
     description: "CanvasUnits restore stability test",
     supported_transports: ["shared_memory"],
-    execution_type: "framework_art",
+    execution: { type: "framework_art" },
     metadata: { capabilities: { preview: "shader" } },
     params: [],
     inputs: [{ name: "input_image", label: "Input", type: "image" }],

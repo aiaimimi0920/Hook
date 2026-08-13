@@ -49,11 +49,11 @@ impl Default for LoomHookGeneral {
 
 #[derive(Clone, Debug, Default, Deserialize)]
 struct LoomSettings {
-    #[serde(default, alias = "hookGeneral")]
+    #[serde(default)]
     hook_general: LoomHookGeneral,
     #[serde(default)]
     shortcuts: HashMap<String, LoomShortcut>,
-    #[serde(default, alias = "quickBindings")]
+    #[serde(default)]
     quick_bindings: Vec<LoomQuickBinding>,
 }
 

@@ -8,7 +8,7 @@ mod file_naming;
 mod long_capture;
 mod loom_config;
 pub mod loom_connector;
-mod mock_artloom; // Integration
+mod loom_hook;
 mod mouse_monitor;
 mod network_proxy;
 mod screenshot;
@@ -28,7 +28,7 @@ use file_naming::{
     create_unique_file, render_file_stem, FileNamingContext, FileNamingPatternKind,
     FileNamingSettings,
 };
-use mock_artloom::MockArtLoom;
+use loom_hook::LoomHook;
 use single_instance::{single_instance_name, try_acquire_single_instance};
 
 use base64::Engine as _;
@@ -177,8 +177,9 @@ struct BootProfile {
     startup_mode: String,
     initial_ui_mode: String,
     auto_start_capture: bool,
-    art_loom_enabled: bool,
-    art_loom_ws_url: String,
+    loom_hook_enabled: bool,
+    loom_hook_ws_url: String,
+    native_acceptance: bool,
 }
 
 const NATIVE_ACCEPTANCE_ENV: &str = "HOOK_NATIVE_ACCEPTANCE";
@@ -226,7 +227,7 @@ fn boot_profile_from_env() -> BootProfile {
         _ => "overlay".to_string(),
     };
 
-    let art_loom_ws_url = std::env::var("ARTLOOM_WS_URL")
+    let loom_hook_ws_url = std::env::var("LOOM_HOOK_WS_URL")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
@@ -236,8 +237,9 @@ fn boot_profile_from_env() -> BootProfile {
         startup_mode,
         initial_ui_mode,
         auto_start_capture: read_env_bool("HOOK_AUTOSTART_CAPTURE", false),
-        art_loom_enabled: read_env_bool("HOOK_ENABLE_ARTLOOM", false),
-        art_loom_ws_url,
+        loom_hook_enabled: read_env_bool("HOOK_ENABLE_LOOM_HOOK", false),
+        loom_hook_ws_url,
+        native_acceptance: native_acceptance_enabled(),
     }
 }
 
@@ -402,45 +404,9 @@ fn default_runtime_log_dir() -> PathBuf {
         .join("logs")
 }
 
-const LEGACY_TAURI_IDENTIFIERS: &[&str] = &["io.github.aiaimimi0920.hook", "com.vmjcv.hook"];
 const APP_DATA_OVERRIDE_ENV: &str = "HOOK_APPDATA_DIR";
 
-fn legacy_app_data_dirs_from_current(current_dir: &Path) -> Vec<PathBuf> {
-    let current_name = current_dir.file_name().and_then(|name| name.to_str());
-    LEGACY_TAURI_IDENTIFIERS
-        .iter()
-        .filter(|identifier| {
-            current_name
-                .map(|name| !name.eq_ignore_ascii_case(identifier))
-                .unwrap_or(true)
-        })
-        .map(|identifier| current_dir.with_file_name(identifier))
-        .collect()
-}
-
-fn app_data_dir_contains_user_state(dir: &Path) -> bool {
-    [
-        "session.json",
-        "history.json",
-        "tool-settings.json",
-        "app-settings.json",
-        "images",
-        "saved",
-    ]
-    .iter()
-    .any(|entry| dir.join(entry).exists())
-}
-
 fn resolve_effective_app_data_dir(current_dir: &Path) -> PathBuf {
-    for legacy_dir in legacy_app_data_dirs_from_current(current_dir) {
-        if legacy_dir.exists()
-            && (!current_dir.exists()
-                || (!app_data_dir_contains_user_state(current_dir)
-                    && app_data_dir_contains_user_state(&legacy_dir)))
-        {
-            return legacy_dir;
-        }
-    }
     current_dir.to_path_buf()
 }
 
@@ -685,7 +651,7 @@ pub(crate) fn append_runtime_log_line(message: &str) {
 // Install a process-wide panic hook that records the panic message, location,
 // and thread name to the runtime log BEFORE the runtime aborts. The release
 // profile is `panic = "abort"` with `strip = true` and no symbols, so a panic
-// (on the UI thread OR any worker like the mock ArtLoom processing thread)
+// (on the UI thread or any Loom Hook worker)
 // otherwise vanishes as a bare Windows fast-fail (0xc0000409) with no message.
 // Writing synchronously here — not via the async runtime-log channel — is
 // essential: the channel's background thread may never drain before abort.
@@ -7623,23 +7589,8 @@ fn load_session(app: tauri::AppHandle) -> Result<SessionData, String> {
 
     let content = fs::read_to_string(&session_file).map_err(|e| e.to_string())?;
 
-    // Try to parse as SessionData first, fallback to Vec<StickerData> for backwards compatibility
-    let mut session_data: SessionData = match serde_json::from_str(&content) {
-        Ok(data) => data,
-        Err(_) => {
-            // Backwards compatibility: old format was just Vec<StickerData>
-            let stickers: Vec<StickerData> =
-                serde_json::from_str(&content).map_err(|e| e.to_string())?;
-            SessionData {
-                stickers,
-                links: Vec::new(),
-                groups: Vec::new(),
-                recycle_bin: Vec::new(),
-                reference_library: Vec::new(),
-                workflow_asset_archive_index: WorkflowAssetArchiveIndex::default(),
-            }
-        }
-    };
+    let mut session_data: SessionData =
+        serde_json::from_str(&content).map_err(|error| error.to_string())?;
 
     restore_loaded_session_stickers(&mut session_data.stickers);
 
@@ -10825,9 +10776,9 @@ pub fn run() {
             cancel_long_capture_session,
             trigger_ocr_event,
             tea_client::create_tea_ticket,
-            mock_artloom::artloom_handshake,
-            mock_artloom::artloom_dispatch_action,
-            mock_artloom::prefetch_shader,
+            loom_hook::loom_hook_handshake,
+            loom_hook::loom_hook_dispatch_action,
+            loom_hook::prefetch_shader,
             read_shared_memory,
             read_image_from_path,
             cache_remote_image_asset,
@@ -10891,20 +10842,20 @@ pub fn run() {
 
             // Workflow instantiation is a native desktop coordination channel,
             // so it must stay available even when capability loading is disabled
-            // or the frontend has not completed its ArtLoom handshake yet.
-            let mock_artloom = MockArtLoom::new();
+            // or the frontend has not completed its Loom Hook handshake yet.
+            let loom_hook = LoomHook::new();
             let listener_started =
-                mock_artloom::ensure_artloom_listener(app.handle(), &mock_artloom).map_err(
+                loom_hook::ensure_loom_hook_listener(app.handle(), &loom_hook).map_err(
                     |error| {
                         append_runtime_log_line(&format!(
-                            "artloom_listener_start_failed :: {error}"
+                            "loom_hook_listener_start_failed :: {error}"
                         ));
                         error
                     },
                 )?;
-            app.manage(mock_artloom);
+            app.manage(loom_hook);
             append_runtime_log_line(&format!(
-                "artloom_listener_ready :: started={listener_started}"
+                "loom_hook_listener_ready :: started={listener_started}"
             ));
             if let Err(error) = cleanup_clipboard_cache() {
                 append_runtime_log_line(&format!("clipboard_cache_cleanup_failed :: {}", error));
@@ -11008,12 +10959,12 @@ pub fn run() {
                 };
                 let boot_profile = boot_profile_from_env();
                 append_runtime_log_line(&format!(
-                    "app_setup :: startup_mode={} initial_ui_mode={} auto_start_capture={} art_loom_enabled={} art_loom_ws_url={}",
+                    "app_setup :: startup_mode={} initial_ui_mode={} auto_start_capture={} loom_hook_enabled={} loom_hook_ws_url={}",
                     boot_profile.startup_mode,
                     boot_profile.initial_ui_mode,
                     boot_profile.auto_start_capture,
-                    boot_profile.art_loom_enabled,
-                    boot_profile.art_loom_ws_url
+                    boot_profile.loom_hook_enabled,
+                    boot_profile.loom_hook_ws_url
                 ));
                 install_capture_mouse_hook_thread(window.clone());
                 install_overlay_keyboard_hook_thread(window.clone());
@@ -12241,25 +12192,6 @@ mod app_cli_tests {
     }
 
     #[test]
-    fn effective_app_data_dir_prefers_legacy_state_when_current_identifier_dir_is_empty() {
-        let root = std::env::temp_dir().join(format!(
-            "hook-app-data-legacy-test-{}-{}",
-            std::process::id(),
-            file_timestamp_component()
-        ));
-        let current_dir = root.join("com.yamiyu.hook");
-        let legacy_dir = root.join("io.github.aiaimimi0920.hook");
-        std::fs::create_dir_all(&current_dir).expect("create current dir");
-        std::fs::create_dir_all(&legacy_dir).expect("create legacy dir");
-        std::fs::write(legacy_dir.join("session.json"), "{}").expect("write legacy session");
-
-        let resolved = resolve_effective_app_data_dir(&current_dir);
-
-        let _ = std::fs::remove_dir_all(&root);
-        assert_eq!(resolved, legacy_dir);
-    }
-
-    #[test]
     fn app_settings_state_serves_cached_values_and_preserves_them_after_failed_save() {
         let root = std::env::temp_dir().join(format!(
             "hook-app-settings-state-test-{}-{}",
@@ -12283,18 +12215,15 @@ mod app_cli_tests {
     }
 
     #[test]
-    fn effective_app_data_dir_prefers_current_state_once_current_identifier_dir_is_populated() {
+    fn effective_app_data_dir_uses_current_identifier_dir() {
         let root = std::env::temp_dir().join(format!(
             "hook-app-data-current-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
         let current_dir = root.join("com.yamiyu.hook");
-        let legacy_dir = root.join("io.github.aiaimimi0920.hook");
         std::fs::create_dir_all(&current_dir).expect("create current dir");
-        std::fs::create_dir_all(&legacy_dir).expect("create legacy dir");
         std::fs::write(current_dir.join("history.json"), "{}").expect("write current history");
-        std::fs::write(legacy_dir.join("session.json"), "{}").expect("write legacy session");
 
         let resolved = resolve_effective_app_data_dir(&current_dir);
 
@@ -12320,28 +12249,6 @@ mod app_cli_tests {
 
         let _ = std::fs::remove_dir_all(&root);
         assert_eq!(resolved, override_dir);
-    }
-
-    #[test]
-    fn effective_app_data_dir_uses_older_legacy_dir_if_newer_legacy_dir_has_no_user_state() {
-        let root = std::env::temp_dir().join(format!(
-            "hook-app-data-older-legacy-test-{}-{}",
-            std::process::id(),
-            file_timestamp_component()
-        ));
-        let current_dir = root.join("com.yamiyu.hook");
-        let newer_legacy_dir = root.join("io.github.aiaimimi0920.hook");
-        let older_legacy_dir = root.join("com.vmjcv.hook");
-        std::fs::create_dir_all(&current_dir).expect("create current dir");
-        std::fs::create_dir_all(&newer_legacy_dir).expect("create newer legacy dir");
-        std::fs::create_dir_all(&older_legacy_dir).expect("create older legacy dir");
-        std::fs::write(older_legacy_dir.join("tool-settings.json"), "{}")
-            .expect("write older legacy state");
-
-        let resolved = resolve_effective_app_data_dir(&current_dir);
-
-        let _ = std::fs::remove_dir_all(&root);
-        assert_eq!(resolved, older_legacy_dir);
     }
 
     #[test]

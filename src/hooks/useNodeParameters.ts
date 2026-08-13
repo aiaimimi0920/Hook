@@ -3,10 +3,9 @@ import { graphStore } from "../store/graphStore";
 import { shaderCache } from "../services/shaderCache";
 import { syncService } from "../services/syncService";
 import {
-    resolveAuxiliaryUnitExecutionInputImages,
     resolveEffectiveNodeParams,
     resolveMissingUnitExecutionImagePorts,
-    resolveUnitExecutionInputImage,
+    resolveUnitExecutionImageInputs,
 } from "../services/graphImageResolution";
 import { deriveUnitExecutionConfig } from "../services/nodeExecutionConfig";
 import {
@@ -32,13 +31,20 @@ export function useNodeParameters() {
     const handleParamChange = async (
         unitId: string,
         paramId: string,
-        value: any,
+        value: unknown,
         isFinal = false,
         triggerSource: "param" | "upstream" | "manual" = "param",
     ) => {
         // --- Handle UI Resize (Special Case) ---
         if (paramId === PARAM_ui_resize) {
-            if (value && typeof value === 'object' && value.w && value.h) {
+            if (
+                value &&
+                typeof value === "object" &&
+                "w" in value &&
+                "h" in value &&
+                typeof value.w === "number" &&
+                typeof value.h === "number"
+            ) {
                 console.log(`[UI Action] Resize unit ${unitId} to`, value);
                 const unit = graphStore.units.find((candidate) => candidate.id === unitId);
                 if (unit?.type === "sticker") {
@@ -215,14 +221,7 @@ export function useNodeParameters() {
           // 5. Resolve the current full parameter/image state from the graph.
           const manualParams = graphStore.unitParams[unitId] || {};
 
-          // 4. Find Source Image (for Mock Processing)
-          const inputImage = resolveUnitExecutionInputImage({
-              units: graphStore.units,
-              links: graphStore.links,
-              capabilities: graphStore.capabilities,
-              unitId,
-          }) ?? null;
-          const auxiliaryInputImages = resolveAuxiliaryUnitExecutionInputImages({
+          const executionImageInputs = resolveUnitExecutionImageInputs({
               units: graphStore.units,
               links: graphStore.links,
               capabilities: graphStore.capabilities,
@@ -262,7 +261,7 @@ export function useNodeParameters() {
           const effectiveValue = fullParams[paramId] ?? value;
 
           const disabledParams: string[] = [];
-          const activeParams: Record<string, any> = {};
+          const activeParams: Record<string, unknown> = {};
 
           Object.keys(manualParams).forEach(key => {
               if (manualParams[key] === DISABLED_PREFIX) {
@@ -278,6 +277,8 @@ export function useNodeParameters() {
 
           // Dispatch Action
           const requestId = artExecutionRequests.begin(unitId);
+          const generation = artExecutionRequests.generation(unitId, requestId);
+          if (generation === undefined) return;
           graphStore.actions.updateUnitData(unitId, {
               processing: true,
               progress: 0,
@@ -286,36 +287,41 @@ export function useNodeParameters() {
           });
           try {
             void api.debugLogEvent(
-                "art-dispatch-update-node-param",
+                "art-dispatch-execute",
                 [
                     `unit=${unitId}`,
                     `art=${artId || "none"}`,
                     `param=${paramId}`,
                     `trigger=${triggerSource}`,
-                    `hasInput=${inputImage ? "true" : "false"}`,
-                    `auxKeys=${Object.keys(auxiliaryInputImages).join(",") || "none"}`,
+                    `inputKeys=${Object.keys(executionImageInputs).join(",") || "none"}`,
                     `request=${requestId}`,
                 ].join(" "),
             );
             await api.dispatchAction({
-                     action: "update_node_param",
+                     action: "execute_art",
                      payload: {
                          node_id: unitId,
                          request_id: requestId,
-                         param_key: paramId,
-                         value: effectiveValue,
-                         input_image: inputImage,
-                         input_images:
-                             Object.keys(auxiliaryInputImages).length > 0
-                                 ? auxiliaryInputImages
-                                 : undefined,
+                         generation,
                          art_id: runtimeArtId,
-                         all_params: activeParams,
-                         disabled_params: disabledParams,
-                         origin_workflow_id: unit.data?.originWorkflowId,
-                         origin_node_id: unit.data?.originNodeId
+                         inputs: executionImageInputs,
+                         parameters: activeParams,
+                         disabled_parameters: disabledParams,
                      }
             });
+
+            if (unit.data?.originWorkflowId && unit.data?.originNodeId) {
+                await api.dispatchAction({
+                    action: "update_workflow_node",
+                    payload: {
+                        request_id: `workflow-node-update:${crypto.randomUUID()}`,
+                        workflow_id: unit.data.originWorkflowId,
+                        node_id: unit.data.originNodeId,
+                        parameter_id: paramId,
+                        value: effectiveValue,
+                    },
+                });
+            }
 
           } catch (e) {
               console.error("Failed to update param:", e);

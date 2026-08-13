@@ -93,18 +93,20 @@ describe("sticker style controls", () => {
         });
     });
 
-    it("normalizes legacy highlighter selection into brush plus the highlighter toggle", () => {
+    it("keeps the canonical highlighter tool and its own profile", () => {
         expect(
             normalizeStickerToolSettings({
                 domain: "create",
                 mode: "highlighter",
                 activeTool: "highlighter",
-                brushHighlighterEnabled: false,
+                toolProfiles: {
+                    highlighter: { brushHighlighterEnabled: true },
+                },
             }),
         ).toMatchObject({
             domain: "create",
-            mode: "brush",
-            activeTool: "brush",
+            mode: "highlighter",
+            activeTool: "highlighter",
             brushHighlighterEnabled: true,
         });
     });

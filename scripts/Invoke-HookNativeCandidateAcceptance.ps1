@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$HookExe = "",
-    [string]$ExpectedSha256 = "",
+    [ValidatePattern('^[0-9A-Fa-f]{64}$')]
+    [string]$ExpectedSha256 = "341fb0c88a268bd0cece05eacb623e5a3fc02c6238c80c7fe7f66b1854e746d2",
     [ValidateRange(60, 86400)]
     [int]$DurationSeconds = 600,
     [ValidateRange(0, 3600)]
@@ -17,7 +18,7 @@ param(
     [string]$ArtifactRoot = "",
     [switch]$RequireSurfaceDashboard,
     [string]$LoomManifestPath = "",
-    [string]$ArtLoomWsUrl = "",
+    [string]$LoomHookWsUrl = "",
     [string]$SurfaceBaseUrl = "",
     [switch]$PreflightOnly
 )
@@ -28,7 +29,7 @@ $ErrorActionPreference = "Stop"
 $hookRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $neuroRoot = [System.IO.Path]::GetFullPath((Join-Path $hookRoot ".."))
 if ([string]::IsNullOrWhiteSpace($HookExe)) {
-    $HookExe = Join-Path $neuroRoot "release\Hook\20260811-distributed-art-surface-r8\hook.exe"
+    $HookExe = Join-Path $neuroRoot "release\Hook\20260813-loom-hook-v1-surface-wire-r14\hook.exe"
 }
 $resolvedExe = [System.IO.Path]::GetFullPath($HookExe)
 $resolvedLoomManifestPath = if ([string]::IsNullOrWhiteSpace($LoomManifestPath)) {
@@ -569,8 +570,8 @@ function Get-TreeSample {
 
 $debugPort = Get-FreeTcpPort
 do {
-    $isolatedArtLoomPort = Get-FreeTcpPort
-} while ($isolatedArtLoomPort -eq $debugPort)
+    $isolatedLoomHookPort = Get-FreeTcpPort
+} while ($isolatedLoomHookPort -eq $debugPort)
 $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
 $playwrightPackage = Join-Path $hookRoot "node_modules\playwright\package.json"
 $hookProcessesBefore = @(Get-HookProcessRecords)
@@ -587,7 +588,7 @@ $summary = [ordered]@{
         exists = [bool](Test-Path -LiteralPath $resolvedExe -PathType Leaf)
         length = $null
         sha256 = $null
-        expectedSha256 = if ([string]::IsNullOrWhiteSpace($ExpectedSha256)) { $null } else { $ExpectedSha256.ToLowerInvariant() }
+        expectedSha256 = $ExpectedSha256.ToLowerInvariant()
     }
     configuration = [ordered]@{
         durationSeconds = $DurationSeconds
@@ -600,10 +601,10 @@ $summary = [ordered]@{
         appDataDir = $appDataDir
         runtimeLogDir = $runtimeLogDir
         webview2UserDataDir = $webview2UserDataDir
-        artLoomEnabled = $RequireSurfaceDashboard.IsPresent
+        loomHookEnabled = $RequireSurfaceDashboard.IsPresent
         requireSurfaceDashboard = $RequireSurfaceDashboard.IsPresent
         loomManifestPath = $resolvedLoomManifestPath
-        artLoomWsUrl = if ([string]::IsNullOrWhiteSpace($ArtLoomWsUrl)) { $null } else { $ArtLoomWsUrl }
+        loomHookWsUrl = if ([string]::IsNullOrWhiteSpace($LoomHookWsUrl)) { $null } else { $LoomHookWsUrl }
         surfaceBaseUrl = if ([string]::IsNullOrWhiteSpace($SurfaceBaseUrl)) { $null } else { $SurfaceBaseUrl }
         nativeAcceptanceExitEnabled = $true
     }
@@ -632,11 +633,11 @@ $managedEnvKeys = @(
     "HOOK_STARTUP_MODE",
     "HOOK_INITIAL_UI_MODE",
     "HOOK_AUTOSTART_CAPTURE",
-    "HOOK_ENABLE_ARTLOOM",
+    "HOOK_ENABLE_LOOM_HOOK",
     "HOOK_NATIVE_ACCEPTANCE",
     "HOOK_TEA_INTAKE_ENABLED",
     "LOOM_MANIFEST_PATH",
-    "ARTLOOM_WS_URL",
+    "LOOM_HOOK_WS_URL",
     "APPDATA",
     "LOCALAPPDATA",
     "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
@@ -651,7 +652,7 @@ try {
     $actualSha256 = (Get-FileHash -LiteralPath $resolvedExe -Algorithm SHA256).Hash.ToLowerInvariant()
     $summary.executable.length = [int64]$file.Length
     $summary.executable.sha256 = $actualSha256
-    if (-not [string]::IsNullOrWhiteSpace($ExpectedSha256) -and $actualSha256 -ne $ExpectedSha256.Trim().ToLowerInvariant()) {
+    if ($actualSha256 -ne $ExpectedSha256.Trim().ToLowerInvariant()) {
         throw "Hook candidate SHA-256 mismatch: expected=$ExpectedSha256 actual=$actualSha256"
     }
     if ($null -eq $nodeCommand) {
@@ -670,8 +671,8 @@ try {
         if ($null -eq $resolvedLoomManifestPath -or -not (Test-Path -LiteralPath $resolvedLoomManifestPath -PathType Leaf)) {
             throw "RequireSurfaceDashboard needs an existing LoomManifestPath"
         }
-        if ($ArtLoomWsUrl -notmatch '^ws://127\.0\.0\.1:\d+$') {
-            throw "RequireSurfaceDashboard needs a loopback ArtLoomWsUrl"
+        if ($LoomHookWsUrl -notmatch '^ws://127\.0\.0\.1:\d+$') {
+            throw "RequireSurfaceDashboard needs a loopback LoomHookWsUrl"
         }
         if ($SurfaceBaseUrl -notmatch '^http://127\.0\.0\.1:\d+$') {
             throw "RequireSurfaceDashboard needs a loopback SurfaceBaseUrl"
@@ -704,18 +705,18 @@ try {
     $env:HOOK_STARTUP_MODE = "visible"
     $env:HOOK_INITIAL_UI_MODE = "canvas"
     $env:HOOK_AUTOSTART_CAPTURE = "0"
-    $env:HOOK_ENABLE_ARTLOOM = if ($RequireSurfaceDashboard) { "1" } else { "0" }
+    $env:HOOK_ENABLE_LOOM_HOOK = if ($RequireSurfaceDashboard) { "1" } else { "0" }
     $env:HOOK_NATIVE_ACCEPTANCE = "1"
     $env:HOOK_TEA_INTAKE_ENABLED = "0"
     $env:APPDATA = $windowsAppDataDir
     $env:LOCALAPPDATA = $windowsLocalAppDataDir
     if ($RequireSurfaceDashboard) {
         $env:LOOM_MANIFEST_PATH = $resolvedLoomManifestPath
-        $env:ARTLOOM_WS_URL = $ArtLoomWsUrl
+        $env:LOOM_HOOK_WS_URL = $LoomHookWsUrl
     }
     else {
         $env:LOOM_MANIFEST_PATH = Join-Path $resolvedArtifactRoot "missing-loom.json"
-        $env:ARTLOOM_WS_URL = "ws://127.0.0.1:$isolatedArtLoomPort"
+        $env:LOOM_HOOK_WS_URL = "ws://127.0.0.1:$isolatedLoomHookPort"
     }
     $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$debugPort --remote-allow-origins=*"
     $env:WEBVIEW2_USER_DATA_FOLDER = $webview2UserDataDir
@@ -729,8 +730,8 @@ try {
     }
     $firstMarker = "first-launch-$runId"
     $firstProbe = Invoke-NativeProbe -DebugPort $debugPort -Name "first-launch-probe" -Marker $firstMarker -PersistSettings
-    $expectedArtLoomEnabled = $RequireSurfaceDashboard.IsPresent
-    if ($firstProbe.bootProfile.startupMode -ne "visible" -or $firstProbe.bootProfile.initialUiMode -ne "canvas" -or $firstProbe.bootProfile.artLoomEnabled -ne $expectedArtLoomEnabled) {
+    $expectedLoomHookEnabled = $RequireSurfaceDashboard.IsPresent
+    if ($firstProbe.bootProfile.startupMode -ne "visible" -or $firstProbe.bootProfile.initialUiMode -ne "canvas" -or $firstProbe.bootProfile.loomHookEnabled -ne $expectedLoomHookEnabled) {
         throw "first native probe returned an unexpected boot profile"
     }
     if (-not (Wait-ForRuntimeLogText -Needle "native-acceptance-probe :: $firstMarker" -TimeoutSeconds 10)) {
@@ -779,10 +780,12 @@ try {
             nodes = @(
                 @{
                     id = $originNodeId
-                    type = "art"
+                    type = "artNode"
                     position = @{ x = 100; y = 100 }
                     data = @{
-                        artId = "surface-device-dashboard"
+                        # Hook bridge capability ids are publisher-qualified. The
+                        # package's local id is only used by Loom's install/store APIs.
+                        artId = "neuro.official/surface-device-dashboard"
                         w = 480
                         h = 520
                     }
@@ -792,9 +795,10 @@ try {
             mode = "reference"
             workflowId = $workflowId
         }
-        $instantiated = Invoke-JsonPost -Uri "$SurfaceBaseUrl/v1/artloom-compat/ipc/instantiate-workflow" -Body $workflowPayload
-        if ([string]$instantiated.method -ne "art_hook/instantiate") {
-            throw "isolated Loom did not broadcast art_hook/instantiate"
+        $instantiated = Invoke-JsonPost -Uri "$SurfaceBaseUrl/v1/hook-bridge/workflows/instantiate" -Body $workflowPayload
+        if ([string]$instantiated.protocolVersion -ne "loom.hook.v1" -or
+            [string]$instantiated.method -ne "loom.hook.workflow.instantiated") {
+            throw "isolated Loom did not broadcast loom.hook.workflow.instantiated"
         }
         $pairing = Wait-AndApprovePendingHookDevice -BaseUrl $SurfaceBaseUrl -TimeoutSeconds $StartupTimeoutSeconds
 
@@ -823,10 +827,10 @@ try {
         if (@($eventAcks | Where-Object { [string]$_.status -eq "succeeded" }).Count -lt 1) {
             throw "isolated Loom did not record a succeeded event ACK for the Hook click"
         }
-        if (-not (Wait-ForRuntimeLogText -Needle "artloom_dispatch_surface_attach" -TimeoutSeconds 10)) {
+        if (-not (Wait-ForRuntimeLogText -Needle "loom_hook_dispatch_surface_attach" -TimeoutSeconds 10)) {
             throw "Hook runtime log did not record the real Surface attach"
         }
-        if (-not (Wait-ForRuntimeLogText -Needle "artloom_dispatch_surface_event" -TimeoutSeconds 10)) {
+        if (-not (Wait-ForRuntimeLogText -Needle "loom_hook_dispatch_surface_event" -TimeoutSeconds 10)) {
             throw "Hook runtime log did not record the real Surface event"
         }
         $summary.phases.dualEndSurface = [ordered]@{

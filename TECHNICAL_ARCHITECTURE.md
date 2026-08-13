@@ -171,7 +171,7 @@ transform.
 
 ### 4.4 Local capability bridges
 
-- `mock_artloom.rs` maps the local Art/workflow surface;
+- `loom_hook.rs` maps the local Art/workflow surface;
 - `loom_config.rs` and `loom_connector.rs` discover and invoke Loom capabilities;
 - `talk_connector.rs` invokes the local Talk voice capability;
 - `tea_client.rs` submits tickets to the local Tea service and redacts sensitive
@@ -179,7 +179,7 @@ transform.
 - `voice/` contains audio capture, session, provider, hotkey, clipboard insertion,
   and client logic.
 
-CLI-backed package Arts are forwarded to Loom through AHRP. Hook does not maintain
+Package Arts are forwarded to Loom through `loom.hook.v1`. Hook does not maintain
 per-Art command executors in the frontend or Rust host.
 
 ## 5. Capture and window targeting
@@ -243,9 +243,13 @@ sanitized for Windows while preserving normal Unicode. Collision allocation is
 atomic (`name.png`, `name_2.png`, ...). Internal content-addressed assets, capture
 transport files, logs, and caches do not use the visible naming templates.
 
-The public bundle identity is `com.yamiyu.hook`. If its data directory is empty,
-the runtime checks legacy data roots for `io.github.aiaimimi0920.hook` and
-`com.vmjcv.hook` so an identifier migration does not discard local state.
+The public bundle identity and canonical automatic data root are
+`com.yamiyu.hook`. Tests and isolated launches can override the data root with
+`HOOK_APPDATA_DIR`; the runtime does not scan or migrate obsolete identities.
+
+Phase 71 enforces the same canonical-only rule across the active Art boundary:
+current schemas, package layouts, and app-data identities are accepted;
+obsolete aliases and migration paths are not production inputs.
 
 ## 8. Build, test, and release
 
@@ -288,6 +292,8 @@ approval environment are provisioned.
    sessions should not be rejected solely for schema drift.
 6. Never publish an unsigned UIAccess candidate as a signed installer.
 7. Keep project and bundled-source licenses in every release archive.
+8. Do not add compatibility aliases or persisted-data/package-layout migration
+   paths to the production Art boundary.
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the change workflow and
 [`docs/README.md`](docs/README.md) for the maintained documentation index.

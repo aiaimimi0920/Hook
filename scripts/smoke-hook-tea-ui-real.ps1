@@ -528,8 +528,8 @@ try {
           startupMode: "visible",
           initialUiMode: "canvas",
           autoStartCapture: false,
-          artLoomEnabled: false,
-          artLoomWsUrl: "ws://127.0.0.1:19820",
+          loomHookEnabled: false,
+          loomHookWsUrl: "ws://127.0.0.1:19820",
         };
       case "get_voice_settings_summary":
         return {
@@ -541,7 +541,7 @@ try {
           clipboardBackend: "fallback",
           voiceMode: "dictate",
         };
-      case "artloom_handshake":
+      case "loom_hook_handshake":
         return {
           server_name: "hook-tea-ui-smoke",
           capabilities: { art_definitions: [] },
@@ -556,7 +556,7 @@ try {
       case "set_mouse_monitor_active":
       case "set_overlay_click_through":
       case "update_pin_rects":
-      case "artloom_dispatch_action":
+      case "loom_hook_dispatch_action":
       case "append_runtime_log":
         if (command === "append_runtime_log") {
           debugEvents.push(args);

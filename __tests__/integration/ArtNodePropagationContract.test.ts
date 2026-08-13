@@ -36,7 +36,7 @@ describe("Hook art-node upstream propagation contract", () => {
     const nodeParametersSource = readFileSync(resolve(process.cwd(), "src", "hooks", "useNodeParameters.ts"), "utf8");
     const unitActionsSource = readFileSync(resolve(process.cwd(), "src", "hooks", "useUnitActions.ts"), "utf8");
 
-    expect(nodeParametersSource).toContain("resolveUnitExecutionInputImage");
+    expect(nodeParametersSource).toContain("resolveUnitExecutionImageInputs");
     expect(nodeParametersSource).toContain("unitId,");
     expect(unitActionsSource).toContain("resolveConnectedUnitImageForPort");
     expect(unitActionsSource).toContain("unitId: childId");

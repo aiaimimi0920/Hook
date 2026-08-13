@@ -89,6 +89,13 @@ try {
         );
         const afterRevision = Number(await surfaceRoot.getAttribute("data-surface-revision"));
         const chartSource = await chart.getAttribute("src");
+        await page.locator("#app-main").click({ position: { x: 4, y: 4 } });
+        const selectionCleared = await page.evaluate(() =>
+            !document.querySelector('[data-unit-id].ring-2, [data-unit-id][data-selected="true"]'),
+        );
+        if (!selectionCleared) {
+            throw new Error("native acceptance probe could not clear Surface selection after verification");
+        }
         await writeResult({
             status: "passed",
             marker,
@@ -102,6 +109,7 @@ try {
                 refreshButtonVisible: await refreshButton.isVisible(),
                 chartDataUrl: chartSource?.startsWith("data:image/png;base64,") === true,
                 chartDataUrlLength: chartSource?.length || 0,
+                selectionCleared,
             },
         });
     } else {

@@ -138,7 +138,7 @@ describe("toolSettings per-tool presets", () => {
         expect(settings.mosaicSize).toBe(20);
     });
 
-    it("migrates legacy shared values into all relevant tool presets on first normalize", () => {
+    it("ignores flattened values when canonical tool profiles are absent", () => {
         const normalized = normalizeStickerToolSettings({
             domain: "create",
             mode: "shape-triangle",
@@ -158,34 +158,34 @@ describe("toolSettings per-tool presets", () => {
             mode: "shape-rect",
             activeTool: "shape-rect",
         });
-        expect(rectSettings.strokeWidth).toBe(12);
-        expect(rectSettings.shapeSnapStep).toBe(9);
-        expect(rectSettings.shapeCornerRadius).toBe(6);
-        expect(rectSettings.shapeStrokeDashPattern).toBe("dash-2");
-        expect(rectSettings.shapeConstrainSquare).toBe(true);
+        expect(rectSettings.strokeWidth).toBe(3);
+        expect(rectSettings.shapeSnapStep).toBe(0);
+        expect(rectSettings.shapeCornerRadius).toBe(0);
+        expect(rectSettings.shapeStrokeDashPattern).toBe("solid");
+        expect(rectSettings.shapeConstrainSquare).toBe(false);
 
         const lineSettings = applyStickerToolSettingsPatch(normalized, {
             domain: "create",
             mode: "line",
             activeTool: "line",
         });
-        expect(lineSettings.strokeWidth).toBe(12);
-        expect(lineSettings.shapeStrokeDashPattern).toBe("dash-2");
+        expect(lineSettings.strokeWidth).toBe(3);
+        expect(lineSettings.shapeStrokeDashPattern).toBe("solid");
 
         const blurSettings = applyStickerToolSettingsPatch(normalized, {
             domain: "create",
             mode: "blur",
             activeTool: "blur",
         });
-        expect(blurSettings.effectBrushSize).toBe(52);
-        expect(blurSettings.blurStrength).toBe(14);
+        expect(blurSettings.effectBrushSize).toBe(28);
+        expect(blurSettings.blurStrength).toBe(8);
 
         const mosaicSettings = applyStickerToolSettingsPatch(normalized, {
             domain: "create",
             mode: "mosaic",
             activeTool: "mosaic",
         });
-        expect(mosaicSettings.effectBrushSize).toBe(52);
-        expect(mosaicSettings.mosaicSize).toBe(18);
+        expect(mosaicSettings.effectBrushSize).toBe(28);
+        expect(mosaicSettings.mosaicSize).toBe(12);
     });
 });

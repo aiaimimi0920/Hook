@@ -1,5 +1,5 @@
 import { onMount, onCleanup, createEffect, createSignal, Show, ErrorBoundary, untrack, batch } from "solid-js";
-import { api, isTauriRuntimeAvailable, listenBrowserArtLoomMethod, type TeaTicketSummary, type VoiceSettingsSummary } from "./services/api";
+import { api, isTauriRuntimeAvailable, listenBrowserLoomHookMethod, type TeaTicketSummary, type VoiceSettingsSummary } from "./services/api";
 import { listen } from "@tauri-apps/api/event";
 import { installErrorDiagnostics } from "./services/errorDiagnostics";
 import { logger } from "./services/logger";
@@ -49,7 +49,7 @@ import {
 } from "./store/uiStore";
 
 
-import { artLoom } from "./services/client";
+import { loomHook } from "./services/client";
 import { syncService } from "./services/syncService";
 import { shaderCache } from "./services/shaderCache";
 import {
@@ -104,7 +104,7 @@ import {
     mergeInstantiatedLinks,
     mergeInstantiatedUnits,
 } from "./services/workflowInstantiation";
-import { refreshArtLoomCapabilitiesOnStartup } from "./services/artLoomStartup";
+import { refreshLoomHookCapabilitiesOnStartup } from "./services/loomHookStartup";
 import { artExecutionRequests } from "./services/artExecutionRequests";
 import {
     applyHookGeneralSettings,
@@ -224,7 +224,7 @@ export default function App() {
       setSurfaceConfirmationSubmitting(true);
       setSurfaceConfirmationError(undefined);
       try {
-          await artLoom.decideSurfaceConfirmation({
+          await loomHook.decideSurfaceConfirmation({
               protocolVersion: SURFACE_PROTOCOL_VERSION,
               confirmationId: current.confirmationId,
               instanceId: current.instanceId,
@@ -392,8 +392,8 @@ export default function App() {
       if (capabilityRefreshPromise) return capabilityRefreshPromise;
 
       capabilityRefreshPromise = (async () => {
-          const handshake = await artLoom.connect();
-          const arts = handshake.capabilities?.art_definitions || [];
+          const handshake = await loomHook.connect();
+          const arts = handshake.capabilities.artDefinitions;
           graphStore.setCapabilities(arts);
 
           const shaderArts = arts.filter((art: ArtCapability) => supportsShaderPreview(art));
@@ -416,10 +416,10 @@ export default function App() {
       ShortcutManager.applyLoomSettings(settings);
       const record = settings as Record<string, unknown>;
       applyHookGeneralSettings(normalizeHookGeneralSettings(
-          record.hook_general || record.hookGeneral,
+          record.hook_general,
       ));
 
-      const hookCache = record.hook_cache || record.hookCache;
+      const hookCache = record.hook_cache;
       if (!hookCache || typeof hookCache !== "object") return;
       const cache = normalizeHookCacheSettings(hookCache);
       const saved = await saveCurrentAppSettings({
@@ -481,7 +481,7 @@ export default function App() {
       if (!isCurrentDelivery()) {
           void api.debugLogEvent(
               "art-delivery-discarded-stale",
-              `unit=${unitId} request=${delivery.request_id || "missing"}`,
+              `unit=${unitId} request=${delivery.request_id}`,
           );
           return;
       }
@@ -526,7 +526,6 @@ export default function App() {
 
       switch (delivery.delivery.type) {
           case "shared_memory":
-          case "shm":
               if (delivery.delivery.handle && delivery.delivery.size && delivery.delivery.width && delivery.delivery.height) {
                   previewSrc = await api.readSharedMemory(
                       delivery.delivery.handle,
@@ -558,9 +557,6 @@ export default function App() {
               await syncService.performWorkflowSync();
               return;
           case "value":
-          case "json":
-          case "text":
-          case "number":
               outputValues = extractArtDeliveryValueOutputs(delivery.delivery);
               break;
           default:
@@ -570,7 +566,7 @@ export default function App() {
       if (!isCurrentDelivery()) {
           void api.debugLogEvent(
               "art-delivery-discarded-after-read",
-              `unit=${unitId} request=${delivery.request_id || "missing"}`,
+              `unit=${unitId} request=${delivery.request_id}`,
           );
           return;
       }
@@ -592,7 +588,7 @@ export default function App() {
               artExecutionRequests.markPreview(unitId, delivery.request_id, previewSrc);
               void api.debugLogEvent(
                   "art-delivery-applied-preview",
-                  `unit=${unitId} request=${delivery.request_id || "missing"}`,
+                  `unit=${unitId} request=${delivery.request_id}`,
               );
           }
           return;
@@ -613,7 +609,7 @@ export default function App() {
           previewSrc,
           filePath,
       });
-      const replacesImageResult = ["shared_memory", "shm", "base64", "file_path"]
+      const replacesImageResult = ["shared_memory", "base64", "file_path"]
           .includes(delivery.delivery.type);
 
       graphStore.actions.updateUnitData(unitId, {
@@ -631,7 +627,7 @@ export default function App() {
       });
       void api.debugLogEvent(
           "art-delivery-applied-final",
-          `unit=${unitId} request=${delivery.request_id || "missing"} preservedPreview=${Boolean(workflowPreviewSrc)}`,
+          `unit=${unitId} request=${delivery.request_id} preservedPreview=${Boolean(workflowPreviewSrc)}`,
       );
       artExecutionRequests.finish(unitId, delivery.request_id);
       void prefetchCandidateAssets({
@@ -658,7 +654,7 @@ export default function App() {
       };
       if (!surfaceStore.actions.applyLifecycle(unitId, event)) return;
       try {
-          await artLoom.dispatchSurfaceLifecycle(event);
+          await loomHook.dispatchSurfaceLifecycle(event);
       } catch (error) {
           console.warn(`Failed to move Surface ${unitId} to ${state}:`, error);
       }
@@ -973,7 +969,7 @@ export default function App() {
           if (tauriRuntimeAvailable) {
               void api.debugLogEvent(
                   "boot-profile-loaded",
-                  `startupMode=${bootProfile.startupMode} initialUiMode=${bootProfile.initialUiMode} autoStartCapture=${bootProfile.autoStartCapture} artLoomEnabled=${bootProfile.artLoomEnabled}`,
+                  `startupMode=${bootProfile.startupMode} initialUiMode=${bootProfile.initialUiMode} autoStartCapture=${bootProfile.autoStartCapture} loomHookEnabled=${bootProfile.loomHookEnabled}`,
               );
           }
       } catch (error) {
@@ -1181,6 +1177,9 @@ export default function App() {
 
           const unlistenDelete = await listen("trigger-delete", () => {
               void api.debugLogEvent("trigger-delete-listener");
+              if (activeBootProfile?.nativeAcceptance) {
+                  return;
+              }
               if (appSettingsOpen() || longCaptureSession()?.active || isSelecting()) {
                   return;
               }
@@ -1381,14 +1380,14 @@ export default function App() {
               "art/loom_connection_state",
               async (event) => {
                   if (event.payload?.connected) {
-                      logger.debug("ArtLoom desktop bridge connected, refreshing capabilities");
+                      logger.debug("Loom Hook desktop bridge connected, refreshing capabilities");
                       try {
                           await refreshCapabilities();
                       } catch (e) {
                           console.error("Failed to refresh capabilities after reconnect", e);
                       }
                   } else {
-                      console.warn("ArtLoom desktop bridge disconnected");
+                      console.warn("Loom Hook desktop bridge disconnected");
                   }
               },
           );
@@ -1403,7 +1402,7 @@ export default function App() {
               document.removeEventListener("visibilitychange", onSurfaceVisibilityChange);
           });
 
-          const unlistenProgress = await artLoom.listenForProgress((artId, progress) => {
+          const unlistenProgress = await loomHook.listenForProgress((artId, progress) => {
               graphStore.actions.updateUnitData(artId, {
                   processing: true,
                   nodeStatus: "running",
@@ -1411,7 +1410,7 @@ export default function App() {
               });
           });
 
-          const unlistenDelivery = await artLoom.listenForDelivery((delivery) => {
+          const unlistenDelivery = await loomHook.listenForDelivery((delivery) => {
               handleArtDelivery(delivery).catch((error) => {
                   console.error("Failed to process art delivery", error);
                   if (!artExecutionRequests.isLatest(delivery.art_id, delivery.request_id)) {
@@ -1420,7 +1419,7 @@ export default function App() {
                   if (delivery.phase === "preview") {
                       void api.debugLogEvent(
                           "art-delivery-preview-read-failed",
-                          `unit=${delivery.art_id} request=${delivery.request_id || "missing"} error=${error instanceof Error ? error.message : String(error)}`,
+                          `unit=${delivery.art_id} request=${delivery.request_id} error=${error instanceof Error ? error.message : String(error)}`,
                       );
                       return;
                   }
@@ -1433,7 +1432,7 @@ export default function App() {
               });
           });
 
-          const unlistenSurfaceSnapshot = await artLoom.listenForSurfaceSnapshot((delivery) => {
+          const unlistenSurfaceSnapshot = await loomHook.listenForSurfaceSnapshot((delivery) => {
               const unit = graphStore.units.find((candidate) => candidate.id === delivery.hookNodeId);
               if (!unit || unit.type !== "art") {
                   console.warn("Ignoring Surface snapshot for unknown non-Art node", delivery.hookNodeId);
@@ -1460,7 +1459,7 @@ export default function App() {
           });
 
           const surfaceRemountsInFlight = new Set<string>();
-          const unlistenSurfacePatch = await artLoom.listenForSurfacePatch((delivery) => {
+          const unlistenSurfacePatch = await loomHook.listenForSurfacePatch((delivery) => {
               const current = surfaceStore.byUnit[delivery.hookNodeId];
               if (!current || current.snapshot.instanceId !== delivery.patch.instanceId) return;
               try {
@@ -1471,7 +1470,7 @@ export default function App() {
                       const recoveryKey = `${delivery.patch.instanceId}:${current.snapshot.attachmentId}`;
                       if (!surfaceRemountsInFlight.has(recoveryKey)) {
                           surfaceRemountsInFlight.add(recoveryKey);
-                          void artLoom.remountSurface(
+                          void loomHook.remountSurface(
                               delivery.patch.instanceId,
                               current.snapshot.attachmentId,
                               delivery.hookNodeId,
@@ -1495,7 +1494,7 @@ export default function App() {
               }
           });
 
-          const unlistenSurfaceGeneration = await artLoom.listenForSurfaceGeneration((delivery) => {
+          const unlistenSurfaceGeneration = await loomHook.listenForSurfaceGeneration((delivery) => {
               const current = surfaceStore.byUnit[delivery.hookNodeId];
               if (
                   current?.snapshot.instanceId === delivery.instanceId &&
@@ -1510,7 +1509,7 @@ export default function App() {
                   ([, state]) => state?.snapshot.instanceId === instanceId,
               )?.[0];
 
-          const unlistenSurfaceActionAck = await artLoom.listenForSurfaceActionAck((ack) => {
+          const unlistenSurfaceActionAck = await loomHook.listenForSurfaceActionAck((ack) => {
               if (ack.status !== "awaiting_confirmation") {
                   setSurfaceConfirmations((requests) => requests.filter(
                       (request) => request.requestId !== ack.requestId,
@@ -1552,10 +1551,10 @@ export default function App() {
               }
           });
 
-          const unlistenSurfaceConfirmation = await artLoom.listenForSurfaceConfirmation((request) => {
+          const unlistenSurfaceConfirmation = await loomHook.listenForSurfaceConfirmation((request) => {
               if (request.protocolVersion !== SURFACE_PROTOCOL_VERSION) return;
               if (request.expiresAtMs <= Date.now()) {
-                  void artLoom.decideSurfaceConfirmation({
+                  void loomHook.decideSurfaceConfirmation({
                       protocolVersion: SURFACE_PROTOCOL_VERSION,
                       confirmationId: request.confirmationId,
                       instanceId: request.instanceId,
@@ -1570,7 +1569,7 @@ export default function App() {
               ) ? current : [...current, request]);
           });
 
-          const unlistenSurfaceProgress = await artLoom.listenForSurfaceProgress((progress) => {
+          const unlistenSurfaceProgress = await loomHook.listenForSurfaceProgress((progress) => {
               const unitId = surfaceUnitIdForInstance(progress.instanceId);
               const current = unitId ? surfaceStore.byUnit[unitId] : undefined;
               if (!unitId || !current || current.generation !== progress.generation) return;
@@ -1583,7 +1582,7 @@ export default function App() {
               }
           });
 
-          const unlistenSurfacePreview = await artLoom.listenForSurfacePreview((delivery) => {
+          const unlistenSurfacePreview = await loomHook.listenForSurfacePreview((delivery) => {
               if (!surfaceStore.actions.acceptPreviewCommit(delivery.hookNodeId, delivery.commit)) {
                   return;
               }
@@ -1597,7 +1596,7 @@ export default function App() {
               });
           });
 
-          const unlistenSurfaceResult = await artLoom.listenForSurfaceResult((delivery) => {
+          const unlistenSurfaceResult = await loomHook.listenForSurfaceResult((delivery) => {
               if (!surfaceStore.actions.acceptResultCommit(delivery.hookNodeId, delivery.commit)) {
                   return;
               }
@@ -1620,7 +1619,7 @@ export default function App() {
               void syncService.performWorkflowSync();
           });
 
-          const unlistenSurfaceFailure = await artLoom.listenForSurfaceFailure((delivery) => {
+          const unlistenSurfaceFailure = await loomHook.listenForSurfaceFailure((delivery) => {
               const unitId = delivery.hookNodeId
                   ?? surfaceUnitIdForInstance(delivery.failure.instanceId);
               const current = unitId ? surfaceStore.byUnit[unitId] : undefined;
@@ -1632,7 +1631,7 @@ export default function App() {
               });
           });
 
-          const unlistenSurfaceLifecycle = await artLoom.listenForSurfaceLifecycle((delivery) => {
+          const unlistenSurfaceLifecycle = await loomHook.listenForSurfaceLifecycle((delivery) => {
               const applied = surfaceStore.actions.applyLifecycle(
                   delivery.hookNodeId,
                   delivery.event,
@@ -1646,7 +1645,7 @@ export default function App() {
               }
           });
 
-          const unlistenSurfaceDispose = await artLoom.listenForSurfaceDispose((delivery) => {
+          const unlistenSurfaceDispose = await loomHook.listenForSurfaceDispose((delivery) => {
               const current = surfaceStore.byUnit[delivery.hookNodeId];
               if (
                   current?.snapshot.instanceId === delivery.instanceId &&
@@ -1659,7 +1658,7 @@ export default function App() {
               }
           });
 
-          const unlistenSurfaceResource = await artLoom.listenForSurfaceResource((delivery) => {
+          const unlistenSurfaceResource = await loomHook.listenForSurfaceResource((delivery) => {
               if (!surfaceResourceStore.actions.complete(
                   delivery.resourceId,
                   delivery.dataUrl,
@@ -1729,12 +1728,12 @@ export default function App() {
       }
 
       try {
-          await refreshArtLoomCapabilitiesOnStartup(
-              bootProfile?.artLoomEnabled ?? false,
+          await refreshLoomHookCapabilitiesOnStartup(
+              bootProfile?.loomHookEnabled ?? false,
               refreshCapabilities,
           );
       } catch (e) {
-          console.warn("ArtLoom bridge unavailable during startup; continuing in standalone mode.", e);
+          console.warn("Loom Hook bridge unavailable during startup; continuing in standalone mode.", e);
       }
 
       let preloadedSession: Awaited<ReturnType<typeof api.loadSession>> | null = null;
@@ -1760,7 +1759,7 @@ export default function App() {
       }
 
       // A restored session can already contain installed Art nodes even when the
-      // boot profile keeps ArtLoom's startup handshake disabled. Without a
+      // boot profile keeps Loom Hook's startup handshake disabled. Without a
       // capability refresh those nodes still restore as `type: "art"`, but they
       // boot without their catalog metadata and degrade into generic image nodes
       // until the user manually opens the add-node menu. Reload the catalog
@@ -1791,12 +1790,12 @@ export default function App() {
 
       if (!tauriRuntimeAvailable) {
           logger.debug("Running in browser preview mode; attaching browser IPC listeners.");
-          const stopInstantiate = listenBrowserArtLoomMethod("art_hook/instantiate", (payload) => {
+          const stopInstantiate = listenBrowserLoomHookMethod("loom.hook.workflow.instantiated", (payload) => {
               instantiateWorkflowSnapshot(normalizeWorkflowSnapshotPayload(payload)).catch((error) => {
                   console.error("Browser instantiate handler failed:", error);
               });
           });
-          const stopCapabilitiesUpdated = listenBrowserArtLoomMethod("art_loom/arts_updated", async () => {
+          const stopCapabilitiesUpdated = listenBrowserLoomHookMethod("loom.hook.capabilities.updated", async () => {
               try {
                   await refreshCapabilities();
               } catch (error) {

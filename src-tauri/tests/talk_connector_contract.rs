@@ -302,10 +302,16 @@ fn talk_connector_builds_voice_capture_once_invoke_envelope_for_hook_caller() {
 
 #[test]
 fn talk_connector_disables_system_http_proxy_for_loopback_capability_calls() {
-    let source = include_str!("../src/talk_connector.rs");
+    let connector_source = include_str!("../src/talk_connector.rs");
+    let proxy_source = include_str!("../src/network_proxy.rs");
 
     assert!(
-        source.contains(".no_proxy()"),
+        connector_source.contains("network_proxy::apply_to_url"),
+        "Talk capability calls must use the shared Hook proxy policy"
+    );
+    assert!(
+        proxy_source.contains("endpoint_is_loopback(endpoint)")
+            && proxy_source.contains("return Ok(builder.no_proxy())"),
         "Talk local capability calls must not send loopback bearer tokens through system HTTP proxies"
     );
 }

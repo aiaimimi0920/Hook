@@ -11,6 +11,8 @@ describe("art execution request registry", () => {
 
         expect(registry.isLatest("art-node", first)).toBe(false);
         expect(registry.isLatest("art-node", second)).toBe(true);
+        expect(registry.generation("art-node", first)).toBeUndefined();
+        expect(registry.generation("art-node", second)).toBe(2);
     });
 
     it("keeps request ordering isolated per unit", () => {
@@ -22,16 +24,6 @@ describe("art execution request registry", () => {
 
         expect(registry.isLatest("first-node", firstUnitRequest)).toBe(true);
         expect(registry.isLatest("second-node", secondUnitRequest)).toBe(true);
-    });
-
-    it("accepts legacy deliveries only when the unit has no tracked request", () => {
-        const registry = createArtExecutionRequestRegistry(() => "request-a");
-
-        expect(registry.isLatest("art-node")).toBe(true);
-        registry.begin("art-node");
-        expect(registry.isLatest("art-node")).toBe(false);
-        registry.invalidate("art-node");
-        expect(registry.isLatest("art-node")).toBe(true);
     });
 
     it("tracks preview publication only for the current request", () => {
@@ -63,11 +55,11 @@ describe("art execution request registry", () => {
         expect(registry.getPreview("art-node", request)).toBeUndefined();
     });
 
-    it("does not let a legacy terminal delivery finish an active identified request", () => {
+    it("does not let a mismatched terminal delivery finish the active request", () => {
         const registry = createArtExecutionRequestRegistry(() => "request-a");
         const request = registry.begin("art-node");
 
-        registry.finish("art-node");
+        registry.finish("art-node", "request-other");
 
         expect(registry.isLatest("art-node", request)).toBe(true);
     });

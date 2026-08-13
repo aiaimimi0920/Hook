@@ -73,7 +73,7 @@ const CAPABILITY: ArtCapability = {
     label: "Color Transfer",
     description: "Shader minified restore test",
     supported_transports: ["shared_memory"],
-    execution_type: "framework_art",
+    execution: { type: "framework_art" },
     metadata: { capabilities: { preview: "shader" } },
     params: [
         {

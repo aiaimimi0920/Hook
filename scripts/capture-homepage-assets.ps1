@@ -625,7 +625,7 @@ $envSnapshot = @{
     HOOK_STARTUP_MODE = $env:HOOK_STARTUP_MODE
     HOOK_INITIAL_UI_MODE = $env:HOOK_INITIAL_UI_MODE
     HOOK_AUTOSTART_CAPTURE = $env:HOOK_AUTOSTART_CAPTURE
-    HOOK_ENABLE_ARTLOOM = $env:HOOK_ENABLE_ARTLOOM
+    HOOK_ENABLE_LOOM_HOOK = $env:HOOK_ENABLE_LOOM_HOOK
 }
 
 $process = $null
@@ -638,7 +638,7 @@ try {
     $env:HOOK_STARTUP_MODE = "visible"
     $env:HOOK_INITIAL_UI_MODE = "canvas"
     $env:HOOK_AUTOSTART_CAPTURE = "0"
-    $env:HOOK_ENABLE_ARTLOOM = "0"
+    $env:HOOK_ENABLE_LOOM_HOOK = "0"
 
     $process = Start-Process -FilePath $exePath -PassThru
     $window = Wait-HookWindow -TargetProcessId $process.Id -TimeoutSeconds 30

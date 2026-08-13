@@ -26,5 +26,6 @@ describe("Hook release launcher contract", () => {
         expect(launcherVbsSource).toContain('Call SetDefaultEnv("HOOK_LOG_DIR", shell.ExpandEnvironmentStrings("%LOCALAPPDATA%\\Hook\\logs"))');
         expect(launcherVbsSource).toContain("Call EnsureFolder(processEnv.Item(\"HOOK_LOG_DIR\"))");
         expect(launcherSource).not.toContain("HOOK_LOG_START_SIZE");
+        expect(launcherVbsSource).not.toContain('SetDefaultEnv("HOOK_CAPTURE_BACKEND", "gdi")');
     });
 });

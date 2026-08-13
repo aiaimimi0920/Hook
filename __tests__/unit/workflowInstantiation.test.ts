@@ -25,7 +25,7 @@ const mkUnit = (over: Partial<Unit> & { id: string }): Unit => ({
 
 const mkPayload = (over: Partial<WorkflowSnapshotPayload>): WorkflowSnapshotPayload => ({
     mode: undefined,
-    workflow_id: undefined,
+    workflowId: undefined,
     nodes: [],
     edges: [],
     ...over,
@@ -47,14 +47,22 @@ describe("buildWorkflowInstantiation", () => {
         expect(buildWorkflowInstantiation(mkPayload({ nodes: [] }), counterDeps())).toBeNull();
     });
 
-    it("2. applies geometry/opacity defaults for a minimal node", () => {
+    it("2. applies geometry/opacity defaults for a canonical Art node", () => {
         const result = buildWorkflowInstantiation(
-            mkPayload({ nodes: [{ id: "n1" }] }),
+            mkPayload({
+                nodes: [
+                    {
+                        id: "n1",
+                        type: "artNode",
+                        data: { artId: "neuro.official/example" },
+                    },
+                ],
+            }),
             counterDeps(),
         );
         const unit = result!.units[0];
         expect(unit.id).toBe("id1");
-        expect(unit.type).toBe("art"); // undefined node.type => art
+        expect(unit.type).toBe("art");
         expect(unit.x).toBe(0);
         expect(unit.y).toBe(0);
         expect(unit.w).toBe(240);
@@ -75,7 +83,7 @@ describe("buildWorkflowInstantiation", () => {
         expect(unit.outputs.map((p) => p.id)).toEqual(["output_image"]);
     });
 
-    it("4. resolves artId (and art_id fallback) plus capability ports", () => {
+    it("4. resolves canonical artId plus capability ports", () => {
         const capability = {
             id: "blur",
             inputs: [{ name: "input_image", label: "In", type: "image" }],
@@ -83,7 +91,7 @@ describe("buildWorkflowInstantiation", () => {
             params: [],
         } as unknown as ArtCapability;
         const result = buildWorkflowInstantiation(
-            mkPayload({ nodes: [{ id: "n", data: { art_id: "blur" } }] }),
+            mkPayload({ nodes: [{ id: "n", type: "artNode", data: { artId: "blur" } }] }),
             counterDeps({ capabilities: [capability] }),
         );
         const unit = result!.units[0];
@@ -93,13 +101,7 @@ describe("buildWorkflowInstantiation", () => {
         expect(unit.data.executionConfig).toBeDefined();
     });
 
-    it("4b. still instantiates an art node when a stale payload labels it as sticker but carries artId in node data", () => {
-        const capability = {
-            id: "color-transfer-art",
-            inputs: [{ name: "input_image", label: "In", type: "image" }],
-            outputs: [{ name: "output_image", label: "Out", type: "image" }],
-            params: [],
-        } as unknown as ArtCapability;
+    it("4b. maps canonical sticker wire type without inferring Art from data", () => {
         const result = buildWorkflowInstantiation(
             mkPayload({
                 nodes: [
@@ -110,22 +112,49 @@ describe("buildWorkflowInstantiation", () => {
                     },
                 ],
             }),
-            counterDeps({ capabilities: [capability] }),
+            counterDeps(),
         );
         const unit = result!.units[0];
-        expect(unit.type).toBe("art");
-        expect(unit.artId).toBe("color-transfer-art");
-        expect(unit.inputs.map((p) => p.id)).toEqual(["input_image"]);
+        expect(unit.type).toBe("sticker");
+        expect(unit.artId).toBeUndefined();
+        expect(unit.inputs.map((p) => p.id)).toEqual(["image"]);
         expect(unit.outputs.map((p) => p.id)).toEqual(["output_image"]);
+    });
+
+    it("4c. preserves the publisher-qualified Art identity used by the Loom Hook catalog", () => {
+        const capability = {
+            id: "neuro.official/surface-device-dashboard",
+            inputs: [],
+            outputs: [{ name: "dashboard", label: "Dashboard", type: "object" }],
+            params: [],
+            metadata: {
+                capabilities: {
+                    surface: {
+                        protocolVersion: "loom.surface.v1",
+                        apiVersion: "1.0",
+                        variants: [{ runtime: "declarative", entry: "surface/main.json" }],
+                    },
+                },
+            },
+        } as unknown as ArtCapability;
+        const result = buildWorkflowInstantiation(
+            mkPayload({
+                nodes: [{ id: "dashboard", type: "artNode", data: { artId: capability.id } }],
+            }),
+            counterDeps({ capabilities: [capability] }),
+        );
+
+        expect(result!.units[0].artId).toBe(capability.id);
+        expect(result!.units[0].outputs.map((port) => port.id)).toEqual(["dashboard"]);
     });
 
     it("5. prefers data.w over measured.width over the default", () => {
         const both = buildWorkflowInstantiation(
-            mkPayload({ nodes: [{ id: "a", data: { w: 100 }, measured: { width: 50 } }] }),
+            mkPayload({ nodes: [{ id: "a", type: "sticker", data: { w: 100 }, measured: { width: 50 } }] }),
             counterDeps(),
         );
         const measuredOnly = buildWorkflowInstantiation(
-            mkPayload({ nodes: [{ id: "b", measured: { width: 50 } }] }),
+            mkPayload({ nodes: [{ id: "b", type: "sticker", measured: { width: 50 } }] }),
             counterDeps(),
         );
         expect(both!.units[0].w).toBe(100);
@@ -138,7 +167,7 @@ describe("buildWorkflowInstantiation", () => {
             data: { originWorkflowId: "wf", originNodeId: "A" },
         });
         const result = buildWorkflowInstantiation(
-            mkPayload({ mode: "reference", workflow_id: "wf", nodes: [{ id: "A" }] }),
+            mkPayload({ mode: "reference", workflowId: "wf", nodes: [{ id: "A", type: "sticker" }] }),
             counterDeps({ existingUnits: [existing] }),
         );
         const unit = result!.units[0];
@@ -149,7 +178,7 @@ describe("buildWorkflowInstantiation", () => {
 
     it("7. mints fresh ids and no origin info outside reference mode", () => {
         const result = buildWorkflowInstantiation(
-            mkPayload({ mode: "clone", nodes: [{ id: "A" }] }),
+            mkPayload({ mode: "clone", nodes: [{ id: "A", type: "sticker" }] }),
             counterDeps(),
         );
         const unit = result!.units[0];
@@ -158,13 +187,13 @@ describe("buildWorkflowInstantiation", () => {
         expect(unit.data.originNodeId).toBeUndefined();
     });
 
-    it("8. treats reference mode without a workflow_id as non-reference", () => {
+    it("8. treats reference mode without a workflowId as non-reference", () => {
         const existing = mkUnit({
             id: "existing-1",
             data: { originWorkflowId: "wf", originNodeId: "A" },
         });
         const result = buildWorkflowInstantiation(
-            mkPayload({ mode: "reference", workflow_id: null, nodes: [{ id: "A" }] }),
+            mkPayload({ mode: "reference", workflowId: null, nodes: [{ id: "A", type: "sticker" }] }),
             counterDeps({ existingUnits: [existing] }),
         );
         expect(result!.units[0].id).toBe("id1"); // not reused
@@ -174,7 +203,7 @@ describe("buildWorkflowInstantiation", () => {
     it("9. maps edges through the id map, dropping edges to unknown nodes and defaulting ports", () => {
         const result = buildWorkflowInstantiation(
             mkPayload({
-                nodes: [{ id: "A" }, { id: "B" }],
+                nodes: [{ id: "A", type: "sticker" }, { id: "B", type: "sticker" }],
                 edges: [
                     { source: "A", target: "B" }, // valid -> mapped
                     { source: "A", target: "ghost" }, // dropped
@@ -194,7 +223,7 @@ describe("buildWorkflowInstantiation", () => {
     it("10. honors explicit edge handles", () => {
         const result = buildWorkflowInstantiation(
             mkPayload({
-                nodes: [{ id: "A" }, { id: "B" }],
+                nodes: [{ id: "A", type: "sticker" }, { id: "B", type: "sticker" }],
                 edges: [{ source: "A", target: "B", sourceHandle: "out1", targetHandle: "in1" }],
             }),
             counterDeps(),

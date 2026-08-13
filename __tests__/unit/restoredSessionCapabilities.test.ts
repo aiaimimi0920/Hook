@@ -113,12 +113,4 @@ describe("sessionSnapshotNeedsCapabilityRefresh", () => {
         ).toBe(false);
     });
 
-    it("treats legacy persisted stickers with only artId as art nodes that still need capabilities", () => {
-        expect(
-            sessionSnapshotNeedsCapabilityRefresh(
-                [mkSessionSticker({ id: "art-legacy", artId: "custom-color-transfer" })],
-                [],
-            ),
-        ).toBe(true);
-    });
 });

@@ -7,7 +7,7 @@ import {
     useShortcuts,
 } from "../../src/hooks/useShortcuts";
 
-describe("ShortcutManager legacy Hook shortcuts", () => {
+describe("ShortcutManager Hook shortcuts", () => {
     beforeEach(() => {
         ShortcutManager.resetToDefaults();
     });

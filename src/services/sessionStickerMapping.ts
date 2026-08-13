@@ -53,7 +53,7 @@ export const mapSessionStickerToUnit = (
     sticker: SessionSticker,
     deps: SessionStickerMappingDeps,
 ): Unit => {
-    const unitType: "sticker" | "art" = sticker.type === "art" || sticker.artId ? "art" : "sticker";
+    const unitType: "sticker" | "art" = sticker.type === "art" ? "art" : "sticker";
     const { inputs, outputs } = buildUnitPorts(unitType, sticker.artId ?? undefined, deps.capabilities);
     const capability = findArtCapability(deps.capabilities, sticker.artId);
     const executionConfig = deriveUnitExecutionConfig({

@@ -1,8 +1,8 @@
-export const refreshArtLoomCapabilitiesOnStartup = async (
-    artLoomEnabled: boolean,
+export const refreshLoomHookCapabilitiesOnStartup = async (
+    loomHookEnabled: boolean,
     refreshCapabilities: () => Promise<void>,
 ): Promise<boolean> => {
-    if (!artLoomEnabled) {
+    if (!loomHookEnabled) {
         return false;
     }
 

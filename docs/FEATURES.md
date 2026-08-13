@@ -94,7 +94,7 @@ input; fix the input path instead.
 
 ## 6. Workflow and persistence regression matrix
 
-- Art capabilities come from the current Loom/AHRP contract; Hook must not add
+- Art capabilities come from the current `loom.hook.v1` contract; Hook must not add
   per-Art executors or legacy compatibility branches without an active protocol
   requirement.
 - Shader-backed Art parameters should update the preview immediately through the

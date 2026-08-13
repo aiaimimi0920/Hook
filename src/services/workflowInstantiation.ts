@@ -1,7 +1,7 @@
 // Pure workflow-snapshot instantiation.
 //
 // Extracted from app.tsx's instantiateWorkflowSnapshot: the transform that turns
-// an incoming ArtLoom workflow snapshot into local `Unit`/`Link` records (with
+// an incoming Loom Hook workflow snapshot into local `Unit`/`Link` records (with
 // reference-mode reuse of existing units, port synthesis, execution-config
 // derivation, and geometry/opacity defaults), plus the two branchy merge
 // reducers used to fold the result into the graph store.
@@ -45,7 +45,7 @@ export const buildWorkflowInstantiation = (
     const incomingEdges = payload.edges;
     if (incomingNodes.length === 0) return null;
 
-    const isReferenceMode = payload.mode === "reference" && !!payload.workflow_id;
+    const isReferenceMode = payload.mode === "reference" && !!payload.workflowId;
     const incomingOriginNodeIds = new Set(
         incomingNodes
             .map((node) => (typeof node.id === "string" ? node.id : undefined))
@@ -57,7 +57,7 @@ export const buildWorkflowInstantiation = (
             const originWorkflowId = unit.data?.originWorkflowId;
             const originNodeId = unit.data?.originNodeId;
             if (
-                originWorkflowId === payload.workflow_id &&
+                originWorkflowId === payload.workflowId &&
                 originNodeId &&
                 incomingOriginNodeIds.has(originNodeId)
             ) {
@@ -77,9 +77,8 @@ export const buildWorkflowInstantiation = (
 
     const instantiatedUnits: Unit[] = incomingNodes.map((node) => {
         const localId = idMap.get(node.id)!;
-        const artId = node.data?.artId || node.data?.art_id || undefined;
-        const nodeType: "sticker" | "art" =
-            artId || node.type !== "sticker" ? "art" : "sticker";
+        const nodeType: "sticker" | "art" = node.type === "artNode" ? "art" : "sticker";
+        const artId = nodeType === "art" ? node.data?.artId : undefined;
         const capability = findArtCapability(deps.capabilities, artId);
         const { inputs, outputs } = buildUnitPortsFromCapability(nodeType, capability);
         const executionConfig = deriveUnitExecutionConfig({
@@ -108,7 +107,7 @@ export const buildWorkflowInstantiation = (
                 opacityNormal: node.data?.opacityNormal ?? 1,
                 opacityMini: node.data?.opacityMini ?? 0.9,
                 executionConfig,
-                originWorkflowId: isReferenceMode ? payload.workflow_id || undefined : undefined,
+                originWorkflowId: isReferenceMode ? payload.workflowId || undefined : undefined,
                 originNodeId: isReferenceMode ? node.id : undefined,
             },
         };

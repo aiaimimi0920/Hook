@@ -10,7 +10,7 @@ type CapabilityOutput = NonNullable<ArtCapability["outputs"]>[number];
 
 const getSchemaProperties = (capability: ArtCapability): Record<string, unknown> => {
     const execution = capability.execution as Record<string, unknown> | undefined;
-    const schema = (execution?.input_schema || execution?.inputSchema) as Record<string, unknown> | undefined;
+    const schema = execution?.inputSchema as Record<string, unknown> | undefined;
     const properties = schema?.properties;
     return properties && typeof properties === "object" ? properties as Record<string, unknown> : {};
 };

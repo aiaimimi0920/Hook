@@ -1,5 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
-import { HandshakeRequest, HandshakeResponse } from "./protocol";
+import {
+    HandshakeRequest,
+    HandshakeResponse,
+    type ArtDelivery,
+    type ArtResultCandidateMetadata,
+    type DeliveryPayload,
+    type HookArtPortValue,
+    type HookArtResultCommit,
+    type HookResponse,
+} from "./protocol";
 import { ShaderResponse } from "../components/ShaderRenderer";
 import { BootProfile, defaultBootProfile, normalizeBootProfile } from "./bootProfile";
 import type { FrozenStickerEntry } from "./stickerSnapshot";
@@ -18,6 +27,7 @@ import type {
 } from "./captureState";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "../types/appSettings";
 import type { FileNamingContext } from "../types/fileNaming";
+import { hookSurfaceHostCapabilities } from "./surfaceHostCapabilities";
 
 // Arguments Types
 export interface PinRect {
@@ -179,16 +189,20 @@ export interface TeaTicketSummary {
 }
 
 const EMPTY_HANDSHAKE: HandshakeResponse = {
-    server_name: "browser-preview",
+    protocolVersion: "loom.hook.v1",
+    serverName: "browser-preview",
+    serverVersion: "0.1.7",
     capabilities: {
-        art_definitions: [],
+        artDefinitions: [],
+        surface: hookSurfaceHostCapabilities(),
+        operations: [],
     },
-    negotiated_transport: "shared_memory",
-    session_id: "browser-preview",
+    transport: "shared_memory",
+    sessionId: "browser-preview",
 };
 
 const warnedMethods = new Set<string>();
-const BROWSER_ARTLOOM_WS_URL = "ws://127.0.0.1:19820";
+const BROWSER_LOOM_HOOK_WS_URL = "ws://127.0.0.1:19820";
 const BROWSER_SESSION_STORAGE_KEY = "hook_browser_preview_session";
 const BROWSER_WS_REQUEST_TIMEOUT_MS = 20000;
 const BROWSER_SESSION_DATA_URL_THRESHOLD = 8 * 1024;
@@ -201,7 +215,7 @@ const defaultVoiceSettingsSummary: VoiceSettingsSummary = {
     clipboardBackend: "fallback",
     voiceMode: "dictate",
 };
-type BrowserPushHandler = (payload: any) => void;
+type BrowserPushHandler = (payload: unknown) => void;
 const browserPushHandlers = new Map<string, Set<BrowserPushHandler>>();
 let browserPushSocket: WebSocket | null = null;
 let browserPushReconnectTimer: number | null = null;
@@ -239,27 +253,33 @@ const safeInvoke = async <T>(
     return invoke(command, args);
 };
 
-const browserArtLoomRequest = async <T = any>(request: { method: string; params?: any }): Promise<T> => {
+const requestIdFromParams = (params: unknown): string | undefined => {
+    if (!params || typeof params !== "object" || !("requestId" in params)) return undefined;
+    return typeof params.requestId === "string" ? params.requestId : undefined;
+};
+
+const browserLoomHookRequest = async <T = unknown>(request: { method: string; params?: unknown }): Promise<T> => {
     if (typeof WebSocket === "undefined") {
         throw new Error("WebSocket unavailable in current browser environment");
     }
 
+    const expectedRequestId = requestIdFromParams(request.params);
     return new Promise<T>((resolve, reject) => {
-        const ws = new WebSocket(BROWSER_ARTLOOM_WS_URL);
+        const ws = new WebSocket(BROWSER_LOOM_HOOK_WS_URL);
         let settled = false;
 
         const timeout = window.setTimeout(() => {
             if (settled) return;
             settled = true;
             ws.close();
-            reject(new Error(`ArtLoom WebSocket request timed out: ${request.method}`));
+            reject(new Error(`Loom Hook WebSocket request timed out: ${request.method}`));
         }, BROWSER_WS_REQUEST_TIMEOUT_MS);
 
         ws.onerror = () => {
             if (settled) return;
             settled = true;
             window.clearTimeout(timeout);
-            reject(new Error(`ArtLoom WebSocket connection failed: ${request.method}`));
+            reject(new Error(`Loom Hook WebSocket connection failed: ${request.method}`));
         };
 
         ws.onopen = () => {
@@ -270,13 +290,25 @@ const browserArtLoomRequest = async <T = any>(request: { method: string; params?
             if (settled) return;
             settled = true;
             window.clearTimeout(timeout);
-            reject(new Error(`ArtLoom WebSocket closed before response: ${request.method}`));
+            reject(new Error(`Loom Hook WebSocket closed before response: ${request.method}`));
         };
 
         ws.onmessage = (event) => {
             try {
                 const parsed = JSON.parse(String(event.data));
-                if (!parsed || typeof parsed !== "object" || typeof parsed.type !== "string") {
+                if (!parsed || typeof parsed !== "object") {
+                    return;
+                }
+                const isHandshake = request.method === "loom.hook.handshake" &&
+                    parsed.protocolVersion === "loom.hook.v1" &&
+                    typeof parsed.sessionId === "string" &&
+                    typeof parsed.serverName === "string";
+                const isRequestResponse = expectedRequestId !== undefined &&
+                    parsed.protocolVersion === "loom.hook.v1" &&
+                    parsed.requestId === expectedRequestId &&
+                    typeof parsed.status === "string";
+                const isHookResponse = isHandshake || isRequestResponse;
+                if (!isHookResponse) {
                     return;
                 }
 
@@ -292,25 +324,27 @@ const browserArtLoomRequest = async <T = any>(request: { method: string; params?
     });
 };
 
-const artLoomIpcRequest = async <T = any>(method: string, params?: any): Promise<T> => {
+const loomHookRequest = async <T = unknown>(method: string, params?: unknown): Promise<T> => {
     interface ErrorResponse {
         type?: string;
         data?: { message?: string } & T;
         message?: string;
     }
 
-    const response = await browserArtLoomRequest<ErrorResponse>({
+    const response = await browserLoomHookRequest<ErrorResponse>({
         method,
         params,
     });
 
-    if (response?.type === "error") {
+    const responseRecord = response as ErrorResponse & { status?: string; error?: { message?: string } };
+    if (response?.type === "error" || responseRecord.status === "failed") {
         const errorMessage =
             (response.data && typeof response.data === "object" && "message" in response.data
                 ? response.data.message
                 : undefined) ||
             response.message ||
-            `ArtLoom IPC request failed: ${method}`;
+            responseRecord.error?.message ||
+            `Loom Hook IPC request failed: ${method}`;
         throw new Error(errorMessage);
     }
 
@@ -331,14 +365,17 @@ const ensureBrowserPushSocket = () => {
     if (browserPushSocket && browserPushSocket.readyState !== WebSocket.CLOSED) return;
     if (browserPushHandlers.size === 0) return;
 
-    browserPushSocket = new WebSocket(BROWSER_ARTLOOM_WS_URL);
+    browserPushSocket = new WebSocket(BROWSER_LOOM_HOOK_WS_URL);
 
     browserPushSocket.onopen = () => {
         try {
-            const channels = Array.from(browserPushHandlers.keys());
+            const events = Array.from(browserPushHandlers.keys());
             browserPushSocket?.send(JSON.stringify({
-                method: "subscribe",
-                params: { channels },
+                method: "loom.hook.subscribe",
+                params: {
+                    requestId: `subscribe:${crypto.randomUUID()}`,
+                    events,
+                },
             }));
         } catch (error) {
             console.error("[API] Failed to subscribe browser push socket:", error);
@@ -388,53 +425,143 @@ const stopBrowserPushSocketIfUnused = () => {
 
 const browserHandshakeFallback = async (): Promise<HandshakeResponse> => {
     try {
-        const handshake = await browserArtLoomRequest<{ type?: string; data?: { session_id?: string } }>({
-            method: "handshake",
-            params: { client_version: "browser-preview" },
-        });
-        const arts = await browserArtLoomRequest<{ type?: string; data?: any[] }>({
-            method: "get_enabled_arts",
-        });
-
-        return {
-            server_name: "artloom-browser-ws",
-            capabilities: {
-                art_definitions: Array.isArray(arts?.data) ? arts.data : [],
+        return await browserLoomHookRequest<HandshakeResponse>({
+            method: "loom.hook.handshake",
+            params: {
+                protocolVersion: "loom.hook.v1",
+                supportedProtocolVersions: ["loom.hook.v1"],
+                clientId: "hook.browser-preview",
+                clientVersion: "0.1.7",
+                platform: "browser-preview",
+                transports: ["shared_memory"],
+                surface: hookSurfaceHostCapabilities(),
             },
-            negotiated_transport: "shared_memory",
-            session_id: handshake?.data?.session_id || "browser-preview",
-        };
+        });
     } catch (error) {
-        console.warn("[API] browserArtLoom handshake fallback failed:", error);
+        console.warn("[API] browserLoom Hook handshake fallback failed:", error);
         return EMPTY_HANDSHAKE;
     }
 };
 
-const browserDispatchActionFallback = async (actionEnum: { action: string; payload: any }): Promise<void> => {
+const browserInlineResource = (source: string): HookArtPortValue => {
+    const match = /^data:([^;,]+);base64,(.+)$/s.exec(source);
+    if (!match) {
+        throw new Error("Browser Art execution requires data URL image inputs");
+    }
+    return {
+        kind: "inline_resource",
+        mime: match[1],
+        dataBase64: match[2],
+    };
+};
+
+const browserPortValueDelivery = (value: HookArtPortValue): DeliveryPayload => {
+    switch (value.kind) {
+        case "inline_resource":
+            return {
+                type: "base64",
+                data: `data:${value.mime};base64,${value.dataBase64}`,
+                width: value.width,
+                height: value.height,
+            };
+        case "shared_memory":
+            throw new Error("Browser Art execution cannot read Loom shared-memory outputs");
+        case "value": {
+            const record = value.value && typeof value.value === "object"
+                ? value.value as Record<string, unknown>
+                : undefined;
+            const candidates = record?.loomMetadata && typeof record.loomMetadata === "object"
+                ? (record.loomMetadata as Record<string, unknown>).candidates
+                : undefined;
+            return {
+                type: "value",
+                value: value.value,
+                ...(candidates && typeof candidates === "object"
+                    ? { candidates: candidates as ArtResultCandidateMetadata }
+                    : {}),
+            };
+        }
+        case "resource":
+            throw new Error("Browser Art execution cannot read broker resource outputs");
+    }
+};
+
+const browserDispatchActionFallback = async (actionEnum: { action: string; payload: unknown }): Promise<void> => {
+    const payload = actionEnum.payload && typeof actionEnum.payload === "object"
+        ? actionEnum.payload as Record<string, unknown>
+        : {};
     try {
         switch (actionEnum.action) {
             case "sync_workflow":
-                await browserArtLoomRequest({
-                    method: "art_loom/overwrite_workflow",
+                await browserLoomHookRequest({
+                    method: "loom.hook.workflow.sync",
                     params: {
-                        workflow_id: actionEnum.payload.workflow_id,
-                        snapshot: actionEnum.payload.snapshot,
+                        requestId: `workflow-sync:${crypto.randomUUID()}`,
+                        workflowId: payload.workflow_id,
+                        snapshot: payload.snapshot,
                     },
                 });
                 return;
-            case "update_node_param":
-                if (actionEnum.payload?.origin_workflow_id && actionEnum.payload?.origin_node_id) {
-                    await browserArtLoomRequest({
-                        method: "art_loom/update_workflow_node",
-                        params: {
-                            workflow_id: actionEnum.payload.origin_workflow_id,
-                            node_id: actionEnum.payload.origin_node_id,
-                            param: actionEnum.payload.param_key,
-                            value: actionEnum.payload.value,
-                        },
-                    });
-                }
+            case "update_workflow_node":
+                await browserLoomHookRequest({
+                    method: "loom.hook.workflow.node.update",
+                    params: {
+                        requestId: payload.request_id,
+                        workflowId: payload.workflow_id,
+                        nodeId: payload.node_id,
+                        parameterId: payload.parameter_id,
+                        value: payload.value,
+                    },
+                });
                 return;
+            case "execute_art":
+                {
+                const response = await browserLoomHookRequest<HookResponse<HookArtResultCommit>>({
+                    method: "loom.hook.art.execute",
+                    params: {
+                        protocolVersion: "loom.hook.v1",
+                        requestId: payload.request_id,
+                        nodeId: payload.node_id,
+                        artId: payload.art_id,
+                        generation: payload.generation,
+                        deviceId: "device:browser-preview",
+                        inputs: Object.fromEntries(
+                            Object.entries((payload.inputs as Record<string, string> | undefined) ?? {})
+                                .map(([name, value]): [string, HookArtPortValue] => [
+                                    name,
+                                    browserInlineResource(value),
+                                ]),
+                        ),
+                        parameters: payload.parameters ?? {},
+                        disabledParameters: payload.disabled_parameters ?? [],
+                    },
+                });
+                if (response.status !== "succeeded") {
+                    throw new Error(response.error?.message ?? `Art execution ${response.status}`);
+                }
+                const value = Object.values(response.data.outputs)[0];
+                if (!value) {
+                    throw new Error("Loom Hook Art execution returned no output");
+                }
+                if (typeof payload.node_id !== "string" || typeof payload.request_id !== "string") {
+                    throw new Error("Browser Art execution requires string node_id and request_id");
+                }
+                window.dispatchEvent(new CustomEvent("hook-browser-art-ready", {
+                    detail: {
+                        art_id: payload.node_id,
+                        request_id: payload.request_id,
+                        phase: "final",
+                        status: 200,
+                        delivery: {
+                            ...browserPortValueDelivery(value),
+                            ...(response.data.candidates
+                                ? { candidates: response.data.candidates }
+                                : {}),
+                        },
+                    } satisfies ArtDelivery,
+                }));
+                return;
+                }
             default:
                 warnBrowserFallback(`dispatch:${actionEnum.action}`);
                 return;
@@ -565,13 +692,13 @@ export const api = {
             false,
         ),
 
-    // --- ArtLoom Protocol ---
+    // --- Loom Hook Protocol ---
     handshake: (request: HandshakeRequest): Promise<HandshakeResponse> =>
-        safeInvoke("artloom_handshake", { request }, browserHandshakeFallback, false),
+        safeInvoke("loom_hook_handshake", { request }, browserHandshakeFallback, false),
 
-    dispatchAction: (actionEnum: { action: string; payload: any }): Promise<void> =>
+    dispatchAction: (actionEnum: { action: string; payload: unknown }): Promise<void> =>
         safeInvoke(
-            "artloom_dispatch_action",
+            "loom_hook_dispatch_action",
             { action: actionEnum },
             () => browserDispatchActionFallback(actionEnum),
             false,
@@ -687,20 +814,26 @@ export const api = {
         }), false),
 
     getEnhancementCapabilities: (): Promise<EnhancementCapabilities> =>
-        artLoomIpcRequest<EnhancementCapabilities>("art_loom/get_capabilities").catch(() => ({
+        loomHookRequest<EnhancementCapabilities>("loom.hook.enhancements.get", {
+            requestId: `enhancements:${crypto.randomUUID()}`,
+        }).catch(() => ({
             ocr: false,
             translation: false,
         })),
 
     // --- OCR & Capture ---
     performOcr: (imageBase64: string): Promise<OcrResult> =>
-        artLoomIpcRequest("art_loom/ocr_image", { image_base64: imageBase64 }),
+        loomHookRequest("loom.hook.ocr.execute", {
+            requestId: `ocr:${crypto.randomUUID()}`,
+            imageBase64,
+        }),
 
     translateText: (text: string, targetLang: string): Promise<string> =>
-        artLoomIpcRequest<{ translated_text: string }>("art_loom/translate_text", {
+        loomHookRequest<{ translatedText: string }>("loom.hook.translation.execute", {
+            requestId: `translation:${crypto.randomUUID()}`,
             text,
-            target_lang: targetLang,
-        }).then((result) => result.translated_text),
+            targetLanguage: targetLang,
+        }).then((result) => result.translatedText),
 
     triggerOcrEvent: (): Promise<void> =>
         safeInvoke("trigger_ocr_event", undefined, () => undefined, false),
@@ -932,7 +1065,7 @@ export const api = {
         ),
 };
 
-export const listenBrowserArtLoomMethod = (
+export const listenBrowserLoomHookMethod = (
     method: string,
     handler: BrowserPushHandler,
 ): (() => void) => {

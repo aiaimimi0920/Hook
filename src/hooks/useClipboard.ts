@@ -265,17 +265,10 @@ export function useClipboard() {
             });
         }
 
-        // Apply Crop Offset if applicable (Legacy behavior for cropped stickers)
         const finalX = newX;
         const finalY = newY;
         const finalW = clip.w;
         const finalH = clip.h;
-
-        if (clip.savedRect && clip.cropOffset) {
-             // Legacy adjustment removed to prioritize exact mouse positioning
-             // finalX = newX - clip.cropOffset.x;
-             // finalY = newY - clip.cropOffset.y;
-        }
 
         // Create Unit
         const newUnit: Unit = {

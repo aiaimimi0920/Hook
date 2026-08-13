@@ -16,7 +16,7 @@ vi.mock("../../src/services/syncService", () => ({
     },
 }));
 
-import type { DeliveryImageSearchCandidate } from "../../src/services/protocol";
+import type { ArtResultCandidate } from "../../src/services/protocol";
 import type { Unit } from "../../src/types/unit";
 import {
     buildOptimisticImageSearchSelectionPatch,
@@ -33,7 +33,7 @@ import {
     getImageSearchPrefetchGenerationCount,
 } from "../../src/services/imageSearchPrefetchGeneration";
 
-const BASE_CANDIDATES: DeliveryImageSearchCandidate[] = [
+const BASE_CANDIDATES: ArtResultCandidate[] = [
     {
         index: 0,
         title: "结果 1",
@@ -222,7 +222,7 @@ describe("imageSearchCandidateCache helpers", () => {
             .mockResolvedValueOnce("C:\\cache\\a-thumb.png")
             .mockResolvedValueOnce("C:\\cache\\a.png");
 
-        const candidateWithReferer: DeliveryImageSearchCandidate = {
+        const candidateWithReferer: ArtResultCandidate = {
             index: 0,
             title: "结果 1",
             imageUrl: "https://example.com/protected/a.png",

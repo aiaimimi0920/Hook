@@ -1,9 +1,10 @@
 export interface ArtExecutionRequestRegistry {
     begin(unitId: string): string;
-    isLatest(unitId: string, requestId?: string): boolean;
-    markPreview(unitId: string, requestId: string | undefined, previewSrc: string): void;
-    getPreview(unitId: string, requestId?: string): string | undefined;
-    finish(unitId: string, requestId?: string): void;
+    generation(unitId: string, requestId: string): number | undefined;
+    isLatest(unitId: string, requestId: string): boolean;
+    markPreview(unitId: string, requestId: string, previewSrc: string): void;
+    getPreview(unitId: string, requestId: string): string | undefined;
+    finish(unitId: string, requestId: string): void;
     invalidate(unitId: string): void;
 }
 
@@ -18,19 +19,24 @@ export const createArtExecutionRequestRegistry = (
     requestIdFactory: () => string = defaultRequestIdFactory,
 ): ArtExecutionRequestRegistry => {
     const latestByUnit = new Map<string, string>();
+    const generationByUnit = new Map<string, number>();
     const previewByUnit = new Map<string, { requestId: string; previewSrc: string }>();
 
     return {
         begin(unitId) {
             const requestId = requestIdFactory();
+            generationByUnit.set(unitId, (generationByUnit.get(unitId) ?? 0) + 1);
             latestByUnit.set(unitId, requestId);
             previewByUnit.delete(unitId);
             return requestId;
         },
+        generation(unitId, requestId) {
+            return latestByUnit.get(unitId) === requestId
+                ? generationByUnit.get(unitId)
+                : undefined;
+        },
         isLatest(unitId, requestId) {
-            const latest = latestByUnit.get(unitId);
-            if (!requestId) return latest === undefined;
-            return latest === requestId;
+            return latestByUnit.get(unitId) === requestId;
         },
         markPreview(unitId, requestId, previewSrc) {
             const latest = latestByUnit.get(unitId);
@@ -45,12 +51,6 @@ export const createArtExecutionRequestRegistry = (
                 : undefined;
         },
         finish(unitId, requestId) {
-            if (!requestId) {
-                if (!latestByUnit.has(unitId)) {
-                    previewByUnit.delete(unitId);
-                }
-                return;
-            }
             if (latestByUnit.get(unitId) === requestId) {
                 latestByUnit.delete(unitId);
                 previewByUnit.delete(unitId);

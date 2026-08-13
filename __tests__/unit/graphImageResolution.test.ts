@@ -176,7 +176,7 @@ describe("graph image resolution", () => {
         ).toBe("data:image/png;base64,source");
     });
 
-    it("keeps resolving legacy art links that used input_image before capabilities exposed input", () => {
+    it("rejects an undeclared input_image alias when the capability declares input", () => {
         const units: Unit[] = [
             sticker("source", { src: "data:image/png;base64,source" }),
             {
@@ -220,7 +220,7 @@ describe("graph image resolution", () => {
                     },
                 ],
             }),
-        ).toBe("data:image/png;base64,source");
+        ).toBeUndefined();
     });
 
     it("chooses the connected image input for execution when a node also has non-image links", () => {
@@ -474,7 +474,7 @@ describe("graph image resolution", () => {
         });
     });
 
-    it("falls back to legacy image-like incoming links when the art capability catalog is unavailable", () => {
+    it("rejects undeclared auxiliary image links when the capability catalog is unavailable", () => {
         const units: Unit[] = [
             sticker("source", { src: "data:image/png;base64,source-main" }),
             sticker("reference-source", { src: "data:image/png;base64,source-reference" }),
@@ -516,12 +516,10 @@ describe("graph image resolution", () => {
                 unitId: "image-blend",
                 capabilities: [],
             }),
-        ).toEqual({
-            reference: "data:image/png;base64,source-reference",
-        });
+        ).toEqual({});
     });
 
-    it("falls back to legacy auxiliary image links when a capability exists but its handshake omitted inputs", () => {
+    it("rejects an auxiliary image link omitted from both capability and unit ports", () => {
         const units: Unit[] = [
             sticker("source", { src: "data:image/png;base64,source-main" }),
             sticker("reference-source", { src: "data:image/png;base64,source-reference" }),
@@ -577,9 +575,7 @@ describe("graph image resolution", () => {
                     },
                 ],
             }),
-        ).toEqual({
-            reference: "data:image/png;base64,source-reference",
-        });
+        ).toEqual({});
     });
 
     it("ignores non-image-like incoming param links during the capability-missing fallback", () => {
@@ -686,7 +682,7 @@ describe("graph image resolution", () => {
         ).toEqual(["reference"]);
     });
 
-    it("treats legacy reference links as satisfying required auxiliary image ports even when capabilities omit inputs", () => {
+    it("requires only the explicitly declared unit image port when capabilities omit inputs", () => {
         const units: Unit[] = [
             sticker("source", { src: "data:image/png;base64,source-main" }),
             sticker("reference-source", { src: "data:image/png;base64,source-reference" }),

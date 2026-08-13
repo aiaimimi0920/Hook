@@ -21,10 +21,9 @@ const hasMeaningfulExecutionConfig = (config: unknown): boolean => {
 };
 
 export const isHighCostMcpImageSearchCapability = (capability?: ArtCapability): boolean => {
-    if (capability?.execution_type !== "mcp") return false;
-
-    const execution = isPlainObject(capability.execution) ? capability.execution : {};
-    const rawToolName = execution.tool_name ?? execution.toolName;
+    const execution = isPlainObject(capability?.execution) ? capability.execution : {};
+    if (execution.type !== "mcp") return false;
+    const rawToolName = execution.toolName;
     const toolName = typeof rawToolName === "string" ? rawToolName.toLowerCase() : "";
 
     return toolName.includes("image") && toolName.includes("search");

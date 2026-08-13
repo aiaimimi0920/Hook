@@ -7,7 +7,7 @@ const workflowSource = readFileSync(
     "utf8",
 );
 
-describe("Hook workflow compatibility contract", () => {
+describe("Hook build workflow CI contract", () => {
     it("uses node24-compatible GitHub official action versions", () => {
         expect(workflowSource).toContain('uses: actions/checkout@v5');
         expect(workflowSource).toContain('uses: actions/setup-node@v6');

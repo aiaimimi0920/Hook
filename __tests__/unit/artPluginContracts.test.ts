@@ -35,7 +35,7 @@ describe("generic Art plugin contracts", () => {
         expect(state.selectedResultIndex).toBe(1);
     });
 
-    it("keeps legacy image-search delivery readable during protocol migration", () => {
+    it("rejects old image-search delivery metadata", () => {
         const state = extractArtDeliveryCandidatesState({
             imageSearch: {
                 selectedIndex: 0,
@@ -48,10 +48,10 @@ describe("generic Art plugin contracts", () => {
             },
         });
 
-        expect(state.resultCandidates?.[0].imageUrl).toBe(
-            "https://example.test/legacy.png",
-        );
-        expect(state.selectedResultIndex).toBe(0);
+        expect(state).toEqual({
+            resultCandidates: undefined,
+            selectedResultIndex: undefined,
+        });
     });
 
     it("uses package capability metadata as the only shader preview contract", () => {
@@ -75,7 +75,7 @@ describe("generic Art plugin contracts", () => {
             id: "workflow-art",
             label: "Workflow Art",
             description: "",
-            supported_transports: ["socket" as const],
+            supported_transports: ["websocket" as const],
             params: [],
             inputs: [
                 { name: "input", label: "Source", type: "image" },
@@ -96,12 +96,12 @@ describe("generic Art plugin contracts", () => {
         expect(shaderReferenceInputPortName(capability)).toBe("input_2");
     });
 
-    it("falls back to the second image input for contextual shader previews", () => {
+    it("uses the second image input for contextual shader previews when metadata does not override it", () => {
         const capability = {
-            id: "legacy-shader-art",
-            label: "Legacy Shader Art",
+            id: "shader-art",
+            label: "Shader Art",
             description: "",
-            supported_transports: ["socket" as const],
+            supported_transports: ["websocket" as const],
             params: [],
             inputs: [
                 { name: "image", label: "Source", type: "image" },
@@ -113,12 +113,7 @@ describe("generic Art plugin contracts", () => {
         expect(shaderReferenceInputPortName(capability)).toBe("style");
     });
 
-    it("keeps restored workflow previews formal before extended metadata arrives", () => {
-        expect(
-            requiresFormalExecutionAfterPreview({
-                execution_type: "workflow",
-            }),
-        ).toBe(true);
+    it("keeps workflow previews formal from the canonical execution envelope", () => {
         expect(
             requiresFormalExecutionAfterPreview({
                 execution: { type: "workflow" },

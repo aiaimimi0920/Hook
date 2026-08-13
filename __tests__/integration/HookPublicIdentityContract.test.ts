@@ -18,21 +18,17 @@ describe("Hook public identity contract", () => {
         expect(tauriConfig.productName).toBe("hook");
     });
 
-    it("keeps legacy app-data fallbacks so older local installs retain user state", () => {
-        expect(rustSource).toContain('const LEGACY_TAURI_IDENTIFIERS: &[&str] = &["io.github.aiaimimi0920.hook", "com.vmjcv.hook"];');
-        expect(rustSource).toContain("fn legacy_app_data_dirs_from_current");
+    it("uses only the current app-data identity unless an explicit override is configured", () => {
+        expect(rustSource).not.toContain("LEGACY_TAURI_IDENTIFIERS");
+        expect(rustSource).not.toContain("legacy_app_data_dirs_from_current");
         expect(rustSource).toContain("fn resolve_effective_app_data_dir");
         expect(rustSource).toContain("fn effective_app_data_dir");
-        expect(rustSource).toContain("app_data_dir_contains_user_state");
+        expect(rustSource).toContain('const APP_DATA_OVERRIDE_ENV: &str = "HOOK_APPDATA_DIR";');
     });
 
-    it("documents the split between public bundle identity and local compatibility paths", () => {
+    it("documents the current public bundle identity without obsolete app-data paths", () => {
         expect(readmeSource).toContain("com.yamiyu.hook");
-        expect(readmeSource).toContain("io.github.aiaimimi0920.hook");
-        expect(readmeSource).toContain("com.vmjcv.hook");
         expect(architectureSource).toContain("com.yamiyu.hook");
-        expect(architectureSource).toContain("io.github.aiaimimi0920.hook");
-        expect(architectureSource).toContain("com.vmjcv.hook");
         expect(readmeSource).toContain("yamiyu");
     });
 });

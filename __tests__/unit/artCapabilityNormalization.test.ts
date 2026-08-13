@@ -6,9 +6,9 @@ describe("Loom Art capability normalization", () => {
     it("normalizes current framework Art manifests without dropping package metadata", () => {
         const [capability] = normalizeArtCapabilities([
             {
-                id: "color-transfer",
-                name: "Color Transfer",
-                description: null,
+                id: "publisher.example/color-transfer",
+                label: "Color Transfer",
+                description: "",
                 enabled: true,
                 execution: {
                     type: "framework_art",
@@ -19,7 +19,7 @@ describe("Loom Art capability normalization", () => {
                         name: "input",
                         label: "Input",
                         type: "image",
-                        executionType: "image_buffer",
+                        execution_type: "image_buffer",
                     },
                 ],
                 outputs: [
@@ -30,7 +30,7 @@ describe("Loom Art capability normalization", () => {
                         execution_type: "image_buffer",
                     },
                 ],
-                params: [
+                parameters: [
                     {
                         id: "strength",
                         label: "Strength",
@@ -52,9 +52,6 @@ describe("Loom Art capability normalization", () => {
                 ],
                 defaults: { strength: 0.75 },
                 metadata: {
-                    art: {
-                        qualifiedId: "publisher.example/color-transfer",
-                    },
                     capabilities: {
                         preview: "image",
                     },
@@ -64,12 +61,9 @@ describe("Loom Art capability normalization", () => {
 
         expect(capability).toMatchObject({
             id: "publisher.example/color-transfer",
-            legacyId: "color-transfer",
-            qualifiedId: "publisher.example/color-transfer",
             label: "Color Transfer",
             description: "",
             supported_transports: ["shared_memory"],
-            execution_type: "framework_art",
             execution: {
                 type: "framework_art",
                 framework: "process",
@@ -87,12 +81,12 @@ describe("Loom Art capability normalization", () => {
         expect(capability.inputs?.[0].execution_type).toBe("image_buffer");
         expect(capability.outputs?.[0].execution_type).toBe("image_buffer");
         expect(capability.metadata?.capabilities).toEqual({ preview: "image" });
-        expect(findArtCapability([capability], "color-transfer")).toBe(capability);
+        expect(findArtCapability([capability], "color-transfer")).toBeUndefined();
         expect(findArtCapability([capability], "publisher.example/color-transfer")).toBe(capability);
     });
 
-    it("keeps legacy aliases while filling safe defaults", () => {
-        const [capability] = normalizeArtCapabilities([
+    it("rejects legacy identity and field aliases", () => {
+        const capabilities = normalizeArtCapabilities([
             {
                 art_id: "legacy-art",
                 name: "Legacy Art",
@@ -101,22 +95,28 @@ describe("Loom Art capability normalization", () => {
             },
         ]);
 
-        expect(capability).toEqual(expect.objectContaining({
-            id: "legacy-art",
-            label: "Legacy Art",
-            description: "",
-            auto_process: true,
-            execution_type: "workflow",
-            params: [],
-            supported_transports: ["shared_memory"],
-        }));
+        expect(capabilities).toEqual([]);
     });
 
-    it("derives publisher-qualified identity from package security metadata", () => {
+    it("does not normalize legacy nested field aliases", () => {
+        const [capability] = normalizeArtCapabilities([{
+            id: "canonical-art",
+            label: "Canonical Art",
+            inputs: [{ id: "old-input", executionType: "image_buffer" }],
+            outputs: [{ name: "output", executionType: "image_buffer" }],
+            parameters: [{ name: "quality", dataType: "number", minimum: 1, maximum: 100 }],
+        }]);
+
+        expect(capability.inputs).toEqual([]);
+        expect(capability.outputs?.[0].execution_type).toBeUndefined();
+        expect(capability.params).toEqual([]);
+    });
+
+    it("does not derive identity from package metadata", () => {
         const [capability] = normalizeArtCapabilities([
             {
                 id: "shared-art",
-                name: "Shared Art",
+                label: "Shared Art",
                 metadata: {
                     packageSecurity: {
                         publisher: { id: "publisher.alpha" },
@@ -125,16 +125,15 @@ describe("Loom Art capability normalization", () => {
             },
         ]);
 
-        expect(capability.id).toBe("publisher.alpha/shared-art");
-        expect(capability.legacyId).toBe("shared-art");
+        expect(capability.id).toBe("shared-art");
     });
 
     it("infers new parameter widgets and filters disabled or invalid Arts", () => {
         const capabilities = normalizeArtCapabilities([
             {
                 id: "layout-test",
-                name: "Layout",
-                params: [
+                label: "Layout",
+                parameters: [
                     { id: "directory", data_type: "path", default: ".\\out" },
                     { id: "metadata", data_type: "json", default: { mode: "test" } },
                     {
@@ -146,7 +145,7 @@ describe("Loom Art capability normalization", () => {
                 ],
             },
             { id: "disabled", enabled: false },
-            { name: "missing-id" },
+            { label: "missing-id" },
         ]);
 
         expect(capabilities).toHaveLength(1);

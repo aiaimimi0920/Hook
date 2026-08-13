@@ -5,8 +5,8 @@ import { resolve } from "node:path";
 const readSource = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), relativePath), "utf8");
 
-describe("Hook legacy Escape delete contract", () => {
-  it("closes an open actions menu before the legacy selected-unit delete handler", () => {
+describe("Hook Escape delete contract", () => {
+  it("closes an open actions menu before the selected-unit delete handler", () => {
     const shortcutsSource = readSource("src/hooks/useShortcuts.ts");
     const appSource = readSource("src/app.tsx");
 

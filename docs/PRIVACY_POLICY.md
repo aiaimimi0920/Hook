@@ -26,7 +26,7 @@ Depending on the feature being used, Hook may store local desktop data such as:
 - local session graph/workspace state;
 - sticker editing history and tool settings;
 - runtime logs;
-- local app-data compatibility paths used to keep older installs working.
+- the canonical `com.yamiyu.hook` local app-data directory.
 - global application settings such as user-configured file-naming templates.
 
 These files are stored in local app-data, temp-cache, or nearby runtime paths

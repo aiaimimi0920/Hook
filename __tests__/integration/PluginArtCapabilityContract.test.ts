@@ -54,30 +54,25 @@ describe("plugin Art capability boundary", () => {
   });
 
   it("delegates every enabled package Art to Loom instead of maintaining an execution whitelist", () => {
-    const backend = source("src-tauri/src/mock_artloom.rs");
+    const backend = source("src-tauri/src/loom_hook.rs");
     const tauriEntry = source("src-tauri/src/lib.rs");
 
-    expect(backend).toContain("let et = def.effective_execution_type().unwrap_or(\"unknown\")");
-    expect(backend).toContain("if def.enabled");
-    expect(backend).not.toContain('|| et == "cli_wrapper"');
-    expect(backend).not.toContain('|| et == "framework_art"');
-    expect(backend).toContain('"method": "art/process"');
-    expect(backend).toContain('"filePath"');
-    expect(backend).toContain("image::open(path)");
+    expect(backend).toContain('"method": "loom.hook.art.execute"');
+    expect(backend).not.toContain('"method": "art/process"');
+    expect(backend).not.toContain("effective_execution_type");
+    expect(backend).not.toContain("core.image.pixelate");
+    expect(backend).not.toContain("core.image.blur");
     expect(backend).not.toContain("crate::cli_engine");
     expect(tauriEntry).not.toContain("native_cli_execute");
     expect(tauriEntry).not.toContain("mod cli_engine;");
     expect(existsSync(resolve(process.cwd(), "src-tauri", "src", "cli_engine.rs"))).toBe(false);
   });
 
-  it("waits longer than Loom's framework process budget for Art results", () => {
-    const backend = source("src-tauri/src/mock_artloom.rs");
+  it("uses a bounded response timeout longer than Loom's framework process budget", () => {
+    const backend = source("src-tauri/src/loom_hook.rs");
 
-    expect(backend).toContain("const LOOM_FRAMEWORK_PROCESS_TIMEOUT_SECS: u64 = 120;");
-    expect(backend).toContain("const ARTLOOM_WS_RESPONSE_GRACE_SECS: u64 = 30;");
-    expect(backend).toContain(
-      "LOOM_FRAMEWORK_PROCESS_TIMEOUT_SECS + ARTLOOM_WS_RESPONSE_GRACE_SECS",
-    );
-    expect(backend).not.toContain("const ARTLOOM_WS_READ_TIMEOUT_SECS: u64 = 30;");
+    expect(backend).toContain("Duration::from_secs(150)");
+    expect(backend).not.toContain("ARTLOOM_WS_RESPONSE_GRACE_SECS");
+    expect(backend).not.toContain("AHRP");
   });
 });

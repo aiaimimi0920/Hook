@@ -140,8 +140,7 @@ export function useUnitActions() {
                return;
           }
 
-          // LEGACY BEHAVIOR: PARTIAL PIXEL VIEW (Auto-Crop)
-          // "Double click defaults to showing partial pixels near the clicked point"
+          // Double-click centers the compact crop around the clicked point.
           const target = resolveStickerSurfaceDoubleClickTarget(e.target, e.currentTarget) ?? (e.currentTarget as HTMLElement);
           const rect = target.getBoundingClientRect();
           // Relative click in the full visible sticker frame. The mini window
@@ -220,7 +219,7 @@ export function useUnitActions() {
 
     const showEnhancementUnavailable = (unitId: string, feature: "OCR" | "Translation") => {
          const label = feature === "OCR" ? "OCR 识别" : "翻译";
-         const message = `${label} 需要 ArtLoom 增强服务。请启动 ArtLoom，并通过联动模式运行 Hook。`;
+         const message = `${label} 需要 Loom Hook 增强服务。请启动 Loom Hook，并通过联动模式运行 Hook。`;
          console.warn(message);
          uiActions.showEnhancementNotice(unitId, {
              feature,

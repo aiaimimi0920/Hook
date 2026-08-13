@@ -24,7 +24,6 @@ export interface WorkflowPayloadRect {
 
 export interface WorkflowNodeDataPayload {
     artId?: string;
-    art_id?: string;
     w?: number;
     h?: number;
     params?: Record<string, unknown>;
@@ -39,9 +38,11 @@ export interface WorkflowNodeDataPayload {
     executionConfig?: NodeExecutionConfig;
 }
 
+export type WorkflowNodeType = "sticker" | "artNode";
+
 export interface WorkflowNodePayload {
     id: string;
-    type?: string;
+    type: WorkflowNodeType;
     position?: WorkflowPayloadPosition;
     measured?: WorkflowPayloadSize;
     data?: WorkflowNodeDataPayload;
@@ -56,7 +57,7 @@ export interface WorkflowEdgePayload {
 
 export interface WorkflowSnapshotPayload {
     mode: "reference" | "clone" | undefined;
-    workflow_id: string | null | undefined;
+    workflowId: string | null | undefined;
     nodes: WorkflowNodePayload[];
     edges: WorkflowEdgePayload[];
 }
@@ -114,7 +115,6 @@ const normalizeNodeData = (value: unknown): WorkflowNodeDataPayload | undefined 
     const params = isRecord(value.params) ? value.params : undefined;
     return {
         artId: stringField(value, "artId"),
-        art_id: stringField(value, "art_id"),
         w: numberField(value, "w"),
         h: numberField(value, "h"),
         params,
@@ -133,14 +133,21 @@ const normalizeNodeData = (value: unknown): WorkflowNodeDataPayload | undefined 
 const normalizeWorkflowNode = (value: unknown): WorkflowNodePayload | null => {
     if (!isRecord(value)) return null;
     const id = stringField(value, "id");
-    if (!id) return null;
+    const type = stringField(value, "type");
+    if (!id || (type !== "sticker" && type !== "artNode")) return null;
+
+    let data = normalizeNodeData(value.data);
+    if (type === "artNode" && !data?.artId) return null;
+    if (type === "sticker" && data?.artId !== undefined) {
+        data = { ...data, artId: undefined };
+    }
 
     return {
         id,
-        type: stringField(value, "type"),
+        type,
         position: normalizePosition(value.position),
         measured: normalizeMeasuredSize(value.measured),
-        data: normalizeNodeData(value.data),
+        data,
     };
 };
 
@@ -162,7 +169,7 @@ export const normalizeWorkflowSnapshotPayload = (payload: unknown): WorkflowSnap
     if (!isRecord(payload)) {
         return {
             mode: undefined,
-            workflow_id: undefined,
+            workflowId: undefined,
             nodes: [],
             edges: [],
         };
@@ -170,13 +177,13 @@ export const normalizeWorkflowSnapshotPayload = (payload: unknown): WorkflowSnap
 
     const mode = payload.mode === "reference" || payload.mode === "clone" ? payload.mode : undefined;
     const workflowId =
-        typeof payload.workflow_id === "string" || payload.workflow_id === null
-            ? payload.workflow_id
+        typeof payload.workflowId === "string" || payload.workflowId === null
+            ? payload.workflowId
             : undefined;
 
     return {
         mode,
-        workflow_id: workflowId,
+        workflowId,
         nodes: Array.isArray(payload.nodes)
             ? payload.nodes.map(normalizeWorkflowNode).filter((node): node is WorkflowNodePayload => node !== null)
             : [],

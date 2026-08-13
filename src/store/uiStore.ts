@@ -48,7 +48,7 @@ export const selectionActions = {
     add: (id: string) => {
         batch(() => {
             setSelectedUnitIds(prev => prev.includes(id) ? prev : [...prev, id]);
-            // Keep single-select for backward compat / primary target
+            // The last selected unit is the primary target for single-unit panels.
             setSelectedStickerId(id);
         });
     },
@@ -88,8 +88,7 @@ export const selectionActions = {
 
 // Global Dragging State
 export const [draggingStickerId, setDraggingStickerId] = createSignal<string | null>(null);
-// Legacy Single Drag (Keep for conflict avoidance during transition, or deprecate?)
-// We will use this for the *Primary* dragged unit for snapping logic
+// Primary dragged unit used by snapping logic.
 // Multi-Drag Positions (Map ID -> {x, y})
 export type MultiDragPosition = { x: number; y: number };
 export type MultiDragPositionMap = Record<string, MultiDragPosition>;
@@ -187,9 +186,9 @@ export const [enhancementNotices, setEnhancementNotices] = createStore<Record<st
 export const [unitUiState, setUnitUiState] = createStore<Record<string, { showActions: boolean; showParams: boolean }>>({});
 
 
-// Clipboard State (Restored from Legacy)
+// Clipboard State
 export interface ClipboardData {
-    // Legacy Sticker Data
+    // Sticker image and edit state
     src: string;
     w: number;
     h: number;

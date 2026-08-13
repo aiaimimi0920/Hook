@@ -160,29 +160,6 @@ const normalizeToolProfiles = (
     return next;
 };
 
-const migrateLegacySharedValuesIntoProfiles = (
-    settings: StickerToolSettings,
-    incoming: Partial<StickerToolSettings> | null | undefined,
-): StickerCreateToolProfiles => {
-    const next = structuredClone(settings.toolProfiles);
-
-    for (const [tool, keys] of Object.entries(TOOL_PROFILE_KEYS_BY_TOOL) as Array<
-        [StickerCreateTool, readonly StickerToolProfileSettingKey[]]
-    >) {
-        if (keys.length < 1) continue;
-        const current = { ...(next[tool] ?? {}) } as Partial<StickerToolProfileSettings>;
-        for (const key of keys) {
-            if (incoming?.[key] === undefined) continue;
-            const value = incoming[key];
-            if (value === undefined) continue;
-            setProfileSetting(current, key, value as StickerToolProfileSettings[typeof key]);
-        }
-        next[tool] = current;
-    }
-
-    return next;
-};
-
 const applyActiveToolProfile = (settings: StickerToolSettings): StickerToolSettings => {
     const targetTool = resolveActiveProfileTool(settings.activeTool);
     if (!targetTool) return settings;
@@ -203,48 +180,25 @@ const normalizeModeFields = (
     value: Partial<StickerToolSettings> | null | undefined,
     defaults: StickerToolSettings,
 ) => {
-    const legacyMode = value?.mode;
-    const legacyTool = value?.activeTool;
-    const legacyHighlighterRequested = legacyMode === "highlighter" || legacyTool === "highlighter";
-
     const transformMode = isTransformMode(value?.transformMode)
         ? value.transformMode
-        : isTransformMode(legacyMode)
-          ? legacyMode
-          : defaults.transformMode;
-
-    const legacyCanvasTool =
-        legacyMode === "crop" || legacyTool === "crop"
-            ? "crop"
-            : legacyMode === "content-eraser" || legacyTool === "content-eraser"
-              ? "content-eraser"
-              : null;
+        : defaults.transformMode;
 
     const activeCanvasTool = isCanvasTool(value?.activeCanvasTool)
         ? value.activeCanvasTool
-        : legacyCanvasTool ?? defaults.activeCanvasTool;
+        : defaults.activeCanvasTool;
 
     const activeToolCandidate = isCreateTool(value?.activeTool)
         && value.activeTool !== "crop"
         && value.activeTool !== "content-eraser"
             ? value.activeTool
-            : isCreateTool(legacyMode)
-              && legacyMode !== "crop"
-              && legacyMode !== "content-eraser"
-                ? legacyMode
-                : defaults.activeTool;
+            : defaults.activeTool;
 
-    const activeTool = activeToolCandidate === "highlighter"
-        ? "brush"
-        : activeToolCandidate;
+    const activeTool = activeToolCandidate;
 
     const domain = isEditingDomain(value?.domain)
         ? value.domain
-        : isTransformMode(legacyMode) || isTransformMode(value?.transformMode)
-          ? "existing"
-          : legacyCanvasTool || isCanvasTool(value?.activeCanvasTool)
-            ? "sticker"
-            : "create";
+        : defaults.domain;
 
     const resolvedMode =
         domain === "existing"
@@ -253,20 +207,12 @@ const normalizeModeFields = (
               ? activeCanvasTool
               : activeTool;
 
-    const mode =
-        legacyHighlighterRequested
-            ? resolvedMode
-            : typeof legacyMode === "string"
-              ? legacyMode
-              : resolvedMode;
-
     return {
         domain,
-        mode,
+        mode: resolvedMode,
         transformMode,
         activeCanvasTool,
         activeTool,
-        legacyHighlighterRequested,
     };
 };
 
@@ -275,41 +221,15 @@ export const normalizeStickerToolSettings = (
 ): StickerToolSettings => {
     const defaults = createDefaultStickerToolSettings();
     const normalizedModeFields = normalizeModeFields(value, defaults);
-    const { legacyHighlighterRequested, ...normalizedSettings } = normalizedModeFields;
-    const hasIncomingProfiles = !!value?.toolProfiles;
-    let next: StickerToolSettings = {
+    const next: StickerToolSettings = {
         ...defaults,
         ...value,
-        ...normalizedSettings,
+        ...normalizedModeFields,
         toolProfiles: normalizeToolProfiles(value?.toolProfiles, cloneDefaultToolProfiles()),
-        brushHighlighterEnabled:
-            legacyHighlighterRequested
-                ? true
-                : value?.brushHighlighterEnabled ?? defaults.brushHighlighterEnabled,
+        brushHighlighterEnabled: value?.brushHighlighterEnabled ?? defaults.brushHighlighterEnabled,
         textFontFamily: normalizeFontFamily(value?.textFontFamily, defaults.textFontFamily),
         serialFontFamily: normalizeFontFamily(value?.serialFontFamily, defaults.serialFontFamily),
     };
-
-    if (!hasIncomingProfiles) {
-        next = {
-            ...next,
-            toolProfiles: migrateLegacySharedValuesIntoProfiles(next, value),
-        };
-    }
-
-    if (legacyHighlighterRequested) {
-        next = {
-            ...next,
-            brushHighlighterEnabled: true,
-            toolProfiles: {
-                ...next.toolProfiles,
-                brush: {
-                    ...(next.toolProfiles.brush ?? {}),
-                    brushHighlighterEnabled: true,
-                },
-            },
-        };
-    }
 
     return applyActiveToolProfile(next);
 };

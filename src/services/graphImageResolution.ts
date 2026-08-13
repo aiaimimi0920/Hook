@@ -4,19 +4,6 @@ import type { Link, Unit } from "../types/unit";
 import { findArtCapability } from "./artCapabilityLookup";
 
 const DEFAULT_IMAGE_INPUTS = ["image", "input_image", "input"];
-const LEGACY_AUXILIARY_IMAGE_INPUTS = new Set([
-    "reference",
-    "ref",
-    "mask",
-    "alpha",
-    "matte",
-    "foreground",
-    "background",
-    "overlay",
-    "style",
-    "guide",
-    "target",
-]);
 
 const isImageLikePort = (name?: string, type?: string) => {
     const normalizedName = (name || "").toLowerCase();
@@ -33,38 +20,30 @@ const isImageLikePort = (name?: string, type?: string) => {
 const isNonEmptyString = (value: string | undefined): value is string =>
     typeof value === "string" && value.length > 0;
 
-const mergeLegacyImageInputAliases = (imageInputs: string[], allInputs: string[]) => {
-    const allInputNames = new Set(allInputs.filter(Boolean));
-    const imageInputNames = new Set(imageInputs.filter(Boolean));
-
-    for (const alias of DEFAULT_IMAGE_INPUTS) {
-        if (!allInputNames.has(alias) || imageInputNames.has(alias)) {
-            imageInputNames.add(alias);
-        }
-    }
-
-    return Array.from(imageInputNames);
-};
-
 const getImageInputNames = (unit: Unit, capabilities?: readonly ArtCapability[]) => {
     if (unit.type === "art") {
         const capability = capabilities ? findArtCapability(capabilities, unit.artId) : undefined;
-        const allInputs = capability?.inputs?.map((input) => input.name).filter(isNonEmptyString) || [];
-        const imageInputs =
+        const capabilityInputs =
             capability?.inputs
                 ?.filter((input) => isImageLikePort(input.name, input.type))
                 .map((input) => input.name)
                 .filter(isNonEmptyString) || [];
-        return imageInputs.length > 0 ? mergeLegacyImageInputAliases(imageInputs, allInputs) : DEFAULT_IMAGE_INPUTS;
+        if (capabilityInputs.length > 0) return capabilityInputs;
+
+        return (
+            unit.inputs
+                ?.filter((input) => isImageLikePort(input.id || input.label, input.type))
+                .map((input) => input.id || input.label)
+                .filter(isNonEmptyString) || []
+        );
     }
 
-    const allInputs = unit.inputs?.map((input) => input.id || input.label).filter(isNonEmptyString) || [];
     const unitInputs =
         unit.inputs
             ?.filter((input) => isImageLikePort(input.id || input.label, input.type))
             .map((input) => input.id || input.label)
             .filter(isNonEmptyString) || [];
-    return unitInputs.length > 0 ? mergeLegacyImageInputAliases(unitInputs, allInputs) : ["image"];
+    return unitInputs.length > 0 ? unitInputs : ["image"];
 };
 
 const findConnectedImageInput = (unit: Unit, links: readonly Link[], capabilities?: readonly ArtCapability[]) => {
@@ -203,15 +182,6 @@ export const resolveConnectedUnitImageForPort = (input: {
 };
 
 const isPrimaryImageInputName = (name: string) => DEFAULT_IMAGE_INPUTS.includes(name.toLowerCase());
-
-const isLegacyAuxiliaryImageInputName = (name: string) => {
-    const normalizedName = name.toLowerCase();
-    return (
-        LEGACY_AUXILIARY_IMAGE_INPUTS.has(normalizedName) ||
-        normalizedName.endsWith("_image") ||
-        normalizedName.endsWith("_file")
-    );
-};
 
 const toFiniteNumber = (value: unknown) => {
     const numeric = typeof value === "number" ? value : Number(value);
@@ -360,28 +330,23 @@ export const resolveAuxiliaryUnitExecutionInputImages = (input: {
         }
     }
 
-    if (capability && auxiliaryImageInputs.length > 0) {
-        return resolved;
-    }
+    return resolved;
+};
 
-    const legacyFallbackPorts = new Set<string>();
-    input.links
-        .filter((link) => link.toUnitId === input.unitId)
-        .forEach((link) => {
-            if (isPrimaryImageInputName(link.toPortId) || !isLegacyAuxiliaryImageInputName(link.toPortId)) {
-                return;
-            }
-            legacyFallbackPorts.add(link.toPortId);
-        });
-    Object.keys(manual).forEach((key) => {
-        if (!isPrimaryImageInputName(key) && isLegacyAuxiliaryImageInputName(key)) {
-            legacyFallbackPorts.add(key);
-        }
-    });
+export const resolveUnitExecutionImageInputs = (input: {
+    units: readonly Unit[];
+    links: readonly Link[];
+    unitId: string;
+    capabilities?: readonly ArtCapability[];
+    manualParams?: Record<string, unknown>;
+}): Record<string, string> => {
+    const unit = input.units.find((item) => item.id === input.unitId);
+    if (!unit) return {};
+    const manual = input.manualParams || unit.params || {};
+    const ports = getImageInputNames(unit, input.capabilities);
+    const resolved: Record<string, string> = {};
 
-    for (const portId of legacyFallbackPorts) {
-        if (resolved[portId]) continue;
-
+    for (const portId of ports) {
         const connected = resolveConnectedUnitImageForPort({
             units: input.units,
             links: input.links,
@@ -393,7 +358,6 @@ export const resolveAuxiliaryUnitExecutionInputImages = (input: {
             resolved[portId] = connected;
             continue;
         }
-
         const manualValue = manual[portId];
         if (typeof manualValue === "string" && manualValue.length > 0) {
             resolved[portId] = manualValue;
@@ -425,20 +389,11 @@ const collectDeclaredExecutionImagePorts = (input: {
             .map((port) => port.id || port.label)
             .filter(isNonEmptyString)
             .forEach((port) => declared.add(port));
-        input.links
-            .filter((link) => link.toUnitId === input.unit.id)
-            .map((link) => link.toPortId)
-            .filter((portId) => isPrimaryImageInputName(portId) || isLegacyAuxiliaryImageInputName(portId))
-            .forEach((portId) => declared.add(portId));
-        Object.keys(input.manualParams)
-            .filter((key) => isPrimaryImageInputName(key) || isLegacyAuxiliaryImageInputName(key))
-            .forEach((key) => declared.add(key));
     }
 
     const ports = Array.from(declared);
     const primaryPortId =
         ports.find((port) => isPrimaryImageInputName(port)) ||
-        ports.find((port) => !isLegacyAuxiliaryImageInputName(port)) ||
         ports[0];
     const auxiliaryPortIds = ports.filter((port) => port !== primaryPortId);
 

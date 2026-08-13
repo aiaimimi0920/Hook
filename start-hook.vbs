@@ -21,10 +21,8 @@ End If
 
 Call SetDefaultEnv("HOOK_STARTUP_MODE", "silent")
 Call SetDefaultEnv("HOOK_INITIAL_UI_MODE", "overlay")
-Call SetDefaultEnv("HOOK_ENABLE_ARTLOOM", "0")
-Call SetDefaultEnv("HOOK_CAPTURE_BACKEND", "gdi")
-Call SetDefaultEnv("ARTLOOM_WS_URL", "ws://127.0.0.1:19820")
-Call SetDefaultEnv("ARTNEXUS_WAIT_FOR_ARTLOOM_SEC", "25")
+Call SetDefaultEnv("HOOK_ENABLE_LOOM_HOOK", "0")
+Call SetDefaultEnv("LOOM_HOOK_WS_URL", "ws://127.0.0.1:19820")
 Call SetDefaultEnv("HOOK_LOG_DIR", shell.ExpandEnvironmentStrings("%LOCALAPPDATA%\Hook\logs"))
 
 Call EnsureFolder(processEnv.Item("HOOK_LOG_DIR"))

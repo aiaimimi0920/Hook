@@ -2,21 +2,21 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const libSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "lib.rs"), "utf8");
-const mockArtLoomSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "mock_artloom.rs"), "utf8");
+const source = (relativePath: string) => readFileSync(resolve(process.cwd(), relativePath), "utf8");
 
 describe("Hook MCP boundary contract", () => {
-  it("does not expose direct MCP server process commands from Hook", () => {
+  it("does not expose direct MCP server processes from Hook", () => {
+    const libSource = source("src-tauri/src/lib.rs");
     expect(libSource).not.toContain("async fn test_mcp_connection");
     expect(libSource).not.toContain("test_mcp_connection");
     expect(libSource).not.toContain("Testing MCP Connection");
   });
 
-  it("keeps MCP art execution routed through ArtLoom AHRP instead of local execution", () => {
-    expect(mockArtLoomSource).toContain("let et = def.effective_execution_type().unwrap_or(\"unknown\")");
-    expect(mockArtLoomSource).toContain("if def.enabled");
-    expect(mockArtLoomSource).not.toContain('|| et == "mcp"');
-    expect(mockArtLoomSource).toContain('"method": "art/process"');
-    expect(mockArtLoomSource).toContain("Connected to ArtLoom WebSocket");
+  it("routes every package Art, including MCP Arts, through loom.hook.art.execute", () => {
+    const hookSource = source("src-tauri/src/loom_hook.rs");
+    expect(hookSource).toContain('"method": "loom.hook.art.execute"');
+    expect(hookSource).not.toContain('"method": "art/process"');
+    expect(hookSource).not.toContain("effective_execution_type");
+    expect(hookSource).not.toContain("test_mcp_connection");
   });
 });

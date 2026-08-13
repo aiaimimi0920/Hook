@@ -109,6 +109,21 @@ Validate a built native candidate in two stages. Preflight only hashes the
 candidate, checks the CDP dependency/port, and reports any live Hook main or
 watchdog process; it never launches or stops Hook:
 
+Phase 71 is the canonical-only baseline: acceptance and release checks exercise
+only the current app-data identity, publisher-qualified packages, and formal
+`loom.hook.v1`/`loom.surface.v1` contracts. Obsolete compatibility paths are not
+part of acceptance.
+
+The acceptance scripts fail closed on SHA-256. Their defaults identify the
+current formal R14/R23 pair; when validating any other path, pass the matching
+expected digest explicitly rather than omitting the hash.
+
+The recorded Phase 71 native acceptance is
+`artifacts/runtime-performance/hook-loom-surface-candidate/20260813-205423-hook-loom-surface-b89e7c2bd751/summary.json`:
+R14/R23 passed the 600-second soak (402 process-tree samples, 2.476% private-byte
+growth, no violations), formal Surface action/resource delivery, clean exit,
+and same-instance restart recovery (`revision 1 -> 4 -> 8`).
+
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File .\scripts\Invoke-HookNativeCandidateAcceptance.ps1 `
@@ -137,6 +152,7 @@ powershell -NoProfile -ExecutionPolicy Bypass `
   -HookExe ..\release\Hook\candidate\hook.exe `
   -ExpectedHookSha256 <candidate-sha256> `
   -LoomPackageDir ..\release\Loom\candidate `
+  -ExpectedLoomDaemonSha256 <loom-daemon-sha256> `
   -PreflightOnly
 
 # Safe isolated Loom-side rehearsal; does not launch Hook.
@@ -145,6 +161,7 @@ powershell -NoProfile -ExecutionPolicy Bypass `
   -HookExe ..\release\Hook\candidate\hook.exe `
   -ExpectedHookSha256 <candidate-sha256> `
   -LoomPackageDir ..\release\Loom\candidate `
+  -ExpectedLoomDaemonSha256 <loom-daemon-sha256> `
   -ValidateLoomServicesOnly
 ```
 
@@ -209,12 +226,11 @@ explicitly includes an approved signed installer.
 - [Governance and Signing Roles](GOVERNANCE.md)
 - [Third-Party Notices](THIRD_PARTY_NOTICES.md)
 
-## Local data compatibility
+## Local data identity
 
-The public Tauri bundle identifier is `com.yamiyu.hook`. Hook preserves existing
-local user state by falling back to older data directories created under
-`io.github.aiaimimi0920.hook` and `com.vmjcv.hook` when the current directory is
-empty.
+The public Tauri bundle identifier and the only automatic local-data identity is
+`com.yamiyu.hook`. Development and test automation can select an isolated root
+explicitly with `HOOK_APPDATA_DIR`; Hook does not scan or migrate obsolete roots.
 
 ## Contributing
 

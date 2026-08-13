@@ -2,9 +2,9 @@ import type { ArtCapability, ArtCapabilityMetadata } from "./protocol";
 import type { SurfacePackageManifest } from "./surfaceProtocol";
 
 const capabilityMetadata = (
-    capability: Pick<ArtCapability, "capabilities" | "metadata"> | undefined,
+    capability: Pick<ArtCapability, "metadata"> | undefined,
 ): ArtCapabilityMetadata | undefined =>
-    capability?.metadata?.capabilities || capability?.capabilities;
+    capability?.metadata?.capabilities;
 
 /**
  * Returns whether an Art advertises a local shader/live preview.
@@ -13,7 +13,7 @@ const capabilityMetadata = (
  * ids describe execution ownership and must not be overloaded as UI behavior.
  */
 export const supportsShaderPreview = (
-    capability: Pick<ArtCapability, "capabilities" | "metadata"> | undefined,
+    capability: Pick<ArtCapability, "metadata"> | undefined,
 ): boolean => {
     if (!capability) return false;
     const metadata = capabilityMetadata(capability);
@@ -23,20 +23,20 @@ export const supportsShaderPreview = (
 export const requiresFormalExecutionAfterPreview = (
     capability: Pick<
         ArtCapability,
-        "capabilities" | "metadata" | "execution" | "execution_type"
+        "metadata" | "execution"
     > | undefined,
 ): boolean => {
     if (capabilityMetadata(capability)?.requiresFormalExecution === true) return true;
-    const executionType = capability?.execution_type || capability?.execution?.type;
+    const executionType = capability?.execution?.type;
     return executionType === "workflow";
 };
 
 export const surfacePackageManifest = (
-    capability: Pick<ArtCapability, "capabilities" | "metadata"> | undefined,
+    capability: Pick<ArtCapability, "metadata"> | undefined,
 ): SurfacePackageManifest | undefined => capabilityMetadata(capability)?.surface;
 
 export const supportsDeclarativeSurface = (
-    capability: Pick<ArtCapability, "capabilities" | "metadata"> | undefined,
+    capability: Pick<ArtCapability, "metadata"> | undefined,
 ): boolean => {
     const surface = surfacePackageManifest(capability);
     return !!surface && (
@@ -46,7 +46,7 @@ export const supportsDeclarativeSurface = (
 };
 
 export const supportsSurface = (
-    capability: Pick<ArtCapability, "capabilities" | "metadata"> | undefined,
+    capability: Pick<ArtCapability, "metadata"> | undefined,
 ): boolean => {
     const surface = surfacePackageManifest(capability);
     return !!surface && (

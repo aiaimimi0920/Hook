@@ -7,8 +7,6 @@ import type { ArtCapability } from "../../src/services/protocol";
 
 const colorTransfer: ArtCapability = {
     id: "neuro.official/custom-1770131241684",
-    legacyId: "custom-1770131241684",
-    qualifiedId: "neuro.official/custom-1770131241684",
     label: "颜色迁移",
     description: "",
     supported_transports: ["shared_memory"],
@@ -16,9 +14,9 @@ const colorTransfer: ArtCapability = {
 };
 
 describe("Art capability lookup", () => {
-    it("resolves legacy and qualified Art identifiers to the canonical capability", () => {
-        expect(findArtCapability([colorTransfer], colorTransfer.legacyId)).toBe(colorTransfer);
-        expect(findArtCapability([colorTransfer], colorTransfer.qualifiedId)).toBe(colorTransfer);
+    it("resolves only the canonical Art identifier", () => {
+        expect(findArtCapability([colorTransfer], colorTransfer.id)).toBe(colorTransfer);
+        expect(findArtCapability([colorTransfer], "custom-1770131241684")).toBeUndefined();
     });
 
     it("refreshes an empty catalog before resolving a quick Art binding", async () => {
@@ -28,7 +26,7 @@ describe("Art capability lookup", () => {
         });
 
         const resolved = await findArtCapabilityAfterRefresh(
-            "custom-1770131241684",
+            colorTransfer.id,
             () => capabilities,
             refresh,
         );

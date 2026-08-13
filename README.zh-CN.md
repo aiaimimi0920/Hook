@@ -134,11 +134,10 @@ by [SignPath Foundation](https://signpath.org/) 只会在 Hook 项目完成开�
 - [治理与签名角色](GOVERNANCE.md)
 - [第三方归属说明](THIRD_PARTY_NOTICES.md)
 
-## 本地数据兼容性
+## 本地数据目录
 
-当前公开 Tauri 包标识符是 `com.yamiyu.hook`。如果新目录为空，Hook 仍会回退读取
-`io.github.aiaimimi0920.hook` 和 `com.vmjcv.hook` 创建的旧本地数据目录，避免升级
-后丢失用户状态。
+当前公开 Tauri 包标识符是 `com.yamiyu.hook`。Hook 只读写该标识符对应的数据目录，
+不会探测、读取或迁移旧标识符的数据目录。
 
 ## 参与贡献
 

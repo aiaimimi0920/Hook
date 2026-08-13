@@ -4,11 +4,7 @@ import type { SessionSticker, Unit } from "../types/unit";
 const loadedCapabilityIds = (capabilities: readonly ArtCapability[]) =>
     new Set(
         capabilities
-            .flatMap((capability) => [
-                capability.id,
-                capability.legacyId,
-                capability.qualifiedId,
-            ])
+            .map((capability) => capability.id)
             .filter(
                 (capabilityId): capabilityId is string =>
                     typeof capabilityId === "string" && capabilityId.length > 0,
@@ -46,6 +42,7 @@ const sessionArtIdsFromSnapshot = (
                 (
                     sticker,
                 ): sticker is Pick<SessionSticker, "type" | "artId"> & { artId: string } =>
+                    sticker.type === "art" &&
                     typeof sticker.artId === "string" && sticker.artId.length > 0,
             )
             .map((sticker) => sticker.artId),

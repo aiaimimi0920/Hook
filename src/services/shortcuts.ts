@@ -84,7 +84,6 @@ export interface LoomQuickBindingConfig {
 export interface LoomHookSettings {
   shortcuts?: Record<string, LoomShortcutConfig>;
   quick_bindings?: LoomQuickBindingConfig[];
-  quickBindings?: LoomQuickBindingConfig[];
 }
 
 const LOOM_SHORTCUT_ACTIONS: Record<string, string[]> = {
@@ -322,7 +321,7 @@ class ShortcutManagerClass {
       );
     }
 
-    const quickBindings = snapshot.quick_bindings || snapshot.quickBindings || [];
+    const quickBindings = snapshot.quick_bindings || [];
     this.quickBindings = quickBindings.flatMap((binding) => {
       const art = binding.art?.trim();
       const candidates = parseShortcutAlternatives(binding.key || '');

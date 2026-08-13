@@ -1,12 +1,10 @@
 import type { ArtCapability } from "./protocol";
 
 export const matchesArtCapabilityId = (
-    capability: Pick<ArtCapability, "id" | "legacyId" | "qualifiedId">,
+    capability: Pick<ArtCapability, "id">,
     id: string | null | undefined,
 ) => !!id && (
-    capability.id === id ||
-    capability.legacyId === id ||
-    capability.qualifiedId === id
+    capability.id === id
 );
 
 export const findArtCapability = (

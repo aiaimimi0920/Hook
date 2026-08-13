@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const root = path.resolve(__dirname, "../..");
 const appSource = fs.readFileSync(path.join(root, "src/app.tsx"), "utf8");
 const protocolSource = fs.readFileSync(path.join(root, "src/services/protocol.ts"), "utf8");
-const rustClientSource = fs.readFileSync(path.join(root, "src-tauri/src/mock_artloom.rs"), "utf8");
+const rustClientSource = fs.readFileSync(path.join(root, "src-tauri/src/loom_hook.rs"), "utf8");
 const unitViewSource = fs.readFileSync(path.join(root, "src/components/UnitView.tsx"), "utf8");
 const parameterSource = fs.readFileSync(path.join(root, "src/hooks/useNodeParameters.ts"), "utf8");
 
@@ -30,11 +30,11 @@ describe("workflow preview delivery contract", () => {
     });
 
     it("emits preview phases and continues reading until the final phase", () => {
-        expect(rustClientSource).toMatch(/let phase = json\["phase"\][\s\S]*?unwrap_or\("final"\)/);
-        expect(rustClientSource).toMatch(/if phase == "preview" \{[\s\S]*?continue;/);
-        expect(rustClientSource).toMatch(/"phase": phase/);
-        expect(rustClientSource).toMatch(/emit_rgba_art_ready\([\s\S]*?"preview"/);
-        expect(rustClientSource).toMatch(/emit_rgba_art_ready\([\s\S]*?"final"/);
+        expect(rustClientSource).toContain('"loom.hook.art.preview" =>');
+        expect(rustClientSource).toContain('"loom.hook.art.result" =>');
+        expect(rustClientSource).toMatch(/"loom\.hook\.art\.preview" => \{[\s\S]*?"preview"/);
+        expect(rustClientSource).toMatch(/"loom\.hook\.art\.result" => \{[\s\S]*?"final"/);
+        expect(rustClientSource).toContain("continue;");
     });
 
     it("keeps local workflow shader previews out of formal downstream propagation", () => {

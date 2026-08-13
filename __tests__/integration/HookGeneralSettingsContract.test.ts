@@ -8,7 +8,8 @@ describe("Loom-managed Hook general settings contract", () => {
 
         expect(appSource).toContain("applyLoomManagedSettings");
         expect(appSource).toContain("normalizeHookGeneralSettings");
-        expect(appSource).toContain("record.hook_general || record.hookGeneral");
+        expect(appSource).toContain("record.hook_general");
+        expect(appSource).not.toContain("record.hook_general || record.hookGeneral");
         expect(appSource).toContain("hook/settings_updated");
     });
 
@@ -31,7 +32,7 @@ describe("Loom-managed Hook general settings contract", () => {
     });
 
     it("applies Loom-managed proxy and log settings to native Hook clients", () => {
-        const bridgeSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "mock_artloom.rs"), "utf8");
+        const bridgeSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "loom_hook.rs"), "utf8");
         const nativeSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "lib.rs"), "utf8");
         const proxySource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "network_proxy.rs"), "utf8");
         const teaSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "tea_client.rs"), "utf8");

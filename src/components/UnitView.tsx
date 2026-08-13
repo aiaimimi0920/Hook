@@ -78,7 +78,7 @@ import {
 } from "../services/syncImageCache";
 import { surfaceStore } from "../store/surfaceStore";
 import { surfaceResourceStore } from "../store/surfaceResourceStore";
-import { artLoom } from "../services/client";
+import { loomHook } from "../services/client";
 import { surfaceAttachmentRequests } from "../services/surfaceAttachmentRequests";
 
 interface Props {
@@ -240,7 +240,7 @@ export const UnitView: Component<Props> = (props) => {
           ) continue;
           const resourceId = lease.resource.resourceId;
           if (!surfaceResourceStore.actions.begin(resourceId)) continue;
-          void artLoom.fetchSurfaceResource(lease).catch((error) => {
+          void loomHook.fetchSurfaceResource(lease).catch((error) => {
               surfaceResourceStore.actions.fail(resourceId);
               graphStore.actions.updateUnitData(props.unit.id, {
                   nodeStatus: "error",
@@ -261,7 +261,7 @@ export const UnitView: Component<Props> = (props) => {
       ) {
           return;
       }
-      void artLoom.attachSurface(artId, props.unit.id).catch((error) => {
+      void loomHook.attachSurface(artId, props.unit.id).catch((error) => {
           surfaceAttachmentRequests.fail(props.unit.id);
           graphStore.actions.updateUnitData(props.unit.id, {
               nodeStatus: "error",
@@ -1035,7 +1035,7 @@ export const UnitView: Component<Props> = (props) => {
                                 interactive={!isMinified()}
                                 resolveResource={surfaceResourceStore.actions.resolve}
                                 onEvent={(event) => {
-                                    void artLoom.dispatchSurfaceEvent(event).catch((error) => {
+                                    void loomHook.dispatchSurfaceEvent(event).catch((error) => {
                                         graphStore.actions.updateUnitData(props.unit.id, {
                                             nodeStatus: "error",
                                             errorMessage: error instanceof Error
@@ -1055,7 +1055,7 @@ export const UnitView: Component<Props> = (props) => {
                             interactive={!isMinified()}
                             resolveResource={surfaceResourceStore.actions.resolve}
                             onEvent={(event) => {
-                                void artLoom.dispatchSurfaceEvent(event).catch((error) => {
+                                void loomHook.dispatchSurfaceEvent(event).catch((error) => {
                                     graphStore.actions.updateUnitData(props.unit.id, {
                                         nodeStatus: "error",
                                         errorMessage: error instanceof Error

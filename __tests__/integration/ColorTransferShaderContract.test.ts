@@ -35,17 +35,17 @@ describe("Color Transfer shader node contract", () => {
   });
 
   it("materializes data URI shader inputs before sending them to Loom", () => {
-    const rustSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "mock_artloom.rs"), "utf8");
+    const rustSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "loom_hook.rs"), "utf8");
 
     expect(rustSource).toContain("materialize_shader_image_input");
     expect(rustSource).toContain('starts_with("data:")');
-    expect(rustSource).toContain("artloom_shader_input");
-    expect(rustSource).toContain("artloom_shader_reference");
-    expect(rustSource).not.toContain("repair_artloom_art_path");
+    expect(rustSource).toContain("loom_hook_shader_input");
+    expect(rustSource).toContain("loom_hook_shader_reference");
+    expect(rustSource).not.toContain("repair_art_path");
   });
 
   it("runs contextual shader prefetch work away from the Tauri IPC handler thread", () => {
-    const rustSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "mock_artloom.rs"), "utf8");
+    const rustSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "loom_hook.rs"), "utf8");
 
     expect(rustSource).toMatch(/pub\s+async\s+fn\s+prefetch_shader/);
     expect(rustSource).toContain("tauri::async_runtime::spawn_blocking");
@@ -53,10 +53,10 @@ describe("Color Transfer shader node contract", () => {
   });
 
   it("uses the installed Loom Art package as the only shader-prefetch runtime", () => {
-    const rustSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "mock_artloom.rs"), "utf8");
+    const rustSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "loom_hook.rs"), "utf8");
 
-    expect(rustSource).toContain("read_default_loom_manifest");
-    expect(rustSource).toContain("/v1/python-arts/shader/prefetch");
+    expect(rustSource).toContain('"method": "loom.hook.art.execute"');
+    expect(rustSource).not.toContain("/v1/python-arts/shader/prefetch");
     expect(rustSource).toContain("Loom shader prefetch");
     expect(rustSource).not.toContain("Falling back to local Python shader prefetch");
   });
@@ -75,7 +75,7 @@ describe("Color Transfer shader node contract", () => {
   it("keeps pure shader changes local while hybrid previews reach formal execution", () => {
     const source = readFileSync(resolve(process.cwd(), "src", "hooks", "useNodeParameters.ts"), "utf8");
     const shaderFastPath = source.indexOf("Shader preview is reactive in ShaderPreview");
-    const imageResolution = source.indexOf("resolveUnitExecutionInputImage({", shaderFastPath);
+    const imageResolution = source.indexOf("resolveUnitExecutionImageInputs({", shaderFastPath);
 
     expect(shaderFastPath).toBeGreaterThan(-1);
     expect(source).toContain("requiresFormalExecutionAfterPreview");

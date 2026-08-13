@@ -741,7 +741,7 @@ $tauriConfig | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $tauriConfigPa
     "setlocal",
     "set `"HOOK_LOG_DIR=$runtimeLogDir`"",
     "set `"HOOK_INITIAL_UI_MODE=canvas`"",
-    "set `"HOOK_ENABLE_ARTLOOM=0`"",
+    "set `"HOOK_ENABLE_LOOM_HOOK=0`"",
     "set `"HOOK_TEA_INTAKE_ENABLED=1`"",
     "set `"HOOK_TEA_BASE_URL=$baseUrl`"",
     "set `"HOOK_TEA_AUTH_TOKEN=$AuthToken`"",

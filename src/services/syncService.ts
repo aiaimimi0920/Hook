@@ -2,7 +2,7 @@ import { api, type SessionData } from "./api";
 import { graphStore } from "../store/graphStore";
 import { Unit, Link, WorkflowAssetArchiveHints } from "../types/unit";
 import { extraRects } from "./uiRegistry";
-import { artLoom } from "./client";
+import { loomHook } from "./client";
 import { WORKFLOW_ID } from "../constants";
 import type { BootProfile } from "./bootProfile";
 import type { StickerGroup } from "../types/stickerEditing";
@@ -113,6 +113,12 @@ const executeSyncCycle = async () => {
     const currentUnits = graphStore.units;
     const currentLinks = graphStore.links;
     const unitParams = graphStore.unitParams;
+    const invalidArtUnit = currentUnits.find(
+        (unit) => unit.type === 'art' && !unit.artId?.trim(),
+    );
+    if (invalidArtUnit) {
+        throw new Error(`Art unit ${invalidArtUnit.id} is missing its canonical artId`);
+    }
     const pendingImageCommits = new Map<string, {
         unitId: string;
         token: SyncImageCacheToken;
@@ -270,17 +276,17 @@ const executeSyncCycle = async () => {
 
             const rfNodes = componentUnits.map(async (u) => {
                 const syncImg = shouldSyncImage(u, dominantWfId!);
+                const loomHookType = u.type === 'sticker' ? 'sticker' : 'artNode';
                 const imagePayload = syncImg
                     ? await buildSyncedImagePayload(u, { renderBakedPreviewSrc })
                     : {};
                 return {
                     id: u.data?.originNodeId || u.id,
-                    type: 'artNode',
+                    type: loomHookType,
                     position: { x: u.x, y: u.y },
                     data: {
                         label: u.artId || "Node",
-                        art_id: u.artId,
-                        artId: u.artId,
+                        ...(u.type === 'art' ? { artId: u.artId } : {}),
                         params: unitParams[u.id] || u.params || {},
                         ...imagePayload,
                         outputs: u.data?.outputs || null,
@@ -344,19 +350,18 @@ const executeSyncCycle = async () => {
 
     const globalRfNodes = currentUnits.map(async (u) => {
         const syncImg = shouldSyncImage(u, WORKFLOW_ID);
-        const artLoomType = u.type === 'sticker' ? 'sticker' : 'artNode';
+        const loomHookType = u.type === 'sticker' ? 'sticker' : 'artNode';
         const imagePayload = syncImg
             ? await buildSyncedImagePayload(u, { renderBakedPreviewSrc })
             : {};
 
         return {
             id: u.id,
-            type: artLoomType,
+            type: loomHookType,
             position: { x: u.x, y: u.y },
             data: {
                 label: u.artId || "Node",
-                art_id: u.artId,
-                artId: u.artId,
+                ...(u.type === 'art' ? { artId: u.artId } : {}),
                 params: unitParams[u.id] || u.params || {},
                 ...imagePayload,
                 outputs: u.data?.outputs || null,
@@ -397,7 +402,7 @@ const executeSyncCycle = async () => {
     // Wait for all syncs to complete
     await Promise.all(
         syncRequests.map(({ workflowId, snapshot }) =>
-            artLoom.syncWorkflow(workflowId, snapshot)
+            loomHook.syncWorkflow(workflowId, snapshot)
         ),
     );
     if (!isSyncImageCacheEpochCurrent(syncEpoch)) {

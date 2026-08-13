@@ -73,71 +73,65 @@ export interface SurfaceResourceDelivery {
     expiresAtMs: number;
 }
 
-export class ArtLoomClient {
+export class LoomHookClient {
     private sessionId: string | null = null;
     private negotiatedTransport: TransportMode | null = null;
     private capabilities: ArtCapability[] = [];
 
     async connect(): Promise<HandshakeResponse> {
-        logger.debug("[ArtLoomClient] Connecting...");
+        logger.debug("[LoomHookClient] Connecting...");
         const req: HandshakeRequest = {
-            client_name: "hook-frontend",
-            client_version: "1.0.0",
-            preferred_transports: ["shared_memory", "cloudflare_relay"]
+            protocolVersion: "loom.hook.v1",
+            supportedProtocolVersions: ["loom.hook.v1"],
+            clientId: "hook.frontend",
+            clientVersion: "0.1.7",
+            platform: "windows-x64",
+            transports: ["shared_memory", "cloudflare_relay"],
+            surface: hookSurfaceHostCapabilities(),
         };
 
         try {
             const rawResponse = await api.handshake(req);
             const capabilities = normalizeArtCapabilities(
-                rawResponse.capabilities?.art_definitions ?? [],
+                rawResponse.capabilities?.artDefinitions ?? [],
             );
             const res: HandshakeResponse = {
                 ...rawResponse,
                 capabilities: {
                     ...rawResponse.capabilities,
-                    art_definitions: capabilities,
+                    artDefinitions: capabilities,
                 },
             };
 
-            logger.debug("[ArtLoomClient] Handshake Success:", res);
-            this.sessionId = res.session_id;
-            this.negotiatedTransport = res.negotiated_transport;
-            this.capabilities = res.capabilities.art_definitions;
+            logger.debug("[LoomHookClient] Handshake Success:", res);
+            this.sessionId = res.sessionId;
+            this.negotiatedTransport = res.transport;
+            this.capabilities = res.capabilities.artDefinitions;
             return res;
         } catch (e) {
-            console.error("[ArtLoomClient] Handshake Failed:", e);
+            console.error("[LoomHookClient] Handshake Failed:", e);
             throw e;
         }
     }
 
-    async dispatchAction(actionName: string, payload: any) {
+    async dispatchAction(actionName: string, payload: unknown) {
         // Construct the Enum Object matching backend #[serde(tag = "action", content = "payload")]
         const actionEnum = {
             action: actionName,
             payload: payload
         };
-        logger.debug(`[ArtLoomClient] Dispatching ${actionName}:`, actionEnum);
+        logger.debug(`[LoomHookClient] Dispatching ${actionName}:`, actionEnum);
         // Pass to the 'action' argument of the Rust command
         await api.dispatchAction(actionEnum);
 
     }
 
-    async updateProperty(artId: string, propId: string, value: any) {
-        // Match backend UpdateNodeParam struct
-        const payload = {
-            node_id: artId,
-            param_key: propId,
-            value
-        };
-        await this.dispatchAction("update_node_param", payload);
-    }
-
-    async syncWorkflow(workflowId: string, snapshot: any) {
+    async syncWorkflow(workflowId: string, snapshot: unknown) {
         const payload = {
             workflow_id: workflowId,
             snapshot: snapshot
         };
-        logger.debug(`[ArtLoomClient] Syncing Workflow ${workflowId}`);
+        logger.debug(`[LoomHookClient] Syncing Workflow ${workflowId}`);
         await this.dispatchAction("sync_workflow", payload);
     }
 
@@ -178,14 +172,24 @@ export class ArtLoomClient {
     }
 
     async listenForProgress(callback: (artId: string, progress: number) => void) {
+        if (typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)) {
+            return () => undefined;
+        }
         return await listen<{art_id: string, value: number}>("art/progress", (event) => {
             callback(event.payload.art_id, event.payload.value);
         });
     }
 
     async listenForDelivery(callback: (delivery: ArtDelivery) => void) {
+        if (typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)) {
+            const handler = (event: Event) => {
+                callback((event as CustomEvent<ArtDelivery>).detail);
+            };
+            window.addEventListener("hook-browser-art-ready", handler);
+            return () => window.removeEventListener("hook-browser-art-ready", handler);
+        }
         return await listen<ArtDelivery>("art/ready", (event) => {
-            logger.debug("[ArtLoomClient] Delivery Received:", event.payload);
+            logger.debug("[LoomHookClient] Delivery Received:", event.payload);
             callback(event.payload);
         });
     }
@@ -263,4 +267,4 @@ export class ArtLoomClient {
     }
 }
 
-export const artLoom = new ArtLoomClient();
+export const loomHook = new LoomHookClient();

@@ -1,9 +1,11 @@
 [CmdletBinding()]
 param(
     [string]$HookExe = "",
-    [string]$ExpectedHookSha256 = "",
+    [ValidatePattern('^[0-9A-Fa-f]{64}$')]
+    [string]$ExpectedHookSha256 = "341fb0c88a268bd0cece05eacb623e5a3fc02c6238c80c7fe7f66b1854e746d2",
     [string]$LoomPackageDir = "",
-    [string]$ExpectedLoomDaemonSha256 = "23f682da17db9594ec1d0e16f0f218475478266f4808d37a5f10b0d22b500e40",
+    [ValidatePattern('^[0-9A-Fa-f]{64}$')]
+    [string]$ExpectedLoomDaemonSha256 = "376f336dcfe97ad83d18d1d9e74397fc36b81f67ac5f6844594012adfd4b75b6",
     [ValidateRange(60, 86400)]
     [int]$DurationSeconds = 600,
     [ValidateRange(0, 3600)]
@@ -28,10 +30,10 @@ $hookRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $neuroRoot = [System.IO.Path]::GetFullPath((Join-Path $hookRoot ".."))
 $loomRepoRoot = Join-Path $neuroRoot "Loom"
 if ([string]::IsNullOrWhiteSpace($HookExe)) {
-    $HookExe = Join-Path $neuroRoot "release\Hook\20260811-distributed-art-surface-r8\hook.exe"
+    $HookExe = Join-Path $neuroRoot "release\Hook\20260813-loom-hook-v1-surface-wire-r14\hook.exe"
 }
 if ([string]::IsNullOrWhiteSpace($LoomPackageDir)) {
-    $LoomPackageDir = Join-Path $neuroRoot "release\Loom\20260811-distributed-art-surface-r8"
+    $LoomPackageDir = Join-Path $neuroRoot "release\Loom\20260813-loom-hook-v1-surface-wire-r23"
 }
 $resolvedHookExe = [System.IO.Path]::GetFullPath($HookExe)
 $resolvedLoomPackageDir = [System.IO.Path]::GetFullPath($LoomPackageDir)
@@ -306,12 +308,10 @@ try {
     $summary.files.artStoreFixture = Get-FileEvidence -Path $artStoreExe
     $summary.files.processFrameworkFixture = Get-FileEvidence -Path $processFrameworkZip
     $summary.files.dashboardArtFixture = Get-FileEvidence -Path $dashboardArtZip
-    if (-not [string]::IsNullOrWhiteSpace($ExpectedHookSha256) -and
-        $summary.files.hook.sha256 -ne $ExpectedHookSha256.Trim().ToLowerInvariant()) {
+    if ($summary.files.hook.sha256 -ne $ExpectedHookSha256.Trim().ToLowerInvariant()) {
         throw "Hook candidate SHA-256 mismatch"
     }
-    if (-not [string]::IsNullOrWhiteSpace($ExpectedLoomDaemonSha256) -and
-        $summary.files.loomDaemon.sha256 -ne $ExpectedLoomDaemonSha256.Trim().ToLowerInvariant()) {
+    if ($summary.files.loomDaemon.sha256 -ne $ExpectedLoomDaemonSha256.Trim().ToLowerInvariant()) {
         throw "Loom daemon candidate SHA-256 mismatch"
     }
     $listenerCount = @(
@@ -346,7 +346,12 @@ try {
         $innerArtifactRoot `
         -Force | Out-Null
     Copy-Item -LiteralPath $processFrameworkZip -Destination (Join-Path $storeRoot "frameworks\process.zip") -Force
-    Copy-Item -LiteralPath $dashboardArtZip -Destination (Join-Path $storeRoot "arts\surface-device-dashboard.zip") -Force
+    $dashboardVersionRoot = Join-Path $storeRoot "arts\surface-device-dashboard"
+    New-Item -ItemType Directory -Path $dashboardVersionRoot -Force | Out-Null
+    $dashboardVersionZip = Join-Path $dashboardVersionRoot "1.0.0.zip"
+    Copy-Item -LiteralPath $dashboardArtZip -Destination $dashboardVersionZip -Force
+    $dashboardDigest = (Get-FileHash -LiteralPath $dashboardVersionZip -Algorithm SHA256).Hash.ToLowerInvariant()
+    [IO.File]::WriteAllText("$dashboardVersionZip.sha256", "$dashboardDigest  1.0.0.zip`n", [Text.UTF8Encoding]::new($false))
 
     $summary.status = "starting_isolated_loom"
     Write-Summary -Summary $summary
@@ -426,12 +431,10 @@ try {
             "-ArtifactRoot", $innerArtifactRoot,
             "-RequireSurfaceDashboard",
             "-LoomManifestPath", $manifestPath,
-            "-ArtLoomWsUrl", $bridgeWsUrl,
+            "-LoomHookWsUrl", $bridgeWsUrl,
             "-SurfaceBaseUrl", $daemonBaseUrl
         )
-        if (-not [string]::IsNullOrWhiteSpace($ExpectedHookSha256)) {
-            $innerArgs += @("-ExpectedSha256", $ExpectedHookSha256)
-        }
+        $innerArgs += @("-ExpectedSha256", $ExpectedHookSha256)
         & powershell.exe @innerArgs
         $innerExitCode = $LASTEXITCODE
         if (-not (Test-Path -LiteralPath $innerSummaryPath -PathType Leaf)) {

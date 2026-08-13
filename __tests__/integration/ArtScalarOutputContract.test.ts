@@ -15,7 +15,7 @@ describe("Art scalar output contract", () => {
     // helper module; app.tsx keeps the switch case and the updateUnitData wiring.
     const deliveryOutputsSource = readFileSync(resolve(process.cwd(), "src", "services", "artDeliveryOutputs.ts"), "utf8");
 
-    expect(protocolSource).toContain("'value' | 'json' | 'text' | 'number'");
+    expect(protocolSource).toContain("'shared_memory' | 'base64' | 'file_path' | 'value'");
     expect(protocolSource).toContain("outputs?: Record<string, unknown>");
     expect(unitTypeSource).toContain("outputs?: Record<string, unknown>");
     expect(appSource).toContain('case "value":');
