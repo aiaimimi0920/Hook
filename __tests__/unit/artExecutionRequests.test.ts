@@ -63,4 +63,19 @@ describe("art execution request registry", () => {
 
         expect(registry.isLatest("art-node", request)).toBe(true);
     });
+
+    it("exposes the in-flight request before begin replaces it", () => {
+        const requestIds = ["request-a", "request-b"];
+        const registry = createArtExecutionRequestRegistry(() => requestIds.shift() || "unexpected");
+
+        expect(registry.active("art-node")).toBeUndefined();
+        const first = registry.begin("art-node");
+        expect(registry.active("art-node")).toEqual({ requestId: first, generation: 1 });
+
+        const second = registry.begin("art-node");
+        expect(registry.active("art-node")).toEqual({ requestId: second, generation: 2 });
+
+        registry.finish("art-node", second);
+        expect(registry.active("art-node")).toBeUndefined();
+    });
 });

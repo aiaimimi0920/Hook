@@ -170,8 +170,131 @@ describe('Hook api browser mode', () => {
       request_id: 'art:req-1',
       phase: 'final',
       status: 200,
-      delivery: { type: 'value', value: { ok: true } },
+      delivery: { type: 'value', value: { ok: true }, outputs: { output: { ok: true } } },
     });
+  });
+
+  it('browser Art execution forwards every output port and prefers output_image', async () => {
+    installBrowserGlobals();
+    const ready = vi.fn();
+    window.addEventListener('hook-browser-art-ready', ready);
+    const { api } = await import('../../src/services/api');
+
+    const pending = api.dispatchAction({
+      action: 'execute_art',
+      payload: {
+        node_id: 'node-art',
+        request_id: 'art:req-multi',
+        generation: 1,
+        art_id: 'publisher/art',
+        inputs: {},
+        parameters: {},
+        disabled_parameters: [],
+      },
+    });
+    const socket = MockWebSocket.instances.at(-1)!;
+    socket.open();
+    socket.emitMessage({
+      protocolVersion: 'loom.hook.v1',
+      requestId: 'art:req-multi',
+      status: 'succeeded',
+      data: {
+        protocolVersion: 'loom.hook.v1',
+        requestId: 'art:req-multi',
+        nodeId: 'node-art',
+        generation: 1,
+        resultRevision: 1,
+        outputs: {
+          score: { kind: 'value', value: 0.9 },
+          output_image: {
+            kind: 'inline_resource',
+            mime: 'image/png',
+            dataBase64: 'QQ==',
+            width: 1,
+            height: 1,
+          },
+        },
+      },
+    });
+
+    await expect(pending).resolves.toBeUndefined();
+    expect((ready.mock.calls[0][0] as CustomEvent).detail).toMatchObject({
+      delivery: {
+        type: 'base64',
+        data: 'data:image/png;base64,QQ==',
+        outputs: {
+          score: 0.9,
+          output_image: 'data:image/png;base64,QQ==',
+        },
+      },
+    });
+  });
+
+  it('browser Art cancel sends loom.hook.art.cancel and ignores request_not_found', async () => {
+    installBrowserGlobals();
+    const { api } = await import('../../src/services/api');
+
+    const pending = api.dispatchAction({
+      action: 'cancel_art',
+      payload: {
+        node_id: 'node-art',
+        request_id: 'art:req-old',
+        generation: 2,
+      },
+    });
+    const socket = MockWebSocket.instances.at(-1)!;
+    socket.open();
+    expect(JSON.parse(socket.sent[0])).toMatchObject({
+      method: 'loom.hook.art.cancel',
+      params: {
+        protocolVersion: 'loom.hook.v1',
+        requestId: 'art:req-old',
+        nodeId: 'node-art',
+        generation: 2,
+        deviceId: 'device:browser-preview',
+      },
+    });
+    socket.emitMessage({
+      protocolVersion: 'loom.hook.v1',
+      requestId: 'art:req-old',
+      status: 'failed',
+      error: { code: 'request_not_found', message: 'no active Art request matches requestId' },
+    });
+
+    await expect(pending).resolves.toBeUndefined();
+  });
+
+  it('browser Art execution emits a terminal failure when Loom is unreachable', async () => {
+    installBrowserGlobals();
+    const ready = vi.fn();
+    window.addEventListener('hook-browser-art-ready', ready);
+    const { api } = await import('../../src/services/api');
+
+    const pending = api.dispatchAction({
+      action: 'execute_art',
+      payload: {
+        node_id: 'node-art',
+        request_id: 'art:req-fail',
+        generation: 1,
+        art_id: 'publisher/art',
+        inputs: {},
+        parameters: {},
+        disabled_parameters: [],
+      },
+    });
+    const socket = MockWebSocket.instances.at(-1)!;
+    socket.onerror?.();
+
+    await expect(pending).resolves.toBeUndefined();
+
+    expect(ready).toHaveBeenCalledOnce();
+    expect((ready.mock.calls[0][0] as CustomEvent).detail).toMatchObject({
+      art_id: 'node-art',
+      request_id: 'art:req-fail',
+      status: 500,
+      delivery: { type: 'base64' },
+    });
+    expect(typeof (ready.mock.calls[0][0] as CustomEvent).detail.error).toBe('string');
   });
 
   it('browser push socket subscribes and only dispatches method payloads', async () => {

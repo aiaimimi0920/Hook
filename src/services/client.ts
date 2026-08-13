@@ -171,12 +171,12 @@ export class LoomHookClient {
         });
     }
 
-    async listenForProgress(callback: (artId: string, progress: number) => void) {
+    async listenForProgress(callback: (artId: string, progress: number, requestId?: string) => void) {
         if (typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)) {
             return () => undefined;
         }
-        return await listen<{art_id: string, value: number}>("art/progress", (event) => {
-            callback(event.payload.art_id, event.payload.value);
+        return await listen<{art_id: string, value: number, request_id?: string}>("art/progress", (event) => {
+            callback(event.payload.art_id, event.payload.value, event.payload.request_id);
         });
     }
 

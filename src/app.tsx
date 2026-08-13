@@ -419,7 +419,7 @@ export default function App() {
           record.hook_general,
       ));
 
-      const hookCache = record.hook_cache;
+      const hookCache = record.hookCache;
       if (!hookCache || typeof hookCache !== "object") return;
       const cache = normalizeHookCacheSettings(hookCache);
       const saved = await saveCurrentAppSettings({
@@ -559,8 +559,10 @@ export default function App() {
           case "value":
               outputValues = extractArtDeliveryValueOutputs(delivery.delivery);
               break;
-          default:
-              break;
+      }
+
+      if (delivery.delivery.type !== "value" && delivery.delivery.outputs) {
+          outputValues = { ...delivery.delivery.outputs };
       }
 
       if (!isCurrentDelivery()) {
@@ -1402,7 +1404,10 @@ export default function App() {
               document.removeEventListener("visibilitychange", onSurfaceVisibilityChange);
           });
 
-          const unlistenProgress = await loomHook.listenForProgress((artId, progress) => {
+          const unlistenProgress = await loomHook.listenForProgress((artId, progress, requestId) => {
+              if (requestId && !artExecutionRequests.isLatest(artId, requestId)) {
+                  return;
+              }
               graphStore.actions.updateUnitData(artId, {
                   processing: true,
                   nodeStatus: "running",

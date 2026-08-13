@@ -276,6 +276,7 @@ export function useNodeParameters() {
           });
 
           // Dispatch Action
+          const previousRequest = artExecutionRequests.active(unitId);
           const requestId = artExecutionRequests.begin(unitId);
           const generation = artExecutionRequests.generation(unitId, requestId);
           if (generation === undefined) return;
@@ -286,6 +287,36 @@ export function useNodeParameters() {
               errorMessage: undefined,
           });
           try {
+            if (previousRequest) {
+                void api.debugLogEvent(
+                    "art-dispatch-cancel",
+                    [
+                        `unit=${unitId}`,
+                        `art=${artId || "none"}`,
+                        `request=${previousRequest.requestId}`,
+                        `generation=${previousRequest.generation}`,
+                    ].join(" "),
+                );
+                try {
+                    await api.dispatchAction({
+                        action: "cancel_art",
+                        payload: {
+                            node_id: unitId,
+                            request_id: previousRequest.requestId,
+                            generation: previousRequest.generation,
+                        },
+                    });
+                } catch (error) {
+                    void api.debugLogEvent(
+                        "art-dispatch-cancel-failed",
+                        [
+                            `unit=${unitId}`,
+                            `request=${previousRequest.requestId}`,
+                            `error=${error instanceof Error ? error.message : String(error)}`,
+                        ].join(" "),
+                    );
+                }
+            }
             void api.debugLogEvent(
                 "art-dispatch-execute",
                 [

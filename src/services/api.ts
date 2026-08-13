@@ -205,6 +205,7 @@ const warnedMethods = new Set<string>();
 const BROWSER_LOOM_HOOK_WS_URL = "ws://127.0.0.1:19820";
 const BROWSER_SESSION_STORAGE_KEY = "hook_browser_preview_session";
 const BROWSER_WS_REQUEST_TIMEOUT_MS = 20000;
+const BROWSER_ART_EXECUTE_TIMEOUT_MS = 150000;
 const BROWSER_SESSION_DATA_URL_THRESHOLD = 8 * 1024;
 const defaultVoiceSettingsSummary: VoiceSettingsSummary = {
     shortcut: "Ctrl+Alt+Space",
@@ -258,12 +259,16 @@ const requestIdFromParams = (params: unknown): string | undefined => {
     return typeof params.requestId === "string" ? params.requestId : undefined;
 };
 
-const browserLoomHookRequest = async <T = unknown>(request: { method: string; params?: unknown }): Promise<T> => {
+const browserLoomHookRequest = async <T = unknown>(
+    request: { method: string; params?: unknown },
+    options?: { timeoutMs?: number },
+): Promise<T> => {
     if (typeof WebSocket === "undefined") {
         throw new Error("WebSocket unavailable in current browser environment");
     }
 
     const expectedRequestId = requestIdFromParams(request.params);
+    const timeoutMs = options?.timeoutMs ?? BROWSER_WS_REQUEST_TIMEOUT_MS;
     return new Promise<T>((resolve, reject) => {
         const ws = new WebSocket(BROWSER_LOOM_HOOK_WS_URL);
         let settled = false;
@@ -273,7 +278,7 @@ const browserLoomHookRequest = async <T = unknown>(request: { method: string; pa
             settled = true;
             ws.close();
             reject(new Error(`Loom Hook WebSocket request timed out: ${request.method}`));
-        }, BROWSER_WS_REQUEST_TIMEOUT_MS);
+        }, timeoutMs);
 
         ws.onerror = () => {
             if (settled) return;
@@ -455,6 +460,39 @@ const browserInlineResource = (source: string): HookArtPortValue => {
     };
 };
 
+const PREFERRED_HOOK_ART_OUTPUT_NAMES = ["output_image", "output", "image"] as const;
+
+const preferredHookArtOutput = (
+    outputs: Record<string, HookArtPortValue>,
+): [string, HookArtPortValue] | undefined => {
+    for (const name of PREFERRED_HOOK_ART_OUTPUT_NAMES) {
+        const value = outputs[name];
+        if (value) {
+            return [name, value];
+        }
+    }
+    return Object.entries(outputs)[0];
+};
+
+const browserPortValueToOutput = (value: HookArtPortValue): unknown => {
+    switch (value.kind) {
+        case "inline_resource":
+            return `data:${value.mime};base64,${value.dataBase64}`;
+        case "value":
+            return value.value;
+        case "shared_memory":
+            return {
+                type: "shared_memory",
+                handle: value.handle,
+                size: value.size,
+                width: value.width,
+                height: value.height,
+            };
+        case "resource":
+            throw new Error("Browser Art execution cannot read broker resource outputs");
+    }
+};
+
 const browserPortValueDelivery = (value: HookArtPortValue): DeliveryPayload => {
     switch (value.kind) {
         case "inline_resource":
@@ -514,6 +552,26 @@ const browserDispatchActionFallback = async (actionEnum: { action: string; paylo
                     },
                 });
                 return;
+            case "cancel_art":
+                {
+                const response = await browserLoomHookRequest<HookResponse>({
+                    method: "loom.hook.art.cancel",
+                    params: {
+                        protocolVersion: "loom.hook.v1",
+                        requestId: payload.request_id,
+                        nodeId: payload.node_id,
+                        generation: payload.generation,
+                        deviceId: "device:browser-preview",
+                    },
+                }, { timeoutMs: 5_000 });
+                if (
+                    response.status === "failed"
+                    && response.error?.code !== "request_not_found"
+                ) {
+                    throw new Error(response.error?.message ?? `Art cancel ${response.status}`);
+                }
+                return;
+                }
             case "execute_art":
                 {
                 const response = await browserLoomHookRequest<HookResponse<HookArtResultCommit>>({
@@ -535,14 +593,21 @@ const browserDispatchActionFallback = async (actionEnum: { action: string; paylo
                         parameters: payload.parameters ?? {},
                         disabledParameters: payload.disabled_parameters ?? [],
                     },
-                });
+                }, { timeoutMs: BROWSER_ART_EXECUTE_TIMEOUT_MS });
                 if (response.status !== "succeeded") {
                     throw new Error(response.error?.message ?? `Art execution ${response.status}`);
                 }
-                const value = Object.values(response.data.outputs)[0];
-                if (!value) {
+                const outputs = response.data.outputs ?? {};
+                const primary = preferredHookArtOutput(outputs);
+                if (!primary) {
                     throw new Error("Loom Hook Art execution returned no output");
                 }
+                const decodedOutputs = Object.fromEntries(
+                    Object.entries(outputs).map(([name, portValue]) => [
+                        name,
+                        browserPortValueToOutput(portValue),
+                    ]),
+                );
                 if (typeof payload.node_id !== "string" || typeof payload.request_id !== "string") {
                     throw new Error("Browser Art execution requires string node_id and request_id");
                 }
@@ -553,7 +618,8 @@ const browserDispatchActionFallback = async (actionEnum: { action: string; paylo
                         phase: "final",
                         status: 200,
                         delivery: {
-                            ...browserPortValueDelivery(value),
+                            ...browserPortValueDelivery(primary[1]),
+                            outputs: decodedOutputs,
                             ...(response.data.candidates
                                 ? { candidates: response.data.candidates }
                                 : {}),
@@ -567,6 +633,23 @@ const browserDispatchActionFallback = async (actionEnum: { action: string; paylo
                 return;
         }
     } catch (error) {
+        if (actionEnum.action === "execute_art") {
+            const nodeId = payload.node_id;
+            const requestId = payload.request_id;
+            const message = error instanceof Error ? error.message : String(error);
+            if (typeof nodeId === "string" && typeof requestId === "string") {
+                window.dispatchEvent(new CustomEvent("hook-browser-art-ready", {
+                    detail: {
+                        art_id: nodeId,
+                        request_id: requestId,
+                        status: 500,
+                        error: message,
+                        delivery: { type: "base64" },
+                    } satisfies ArtDelivery,
+                }));
+            }
+            return;
+        }
         console.warn(`[API] browser dispatch fallback failed for ${actionEnum.action}:`, error);
     }
 };

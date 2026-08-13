@@ -1,5 +1,11 @@
+export interface ActiveArtExecutionRequest {
+    requestId: string;
+    generation: number;
+}
+
 export interface ArtExecutionRequestRegistry {
     begin(unitId: string): string;
+    active(unitId: string): ActiveArtExecutionRequest | undefined;
     generation(unitId: string, requestId: string): number | undefined;
     isLatest(unitId: string, requestId: string): boolean;
     markPreview(unitId: string, requestId: string, previewSrc: string): void;
@@ -29,6 +35,14 @@ export const createArtExecutionRequestRegistry = (
             latestByUnit.set(unitId, requestId);
             previewByUnit.delete(unitId);
             return requestId;
+        },
+        active(unitId) {
+            const requestId = latestByUnit.get(unitId);
+            const generation = generationByUnit.get(unitId);
+            if (!requestId || generation === undefined) {
+                return undefined;
+            }
+            return { requestId, generation };
         },
         generation(unitId, requestId) {
             return latestByUnit.get(unitId) === requestId
