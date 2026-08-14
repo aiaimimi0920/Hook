@@ -22,6 +22,19 @@ const MAX_JAVASCRIPT_SOURCE_BYTES = 512 * 1024;
 const WATCHDOG_MILLIS = 3_000;
 const SAFE_ID = /^[A-Za-z0-9._:/-]{1,160}$/;
 
+/** Normalize Solid store proxies before crossing a postMessage boundary. */
+export function cloneSurfaceJson<T>(value: T): T {
+    try {
+        return structuredClone(value);
+    } catch {
+        const serialized = JSON.stringify(value);
+        if (serialized === undefined) {
+            throw new Error("JavaScript Surface message is not JSON-serializable");
+        }
+        return JSON.parse(serialized) as T;
+    }
+}
+
 export const JAVASCRIPT_SURFACE_BUDGETS = Object.freeze({
     maxEventPayloadBytes: 64 * 1024,
     maxEventsPerSecond: 120,
@@ -558,11 +571,13 @@ export const JavaScriptSurface: Component<Props> = (props) => {
         port.onmessage = (event: MessageEvent<RuntimeMessage>) => handleRuntimeMessage(event.data);
         port.start();
         lastHeartbeat = Date.now();
+        const transferableSnapshot = cloneSurfaceJson(props.snapshot);
+        const transferableResources = cloneSurfaceJson(resources);
         iframe.contentWindow.postMessage({
             type: "surface:init",
             token,
-            snapshot: props.snapshot,
-            resources,
+            snapshot: transferableSnapshot,
+            resources: transferableResources,
         }, "*", [channel.port2]);
         port.postMessage({
             type: props.lifecycle === "suspended" || props.lifecycle === "inactive"
@@ -589,7 +604,12 @@ export const JavaScriptSurface: Component<Props> = (props) => {
             iframe?.remove();
             return;
         }
-        port.postMessage({ type: "snapshot", token, snapshot, resources });
+        port.postMessage({
+            type: "snapshot",
+            token,
+            snapshot: cloneSurfaceJson(snapshot),
+            resources: cloneSurfaceJson(resources),
+        });
     });
 
     createEffect(() => {

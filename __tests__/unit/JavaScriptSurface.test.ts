@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
     JAVASCRIPT_SURFACE_BUDGETS,
     buildJavaScriptSurfaceDocument,
+    cloneSurfaceJson,
     consumeJavaScriptSurfaceEventBudget,
     javaScriptSurfaceBudgetFailure,
     javaScriptSurfaceResourceBudgetFailure,
@@ -35,6 +36,11 @@ const snapshot = (): SurfaceSnapshot => ({
 });
 
 describe("JavaScript Surface sandbox contract", () => {
+    it("normalizes store-like proxies before crossing the iframe message boundary", () => {
+        const proxy = new Proxy(snapshot(), {});
+        expect(cloneSurfaceJson(proxy)).toEqual(snapshot());
+    });
+
     it("accepts only bounded application/javascript resources", () => {
         expect(parseJavaScriptSurfaceDataUrl(
             "data:application/javascript;base64,Y29uc29sZS5sb2coMSk=",
