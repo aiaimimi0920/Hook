@@ -59,7 +59,11 @@ import {
     type OverlaySyntheticMousePayload,
 } from "./services/overlaySyntheticEvents";
 import { resolveCanvasDisplayImage } from "./services/graphImageResolution";
-import { extractArtDeliveryValueOutputs, mergeArtDeliveryOutputs } from "./services/artDeliveryOutputs";
+import {
+    extractArtDeliveryValueOutputs,
+    materializeSharedMemoryOutputs,
+    mergeArtDeliveryOutputs,
+} from "./services/artDeliveryOutputs";
 import { extractArtDeliveryCandidatesState } from "./services/artDeliveryCandidates";
 import {
     isRecoverableCandidateExecutionFailure,
@@ -476,9 +480,38 @@ export default function App() {
   const handleArtDelivery = async (delivery: ArtDelivery) => {
       const unitId = delivery.art_id;
       const phase = delivery.phase ?? "final";
+      const sharedMemoryHandles = new Set<string>();
+      const collectSharedMemoryHandle = (value: unknown) => {
+          if (
+              value &&
+              typeof value === "object" &&
+              (value as { type?: unknown }).type === "shared_memory" &&
+              typeof (value as { handle?: unknown }).handle === "string" &&
+              (value as { handle: string }).handle.startsWith("Loom_Buffer_")
+          ) {
+              sharedMemoryHandles.add((value as { handle: string }).handle);
+          }
+      };
+      collectSharedMemoryHandle(delivery.delivery);
+      if ("outputs" in delivery.delivery) {
+          Object.values(delivery.delivery.outputs ?? {}).forEach(collectSharedMemoryHandle);
+      }
+      const releaseSharedMemoryHandles = () => {
+          if (sharedMemoryHandles.size === 0 || delivery.generation === undefined) return;
+          void api.releaseArtSharedMemory(
+              unitId,
+              delivery.request_id,
+              delivery.generation,
+              [...sharedMemoryHandles],
+          );
+          sharedMemoryHandles.clear();
+      };
       const isCurrentDelivery = () =>
-          artExecutionRequests.isLatest(unitId, delivery.request_id);
+          artExecutionRequests.isLatest(unitId, delivery.request_id) &&
+          (delivery.generation === undefined ||
+              artExecutionRequests.generation(unitId, delivery.request_id) === delivery.generation);
       if (!isCurrentDelivery()) {
+          releaseSharedMemoryHandles();
           void api.debugLogEvent(
               "art-delivery-discarded-stale",
               `unit=${unitId} request=${delivery.request_id}`,
@@ -486,7 +519,10 @@ export default function App() {
           return;
       }
       const unit = graphStore.units.find((item) => item.id === unitId);
-      if (!unit) return;
+      if (!unit) {
+          releaseSharedMemoryHandles();
+          return;
+      }
       const candidateState = extractArtDeliveryCandidatesState(delivery.delivery);
       const mergedCandidates = mergeCandidateRuntimeState(
           unit.data.resultCandidates,
@@ -507,6 +543,7 @@ export default function App() {
               errorMessage: delivery.error || "Art execution failed",
               imageSearchRecoveryPending: candidateRecoveryPending,
           });
+          releaseSharedMemoryHandles();
           artExecutionRequests.finish(unitId, delivery.request_id);
           if (candidateRecoveryPending) {
               void prefetchCandidateAssets({
@@ -521,20 +558,40 @@ export default function App() {
 
       let previewSrc: string | undefined;
       let filePath: string | undefined;
-      let resultHandle: string | undefined;
       let outputValues: Record<string, unknown> | undefined;
-
-      switch (delivery.delivery.type) {
+      try {
+          switch (delivery.delivery.type) {
           case "shared_memory":
-              if (delivery.delivery.handle && delivery.delivery.size && delivery.delivery.width && delivery.delivery.height) {
-                  previewSrc = await api.readSharedMemory(
-                      delivery.delivery.handle,
-                      delivery.delivery.size,
-                      delivery.delivery.width,
-                      delivery.delivery.height
-                  );
-                  resultHandle = delivery.delivery.handle;
+              if (
+                  delivery.delivery.format !== "rgba8" ||
+                  !delivery.delivery.handle?.startsWith("Loom_Buffer_") ||
+                  typeof delivery.delivery.size !== "number" ||
+                  !Number.isSafeInteger(delivery.delivery.size) ||
+                  delivery.delivery.size <= 0 ||
+                  typeof delivery.delivery.width !== "number" ||
+                  !Number.isSafeInteger(delivery.delivery.width) ||
+                  delivery.delivery.width <= 0 ||
+                  typeof delivery.delivery.height !== "number" ||
+                  !Number.isSafeInteger(delivery.delivery.height) ||
+                  delivery.delivery.height <= 0
+              ) {
+                  graphStore.actions.updateUnitData(unitId, {
+                      processing: false,
+                      restoredPreviewLocked: false,
+                      nodeStatus: "error",
+                      errorMessage: "Loom returned an invalid shared-memory Art output",
+                  });
+                  releaseSharedMemoryHandles();
+                  artExecutionRequests.finish(unitId, delivery.request_id);
+                  await syncService.performWorkflowSync();
+                  return;
               }
+              previewSrc = await api.readSharedMemory(
+                  delivery.delivery.handle,
+                  delivery.delivery.size,
+                  delivery.delivery.width,
+                  delivery.delivery.height
+              );
               break;
           case "base64":
               previewSrc = delivery.delivery.data;
@@ -559,13 +616,37 @@ export default function App() {
           case "value":
               outputValues = extractArtDeliveryValueOutputs(delivery.delivery);
               break;
-      }
-
-      if (delivery.delivery.type !== "value" && delivery.delivery.outputs) {
-          outputValues = { ...delivery.delivery.outputs };
+          }
+          if (!outputValues && delivery.delivery.type !== "value" && "outputs" in delivery.delivery) {
+              outputValues = { ...delivery.delivery.outputs };
+          }
+          if (outputValues) {
+              outputValues = await materializeSharedMemoryOutputs({
+                  outputs: outputValues,
+                  primaryHandle: delivery.delivery.type === "shared_memory"
+                      ? delivery.delivery.handle
+                      : undefined,
+                  primaryData: previewSrc,
+                  readSharedMemory: api.readSharedMemory,
+              });
+          }
+      } catch (error) {
+          releaseSharedMemoryHandles();
+          graphStore.actions.updateUnitData(unitId, {
+              processing: false,
+              restoredPreviewLocked: false,
+              nodeStatus: "error",
+              errorMessage: error instanceof Error
+                  ? error.message
+                  : "Failed to materialize Loom shared-memory Art output",
+          });
+          artExecutionRequests.finish(unitId, delivery.request_id);
+          await syncService.performWorkflowSync();
+          return;
       }
 
       if (!isCurrentDelivery()) {
+          releaseSharedMemoryHandles();
           void api.debugLogEvent(
               "art-delivery-discarded-after-read",
               `unit=${unitId} request=${delivery.request_id}`,
@@ -574,6 +655,7 @@ export default function App() {
       }
       const currentUnit = graphStore.units.find((item) => item.id === unitId);
       if (!currentUnit) {
+          releaseSharedMemoryHandles();
           artExecutionRequests.finish(unitId, delivery.request_id);
           return;
       }
@@ -593,6 +675,7 @@ export default function App() {
                   `unit=${unitId} request=${delivery.request_id}`,
               );
           }
+          releaseSharedMemoryHandles();
           return;
       }
 
@@ -616,7 +699,7 @@ export default function App() {
 
       graphStore.actions.updateUnitData(unitId, {
           previewSrc: workflowPreviewSrc ?? previewSrc ?? currentUnit.data.previewSrc,
-          ...(replacesImageResult ? { filePath, resultHandle } : {}),
+          ...(replacesImageResult ? { filePath, resultHandle: undefined } : {}),
           outputs: nextOutputs,
           resultCandidates: currentMergedCandidates,
           selectedResultIndex: candidateState.selectedResultIndex,
@@ -627,6 +710,7 @@ export default function App() {
           errorMessage: undefined,
           imageSearchRecoveryPending: false,
       });
+      releaseSharedMemoryHandles();
       void api.debugLogEvent(
           "art-delivery-applied-final",
           `unit=${unitId} request=${delivery.request_id} preservedPreview=${Boolean(workflowPreviewSrc)}`,

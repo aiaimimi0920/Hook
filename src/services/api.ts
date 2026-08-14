@@ -197,7 +197,7 @@ const EMPTY_HANDSHAKE: HandshakeResponse = {
         surface: hookSurfaceHostCapabilities(),
         operations: [],
     },
-    transport: "shared_memory",
+    transport: "websocket",
     sessionId: "browser-preview",
 };
 
@@ -390,6 +390,7 @@ const ensureBrowserPushSocket = () => {
     browserPushSocket.onmessage = (event) => {
         try {
             const parsed = JSON.parse(String(event.data));
+            if (parsed?.protocolVersion !== "loom.hook.v1") return;
             const method = typeof parsed?.method === "string" ? parsed.method : null;
             if (!method) return;
 
@@ -438,7 +439,7 @@ const browserHandshakeFallback = async (): Promise<HandshakeResponse> => {
                 clientId: "hook.browser-preview",
                 clientVersion: "0.1.7",
                 platform: "browser-preview",
-                transports: ["shared_memory"],
+                transports: ["websocket"],
                 surface: hookSurfaceHostCapabilities(),
             },
         });
@@ -474,26 +475,94 @@ const preferredHookArtOutput = (
     return Object.entries(outputs)[0];
 };
 
-const browserPortValueToOutput = (value: HookArtPortValue): unknown => {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === "object" && !Array.isArray(value);
+
+const requireNonEmptyString = (value: unknown, field: string): string => {
+    if (typeof value !== "string" || value.length === 0) {
+        throw new Error(`Loom Hook formal value is missing ${field}`);
+    }
+    return value;
+};
+
+const requirePositiveInteger = (value: unknown, field: string): number => {
+    if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+        throw new Error(`Loom Hook formal value has invalid ${field}`);
+    }
+    return value;
+};
+
+const validateBareBase64 = (value: string): void => {
+    if (value.startsWith("data:") || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
+        throw new Error("Loom Hook inline formal value has invalid bare dataBase64");
+    }
+};
+
+const validateBrowserPortValue = (value: unknown): HookArtPortValue => {
+    if (!isRecord(value)) {
+        throw new Error("Loom Hook formal output must be an object");
+    }
+    switch (value.kind) {
+        case "value":
+            if (!("value" in value)) {
+                throw new Error("Loom Hook value formal output is missing value");
+            }
+            return { kind: "value", value: value.value };
+        case "inline_resource": {
+            const mime = requireNonEmptyString(value.mime, "mime");
+            const dataBase64 = requireNonEmptyString(value.dataBase64, "dataBase64");
+            validateBareBase64(dataBase64);
+            const width = value.width === undefined
+                ? undefined
+                : requirePositiveInteger(value.width, "width");
+            const height = value.height === undefined
+                ? undefined
+                : requirePositiveInteger(value.height, "height");
+            return { kind: "inline_resource", mime, dataBase64, width, height };
+        }
+        case "shared_memory": {
+            if (value.format !== "rgba8") {
+                throw new Error("Loom Hook shared-memory formal output must use rgba8");
+            }
+            const handle = requireNonEmptyString(value.handle, "handle");
+            if (!handle.startsWith("Loom_Buffer_")) {
+                throw new Error("Loom Hook shared-memory formal output has an invalid handle");
+            }
+            return {
+                kind: "shared_memory",
+                handle,
+                size: requirePositiveInteger(value.size, "size"),
+                width: requirePositiveInteger(value.width, "width"),
+                height: requirePositiveInteger(value.height, "height"),
+                format: "rgba8",
+            };
+        }
+        case "resource":
+            if (!isRecord(value.resource)) {
+                throw new Error("Loom Hook broker resource formal output is missing resource");
+            }
+            return { kind: "resource", resource: value.resource };
+        default:
+            throw new Error("Loom Hook formal output has an unsupported kind");
+    }
+};
+
+const browserPortValueToOutput = (untrustedValue: unknown): unknown => {
+    const value = validateBrowserPortValue(untrustedValue);
     switch (value.kind) {
         case "inline_resource":
             return `data:${value.mime};base64,${value.dataBase64}`;
         case "value":
             return value.value;
         case "shared_memory":
-            return {
-                type: "shared_memory",
-                handle: value.handle,
-                size: value.size,
-                width: value.width,
-                height: value.height,
-            };
+            throw new Error("Browser Art execution cannot read Loom shared-memory outputs");
         case "resource":
             throw new Error("Browser Art execution cannot read broker resource outputs");
     }
 };
 
-const browserPortValueDelivery = (value: HookArtPortValue): DeliveryPayload => {
+const browserPortValueDelivery = (untrustedValue: unknown): DeliveryPayload => {
+    const value = validateBrowserPortValue(untrustedValue);
     switch (value.kind) {
         case "inline_resource":
             return {
@@ -583,6 +652,7 @@ const browserDispatchActionFallback = async (actionEnum: { action: string; paylo
                         artId: payload.art_id,
                         generation: payload.generation,
                         deviceId: "device:browser-preview",
+                        outputTransports: ["websocket"],
                         inputs: Object.fromEntries(
                             Object.entries((payload.inputs as Record<string, string> | undefined) ?? {})
                                 .map(([name, value]): [string, HookArtPortValue] => [
@@ -597,7 +667,18 @@ const browserDispatchActionFallback = async (actionEnum: { action: string; paylo
                 if (response.status !== "succeeded") {
                     throw new Error(response.error?.message ?? `Art execution ${response.status}`);
                 }
-                const outputs = response.data.outputs ?? {};
+                if (
+                    response.data.protocolVersion !== "loom.hook.v1"
+                    || response.data.requestId !== payload.request_id
+                    || response.data.nodeId !== payload.node_id
+                    || response.data.generation !== payload.generation
+                    || !Number.isSafeInteger(response.data.resultRevision)
+                    || response.data.resultRevision < 1
+                    || !isRecord(response.data.outputs)
+                ) {
+                    throw new Error("Loom Hook Art execution returned an invalid result commit");
+                }
+                const outputs = response.data.outputs;
                 const primary = preferredHookArtOutput(outputs);
                 if (!primary) {
                     throw new Error("Loom Hook Art execution returned no output");
@@ -615,6 +696,8 @@ const browserDispatchActionFallback = async (actionEnum: { action: string; paylo
                     detail: {
                         art_id: payload.node_id,
                         request_id: payload.request_id,
+                        generation: response.data.generation,
+                        result_revision: response.data.resultRevision,
                         phase: "final",
                         status: 200,
                         delivery: {
@@ -1034,6 +1117,17 @@ export const api = {
 
     readSharedMemory: (handle: string, size: number, width: number, height: number): Promise<string> =>
         safeInvoke("read_shared_memory", { handle, size, width, height }),
+    releaseArtSharedMemory: (
+        nodeId: string,
+        executionRequestId: string,
+        generation: number,
+        handles: string[],
+    ): Promise<void> => safeInvoke(
+        "release_art_shared_memory",
+        { nodeId, executionRequestId, generation, handles },
+        () => undefined,
+        false,
+    ),
 
     // --- System ---
     getCursorPosition: (): Promise<{x: number, y: number}> =>

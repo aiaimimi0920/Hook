@@ -230,6 +230,137 @@ describe('Hook api browser mode', () => {
     });
   });
 
+  it('browser Art execution fails closed when any formal output uses shared memory', async () => {
+    installBrowserGlobals();
+    const ready = vi.fn();
+    window.addEventListener('hook-browser-art-ready', ready);
+    const { api } = await import('../../src/services/api');
+
+    const pending = api.dispatchAction({
+      action: 'execute_art',
+      payload: {
+        node_id: 'node-art',
+        request_id: 'art:req-shared',
+        generation: 1,
+        art_id: 'publisher/art',
+        inputs: {},
+        parameters: {},
+        disabled_parameters: [],
+      },
+    });
+    const socket = MockWebSocket.instances.at(-1)!;
+    socket.open();
+    socket.emitMessage({
+      protocolVersion: 'loom.hook.v1',
+      requestId: 'art:req-shared',
+      status: 'succeeded',
+      data: {
+        protocolVersion: 'loom.hook.v1',
+        requestId: 'art:req-shared',
+        nodeId: 'node-art',
+        generation: 1,
+        resultRevision: 1,
+        outputs: {
+          score: { kind: 'value', value: 0.9 },
+          shared: {
+            kind: 'shared_memory',
+            handle: 'Loom_Buffer_1',
+            size: 8,
+            width: 2,
+            height: 1,
+            format: 'rgba8',
+          },
+          output: { kind: 'value', value: { ok: true } },
+        },
+      },
+    });
+
+    await expect(pending).resolves.toBeUndefined();
+    expect((ready.mock.calls[0][0] as CustomEvent).detail).toMatchObject({
+      art_id: 'node-art',
+      request_id: 'art:req-shared',
+      status: 500,
+      delivery: { type: 'base64' },
+    });
+    expect((ready.mock.calls[0][0] as CustomEvent).detail.error).toContain('shared-memory');
+  });
+
+  it('browser Art execution rejects malformed formal output values and result identities', async () => {
+    for (const [requestId, data] of [
+      [
+        'art:req-bad-inline',
+        {
+          protocolVersion: 'loom.hook.v1',
+          requestId: 'art:req-bad-inline',
+          nodeId: 'node-art',
+          generation: 1,
+          resultRevision: 1,
+          outputs: {
+            output: { kind: 'inline_resource', mime: 'image/png', dataBase64: 'not base64!' },
+          },
+        },
+      ],
+      [
+        'art:req-bad-value',
+        {
+          protocolVersion: 'loom.hook.v1',
+          requestId: 'art:req-bad-value',
+          nodeId: 'node-art',
+          generation: 1,
+          resultRevision: 1,
+          outputs: { output: { kind: 'value' } },
+        },
+      ],
+      [
+        'art:req-bad-identity',
+        {
+          protocolVersion: 'loom.hook.v1',
+          requestId: 'art:req-bad-identity',
+          nodeId: 'other-node',
+          generation: 1,
+          resultRevision: 1,
+          outputs: { output: { kind: 'value', value: true } },
+        },
+      ],
+    ] as const) {
+      installBrowserGlobals();
+      const ready = vi.fn();
+      window.addEventListener('hook-browser-art-ready', ready);
+      const { api } = await import('../../src/services/api');
+
+      const pending = api.dispatchAction({
+        action: 'execute_art',
+        payload: {
+          node_id: 'node-art',
+          request_id: requestId,
+          generation: 1,
+          art_id: 'publisher/art',
+          inputs: {},
+          parameters: {},
+          disabled_parameters: [],
+        },
+      });
+      const socket = MockWebSocket.instances.at(-1)!;
+      socket.open();
+      socket.emitMessage({
+        protocolVersion: 'loom.hook.v1',
+        requestId,
+        status: 'succeeded',
+        data,
+      });
+
+      await expect(pending).resolves.toBeUndefined();
+      expect((ready.mock.calls[0][0] as CustomEvent).detail).toMatchObject({
+        art_id: 'node-art',
+        request_id: requestId,
+        status: 500,
+      });
+      vi.resetModules();
+      vi.unstubAllGlobals();
+      MockWebSocket.instances = [];
+    }
+  });
+
   it('browser Art cancel sends loom.hook.art.cancel and ignores request_not_found', async () => {
     installBrowserGlobals();
     const { api } = await import('../../src/services/api');
@@ -316,6 +447,13 @@ describe('Hook api browser mode', () => {
     expect(handler).not.toHaveBeenCalled();
 
     socket!.emitMessage({
+      method: 'loom.hook.workflow.instantiated',
+      params: { workflowId: 'wf-1', nodes: [] },
+    });
+    expect(handler).not.toHaveBeenCalled();
+
+    socket!.emitMessage({
+      protocolVersion: 'loom.hook.v1',
       method: 'loom.hook.workflow.instantiated',
       params: { workflowId: 'wf-1', nodes: [] },
     });

@@ -400,26 +400,65 @@ fn formal_hook_port_delivery(value: &serde_json::Value) -> Result<serde_json::Va
         .as_str()
         .ok_or_else(|| "formal value is missing kind".to_owned())?;
     match kind {
-        "shared_memory" => Ok(serde_json::json!({
-            "type": "shared_memory",
-            "handle": value["handle"].clone(),
-            "size": value["size"].clone(),
-            "width": value["width"].clone(),
-            "height": value["height"].clone()
-        })),
+        "shared_memory" => {
+            let handle = value["handle"]
+                .as_str()
+                .filter(|handle| handle.starts_with("Loom_Buffer_") && handle.len() > 12)
+                .ok_or_else(|| "shared-memory formal value is missing handle".to_owned())?;
+            let size = value["size"]
+                .as_u64()
+                .filter(|size| *size > 0)
+                .ok_or_else(|| "shared-memory formal value has invalid size".to_owned())?;
+            let width = value["width"]
+                .as_u64()
+                .filter(|width| *width > 0)
+                .ok_or_else(|| "shared-memory formal value has invalid width".to_owned())?;
+            let height = value["height"]
+                .as_u64()
+                .filter(|height| *height > 0)
+                .ok_or_else(|| "shared-memory formal value has invalid height".to_owned())?;
+            if value["format"].as_str() != Some("rgba8") {
+                return Err("shared-memory formal value must use rgba8".to_owned());
+            }
+            Ok(serde_json::json!({
+                "type": "shared_memory",
+                "handle": handle,
+                "size": size,
+                "width": width,
+                "height": height,
+                "format": "rgba8"
+            }))
+        }
         "inline_resource" => {
-            let data = value["dataBase64"].as_str().unwrap_or_default();
+            let mime = value["mime"]
+                .as_str()
+                .filter(|mime| !mime.is_empty())
+                .ok_or_else(|| "inline formal value is missing mime".to_owned())?;
+            let data = value["dataBase64"]
+                .as_str()
+                .filter(|data| !data.is_empty() && !data.starts_with("data:"))
+                .ok_or_else(|| {
+                    "inline formal value must contain non-empty bare dataBase64".to_owned()
+                })?;
+            base64::engine::general_purpose::STANDARD
+                .decode(data)
+                .map_err(|error| format!("inline formal value has invalid dataBase64: {error}"))?;
             Ok(serde_json::json!({
                 "type": "base64",
-                "data": format!("data:{};base64,{}", value["mime"].as_str().unwrap_or("image/png"), data),
+                "data": format!("data:{mime};base64,{data}"),
                 "width": value["width"].clone(),
                 "height": value["height"].clone()
             }))
         }
-        "value" => Ok(serde_json::json!({
-            "type": "value",
-            "value": value["value"].clone()
-        })),
+        "value" => {
+            let formal_value = value
+                .get("value")
+                .ok_or_else(|| "value formal value is missing value".to_owned())?;
+            Ok(serde_json::json!({
+                "type": "value",
+                "value": formal_value
+            }))
+        }
         "resource" => {
             Err("broker resource outputs are not supported on the native Hook Art path".to_owned())
         }
@@ -427,10 +466,32 @@ fn formal_hook_port_delivery(value: &serde_json::Value) -> Result<serde_json::Va
     }
 }
 
+fn formal_hook_commit_revision(
+    value: &serde_json::Value,
+    node_id: &str,
+    request_id: &str,
+    generation: u64,
+    revision_field: &str,
+) -> Result<u64, String> {
+    if value["protocolVersion"].as_str() != Some("loom.hook.v1")
+        || value["requestId"].as_str() != Some(request_id)
+        || value["nodeId"].as_str() != Some(node_id)
+        || value["generation"].as_u64() != Some(generation)
+    {
+        return Err("Loom Hook Art commit identity does not match the active request".to_owned());
+    }
+    value[revision_field]
+        .as_u64()
+        .filter(|revision| *revision > 0)
+        .ok_or_else(|| format!("Loom Hook Art commit has invalid {revision_field}"))
+}
+
 fn emit_formal_hook_port_value(
     app_handle: &AppHandle,
     node_id: &str,
     request_id: &str,
+    generation: u64,
+    revision: u64,
     phase: &str,
     value: &serde_json::Value,
     candidates: Option<&serde_json::Value>,
@@ -441,10 +502,21 @@ fn emit_formal_hook_port_value(
     let mut payload = serde_json::json!({
         "art_id": node_id,
         "request_id": request_id,
+        "generation": generation,
         "phase": phase,
         "status": 200,
         "delivery": delivery
     });
+    if let Some(object) = payload.as_object_mut() {
+        object.insert(
+            if phase == "preview" {
+                "preview_revision".to_owned()
+            } else {
+                "result_revision".to_owned()
+            },
+            serde_json::json!(revision),
+        );
+    }
     if let Some(candidates) = candidates {
         if let Some(delivery) = payload
             .get_mut("delivery")
@@ -463,6 +535,80 @@ fn emit_formal_hook_failure(
     message: &str,
 ) {
     emit_art_error(app_handle, node_id, request_id, message);
+}
+
+fn hook_art_cancel_response<'a>(
+    json: &'a serde_json::Value,
+    request_id: &str,
+) -> Option<&'a serde_json::Value> {
+    (json["protocolVersion"].as_str() == Some("loom.hook.v1")
+        && json["requestId"].as_str() == Some(request_id)
+        && json["method"].is_null()
+        && json["status"].as_str().is_some())
+    .then_some(json)
+}
+
+fn hook_art_resource_release_request(
+    node_id: &str,
+    execution_request_id: &str,
+    generation: u64,
+    handles: &[String],
+) -> (String, serde_json::Value) {
+    let release_request_id = format!("release:{}", Uuid::new_v4());
+    let request = serde_json::json!({
+        "method": "loom.hook.art.resources.release",
+        "params": {
+            "protocolVersion": "loom.hook.v1",
+            "requestId": release_request_id,
+            "executionRequestId": execution_request_id,
+            "nodeId": node_id,
+            "generation": generation,
+            "deviceId": "device:local",
+            "handles": handles,
+        }
+    });
+    (release_request_id, request)
+}
+
+pub(crate) fn release_hook_art_resources(
+    node_id: &str,
+    execution_request_id: &str,
+    generation: u64,
+    handles: &[String],
+) {
+    if handles.is_empty() {
+        return;
+    }
+    use tungstenite::{connect, Message as WsMessage};
+    let (release_request_id, request) =
+        hook_art_resource_release_request(node_id, execution_request_id, generation, handles);
+    let Ok((mut socket, _)) = connect(loom_hook_ws_url().as_str()) else {
+        return;
+    };
+    if let tungstenite::stream::MaybeTlsStream::Plain(tcp) = socket.get_ref() {
+        let _ = tcp.set_read_timeout(Some(Duration::from_secs(5)));
+    }
+    if socket
+        .send(WsMessage::Text(request.to_string().into()))
+        .is_err()
+    {
+        return;
+    }
+    loop {
+        match socket.read() {
+            Ok(WsMessage::Text(text)) => {
+                let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) else {
+                    continue;
+                };
+                if hook_art_cancel_response(&json, &release_request_id).is_some() {
+                    break;
+                }
+            }
+            Ok(WsMessage::Close(_)) | Err(_) => break,
+            _ => {}
+        }
+    }
+    let _ = socket.close(None);
 }
 
 fn forward_hook_art_cancel(node_id: &str, request_id: &str, generation: u64) {
@@ -496,26 +642,35 @@ fn forward_hook_art_cancel(node_id: &str, request_id: &str, generation: u64) {
         ));
         return;
     }
-    match socket.read() {
-        Ok(WsMessage::Text(text)) => {
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
-                if json["status"].as_str() == Some("failed")
-                    && json["error"]["code"].as_str() != Some("request_not_found")
+    loop {
+        match socket.read() {
+            Ok(WsMessage::Text(text)) => {
+                let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) else {
+                    continue;
+                };
+                let Some(response) = hook_art_cancel_response(&json, request_id) else {
+                    continue;
+                };
+                if response["status"].as_str() == Some("failed")
+                    && response["error"]["code"].as_str() != Some("request_not_found")
                 {
                     crate::append_runtime_log_line(&format!(
                         "hook_art_cancel_failed :: request_id={request_id} code={} message={}",
-                        json["error"]["code"].as_str().unwrap_or("unknown"),
-                        json["error"]["message"].as_str().unwrap_or("unknown")
+                        response["error"]["code"].as_str().unwrap_or("unknown"),
+                        response["error"]["message"].as_str().unwrap_or("unknown")
                     ));
                 }
+                break;
             }
+            Ok(WsMessage::Close(_)) => break,
+            Err(error) => {
+                crate::append_runtime_log_line(&format!(
+                    "hook_art_cancel_read_failed :: request_id={request_id} error={error}"
+                ));
+                break;
+            }
+            _ => {}
         }
-        Err(error) => {
-            crate::append_runtime_log_line(&format!(
-                "hook_art_cancel_read_failed :: request_id={request_id} error={error}"
-            ));
-        }
-        _ => {}
     }
     let _ = socket.close(None);
 }
@@ -612,6 +767,7 @@ fn forward_hook_art_execute(
             "artId": art_id,
             "generation": generation,
             "deviceId": "device:local",
+            "outputTransports": ["shared_memory", "websocket"],
             "inputs": inputs,
             "parameters": params,
             "disabledParameters": disabled_parameters
@@ -675,10 +831,21 @@ fn forward_hook_art_execute(
                             );
                         }
                         "loom.hook.art.preview" => {
+                            let Ok(preview_revision) = formal_hook_commit_revision(
+                                params,
+                                node_id,
+                                request_id,
+                                generation,
+                                "previewRevision",
+                            ) else {
+                                continue;
+                            };
                             if !emit_formal_hook_port_value(
                                 app_handle,
                                 node_id,
                                 request_id,
+                                generation,
+                                preview_revision,
                                 "preview",
                                 &params["value"],
                                 None,
@@ -697,10 +864,27 @@ fn forward_hook_art_execute(
                             }
                         }
                         "loom.hook.art.result" => {
+                            let Ok(result_revision) = formal_hook_commit_revision(
+                                params,
+                                node_id,
+                                request_id,
+                                generation,
+                                "resultRevision",
+                            ) else {
+                                emit_formal_hook_failure(
+                                    app_handle,
+                                    node_id,
+                                    request_id,
+                                    "Loom Hook returned an invalid Art result commit",
+                                );
+                                return;
+                            };
                             emit_formal_hook_outputs(
                                 app_handle,
                                 node_id,
                                 request_id,
+                                generation,
+                                result_revision,
                                 "final",
                                 &params["outputs"],
                                 params.get("candidates"),
@@ -735,10 +919,27 @@ fn forward_hook_art_execute(
                         return;
                     }
                     Some("succeeded") => {
+                        let Ok(result_revision) = formal_hook_commit_revision(
+                            &json["data"],
+                            node_id,
+                            request_id,
+                            generation,
+                            "resultRevision",
+                        ) else {
+                            emit_formal_hook_failure(
+                                app_handle,
+                                node_id,
+                                request_id,
+                                "Loom Hook returned an invalid Art result commit",
+                            );
+                            return;
+                        };
                         emit_formal_hook_outputs(
                             app_handle,
                             node_id,
                             request_id,
+                            generation,
+                            result_revision,
                             "final",
                             &json["data"]["outputs"],
                             json["data"].get("candidates"),
@@ -797,30 +998,37 @@ fn preferred_formal_output<'a>(
             return Some((name, value));
         }
     }
-    outputs.iter().next().map(|(name, value)| (name.as_str(), value))
+    outputs
+        .iter()
+        .next()
+        .map(|(name, value)| (name.as_str(), value))
 }
 
 fn formal_output_map_value(value: &serde_json::Value) -> Result<serde_json::Value, String> {
     match value["kind"].as_str() {
-        Some("value") => Ok(value
+        Some("value") => value
             .get("value")
             .cloned()
-            .unwrap_or(serde_json::Value::Null)),
+            .ok_or_else(|| "value formal value is missing value".to_owned()),
         Some("inline_resource") => {
-            let data = value["dataBase64"].as_str().unwrap_or_default();
+            let mime = value["mime"]
+                .as_str()
+                .filter(|mime| !mime.is_empty())
+                .ok_or_else(|| "inline formal value is missing mime".to_owned())?;
+            let data = value["dataBase64"]
+                .as_str()
+                .filter(|data| !data.is_empty() && !data.starts_with("data:"))
+                .ok_or_else(|| {
+                    "inline formal value must contain non-empty bare dataBase64".to_owned()
+                })?;
+            base64::engine::general_purpose::STANDARD
+                .decode(data)
+                .map_err(|error| format!("inline formal value has invalid dataBase64: {error}"))?;
             Ok(serde_json::Value::String(format!(
-                "data:{};base64,{}",
-                value["mime"].as_str().unwrap_or("image/png"),
-                data
+                "data:{mime};base64,{data}"
             )))
         }
-        Some("shared_memory") => Ok(serde_json::json!({
-            "type": "shared_memory",
-            "handle": value["handle"].clone(),
-            "size": value["size"].clone(),
-            "width": value["width"].clone(),
-            "height": value["height"].clone()
-        })),
+        Some("shared_memory") => formal_hook_port_delivery(value),
         Some("resource") => {
             Err("broker resource outputs are not supported on the native Hook Art path".to_owned())
         }
@@ -833,6 +1041,8 @@ fn emit_formal_hook_outputs(
     app_handle: &AppHandle,
     node_id: &str,
     request_id: &str,
+    generation: u64,
+    result_revision: u64,
     phase: &str,
     outputs: &serde_json::Value,
     candidates: Option<&serde_json::Value>,
@@ -899,6 +1109,8 @@ fn emit_formal_hook_outputs(
         serde_json::json!({
             "art_id": node_id,
             "request_id": request_id,
+            "generation": generation,
+            "result_revision": result_revision,
             "phase": phase,
             "status": 200,
             "delivery": delivery
@@ -1219,12 +1431,110 @@ mod loom_hook_listener_subscription_tests {
     }
 
     #[test]
-    fn formal_hook_port_delivery_rejects_unknown_and_resource_kinds() {
-        assert!(formal_hook_port_delivery(&serde_json::json!({
+    fn formal_hook_port_delivery_validates_and_preserves_canonical_values() {
+        let value = formal_hook_port_delivery(&serde_json::json!({
             "kind": "value",
             "value": { "ok": true }
         }))
-        .is_ok());
+        .expect("value delivery");
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "type": "value",
+                "value": { "ok": true }
+            })
+        );
+
+        let inline = formal_hook_port_delivery(&serde_json::json!({
+            "kind": "inline_resource",
+            "mime": "image/png",
+            "dataBase64": "QQ==",
+            "width": 1,
+            "height": 1
+        }))
+        .expect("inline delivery");
+        assert_eq!(
+            inline,
+            serde_json::json!({
+                "type": "base64",
+                "data": "data:image/png;base64,QQ==",
+                "width": 1,
+                "height": 1
+            })
+        );
+
+        let shared = formal_hook_port_delivery(&serde_json::json!({
+            "kind": "shared_memory",
+            "handle": "Loom_Buffer_1",
+            "size": 8,
+            "width": 2,
+            "height": 1,
+            "format": "rgba8"
+        }))
+        .expect("shared-memory delivery");
+        assert_eq!(
+            shared,
+            serde_json::json!({
+                "type": "shared_memory",
+                "handle": "Loom_Buffer_1",
+                "size": 8,
+                "width": 2,
+                "height": 1,
+                "format": "rgba8"
+            })
+        );
+    }
+
+    #[test]
+    fn formal_hook_port_delivery_rejects_malformed_unknown_and_resource_kinds() {
+        for malformed in [
+            serde_json::json!({
+                "kind": "inline_resource",
+                "mime": "",
+                "dataBase64": "QQ=="
+            }),
+            serde_json::json!({
+                "kind": "inline_resource",
+                "mime": "image/png",
+                "dataBase64": "data:image/png;base64,QQ=="
+            }),
+            serde_json::json!({
+                "kind": "inline_resource",
+                "mime": "image/png",
+                "dataBase64": "not base64!"
+            }),
+            serde_json::json!({
+                "kind": "value"
+            }),
+            serde_json::json!({
+                "kind": "shared_memory",
+                "handle": "loom-buffer-1",
+                "size": 8,
+                "width": 2,
+                "height": 1,
+                "format": "rgba8"
+            }),
+            serde_json::json!({
+                "kind": "shared_memory",
+                "handle": "Loom_Buffer_1",
+                "size": 8,
+                "width": 2,
+                "height": 1
+            }),
+            serde_json::json!({
+                "kind": "shared_memory",
+                "handle": "Loom_Buffer_1",
+                "size": 8,
+                "width": 2,
+                "height": 1,
+                "format": "bgra8"
+            }),
+        ] {
+            assert!(
+                formal_hook_port_delivery(&malformed).is_err(),
+                "{malformed}"
+            );
+        }
         assert!(formal_hook_port_delivery(&serde_json::json!({
             "kind": "resource",
             "resource": { "id": "res:1" }
@@ -1234,6 +1544,57 @@ mod loom_hook_listener_subscription_tests {
             "kind": "mystery"
         }))
         .is_err());
+        assert!(formal_output_map_value(&serde_json::json!({
+            "kind": "value"
+        }))
+        .is_err());
+    }
+
+    #[test]
+    fn cancel_response_requires_protocol_and_request_identity() {
+        let response = serde_json::json!({
+            "protocolVersion": "loom.hook.v1",
+            "requestId": "request:expected",
+            "status": "cancel_requested",
+            "data": { "nodeId": "node:one", "generation": 2 }
+        });
+        assert!(hook_art_cancel_response(&response, "request:expected").is_some());
+        assert!(hook_art_cancel_response(&response, "request:other").is_none());
+        assert!(hook_art_cancel_response(
+            &serde_json::json!({
+                "protocolVersion": "loom.hook.v1",
+                "method": "loom.hook.art.progress",
+                "params": { "requestId": "request:expected" }
+            }),
+            "request:expected"
+        )
+        .is_none());
+        assert!(hook_art_cancel_response(
+            &serde_json::json!({
+                "protocolVersion": "loom.hook.v0",
+                "requestId": "request:expected",
+                "status": "cancel_requested"
+            }),
+            "request:expected"
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn resource_release_uses_fresh_command_and_explicit_execution_identity() {
+        let handles = vec!["Loom_Buffer_1".to_owned()];
+        let (first_request_id, first) =
+            hook_art_resource_release_request("node:one", "execution:one", 4, &handles);
+        let (second_request_id, _) =
+            hook_art_resource_release_request("node:one", "execution:one", 4, &handles);
+        assert_ne!(first_request_id, second_request_id);
+        assert_eq!(first["method"], "loom.hook.art.resources.release");
+        assert_eq!(first["params"]["requestId"], first_request_id);
+        assert_eq!(first["params"]["executionRequestId"], "execution:one");
+        assert_eq!(first["params"]["nodeId"], "node:one");
+        assert_eq!(first["params"]["generation"], 4);
+        assert_eq!(first["params"]["deviceId"], "device:local");
+        assert_eq!(first["params"]["handles"][0], "Loom_Buffer_1");
     }
 
     #[test]
@@ -1244,7 +1605,10 @@ mod loom_hook_listener_subscription_tests {
             "output_image": { "kind": "inline_resource", "mime": "image/png", "dataBase64": "QQ==" }
         });
         let map = outputs.as_object().expect("output map");
-        assert_eq!(preferred_formal_output(map).map(|(name, _)| name), Some("output_image"));
+        assert_eq!(
+            preferred_formal_output(map).map(|(name, _)| name),
+            Some("output_image")
+        );
         assert_eq!(
             formal_output_map_value(&map["alpha"]).expect("decode alpha"),
             serde_json::json!(1)
@@ -1641,7 +2005,9 @@ pub async fn loom_hook_dispatch_action(
             request_id,
             generation,
         } => {
-            forward_hook_art_cancel(&node_id, &request_id, generation);
+            thread::spawn(move || {
+                forward_hook_art_cancel(&node_id, &request_id, generation);
+            });
         }
         LoomHookAction::UpdateWorkflowNode {
             request_id,
@@ -2531,6 +2897,7 @@ fn try_prefetch_shader_via_loom(
             "artId": art_id,
             "generation": 1,
             "deviceId": "device:local",
+            "outputTransports": ["websocket"],
             "inputs": {},
             "parameters": {
             "output_mode": "shader",

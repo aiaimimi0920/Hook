@@ -165,6 +165,7 @@ export interface DeliveryPayload {
     size?: number;   // for shared_memory
     width?: number;  // for shared_memory/base64
     height?: number; // for shared_memory/base64
+    format?: 'rgba8'; // for shared_memory
     data?: string;   // for base64
     path?: string;   // for file_path
     value?: unknown; // for scalar/value outputs
@@ -186,6 +187,9 @@ export interface ShaderDeliveryPayload {
 export interface ArtDelivery {
     art_id: string;
     request_id: string;
+    generation?: number;
+    preview_revision?: number;
+    result_revision?: number;
     phase?: "preview" | "final";
     status: number;
     error?: string;

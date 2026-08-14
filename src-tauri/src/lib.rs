@@ -5647,6 +5647,23 @@ fn read_shared_memory(
 }
 
 #[tauri::command]
+fn release_art_shared_memory(
+    node_id: String,
+    execution_request_id: String,
+    generation: u64,
+    handles: Vec<String>,
+) {
+    std::thread::spawn(move || {
+        crate::loom_hook::release_hook_art_resources(
+            &node_id,
+            &execution_request_id,
+            generation,
+            &handles,
+        );
+    });
+}
+
+#[tauri::command]
 fn save_sticker_image(
     app: tauri::AppHandle,
     base64_image: String,
@@ -10780,6 +10797,7 @@ pub fn run() {
             loom_hook::loom_hook_dispatch_action,
             loom_hook::prefetch_shader,
             read_shared_memory,
+            release_art_shared_memory,
             read_image_from_path,
             cache_remote_image_asset,
             open_image_for_edit,

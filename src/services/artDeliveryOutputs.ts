@@ -3,9 +3,10 @@
 // Extracted from app.tsx's handleArtDelivery so the branchy, defensive parts —
 // scalar value extraction (`value ?? data` plus explicit outputs) and the
 // output-map merge (previewSrc drives both `output` and `output_image`,
-// filePath drives `file_path`) — can be characterized by tests. The async /
-// IPC / store-writing orchestration (shared-memory reads, error/shader early
-// returns, updateUnitData, sync) stays in app.tsx and calls these helpers.
+// filePath drives `file_path`) — can be characterized by tests. Shared-memory
+// port materialization is also isolated here so primary and secondary image
+// ports follow the same runtime validation. Store writes and workflow
+// synchronization remain in app.tsx.
 
 import type { DeliveryPayload } from "./protocol";
 
@@ -20,6 +21,62 @@ export const extractArtDeliveryValueOutputs = (
     output: delivery.value ?? delivery.data,
     ...(delivery.outputs || {}),
 });
+
+export const materializeSharedMemoryOutputs = async (input: {
+    outputs: Record<string, unknown>;
+    primaryHandle?: string;
+    primaryData?: string;
+    readSharedMemory: (
+        handle: string,
+        size: number,
+        width: number,
+        height: number,
+    ) => Promise<string>;
+}): Promise<Record<string, unknown>> => {
+    const outputs = { ...input.outputs };
+    for (const [name, value] of Object.entries(outputs)) {
+        if (
+            !value ||
+            typeof value !== "object" ||
+            (value as { type?: unknown }).type !== "shared_memory"
+        ) {
+            continue;
+        }
+        const descriptor = value as {
+            handle?: unknown;
+            size?: unknown;
+            width?: unknown;
+            height?: unknown;
+            format?: unknown;
+        };
+        if (
+            descriptor.format !== "rgba8" ||
+            typeof descriptor.handle !== "string" ||
+            !descriptor.handle.startsWith("Loom_Buffer_") ||
+            typeof descriptor.size !== "number" ||
+            !Number.isSafeInteger(descriptor.size) ||
+            descriptor.size <= 0 ||
+            typeof descriptor.width !== "number" ||
+            !Number.isSafeInteger(descriptor.width) ||
+            descriptor.width <= 0 ||
+            typeof descriptor.height !== "number" ||
+            !Number.isSafeInteger(descriptor.height) ||
+            descriptor.height <= 0
+        ) {
+            throw new Error(`Loom returned an invalid shared-memory output for port ${name}`);
+        }
+        outputs[name] =
+            descriptor.handle === input.primaryHandle && input.primaryData !== undefined
+                ? input.primaryData
+                : await input.readSharedMemory(
+                    descriptor.handle,
+                    descriptor.size,
+                    descriptor.width,
+                    descriptor.height,
+                );
+    }
+    return outputs;
+};
 
 /**
  * Merges a node's existing output-port map with newly delivered value outputs

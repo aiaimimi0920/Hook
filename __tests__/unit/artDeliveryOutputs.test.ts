@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
     extractArtDeliveryValueOutputs,
+    materializeSharedMemoryOutputs,
     mergeArtDeliveryOutputs,
 } from "../../src/services/artDeliveryOutputs";
 
@@ -32,6 +33,80 @@ describe("extractArtDeliveryValueOutputs", () => {
 
     it("6. keeps a falsy-but-present value (0) rather than falling back to data", () => {
         expect(extractArtDeliveryValueOutputs({ value: 0, data: "D" })).toEqual({ output: 0 });
+    });
+});
+
+describe("materializeSharedMemoryOutputs", () => {
+    it("materializes secondary shared-memory ports when the primary output is scalar", async () => {
+        const readSharedMemory = vi.fn(async (handle: string) => `data:${handle}`);
+        await expect(
+            materializeSharedMemoryOutputs({
+                outputs: {
+                    output: 42,
+                    thumbnail: {
+                        type: "shared_memory",
+                        handle: "Loom_Buffer_secondary",
+                        size: 8,
+                        width: 2,
+                        height: 1,
+                        format: "rgba8",
+                    },
+                },
+                readSharedMemory,
+            }),
+        ).resolves.toEqual({
+            output: 42,
+            thumbnail: "data:Loom_Buffer_secondary",
+        });
+        expect(readSharedMemory).toHaveBeenCalledWith("Loom_Buffer_secondary", 8, 2, 1);
+    });
+
+    it("reuses an already materialized primary handle and reads other ports", async () => {
+        const readSharedMemory = vi.fn(async (handle: string) => `data:${handle}`);
+        const descriptor = (handle: string) => ({
+            type: "shared_memory",
+            handle,
+            size: 4,
+            width: 1,
+            height: 1,
+            format: "rgba8",
+        });
+        await expect(
+            materializeSharedMemoryOutputs({
+                outputs: {
+                    output_image: descriptor("Loom_Buffer_primary"),
+                    mask: descriptor("Loom_Buffer_mask"),
+                },
+                primaryHandle: "Loom_Buffer_primary",
+                primaryData: "data:primary",
+                readSharedMemory,
+            }),
+        ).resolves.toEqual({
+            output_image: "data:primary",
+            mask: "data:Loom_Buffer_mask",
+        });
+        expect(readSharedMemory).toHaveBeenCalledTimes(1);
+        expect(readSharedMemory).toHaveBeenCalledWith("Loom_Buffer_mask", 4, 1, 1);
+    });
+
+    it("rejects malformed or non-canonical shared-memory descriptors", async () => {
+        const readSharedMemory = vi.fn(async () => "unused");
+        await expect(
+            materializeSharedMemoryOutputs({
+                outputs: {
+                    mask: {
+                        type: "shared_memory",
+                        handle: "legacy-buffer",
+                        size: 4,
+                        width: 1,
+                        height: 1,
+                        format: "rgba8",
+                    },
+                },
+                readSharedMemory,
+            }),
+        ).rejects.toThrow("invalid shared-memory output for port mask");
+        expect(readSharedMemory).not.toHaveBeenCalled();
     });
 });
 
