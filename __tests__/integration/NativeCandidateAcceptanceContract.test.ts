@@ -26,7 +26,7 @@ describe("Hook native candidate acceptance contract", () => {
     expect(script.slice(approval, surfaceProbe)).not.toContain("instantiate-workflow");
   });
 
-  it("defaults to the final R14/R23 pair and validates both expected digests", () => {
+  it("defaults to the reviewed R17/R26 pair and validates both expected digests", () => {
     const nativeScript = readFileSync(
       resolve(process.cwd(), "scripts", "Invoke-HookNativeCandidateAcceptance.ps1"),
       "utf8",
@@ -35,15 +35,15 @@ describe("Hook native candidate acceptance contract", () => {
       resolve(process.cwd(), "scripts", "Invoke-HookLoomSurfaceCandidateAcceptance.ps1"),
       "utf8",
     );
-    const hookSha = "341fb0c88a268bd0cece05eacb623e5a3fc02c6238c80c7fe7f66b1854e746d2";
-    const daemonSha = "376f336dcfe97ad83d18d1d9e74397fc36b81f67ac5f6844594012adfd4b75b6";
+    const hookSha = "b12f107f32924db7498cb20f7a69ca926481f08da996b236e90f50b2a7cb894e";
+    const daemonSha = "8157b1086580eaca22b0a1764f367f32c966b956509937a7cebf6b3ec0b07293";
 
-    expect(nativeScript).toContain("20260813-loom-hook-v1-surface-wire-r14");
+    expect(nativeScript).toContain("20260814-art-protocol-review-r17");
     expect(nativeScript).toContain("[ValidatePattern('^[0-9A-Fa-f]{64}$')]");
     expect(nativeScript).toContain(`[string]$ExpectedSha256 = "${hookSha}"`);
     expect(nativeScript).toContain("if ($actualSha256 -ne $ExpectedSha256.Trim().ToLowerInvariant())");
-    expect(pairedScript).toContain("20260813-loom-hook-v1-surface-wire-r14");
-    expect(pairedScript).toContain("20260813-loom-hook-v1-surface-wire-r23");
+    expect(pairedScript).toContain("20260814-art-protocol-review-r17");
+    expect(pairedScript).toContain("20260814-art-protocol-review-r26");
     expect(pairedScript).toContain(`[string]$ExpectedHookSha256 = "${hookSha}"`);
     expect(pairedScript).toContain(`[string]$ExpectedLoomDaemonSha256 = "${daemonSha}"`);
     expect(pairedScript.match(/\[ValidatePattern\('\^\[0-9A-Fa-f\]\{64\}\$'\)\]/g)).toHaveLength(2);

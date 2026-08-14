@@ -2,10 +2,10 @@
 param(
     [string]$HookExe = "",
     [ValidatePattern('^[0-9A-Fa-f]{64}$')]
-    [string]$ExpectedHookSha256 = "341fb0c88a268bd0cece05eacb623e5a3fc02c6238c80c7fe7f66b1854e746d2",
+    [string]$ExpectedHookSha256 = "b12f107f32924db7498cb20f7a69ca926481f08da996b236e90f50b2a7cb894e",
     [string]$LoomPackageDir = "",
     [ValidatePattern('^[0-9A-Fa-f]{64}$')]
-    [string]$ExpectedLoomDaemonSha256 = "376f336dcfe97ad83d18d1d9e74397fc36b81f67ac5f6844594012adfd4b75b6",
+    [string]$ExpectedLoomDaemonSha256 = "8157b1086580eaca22b0a1764f367f32c966b956509937a7cebf6b3ec0b07293",
     [ValidateRange(60, 86400)]
     [int]$DurationSeconds = 600,
     [ValidateRange(0, 3600)]
@@ -30,10 +30,10 @@ $hookRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $neuroRoot = [System.IO.Path]::GetFullPath((Join-Path $hookRoot ".."))
 $loomRepoRoot = Join-Path $neuroRoot "Loom"
 if ([string]::IsNullOrWhiteSpace($HookExe)) {
-    $HookExe = Join-Path $neuroRoot "release\Hook\20260813-loom-hook-v1-surface-wire-r14\hook.exe"
+    $HookExe = Join-Path $neuroRoot "release\Hook\20260814-art-protocol-review-r17\hook.exe"
 }
 if ([string]::IsNullOrWhiteSpace($LoomPackageDir)) {
-    $LoomPackageDir = Join-Path $neuroRoot "release\Loom\20260813-loom-hook-v1-surface-wire-r23"
+    $LoomPackageDir = Join-Path $neuroRoot "release\Loom\20260814-art-protocol-review-r26"
 }
 $resolvedHookExe = [System.IO.Path]::GetFullPath($HookExe)
 $resolvedLoomPackageDir = [System.IO.Path]::GetFullPath($LoomPackageDir)
