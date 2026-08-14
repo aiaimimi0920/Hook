@@ -26,7 +26,7 @@ describe("Hook native candidate acceptance contract", () => {
     expect(script.slice(approval, surfaceProbe)).not.toContain("instantiate-workflow");
   });
 
-  it("defaults to the packaged image-search R17/R27 pair and validates both expected digests", () => {
+  it("defaults to the image-search runtime-fix R18/R28 pair and validates both expected digests", () => {
     const nativeScript = readFileSync(
       resolve(process.cwd(), "scripts", "Invoke-HookNativeCandidateAcceptance.ps1"),
       "utf8",
@@ -35,15 +35,15 @@ describe("Hook native candidate acceptance contract", () => {
       resolve(process.cwd(), "scripts", "Invoke-HookLoomSurfaceCandidateAcceptance.ps1"),
       "utf8",
     );
-    const hookSha = "b12f107f32924db7498cb20f7a69ca926481f08da996b236e90f50b2a7cb894e";
-    const daemonSha = "8157b1086580eaca22b0a1764f367f32c966b956509937a7cebf6b3ec0b07293";
+    const hookSha = "9f514b1a61f21bd337e40dd890f471c8cba400cde29c3a2e85a717baa148b72b";
+    const daemonSha = "0258a54a65b2e0530a39d010af1df8e4361773df43d33b342a68a6be1f1b7a96";
 
-    expect(nativeScript).toContain("20260814-art-protocol-review-r17");
+    expect(nativeScript).toContain("20260814-image-search-runtime-fix-r18");
     expect(nativeScript).toContain("[ValidatePattern('^[0-9A-Fa-f]{64}$')]");
     expect(nativeScript).toContain(`[string]$ExpectedSha256 = "${hookSha}"`);
     expect(nativeScript).toContain("if ($actualSha256 -ne $ExpectedSha256.Trim().ToLowerInvariant())");
-    expect(pairedScript).toContain("20260814-art-protocol-review-r17");
-    expect(pairedScript).toContain("20260814-packaged-image-search-mcp-r27");
+    expect(pairedScript).toContain("20260814-image-search-runtime-fix-r18");
+    expect(pairedScript).toContain("20260814-image-search-runtime-fix-r28");
     expect(pairedScript).toContain(`[string]$ExpectedHookSha256 = "${hookSha}"`);
     expect(pairedScript).toContain(`[string]$ExpectedLoomDaemonSha256 = "${daemonSha}"`);
     expect(pairedScript.match(/\[ValidatePattern\('\^\[0-9A-Fa-f\]\{64\}\$'\)\]/g)).toHaveLength(2);

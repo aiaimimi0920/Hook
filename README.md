@@ -115,14 +115,14 @@ only the current app-data identity, publisher-qualified packages, and formal
 part of acceptance.
 
 The acceptance scripts fail closed on SHA-256. Their defaults identify the
-current packaged image-search R17/R27 pair; when validating any other path, pass
+current image-search runtime-fix R18/R28 pair; when validating any other path, pass
 the matching expected digest explicitly rather than omitting the hash.
 
 The last completed Phase 71 native acceptance remains the historical
 `artifacts/runtime-performance/hook-loom-surface-candidate/20260813-205423-hook-loom-surface-b89e7c2bd751/summary.json`:
 R14/R23 passed the 600-second soak (402 process-tree samples, 2.476% private-byte
 growth, no violations), formal Surface action/resource delivery, clean exit,
-and same-instance restart recovery (`revision 1 -> 4 -> 8`). R17/R27 must produce
+and same-instance restart recovery (`revision 1 -> 4 -> 8`). R18/R28 must produce
 its own 600-second evidence before it replaces that historical acceptance record.
 
 ```powershell
