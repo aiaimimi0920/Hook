@@ -26,7 +26,7 @@ describe("Hook native candidate acceptance contract", () => {
     expect(script.slice(approval, surfaceProbe)).not.toContain("instantiate-workflow");
   });
 
-  it("defaults to the reviewed R17/R26 pair and validates both expected digests", () => {
+  it("defaults to the packaged image-search R17/R27 pair and validates both expected digests", () => {
     const nativeScript = readFileSync(
       resolve(process.cwd(), "scripts", "Invoke-HookNativeCandidateAcceptance.ps1"),
       "utf8",
@@ -43,7 +43,7 @@ describe("Hook native candidate acceptance contract", () => {
     expect(nativeScript).toContain(`[string]$ExpectedSha256 = "${hookSha}"`);
     expect(nativeScript).toContain("if ($actualSha256 -ne $ExpectedSha256.Trim().ToLowerInvariant())");
     expect(pairedScript).toContain("20260814-art-protocol-review-r17");
-    expect(pairedScript).toContain("20260814-art-protocol-review-r26");
+    expect(pairedScript).toContain("20260814-packaged-image-search-mcp-r27");
     expect(pairedScript).toContain(`[string]$ExpectedHookSha256 = "${hookSha}"`);
     expect(pairedScript).toContain(`[string]$ExpectedLoomDaemonSha256 = "${daemonSha}"`);
     expect(pairedScript.match(/\[ValidatePattern\('\^\[0-9A-Fa-f\]\{64\}\$'\)\]/g)).toHaveLength(2);

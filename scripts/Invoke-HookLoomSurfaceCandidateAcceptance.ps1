@@ -33,7 +33,7 @@ if ([string]::IsNullOrWhiteSpace($HookExe)) {
     $HookExe = Join-Path $neuroRoot "release\Hook\20260814-art-protocol-review-r17\hook.exe"
 }
 if ([string]::IsNullOrWhiteSpace($LoomPackageDir)) {
-    $LoomPackageDir = Join-Path $neuroRoot "release\Loom\20260814-art-protocol-review-r26"
+    $LoomPackageDir = Join-Path $neuroRoot "release\Loom\20260814-packaged-image-search-mcp-r27"
 }
 $resolvedHookExe = [System.IO.Path]::GetFullPath($HookExe)
 $resolvedLoomPackageDir = [System.IO.Path]::GetFullPath($LoomPackageDir)
