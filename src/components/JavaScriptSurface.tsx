@@ -497,6 +497,13 @@ export const JavaScriptSurface: Component<Props> = (props) => {
         const entry = entryResource();
         return entry ? buildJavaScriptSurfaceDocument(entry.base64, nonce) : undefined;
     });
+    const documentUrl = createMemo(() => {
+        const source = documentSource();
+        if (!source) return undefined;
+        const url = URL.createObjectURL(new Blob([source], { type: "text/html" }));
+        onCleanup(() => URL.revokeObjectURL(url));
+        return url;
+    });
     const resolvedResources = () => Object.fromEntries(
         (props.snapshot.resourceLeases ?? [])
             .map((lease) => [lease.resource.resourceId, props.resolveResource(lease.resource.resourceId)] as const)
@@ -626,14 +633,14 @@ export const JavaScriptSurface: Component<Props> = (props) => {
 
     return (
         <div class="javascript-surface-host" data-runtime-error={runtimeError()}>
-            <Show when={documentSource()}>
+            <Show when={documentUrl()}>
                 {(source) => (
                     <iframe
                         ref={iframe}
                         class="javascript-surface-frame"
                         classList={{ "is-ready": ready() }}
                         sandbox="allow-scripts"
-                        srcdoc={source()}
+                        src={source()}
                         tabindex={props.interactive === false ? -1 : 0}
                         aria-label="Art Surface"
                         onLoad={initializeRuntime}
