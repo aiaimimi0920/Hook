@@ -12,3 +12,8 @@ export const EXEC_paramDriven = "__exec_paramDriven";
 export const EXEC_listenUpstream = "__exec_listenUpstream";
 export const EXEC_notifyDownstream = "__exec_notifyDownstream";
 export const EXEC_manualTrigger = "__exec_manualTrigger";
+
+const INTERNAL_ART_CONTROL_PARAMS = new Set([PARAM_ui_resize, "force_update"]);
+
+export const isInternalArtControlParam = (paramId: string) =>
+    paramId.startsWith(EXEC_PREFIX) || INTERNAL_ART_CONTROL_PARAMS.has(paramId);

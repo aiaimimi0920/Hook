@@ -309,6 +309,50 @@ describe("graph image resolution", () => {
         })).toEqual({ query: "red panda" });
     });
 
+    it("does not include Hook control fields in Art execution params", () => {
+        const generator: Unit = {
+            id: "image-search",
+            type: "art",
+            artId: "publisher.example/image-search",
+            x: 0,
+            y: 0,
+            w: 100,
+            h: 100,
+            params: {
+                query: "red panda",
+                result_index: 1,
+                __exec_manualTrigger: 123,
+                __exec_expanded: true,
+                __ui_resize: { w: 320, h: 240 },
+                force_update: 456,
+            },
+            inputs: [],
+            outputs: [{ id: "output", type: "image", direction: "output" }],
+            data: {},
+        };
+        const capabilities: ArtCapability[] = [{
+            id: "publisher.example/image-search",
+            label: "Image Search",
+            description: "",
+            supported_transports: ["shared_memory"],
+            params: [
+                { id: "query", label: "Query", widget: "text", default: "" },
+            ],
+            inputs: [],
+            outputs: [{ name: "output", label: "Output", type: "image" }],
+        }];
+
+        expect(resolveEffectiveNodeParams({
+            units: [generator],
+            links: [],
+            unitId: generator.id,
+            capabilities,
+        })).toEqual({
+            query: "red panda",
+            result_index: 1,
+        });
+    });
+
     it("chooses the connected image input for execution when a node also has non-image links", () => {
         const units: Unit[] = [
             sticker("text-like-source", { src: "data:image/png;base64,wrong" }),

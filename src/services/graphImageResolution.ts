@@ -1,4 +1,4 @@
-import { DISABLED_PREFIX } from "../constants";
+import { DISABLED_PREFIX, isInternalArtControlParam } from "../constants";
 import type { ArtCapability, ArtParam } from "./protocol";
 import type { Link, Unit } from "../types/unit";
 import { findArtCapability } from "./artCapabilityLookup";
@@ -267,7 +267,7 @@ export const resolveEffectiveNodeParams = (input: {
     });
 
     Object.entries(manual).forEach(([key, value]) => {
-        if (secretParamIds.has(key)) return;
+        if (secretParamIds.has(key) || isInternalArtControlParam(key)) return;
         resolved[key] = value;
     });
 

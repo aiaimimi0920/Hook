@@ -175,7 +175,7 @@ describe("session sticker payload helpers", () => {
             type: "art",
             artId: "custom-1770177813416",
             params: {
-                force_update: 1,
+                result_index: 0,
             },
         });
 
@@ -185,7 +185,7 @@ describe("session sticker payload helpers", () => {
             paramsByUnitId: {
                 "sticker-1": {
                     query: "日本美女",
-                    force_update: 2,
+                    result_index: 1,
                 },
             },
         });
@@ -194,7 +194,7 @@ describe("session sticker payload helpers", () => {
             id: "sticker-1",
             params: {
                 query: "日本美女",
-                force_update: 2,
+                result_index: 1,
             },
         });
     });

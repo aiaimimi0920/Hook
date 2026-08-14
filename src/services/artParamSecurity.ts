@@ -1,8 +1,9 @@
 import type { Unit } from "../types/unit";
+import { isInternalArtControlParam } from "../constants";
 import { findArtCapability } from "./artCapabilityLookup";
 import type { ArtCapability } from "./protocol";
 
-export const stripSecretArtParams = (
+export const stripNonPersistableArtParams = (
     unit: Pick<Unit, "type" | "artId">,
     capabilities: readonly ArtCapability[],
     params: Record<string, unknown>,
@@ -15,9 +16,9 @@ export const stripSecretArtParams = (
             ?.filter((param) => param.secret)
             .map((param) => param.id) || [],
     );
-    if (secretParamIds.size === 0) return params;
-
     return Object.fromEntries(
-        Object.entries(params).filter(([id]) => !secretParamIds.has(id)),
+        Object.entries(params).filter(
+            ([id]) => !secretParamIds.has(id) && !isInternalArtControlParam(id),
+        ),
     );
 };

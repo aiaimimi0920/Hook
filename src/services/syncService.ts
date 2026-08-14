@@ -7,7 +7,7 @@ import { WORKFLOW_ID } from "../constants";
 import type { BootProfile } from "./bootProfile";
 import type { StickerGroup } from "../types/stickerEditing";
 import { mapSessionStickerToUnit, detectUnknownSessionStickerKeys } from "./sessionStickerMapping";
-import { stripSecretArtParams } from "./artParamSecurity";
+import { stripNonPersistableArtParams } from "./artParamSecurity";
 import {
     buildSyncedImagePayload,
     buildSyncedImageSignature,
@@ -117,7 +117,7 @@ const executeSyncCycle = async () => {
     const persistableUnitParams = Object.fromEntries(
         currentUnits.map((unit) => [
             unit.id,
-            stripSecretArtParams(
+            stripNonPersistableArtParams(
                 unit,
                 graphStore.capabilities,
                 unitParams[unit.id] || unit.params || {},

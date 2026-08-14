@@ -143,7 +143,7 @@ describe("UnitParamsPanel image-search result picker", () => {
 
         expect(onParamChange).toHaveBeenNthCalledWith(1, "result_index", 1, false);
         expect(onParamChange).toHaveBeenCalledTimes(2);
-        expect(onParamChange.mock.calls[1][0]).toBe("force_update");
+        expect(onParamChange.mock.calls[1][0]).toBe("__exec_manualTrigger");
         expect(typeof onParamChange.mock.calls[1][1]).toBe("number");
         expect(onParamChange.mock.calls[1][2]).toBe(true);
 

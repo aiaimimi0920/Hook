@@ -23,7 +23,8 @@ import {
     EXEC_paramDriven,
     EXEC_listenUpstream,
     EXEC_notifyDownstream,
-    EXEC_manualTrigger
+    EXEC_manualTrigger,
+    isInternalArtControlParam,
 } from "../constants";
 
 export function useNodeParameters() {
@@ -115,9 +116,7 @@ export function useNodeParameters() {
                          if (!requiresFormalExecutionAfterPreview(artCap)) return;
                     }
 
-                    // For now, just trigger processing like before
-                    graphStore.setUnitParams(unitId, (prev) => ({ ...(prev || {}), ["force_update"]: value }));
-                     break;
+                    break;
                 }
             }
 
@@ -135,7 +134,9 @@ export function useNodeParameters() {
         const hasIncomingValueLink = graphStore.links.some(
             (link) => link.toUnitId === unitId && link.toPortId === paramId,
         );
-        const shouldPersistManualParam = !(triggerSource === "upstream" && hasIncomingValueLink);
+        const shouldPersistManualParam =
+            !isInternalArtControlParam(paramId) &&
+            !(triggerSource === "upstream" && hasIncomingValueLink);
 
         // 1. Optimistic Update (UI Store). Upstream-linked updates are derived values,
         // so keep the manual fallback untouched and resolve the effective value later.
@@ -161,7 +162,6 @@ export function useNodeParameters() {
             (
                 triggerSource === "upstream" ||
                 triggerSource === "manual" ||
-                paramId === "force_update" ||
                 paramId === EXEC_manualTrigger ||
                 (!paramId.startsWith(EXEC_PREFIX) && paramId !== PARAM_ui_resize)
             );
@@ -181,7 +181,6 @@ export function useNodeParameters() {
         });
 
         const isManualTrigger =
-            paramId === "force_update" ||
             paramId === EXEC_manualTrigger ||
             triggerSource === "manual";
         const isUpstreamTrigger = triggerSource === "upstream";
@@ -264,13 +263,19 @@ export function useNodeParameters() {
           const activeParams: Record<string, unknown> = {};
 
           Object.keys(manualParams).forEach(key => {
-              if (manualParams[key] === DISABLED_PREFIX) {
+              if (
+                  manualParams[key] === DISABLED_PREFIX &&
+                  !isInternalArtControlParam(key)
+              ) {
                   disabledParams.push(key);
               }
           });
 
           Object.keys(fullParams).forEach(key => {
-              if (fullParams[key] !== DISABLED_PREFIX) {
+              if (
+                  fullParams[key] !== DISABLED_PREFIX &&
+                  !isInternalArtControlParam(key)
+              ) {
                   activeParams[key] = fullParams[key];
               }
           });

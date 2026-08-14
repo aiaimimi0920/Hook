@@ -12,7 +12,7 @@
 import type { Unit, SessionSticker } from "../types/unit";
 import type { ArtCapability } from "./protocol";
 import { getCapabilityInputsForPorts } from "./artPorts";
-import { stripSecretArtParams } from "./artParamSecurity";
+import { stripNonPersistableArtParams } from "./artParamSecurity";
 import { deriveUnitExecutionConfig } from "./nodeExecutionConfig";
 import { findArtCapability } from "./artCapabilityLookup";
 
@@ -71,7 +71,7 @@ export const mapSessionStickerToUnit = (
         y: sticker.y,
         w: sticker.w,
         h: sticker.h,
-        params: stripSecretArtParams(
+        params: stripNonPersistableArtParams(
             { type: unitType, artId },
             deps.capabilities,
             (sticker.params as Record<string, unknown>) || {},

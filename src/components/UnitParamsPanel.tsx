@@ -201,7 +201,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
           buildOptimisticCandidateSelectionPatch(props.unit, candidate),
       );
       props.onParamChange("result_index", candidate.index, false);
-      props.onParamChange("force_update", Date.now(), true);
+      props.onParamChange(EXEC_manualTrigger, Date.now(), true);
   };
   const setCandidateFallbackSrc = (candidateIndex: number, src: string) => {
       setCandidateFallbackSrcs((prev) =>
