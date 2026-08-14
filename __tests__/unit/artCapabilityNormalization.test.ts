@@ -128,6 +128,44 @@ describe("Loom Art capability normalization", () => {
         expect(capability.id).toBe("shared-art");
     });
 
+    it("normalizes canonical secret parameter types without exposing a default", () => {
+        const [capability] = normalizeArtCapabilities([{
+            id: "publisher.example/image-search",
+            label: "Image Search",
+            parameters: [{
+                id: "brave_api_key",
+                label: "Brave API Key",
+                type: "secret",
+                required: true,
+                default: "must-not-persist",
+            }],
+        }]);
+
+        expect(capability.params[0]).toMatchObject({
+            id: "brave_api_key",
+            data_type: "secret",
+            secret: true,
+            required: true,
+        });
+        expect(capability.params[0].default).toBeUndefined();
+    });
+
+    it("does not allow a conflicting boolean flag to downgrade a canonical secret type", () => {
+        const [capability] = normalizeArtCapabilities([{
+            id: "publisher.example/image-search",
+            label: "Image Search",
+            parameters: [{
+                id: "brave_api_key",
+                type: "secret",
+                secret: false,
+                default: "must-not-persist",
+            }],
+        }]);
+
+        expect(capability.params[0].secret).toBe(true);
+        expect(capability.params[0].default).toBeUndefined();
+    });
+
     it("infers new parameter widgets and filters disabled or invalid Arts", () => {
         const capabilities = normalizeArtCapabilities([
             {

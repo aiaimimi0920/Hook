@@ -7,6 +7,7 @@ import { WORKFLOW_ID } from "../constants";
 import type { BootProfile } from "./bootProfile";
 import type { StickerGroup } from "../types/stickerEditing";
 import { mapSessionStickerToUnit, detectUnknownSessionStickerKeys } from "./sessionStickerMapping";
+import { stripSecretArtParams } from "./artParamSecurity";
 import {
     buildSyncedImagePayload,
     buildSyncedImageSignature,
@@ -113,6 +114,16 @@ const executeSyncCycle = async () => {
     const currentUnits = graphStore.units;
     const currentLinks = graphStore.links;
     const unitParams = graphStore.unitParams;
+    const persistableUnitParams = Object.fromEntries(
+        currentUnits.map((unit) => [
+            unit.id,
+            stripSecretArtParams(
+                unit,
+                graphStore.capabilities,
+                unitParams[unit.id] || unit.params || {},
+            ),
+        ]),
+    );
     const invalidArtUnit = currentUnits.find(
         (unit) => unit.type === 'art' && !unit.artId?.trim(),
     );
@@ -287,7 +298,7 @@ const executeSyncCycle = async () => {
                     data: {
                         label: u.artId || "Node",
                         ...(u.type === 'art' ? { artId: u.artId } : {}),
-                        params: unitParams[u.id] || u.params || {},
+                        params: persistableUnitParams[u.id] || {},
                         ...imagePayload,
                         outputs: u.data?.outputs || null,
                         w: u.w, h: u.h,
@@ -362,7 +373,7 @@ const executeSyncCycle = async () => {
             data: {
                 label: u.artId || "Node",
                 ...(u.type === 'art' ? { artId: u.artId } : {}),
-                params: unitParams[u.id] || u.params || {},
+                params: persistableUnitParams[u.id] || {},
                 ...imagePayload,
                 outputs: u.data?.outputs || null,
                 w: u.w, h: u.h,
@@ -423,7 +434,7 @@ const executeSyncCycle = async () => {
         previewCache: bakedSyncPreviewCache,
         setPreviewCacheEntry: setBakedSyncPreviewCacheEntry,
         buildPreviewSignature: buildBakedPreviewSignature,
-        paramsByUnitId: graphStore.unitParams,
+        paramsByUnitId: persistableUnitParams,
     });
     if (!isSyncImageCacheEpochCurrent(syncEpoch)) {
         return;

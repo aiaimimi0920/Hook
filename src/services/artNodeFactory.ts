@@ -117,6 +117,7 @@ export const buildUnitPortsFromCapability = (
 export const buildDefaultParamsFromCapability = (capability: ArtCapability): Record<string, unknown> => {
     const params: Record<string, unknown> = {};
     for (const param of capability.params || []) {
+        if (param.secret) continue;
         params[param.id] = coerceDefaultParamValue(capability, param);
     }
     return params;

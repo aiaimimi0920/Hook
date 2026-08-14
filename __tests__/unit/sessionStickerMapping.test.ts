@@ -201,6 +201,31 @@ describe("mapSessionStickerToUnit", () => {
         expect(unit.outputs.map((p) => p.id)).toEqual(["result"]);
     });
 
+    it("drops capability-declared secrets while restoring an Art session", () => {
+        const secretCapability = {
+            ...BLUR_CAPABILITY,
+            params: [
+                { id: "radius", label: "Radius", widget: "number", default: 2 },
+                { id: "api_key", label: "API Key", widget: "text", default: undefined, secret: true },
+            ],
+        } as ArtCapability;
+        const unit = mapSessionStickerToUnit(
+            {
+                id: "secret-art",
+                type: "art",
+                artId: "blur",
+                x: 0,
+                y: 0,
+                w: 1,
+                h: 1,
+                params: { radius: 4, api_key: "must-not-survive-restore" },
+            },
+            { capabilities: [secretCapability] },
+        );
+
+        expect(unit.params).toEqual({ radius: 4 });
+    });
+
     it("10. round-trips scalar fields through save -> load unchanged", () => {
         const unit: Unit = {
             id: "rt",

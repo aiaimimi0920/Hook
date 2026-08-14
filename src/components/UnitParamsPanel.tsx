@@ -131,7 +131,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
   };
 
   const derivedParams = () => {
-      if (isArt()) return props.capability?.params || [];
+      if (isArt()) return props.capability?.params?.filter((param) => !param.secret) || [];
       return [];
   };
   const paramGroups = createMemo(() => buildArtParamGroups(derivedParams()));

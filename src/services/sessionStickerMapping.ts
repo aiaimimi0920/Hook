@@ -12,6 +12,7 @@
 import type { Unit, SessionSticker } from "../types/unit";
 import type { ArtCapability } from "./protocol";
 import { getCapabilityInputsForPorts } from "./artPorts";
+import { stripSecretArtParams } from "./artParamSecurity";
 import { deriveUnitExecutionConfig } from "./nodeExecutionConfig";
 import { findArtCapability } from "./artCapabilityLookup";
 
@@ -56,6 +57,7 @@ export const mapSessionStickerToUnit = (
     const unitType: "sticker" | "art" = sticker.type === "art" ? "art" : "sticker";
     const { inputs, outputs } = buildUnitPorts(unitType, sticker.artId ?? undefined, deps.capabilities);
     const capability = findArtCapability(deps.capabilities, sticker.artId);
+    const artId = capability?.id || sticker.artId || undefined;
     const executionConfig = deriveUnitExecutionConfig({
         capability,
         explicitConfig: sticker.executionConfig,
@@ -64,12 +66,16 @@ export const mapSessionStickerToUnit = (
     return {
         id: sticker.id,
         type: unitType,
-        artId: capability?.id || sticker.artId || undefined,
+        artId,
         x: sticker.x,
         y: sticker.y,
         w: sticker.w,
         h: sticker.h,
-        params: (sticker.params as Record<string, any>) || {},
+        params: stripSecretArtParams(
+            { type: unitType, artId },
+            deps.capabilities,
+            (sticker.params as Record<string, unknown>) || {},
+        ),
         inputs,
         outputs,
         data: {

@@ -23,12 +23,12 @@ const isNonEmptyString = (value: string | undefined): value is string =>
 const getImageInputNames = (unit: Unit, capabilities?: readonly ArtCapability[]) => {
     if (unit.type === "art") {
         const capability = capabilities ? findArtCapability(capabilities, unit.artId) : undefined;
-        const capabilityInputs =
-            capability?.inputs
+        if (capability?.inputs !== undefined) {
+            return capability.inputs
                 ?.filter((input) => isImageLikePort(input.name, input.type))
                 .map((input) => input.name)
                 .filter(isNonEmptyString) || [];
-        if (capabilityInputs.length > 0) return capabilityInputs;
+        }
 
         return (
             unit.inputs
@@ -255,13 +255,19 @@ export const resolveEffectiveNodeParams = (input: {
     const manual = input.manualParams || unit.params || {};
     const resolved: Record<string, unknown> = {};
     const paramById = new Map<string, ArtParam>();
+    const secretParamIds = new Set<string>();
 
     capability?.params?.forEach((param) => {
+        if (param.secret) {
+            secretParamIds.add(param.id);
+            return;
+        }
         paramById.set(param.id, param);
         resolved[param.id] = manual[param.id] ?? param.default;
     });
 
     Object.entries(manual).forEach(([key, value]) => {
+        if (secretParamIds.has(key)) return;
         resolved[key] = value;
     });
 
@@ -383,7 +389,7 @@ const collectDeclaredExecutionImagePorts = (input: {
             .filter(isNonEmptyString) || [];
     capabilityImagePorts.forEach((port) => declared.add(port));
 
-    if (declared.size === 0) {
+    if (capability?.inputs === undefined) {
         input.unit.inputs
             ?.filter((port) => isImageLikePort(port.id || port.label, port.type))
             .map((port) => port.id || port.label)

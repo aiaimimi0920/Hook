@@ -25,6 +25,7 @@ const imageSearchCapability: ArtCapability = {
         { id: "query", label: "query", widget: "text", default: "" },
         { id: "safesearch", label: "safesearch", widget: "text", default: "off" },
         { id: "spellcheck", label: "spellcheck", widget: "text", default: "true" },
+        { id: "brave_api_key", label: "Brave API Key", widget: "text", secret: true },
     ],
     inputs: [
         { name: "count", label: "count", type: "number" },
@@ -69,6 +70,7 @@ describe("standalone ArtNode factory", () => {
         });
         expect(unit.inputs.map((input) => input.id)).toEqual([]);
         expect(unit.outputs.map((output) => output.id)).toEqual(["output"]);
+        expect(unit.params).not.toHaveProperty("brave_api_key");
     });
 
     it("creates MCP image-search nodes as manual-only by default", () => {

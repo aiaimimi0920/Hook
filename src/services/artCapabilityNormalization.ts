@@ -87,14 +87,21 @@ const normalizeParam = (
     const id = stringValue(value, "id");
     if (!id) return undefined;
 
-    const dataType = stringValue(value, "data_type");
+    const canonicalType = stringValue(value, "type");
+    const dataType = stringValue(value, "data_type") ?? canonicalType;
     const options = normalizeOptions(value.options);
     const widget = inferWidget(value, dataType, options);
-    const defaultValue = hasOwn(value, "default")
-        ? value.default
-        : hasOwn(defaults, id)
-            ? defaults[id]
-            : undefined;
+    const secret =
+        canonicalType?.toLowerCase() === "secret" ||
+        dataType?.toLowerCase() === "secret" ||
+        optionalBoolean(value, "secret") === true;
+    const defaultValue = secret
+        ? undefined
+        : hasOwn(value, "default")
+            ? value.default
+            : hasOwn(defaults, id)
+                ? defaults[id]
+                : undefined;
 
     return {
         id,
@@ -109,7 +116,7 @@ const normalizeParam = (
         group: stringValue(value, "group"),
         data_type: dataType,
         required: optionalBoolean(value, "required"),
-        secret: optionalBoolean(value, "secret"),
+        secret,
         disabled: optionalBoolean(value, "disabled"),
     };
 };

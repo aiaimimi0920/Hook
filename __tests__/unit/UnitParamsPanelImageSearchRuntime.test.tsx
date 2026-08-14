@@ -35,6 +35,7 @@ const IMAGE_SEARCH_CAPABILITY: ArtCapability = {
     params: [
         { id: "query", label: "Query", widget: "text", default: "" },
         { id: "count", label: "Count", widget: "number", default: 3 },
+        { id: "brave_api_key", label: "Brave API Key", widget: "text", default: undefined, secret: true },
     ],
     inputs: [{ name: "input_image", label: "Input", type: "image" }],
     outputs: [{ name: "output_image", label: "Image", type: "image" }],
@@ -52,6 +53,7 @@ const BASE_UNIT: Unit = {
         query: "日本美女",
         count: 3,
         result_index: 0,
+        brave_api_key: "must-not-render",
     },
     inputs: [],
     outputs: [],
@@ -134,6 +136,8 @@ describe("UnitParamsPanel image-search result picker", () => {
             "[data-image-search-candidate-index]",
         );
         expect(buttons).toHaveLength(3);
+        expect(host.textContent).not.toContain("Brave API Key");
+        expect(host.querySelector<HTMLInputElement>("input[value='must-not-render']")).toBeNull();
 
         buttons[1].dispatchEvent(new MouseEvent("click", { bubbles: true }));
 

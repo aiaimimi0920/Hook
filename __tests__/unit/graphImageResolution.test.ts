@@ -3,6 +3,8 @@ import {
     resolveAuxiliaryUnitExecutionInputImages,
     resolveConnectedUnitImageForPort,
     resolveMissingUnitExecutionImagePorts,
+    resolveEffectiveNodeParams,
+    resolveUnitExecutionImageInputs,
     isUnitFormalImagePending,
     resolveUnitExecutionInputImage,
     resolveUnitImageFromGraph,
@@ -221,6 +223,90 @@ describe("graph image resolution", () => {
                 ],
             }),
         ).toBeUndefined();
+    });
+
+    it("ignores stale image links when the capability explicitly declares no inputs", () => {
+        const source = sticker("source", { src: "data:image/png;base64,source" });
+        const generator: Unit = {
+            id: "image-search",
+            type: "art",
+            artId: "publisher.example/image-search",
+            x: 0,
+            y: 0,
+            w: 100,
+            h: 100,
+            params: {},
+            inputs: [{ id: "input_image", type: "image", direction: "input", label: "input_image" }],
+            outputs: [{ id: "output", type: "image", direction: "output" }],
+            data: {},
+        };
+        const links: Link[] = [{
+            id: "stale-generator-link",
+            fromUnitId: source.id,
+            fromPortId: "output",
+            toUnitId: generator.id,
+            toPortId: "input_image",
+        }];
+        const capabilities: ArtCapability[] = [{
+            id: "publisher.example/image-search",
+            label: "Image Search",
+            description: "",
+            supported_transports: ["shared_memory"],
+            params: [],
+            inputs: [],
+            outputs: [{ name: "output", label: "Output", type: "image" }],
+        }];
+
+        expect(resolveUnitExecutionImageInputs({
+            units: [source, generator],
+            links,
+            unitId: generator.id,
+            capabilities,
+        })).toEqual({});
+        expect(resolveMissingUnitExecutionImagePorts({
+            units: [source, generator],
+            links,
+            unitId: generator.id,
+            capabilities,
+        })).toEqual([]);
+    });
+
+    it("does not include capability-declared secrets in Art execution params", () => {
+        const generator: Unit = {
+            id: "image-search",
+            type: "art",
+            artId: "publisher.example/image-search",
+            x: 0,
+            y: 0,
+            w: 100,
+            h: 100,
+            params: {
+                query: "red panda",
+                brave_api_key: "must-not-leave-hook",
+            },
+            inputs: [],
+            outputs: [{ id: "output", type: "image", direction: "output" }],
+            data: {},
+        };
+        const capabilities: ArtCapability[] = [{
+            id: "publisher.example/image-search",
+            label: "Image Search",
+            description: "",
+            supported_transports: ["shared_memory"],
+            params: [
+                { id: "query", label: "Query", widget: "text", default: "" },
+                { id: "brave_api_key", label: "Brave API Key", widget: "text", default: undefined, secret: true },
+            ],
+            inputs: [],
+            outputs: [{ name: "output", label: "Output", type: "image" }],
+        }];
+
+        expect(resolveEffectiveNodeParams({
+            units: [generator],
+            links: [],
+            unitId: generator.id,
+            capabilities,
+        })).toEqual({ query: "red panda" });
     });
 
     it("chooses the connected image input for execution when a node also has non-image links", () => {
