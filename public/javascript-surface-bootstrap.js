@@ -7,6 +7,7 @@
   const MAX_DOM_NODES = 1000;
   const MAX_HEAP_GROWTH_BYTES = 64 * 1024 * 1024;
   const MAX_CPU_WINDOW_MILLIS = 500;
+  const CPU_WARMUP_MILLIS = 2_000;
   const nativeSetTimeout = globalThis.setTimeout.bind(globalThis);
   const nativeSetInterval = globalThis.setInterval.bind(globalThis);
   const nativeClearTimeout = globalThis.clearTimeout.bind(globalThis);
@@ -109,7 +110,7 @@
         emit: publicApi.emit,
       });
       if (typeof cleanup === "function") mountCleanup = cleanup;
-      cpuWindowStartedAt = performance.now();
+      cpuWindowStartedAt = performance.now() + CPU_WARMUP_MILLIS;
       cpuWindowMillis = 0;
       port.postMessage({ type: "ready", token });
     } catch (error) {
