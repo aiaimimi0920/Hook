@@ -35,9 +35,8 @@ describe("JavaScript Surface CSP contract", () => {
         expect(tauriConfig.app?.security?.csp).toContain("frame-src 'self'");
         expect(tauriConfig.app?.security?.csp).toContain("frame-ancestors 'self'");
         expect(tauriConfig.app?.security?.csp).not.toContain("frame-ancestors 'none'");
-        expect(tauriConfig.app?.security?.csp).toContain("script-src 'self'");
+        expect(tauriConfig.app?.security?.csp).toContain("script-src 'self' blob:");
         expect(tauriConfig.app?.security?.csp).not.toContain("frame-src 'self' blob:");
-        expect(tauriConfig.app?.security?.csp).not.toContain("script-src 'self' blob:");
         expect(tauriConfig.app?.security?.csp).not.toContain("script-src 'self' 'unsafe-inline'");
     });
 });

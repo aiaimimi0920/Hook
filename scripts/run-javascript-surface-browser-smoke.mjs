@@ -10,6 +10,14 @@ import { chromium } from "playwright";
 import { createServer } from "vite";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const tauriConfig = JSON.parse(await fs.readFile(
+    path.join(root, "src-tauri", "tauri.conf.json"),
+    "utf8",
+));
+const tauriCsp = tauriConfig?.app?.security?.csp;
+if (typeof tauriCsp !== "string" || tauriCsp.length === 0) {
+    throw new Error("Hook Tauri CSP is missing");
+}
 const outputPath = path.resolve(
     root,
     process.env.HOOK_JAVASCRIPT_SURFACE_SMOKE_OUTPUT
@@ -19,7 +27,12 @@ const outputPath = path.resolve(
 const vite = await createServer({
     configFile: path.join(root, "vite.config.ts"),
     root,
-    server: { host: "127.0.0.1", port: 0, strictPort: false },
+    server: {
+        host: "127.0.0.1",
+        port: 0,
+        strictPort: false,
+        headers: { "Content-Security-Policy": tauriCsp },
+    },
     appType: "custom",
     logLevel: "error",
 });
