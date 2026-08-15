@@ -1,3 +1,5 @@
+/* global Blob, MutationObserver, PerformanceObserver, URL, atob, document, performance, structuredClone */
+
 (() => {
   "use strict";
 
@@ -60,7 +62,7 @@
   globalThis.WebSocket = class { constructor() { throw new Error("Surface network access is disabled"); } };
   globalThis.EventSource = class { constructor() { throw new Error("Surface network access is disabled"); } };
   if (globalThis.navigator?.sendBeacon) {
-    try { Object.defineProperty(globalThis.navigator, "sendBeacon", { value: () => false }); } catch (_) {}
+    try { Object.defineProperty(globalThis.navigator, "sendBeacon", { value: () => false }); } catch { /* Best-effort hardening. */ }
   }
 
   const publicApi = Object.freeze({
@@ -107,6 +109,8 @@
         emit: publicApi.emit,
       });
       if (typeof cleanup === "function") mountCleanup = cleanup;
+      cpuWindowStartedAt = performance.now();
+      cpuWindowMillis = 0;
       port.postMessage({ type: "ready", token });
     } catch (error) {
       started = false;
@@ -142,7 +146,7 @@
       });
       longTaskObserver.observe({ entryTypes: ["longtask"] });
       longTaskTelemetryAvailable = true;
-    } catch (_) {
+    } catch {
       longTaskObserver = null;
     }
   }
