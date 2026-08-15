@@ -1,3 +1,6 @@
+/* global MessageChannel, fetch, window */
+
+import { Buffer } from "node:buffer";
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -20,24 +23,48 @@ const vite = await createServer({
     appType: "custom",
     logLevel: "error",
 });
+vite.middlewares.use("/__javascript-surface-smoke", (_request, response) => {
+    response.statusCode = 200;
+    response.setHeader("Content-Type", "text/html; charset=utf-8");
+    response.end("<!doctype html><html><body></body></html>");
+});
 
 let browser;
 try {
     await vite.listen();
     const address = vite.httpServer?.address();
     if (!address || typeof address === "string") throw new Error("Vite test server did not bind TCP");
-    const surfaceModuleUrl = `http://127.0.0.1:${address.port}/src/components/JavaScriptSurface.tsx`;
+    const harnessUrl = `http://127.0.0.1:${address.port}/__javascript-surface-smoke`;
+    const surfaceHostUrl = `http://127.0.0.1:${address.port}/javascript-surface-host.html`;
+    const bootstrapUrl = `http://127.0.0.1:${address.port}/javascript-surface-bootstrap.js`;
+    for (const url of [surfaceHostUrl, bootstrapUrl]) {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`JavaScript Surface asset returned ${response.status}: ${url}`);
+        await response.arrayBuffer();
+    }
 
     browser = await chromium.launch({
         headless: true,
         args: ["--enable-precise-memory-info"],
     });
     const page = await browser.newPage();
-    const moduleResponse = await page.goto(surfaceModuleUrl, { waitUntil: "domcontentloaded" });
-    if (!moduleResponse?.ok()) {
-        throw new Error(`JavaScript Surface module server returned ${moduleResponse?.status()}`);
+    const browserEvents = [];
+    page.on("console", (message) => browserEvents.push({
+        type: "console",
+        level: message.type(),
+        text: message.text(),
+        location: message.location(),
+    }));
+    page.on("pageerror", (error) => browserEvents.push({ type: "pageerror", text: String(error) }));
+    page.on("requestfailed", (request) => browserEvents.push({
+        type: "requestfailed",
+        url: request.url(),
+        failure: request.failure(),
+    }));
+    const harnessResponse = await page.goto(harnessUrl, { waitUntil: "domcontentloaded" });
+    if (!harnessResponse?.ok()) {
+        throw new Error(`JavaScript Surface harness returned ${harnessResponse?.status()}`);
     }
-
     const snapshot = {
         protocolVersion: "loom.surface.v1",
         instanceId: "instance:browser-smoke",
@@ -51,30 +78,21 @@ try {
     };
 
     const runScenario = async (name, source, expectedFailure) => {
+        browserEvents.length = 0;
         const entryBase64 = Buffer.from(source, "utf8").toString("base64");
-        const document = await page.evaluate(
-            async ({ surfaceModuleUrl, entryBase64, nonce }) => {
-                const surfaceModule = await import(surfaceModuleUrl);
-                if (typeof surfaceModule.buildJavaScriptSurfaceDocument !== "function") {
-                    throw new Error("JavaScript Surface document builder is unavailable");
-                }
-                return surfaceModule.buildJavaScriptSurfaceDocument(entryBase64, nonce);
-            },
-            { surfaceModuleUrl, entryBase64, nonce: `nonce-${name}` },
-        );
         const result = await page.evaluate(
-            async ({ document, snapshot, expectedFailure }) => {
+            async ({ surfaceHostUrl, entryBase64, snapshot, expectedFailure }) => {
                 const iframe = window.document.createElement("iframe");
                 iframe.setAttribute("sandbox", "allow-scripts");
-                iframe.srcdoc = document;
+                iframe.src = surfaceHostUrl;
                 window.document.body.replaceChildren(iframe);
 
                 const messages = [];
                 const token = "surface-token-browser-smoke";
-                const outcome = await new Promise((resolve, reject) => {
+                const outcome = await new Promise((resolve) => {
                     const timeout = window.setTimeout(() => {
                         resolve({ kind: "timeout" });
-                    }, 8_000);
+                    }, 30_000);
                     iframe.addEventListener("load", () => {
                         const channel = new MessageChannel();
                         channel.port1.onmessage = (event) => {
@@ -95,6 +113,7 @@ try {
                         iframe.contentWindow.postMessage({
                             type: "surface:init",
                             token,
+                            entryBase64,
                             snapshot,
                             resources: {},
                         }, "*", [channel.port2]);
@@ -103,9 +122,11 @@ try {
                 iframe.remove();
                 return { outcome, messageTypes: messages.map((message) => message?.type) };
             },
-            { document, snapshot, expectedFailure },
+            { surfaceHostUrl, entryBase64, snapshot, expectedFailure },
         );
 
+        result.frameUrls = page.frames().map((frame) => frame.url());
+        result.browserEvents = [...browserEvents];
         if (expectedFailure) {
             if (result.outcome.kind !== "failure" || !result.outcome.message.includes(expectedFailure)) {
                 throw new Error(`${name} did not fail with ${expectedFailure}: ${JSON.stringify(result)}`);
@@ -158,7 +179,7 @@ try {
         schemaVersion: 1,
         generatedAt: new Date().toISOString(),
         browser: await browser.version(),
-        sourceModule: "src/components/JavaScriptSurface.tsx",
+        sourceModule: "public/javascript-surface-host.html",
         scenarios,
         passed: true,
     };

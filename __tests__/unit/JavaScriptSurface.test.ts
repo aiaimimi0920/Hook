@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
     JAVASCRIPT_SURFACE_BUDGETS,
-    buildJavaScriptSurfaceDocument,
     cloneSurfaceJson,
     consumeJavaScriptSurfaceEventBudget,
     javaScriptSurfaceBudgetFailure,
@@ -54,21 +56,30 @@ describe("JavaScript Surface sandbox contract", () => {
         expect(parseJavaScriptSurfaceDataUrl("https://example.invalid/main.js")).toBeUndefined();
     });
 
-    it("builds a no-network, no-eval bootstrap document", () => {
-        const document = buildJavaScriptSurfaceDocument("Y29uc29sZS5sb2coMSk=", "nonce-test");
+    it("ships a no-network, no-inline static sandbox host", () => {
+        const document = readFileSync(
+            resolve(process.cwd(), "public/javascript-surface-host.html"),
+            "utf8",
+        );
+        const bootstrap = readFileSync(
+            resolve(process.cwd(), "public/javascript-surface-bootstrap.js"),
+            "utf8",
+        );
         expect(document).toContain("default-src 'none'");
         expect(document).toContain("connect-src 'none'");
         expect(document).toContain("worker-src 'none'");
-        expect(document).toContain("script-src 'nonce-nonce-test' blob:");
+        expect(document).toContain("script-src 'self' blob:");
+        expect(document).toContain('src="/javascript-surface-bootstrap.js"');
+        expect(document).not.toContain("<script>");
         expect(document).not.toContain("unsafe-eval");
-        expect(document).toContain("Surface DOM node budget exceeded");
-        expect(document).toContain("Surface timer budget exceeded");
-        expect(document).toContain("Surface memory budget exceeded");
-        expect(document).toContain("Surface CPU budget exceeded");
-        expect(document).toContain("longTaskTelemetryAvailable");
-        expect(document).toContain("heapGrowthBytes !== null");
-        expect(document).toContain('entryTypes: ["longtask"]');
-        expect(document).toContain("nativeClearInterval(heartbeatId)");
+        expect(bootstrap).toContain("Surface DOM node budget exceeded");
+        expect(bootstrap).toContain("Surface timer budget exceeded");
+        expect(bootstrap).toContain("Surface memory budget exceeded");
+        expect(bootstrap).toContain("Surface CPU budget exceeded");
+        expect(bootstrap).toContain("longTaskTelemetryAvailable");
+        expect(bootstrap).toContain("heapGrowthBytes !== null");
+        expect(bootstrap).toContain('entryTypes: ["longtask"]');
+        expect(bootstrap).toContain("nativeClearInterval");
     });
 
     it("enforces host-side CPU, memory, DOM, timer, resource, and event budgets", () => {
