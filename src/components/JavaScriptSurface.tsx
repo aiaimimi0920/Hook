@@ -39,7 +39,7 @@ export const JAVASCRIPT_SURFACE_BUDGETS = Object.freeze({
     maxEventPayloadBytes: 64 * 1024,
     maxEventsPerSecond: 120,
     maxHeapGrowthBytes: 64 * 1024 * 1024,
-    maxCpuWindowMillis: 500,
+    maxCpuWindowMillis: 250,
     maxDomNodes: 1_000,
     maxTimers: 64,
     maxResourceEntries: 64,

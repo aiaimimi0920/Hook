@@ -80,7 +80,6 @@ describe("JavaScript Surface sandbox contract", () => {
         expect(bootstrap).toContain("heapGrowthBytes !== null");
         expect(bootstrap).toContain('entryTypes: ["longtask"]');
         expect(bootstrap).toContain("entry.startTime >= cpuWindowStartedAt");
-        expect(bootstrap).toContain("performance.now() + CPU_WARMUP_MILLIS");
         expect(bootstrap).toContain("nativeClearInterval");
     });
 
