@@ -33,6 +33,8 @@ describe("JavaScript Surface CSP contract", () => {
         expect(bootstrapSource).toContain("event.data.entryBase64");
         expect(bootstrapSource).toContain("URL.createObjectURL(new Blob([bytes]");
         expect(tauriConfig.app?.security?.csp).toContain("frame-src 'self'");
+        expect(tauriConfig.app?.security?.csp).toContain("frame-ancestors 'self'");
+        expect(tauriConfig.app?.security?.csp).not.toContain("frame-ancestors 'none'");
         expect(tauriConfig.app?.security?.csp).toContain("script-src 'self'");
         expect(tauriConfig.app?.security?.csp).not.toContain("frame-src 'self' blob:");
         expect(tauriConfig.app?.security?.csp).not.toContain("script-src 'self' blob:");
