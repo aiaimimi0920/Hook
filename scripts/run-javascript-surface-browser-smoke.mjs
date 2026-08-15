@@ -179,7 +179,7 @@ try {
     );
     await runSelectedScenario(
         "cpu-budget",
-        "NeuroSurface.define({ mount() { setTimeout(() => { const until = performance.now() + 400; while (performance.now() < until) {} }, 20); } });",
+        "NeuroSurface.define({ mount() { setTimeout(() => { const until = performance.now() + 800; while (performance.now() < until) {} }, 20); } });",
         "CPU budget exceeded",
     );
     await runSelectedScenario(

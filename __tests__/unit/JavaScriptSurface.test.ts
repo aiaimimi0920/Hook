@@ -79,6 +79,7 @@ describe("JavaScript Surface sandbox contract", () => {
         expect(bootstrap).toContain("longTaskTelemetryAvailable");
         expect(bootstrap).toContain("heapGrowthBytes !== null");
         expect(bootstrap).toContain('entryTypes: ["longtask"]');
+        expect(bootstrap).toContain("entry.startTime >= cpuWindowStartedAt");
         expect(bootstrap).toContain("nativeClearInterval");
     });
 

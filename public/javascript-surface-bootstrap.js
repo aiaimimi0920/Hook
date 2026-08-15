@@ -6,7 +6,7 @@
   const MAX_TIMERS = 64;
   const MAX_DOM_NODES = 1000;
   const MAX_HEAP_GROWTH_BYTES = 64 * 1024 * 1024;
-  const MAX_CPU_WINDOW_MILLIS = 250;
+  const MAX_CPU_WINDOW_MILLIS = 500;
   const nativeSetTimeout = globalThis.setTimeout.bind(globalThis);
   const nativeSetInterval = globalThis.setInterval.bind(globalThis);
   const nativeClearTimeout = globalThis.clearTimeout.bind(globalThis);
@@ -142,7 +142,9 @@
   if (typeof globalThis.PerformanceObserver === "function") {
     try {
       longTaskObserver = new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) cpuWindowMillis += entry.duration;
+        for (const entry of list.getEntries()) {
+          if (entry.startTime >= cpuWindowStartedAt) cpuWindowMillis += entry.duration;
+        }
       });
       longTaskObserver.observe({ entryTypes: ["longtask"] });
       longTaskTelemetryAvailable = true;
