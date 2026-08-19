@@ -10,6 +10,7 @@ import {
 } from "../store/uiStore";
 import { syncService } from "../services/syncService";
 import { findArtCapability } from "../services/artCapabilityLookup";
+import { createStickerEditSyncScheduler } from "../services/stickerEditSyncScheduler";
 
 // Define Props for callbacks that are still managed by parent or complex flows
 interface CanvasUnitsProps {
@@ -31,43 +32,14 @@ interface CanvasUnitsProps {
 }
 
 export const CanvasUnits: Component<CanvasUnitsProps> = (props) => {
-    const STICKER_RESIZE_SYNC_DEBOUNCE_MS = 140;
-    const STICKER_APPEARANCE_SYNC_DEBOUNCE_MS = 140;
-    let stickerResizeSyncTimer: number | null = null;
-    let stickerAppearanceSyncTimer: number | null = null;
-
-    const scheduleStickerResizeSync = (unitId: string) => {
-        if (stickerResizeSyncTimer !== null) {
-            window.clearTimeout(stickerResizeSyncTimer);
-        }
-
-        stickerResizeSyncTimer = window.setTimeout(() => {
-            stickerResizeSyncTimer = null;
-            graphStore.actions.propagateStickerEditsFrom(unitId);
-            void syncService.performWorkflowSync();
-        }, STICKER_RESIZE_SYNC_DEBOUNCE_MS);
-    };
-
-    const scheduleStickerAppearanceSync = () => {
-        if (stickerAppearanceSyncTimer !== null) {
-            window.clearTimeout(stickerAppearanceSyncTimer);
-        }
-
-        stickerAppearanceSyncTimer = window.setTimeout(() => {
-            stickerAppearanceSyncTimer = null;
-            void syncService.performWorkflowSync();
-        }, STICKER_APPEARANCE_SYNC_DEBOUNCE_MS);
-    };
+    const stickerEditSync = createStickerEditSyncScheduler({
+        debounceMs: 140,
+        propagateResize: (unitId) => graphStore.actions.propagateStickerEditsFrom(unitId),
+        performSync: () => syncService.performWorkflowSync(),
+    });
 
     onCleanup(() => {
-        if (stickerResizeSyncTimer !== null) {
-            window.clearTimeout(stickerResizeSyncTimer);
-            stickerResizeSyncTimer = null;
-        }
-        if (stickerAppearanceSyncTimer !== null) {
-            window.clearTimeout(stickerAppearanceSyncTimer);
-            stickerAppearanceSyncTimer = null;
-        }
+        stickerEditSync.dispose();
     });
 
     return (
@@ -125,7 +97,7 @@ export const CanvasUnits: Component<CanvasUnitsProps> = (props) => {
               // Resizing
               onResize={(nextFrame) => {
                   graphStore.actions.resizeStickerFrame(u.id, nextFrame, { propagate: false });
-                  scheduleStickerResizeSync(u.id);
+                  stickerEditSync.scheduleResize(u.id);
               }}
               onOpacityChange={(val) => {
                   if (u.data.minified) {
@@ -133,7 +105,7 @@ export const CanvasUnits: Component<CanvasUnitsProps> = (props) => {
                   } else {
                       graphStore.actions.updateUnitData(u.id, { opacityNormal: val });
                   }
-                  scheduleStickerAppearanceSync();
+                  stickerEditSync.scheduleAppearance();
               }}
 
               // Data Resolution
