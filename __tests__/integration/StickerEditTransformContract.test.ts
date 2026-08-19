@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 const readSource = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), relativePath), "utf8");
+const schedulerSource = readSource("src/services/stickerEditSyncScheduler.ts");
 
 describe("sticker edit transform contract", () => {
   it("routes every sticker frame resize through edit-layer-aware graph actions", () => {
@@ -27,12 +28,13 @@ describe("sticker edit transform contract", () => {
     const onOpacityStart = canvasUnitsSource.indexOf("onOpacityChange={(val) => {");
     const onResizeSource = canvasUnitsSource.slice(onResizeStart, onOpacityStart);
 
-    expect(canvasUnitsSource).toContain("const scheduleStickerResizeSync = (unitId: string) =>");
-    expect(canvasUnitsSource).toContain("window.setTimeout(() => {");
-    expect(canvasUnitsSource).toContain("graphStore.actions.propagateStickerEditsFrom(unitId);");
-    expect(canvasUnitsSource).toContain("void syncService.performWorkflowSync();");
+    expect(canvasUnitsSource).toContain("createStickerEditSyncScheduler");
+    expect(schedulerSource).toContain("debounceMs: number");
+    expect(schedulerSource).toContain("pendingResizeUnitIds");
+    expect(schedulerSource).toContain("propagateResize(resizeUnitId);");
+    expect(schedulerSource).toContain("void performSync();");
     expect(onResizeSource).toContain("graphStore.actions.resizeStickerFrame(u.id, nextFrame, { propagate: false });");
-    expect(onResizeSource).toContain("scheduleStickerResizeSync(u.id);");
+    expect(onResizeSource).toContain("stickerEditSync.scheduleResize(u.id);");
     expect(onResizeSource).not.toContain("syncService.updateBackendRects()");
     expect(onResizeSource).not.toContain("syncService.performWorkflowSync()");
   });
@@ -43,8 +45,8 @@ describe("sticker edit transform contract", () => {
     const dataResolutionStart = canvasUnitsSource.indexOf("// Data Resolution", onOpacityStart);
     const onOpacitySource = canvasUnitsSource.slice(onOpacityStart, dataResolutionStart);
 
-    expect(canvasUnitsSource).toContain("const scheduleStickerAppearanceSync = () =>");
-    expect(onOpacitySource).toContain("scheduleStickerAppearanceSync();");
+    expect(canvasUnitsSource).toContain("stickerEditSync.scheduleAppearance();");
+    expect(schedulerSource).toContain("scheduleAppearance()");
     expect(onOpacitySource).not.toContain("syncService.performWorkflowSync()");
   });
 

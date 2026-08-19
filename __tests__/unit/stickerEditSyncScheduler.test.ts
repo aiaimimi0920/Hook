@@ -56,6 +56,11 @@ describe("sticker edit sync scheduler", () => {
 
         expect(propagateResize).not.toHaveBeenCalled();
         expect(performSync).not.toHaveBeenCalled();
+
+        scheduler.scheduleResize("sticker-2");
+        vi.runAllTimers();
+        expect(propagateResize).not.toHaveBeenCalled();
+        expect(performSync).not.toHaveBeenCalled();
     });
 
     it("retains resize propagation for every edited sticker in one debounce window", () => {

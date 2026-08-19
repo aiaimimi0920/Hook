@@ -11,8 +11,10 @@ export const createStickerEditSyncScheduler = ({
 }: StickerEditSyncSchedulerOptions) => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const pendingResizeUnitIds = new Set<string>();
+    let disposed = false;
 
     const schedule = () => {
+        if (disposed) return;
         if (timer !== null) {
             clearTimeout(timer);
         }
@@ -36,6 +38,7 @@ export const createStickerEditSyncScheduler = ({
             schedule();
         },
         dispose() {
+            disposed = true;
             if (timer !== null) {
                 clearTimeout(timer);
                 timer = null;
