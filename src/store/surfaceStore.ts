@@ -291,7 +291,10 @@ const mountSnapshot = (unitId: string, snapshot: SurfaceSnapshot, generation = 0
     const errors = validateSurfaceNodeIds(snapshot.scene);
     if (errors.length > 0) throw new SurfaceStateError("invalid_snapshot", errors.join("; "));
     const current = byUnit[unitId];
-    if (current && snapshot.revision < current.snapshot.revision) {
+    if (
+        current?.snapshot.instanceId === snapshot.instanceId &&
+        snapshot.revision < current.snapshot.revision
+    ) {
         throw new SurfaceStateError(
             "revision_conflict",
             `Surface snapshot revision ${snapshot.revision} is stale`,

@@ -1148,7 +1148,7 @@ fn apply_hook_settings(app: &AppHandle, settings: &serde_json::Value) {
 // Background Listener Function
 fn start_listener(app: AppHandle, state: Arc<Mutex<LoomHookState>>) {
     thread::spawn(move || {
-        println!("[LoomHook] Start Listener Thread...");
+        console_line!("[LoomHook] Start Listener Thread...");
         loop {
             // Reconnection Loop
             use tungstenite::{connect, Message};
@@ -1156,11 +1156,11 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<LoomHookState>>) {
 
             match connect(ws_url.as_str()) {
                 Ok((mut socket, _)) => {
-                    println!("[LoomHook] Listener connected to Loom.");
+                    console_line!("[LoomHook] Listener connected to Loom.");
                     if let Err(error) =
                         socket.send(Message::Text(loom_hook_listener_subscription_message()))
                     {
-                        eprintln!("[LoomHook] Failed to subscribe listener: {error}");
+                        console_error_line!("[LoomHook] Failed to subscribe listener: {error}");
                         thread::sleep(Duration::from_secs(2));
                         continue;
                     }
@@ -1173,7 +1173,7 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<LoomHookState>>) {
                         .to_string()
                         .into(),
                     )) {
-                        eprintln!("[LoomHook] Failed to request settings: {error}");
+                        console_error_line!("[LoomHook] Failed to request settings: {error}");
                         thread::sleep(Duration::from_secs(2));
                         continue;
                     }
@@ -1193,10 +1193,12 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<LoomHookState>>) {
                                 if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
                                     if let Some(method) = json["method"].as_str() {
                                         if method == "loom.hook.workflow.instantiated" {
-                                            println!("[LoomHook] Received Instantiate Command!");
+                                            console_line!(
+                                                "[LoomHook] Received Instantiate Command!"
+                                            );
                                             let _ = app.emit("art/instantiate", &json["params"]);
                                         } else if method == "loom.hook.capabilities.updated" {
-                                            println!(
+                                            console_line!(
                                                 "[LoomHook] Received Arts Updated Notification!"
                                             );
                                             let _ = app
@@ -1279,13 +1281,13 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<LoomHookState>>) {
                         "art/loom_connection_state",
                         serde_json::json!({ "connected": false }),
                     );
-                    println!("[LoomHook] Listener disconnected. Retrying in 5s...");
+                    console_line!("[LoomHook] Listener disconnected. Retrying in 5s...");
                 }
                 Err(_e) => {
                     if let Ok(mut guard) = state.lock() {
                         guard.backend_connected = false;
                     }
-                    println!("[LoomHook] Connection failed to {}. Retrying...", ws_url);
+                    console_line!("[LoomHook] Connection failed to {}. Retrying...", ws_url);
                 }
             }
             thread::sleep(Duration::from_secs(1));
@@ -1355,7 +1357,7 @@ async fn poll_remote_surface_once(
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface stream: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
-    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
         .map_err(|error| format!("configure Surface stream client: {error}"))?
         .timeout(Duration::from_secs(30))
@@ -1669,6 +1671,106 @@ mod loom_hook_listener_subscription_tests {
     }
 
     #[test]
+    fn surface_event_instance_state_recovers_snapshot_and_matching_result() {
+        let instance = serde_json::json!({
+            "descriptor": {
+                "instanceId": "instance:stock",
+                "generation": 3
+            },
+            "attachments": {
+                "attachment:hook": {
+                    "descriptor": {
+                        "hookNodeId": "node:stock"
+                    },
+                    "snapshot": {
+                        "protocolVersion": "loom.surface.v1",
+                        "instanceId": "instance:stock",
+                        "attachmentId": "attachment:hook",
+                        "revision": 12,
+                        "scene": { "root": "root", "nodes": {} },
+                        "authoritativeState": { "quote": { "price": 25.2 } }
+                    }
+                }
+            },
+            "eventAcks": {
+                "event:refresh": {
+                    "requestId": "request:refresh",
+                    "status": "succeeded"
+                }
+            },
+            "latestResult": {
+                "protocolVersion": "loom.surface.v1",
+                "instanceId": "instance:stock",
+                "requestId": "request:refresh",
+                "generation": 3,
+                "resultRevision": 11,
+                "outputs": {}
+            }
+        });
+
+        let state = surface_event_instance_state(
+            &instance,
+            "instance:stock",
+            "attachment:hook",
+            "event:refresh",
+        )
+        .expect("converged Surface state");
+
+        assert_eq!(state.hook_node_id, "node:stock");
+        assert_eq!(state.generation, 3);
+        assert_eq!(state.revision, 12);
+        assert_eq!(state.action_status.as_deref(), Some("succeeded"));
+        assert_eq!(state.snapshot["authoritativeState"]["quote"]["price"], 25.2);
+        assert_eq!(
+            state
+                .result_commit
+                .as_ref()
+                .and_then(|commit| commit["resultRevision"].as_u64()),
+            Some(11)
+        );
+    }
+
+    #[test]
+    fn surface_event_instance_state_does_not_replay_an_older_result() {
+        let instance = serde_json::json!({
+            "descriptor": {
+                "instanceId": "instance:stock",
+                "generation": 0
+            },
+            "attachments": {
+                "attachment:hook": {
+                    "descriptor": { "hookNodeId": "node:stock" },
+                    "snapshot": {
+                        "instanceId": "instance:stock",
+                        "attachmentId": "attachment:hook",
+                        "revision": 4
+                    }
+                }
+            },
+            "eventAcks": {
+                "event:interval": {
+                    "requestId": "request:interval",
+                    "status": "succeeded"
+                }
+            },
+            "latestResult": {
+                "requestId": "request:previous",
+                "resultRevision": 3
+            }
+        });
+
+        let state = surface_event_instance_state(
+            &instance,
+            "instance:stock",
+            "attachment:hook",
+            "event:interval",
+        )
+        .expect("converged Surface state");
+
+        assert!(state.result_commit.is_none());
+    }
+
+    #[test]
     fn surface_attach_action_preserves_host_capabilities() {
         let action = serde_json::from_value::<LoomHookAction>(serde_json::json!({
             "action": "surface_attach",
@@ -1744,7 +1846,7 @@ pub async fn loom_hook_handshake(
     state: tauri::State<'_, LoomHook>,
     request: HandshakeRequest,
 ) -> Result<LoomHookHandshake, String> {
-    println!("Loom Hook handshake request: {:?}", request);
+    console_line!("Loom Hook handshake request: {:?}", request);
     let response =
         tauri::async_runtime::spawn_blocking(move || perform_loom_hook_handshake(request))
             .await
@@ -1858,7 +1960,7 @@ pub async fn loom_hook_dispatch_action(
             ));
         }
         LoomHookAction::SyncWorkflow { workflow_id, .. } => {
-            println!("Hook workflow action: SyncWorkflow id={}", workflow_id);
+            console_line!("Hook workflow action: SyncWorkflow id={}", workflow_id);
         }
         LoomHookAction::SurfaceEvent { event } => {
             crate::append_runtime_log_line(&format!(
@@ -2039,7 +2141,7 @@ pub async fn loom_hook_dispatch_action(
             workflow_id,
             snapshot,
         } => {
-            println!("Syncing Workflow Snapshot: {}", workflow_id);
+            console_line!("Syncing Workflow Snapshot: {}", workflow_id);
             let app_handle = app.clone();
             thread::spawn(move || {
                 send_hook_control_request(
@@ -2077,9 +2179,19 @@ pub async fn loom_hook_dispatch_action(
             hook_node_id,
             device_id: _,
             capabilities,
-        } => {
-            attach_surface_via_loom(&app, &art_id, &hook_node_id, capabilities).await?;
-        }
+        } => match attach_surface_via_loom(&app, &art_id, &hook_node_id, capabilities).await {
+            Ok(()) => crate::append_runtime_log_line(&format!(
+                "loom_hook_surface_attach_ready :: art_id={} hook_node_id={}",
+                art_id, hook_node_id
+            )),
+            Err(error) => {
+                crate::append_runtime_log_line(&format!(
+                    "loom_hook_surface_attach_failed :: art_id={} hook_node_id={} error={}",
+                    art_id, hook_node_id, error
+                ));
+                return Err(error);
+            }
+        },
         LoomHookAction::SurfaceRemount {
             instance_id,
             attachment_id,
@@ -2102,6 +2214,22 @@ async fn send_surface_event_to_loom(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| "Surface event has no instance id".to_owned())?;
+    let attachment_id = event
+        .get("attachmentId")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "Surface event has no attachment id".to_owned())?;
+    let event_id = event
+        .get("eventId")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "Surface event has no event id".to_owned())?;
+    let base_revision = event
+        .get("baseRevision")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| "Surface event has no base revision".to_owned())?;
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface event: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
@@ -2110,7 +2238,7 @@ async fn send_surface_event_to_loom(
         .timeout(Duration::from_secs(10))
         .build()
         .map_err(|error| format!("build Surface event client: {error}"))?;
-    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let response = authorization
         .apply(client.post(format!("{base}/v1/surfaces/instances/{instance_id}/events")))
         .json(&event)
@@ -2125,7 +2253,221 @@ async fn send_surface_event_to_loom(
     if !status.is_success() {
         return Err(format!("Surface event request returned {status}: {body}"));
     }
-    Ok(())
+
+    converge_surface_event_from_instance(
+        app,
+        &client,
+        &authorization,
+        base,
+        instance_id,
+        attachment_id,
+        event_id,
+        base_revision,
+    )
+    .await
+}
+
+struct SurfaceEventInstanceState {
+    hook_node_id: String,
+    snapshot: serde_json::Value,
+    generation: u64,
+    revision: u64,
+    action_status: Option<String>,
+    action_error: Option<String>,
+    result_commit: Option<serde_json::Value>,
+}
+
+fn surface_event_instance_state(
+    instance: &serde_json::Value,
+    instance_id: &str,
+    attachment_id: &str,
+    event_id: &str,
+) -> Result<SurfaceEventInstanceState, String> {
+    if instance
+        .pointer("/descriptor/instanceId")
+        .and_then(serde_json::Value::as_str)
+        != Some(instance_id)
+    {
+        return Err("Surface instance response identity does not match the event".to_owned());
+    }
+    let generation = instance
+        .pointer("/descriptor/generation")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or_default();
+    let attachment = instance
+        .get("attachments")
+        .and_then(serde_json::Value::as_object)
+        .and_then(|attachments| attachments.get(attachment_id))
+        .ok_or_else(|| "Surface instance response has no event attachment".to_owned())?;
+    let hook_node_id = attachment
+        .pointer("/descriptor/hookNodeId")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "Surface instance attachment has no Hook node id".to_owned())?
+        .to_owned();
+    let snapshot = attachment
+        .get("snapshot")
+        .cloned()
+        .ok_or_else(|| "Surface instance attachment has no snapshot".to_owned())?;
+    if snapshot
+        .get("instanceId")
+        .and_then(serde_json::Value::as_str)
+        != Some(instance_id)
+        || snapshot
+            .get("attachmentId")
+            .and_then(serde_json::Value::as_str)
+            != Some(attachment_id)
+    {
+        return Err("Surface instance snapshot identity does not match the event".to_owned());
+    }
+    let revision = snapshot
+        .get("revision")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| "Surface instance snapshot has no revision".to_owned())?;
+    let ack = instance
+        .get("eventAcks")
+        .and_then(serde_json::Value::as_object)
+        .and_then(|acks| acks.get(event_id));
+    let action_status = ack
+        .and_then(|value| value.get("status"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    let action_error = ack
+        .and_then(|value| value.pointer("/error/message"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    let request_id = ack
+        .and_then(|value| value.get("requestId"))
+        .and_then(serde_json::Value::as_str);
+    let result_commit = instance
+        .get("latestResult")
+        .filter(|commit| {
+            request_id.is_some()
+                && commit.get("requestId").and_then(serde_json::Value::as_str) == request_id
+        })
+        .cloned();
+    Ok(SurfaceEventInstanceState {
+        hook_node_id,
+        snapshot,
+        generation,
+        revision,
+        action_status,
+        action_error,
+        result_commit,
+    })
+}
+
+async fn converge_surface_event_from_instance(
+    app: &AppHandle,
+    client: &reqwest::Client,
+    authorization: &crate::device_session::DeviceSessionAuthorization,
+    base: &str,
+    instance_id: &str,
+    attachment_id: &str,
+    event_id: &str,
+    base_revision: u64,
+) -> Result<(), String> {
+    const POLL_INTERVAL: Duration = Duration::from_millis(200);
+    const CONVERGENCE_TIMEOUT: Duration = Duration::from_secs(25);
+
+    let deadline = tokio::time::Instant::now() + CONVERGENCE_TIMEOUT;
+    let mut last_error: Option<String>;
+    loop {
+        let response = authorization
+            .apply(client.get(format!("{base}/v1/surfaces/instances/{instance_id}")))
+            .send()
+            .await;
+        match response {
+            Ok(response) => {
+                let status = response.status();
+                let body = response
+                    .text()
+                    .await
+                    .map_err(|error| format!("read Surface convergence response: {error}"))?;
+                if status.is_success() {
+                    match serde_json::from_str::<serde_json::Value>(&body)
+                        .map_err(|error| format!("parse Surface convergence response: {error}"))
+                        .and_then(|instance| {
+                            surface_event_instance_state(
+                                &instance,
+                                instance_id,
+                                attachment_id,
+                                event_id,
+                            )
+                        }) {
+                        Ok(state) => {
+                            if matches!(
+                                state.action_status.as_deref(),
+                                Some("failed" | "cancelled" | "interrupted")
+                            ) {
+                                return Err(state.action_error.unwrap_or_else(|| {
+                                    format!(
+                                        "Surface action ended with status {}",
+                                        state.action_status.as_deref().unwrap_or("failed")
+                                    )
+                                }));
+                            }
+                            if state.revision > base_revision
+                                || state.action_status.as_deref() == Some("succeeded")
+                            {
+                                app.emit(
+                                    "surface/snapshot",
+                                    serde_json::json!({
+                                        "hookNodeId": state.hook_node_id,
+                                        "snapshot": state.snapshot,
+                                        "generation": state.generation,
+                                    }),
+                                )
+                                .map_err(|error| {
+                                    format!("emit converged Surface snapshot: {error}")
+                                })?;
+                                if let Some(commit) = state.result_commit {
+                                    app.emit(
+                                        "surface/result",
+                                        serde_json::json!({
+                                            "hookNodeId": state.hook_node_id,
+                                            "commit": commit,
+                                        }),
+                                    )
+                                    .map_err(|error| {
+                                        format!("emit converged Surface result: {error}")
+                                    })?;
+                                }
+                                crate::append_runtime_log_line(&format!(
+                                    "loom_hook_surface_event_converged :: instance_id={} event_id={} revision={}",
+                                    instance_id, event_id, state.revision
+                                ));
+                                return Ok(());
+                            }
+                            last_error = None;
+                        }
+                        Err(error) => last_error = Some(error),
+                    }
+                } else {
+                    if status.as_u16() == 401 {
+                        crate::device_session::invalidate_surface_sessions(base);
+                    }
+                    last_error = Some(format!(
+                        "Surface convergence request returned {status}: {body}"
+                    ));
+                }
+            }
+            Err(error) => last_error = Some(format!("Surface convergence request failed: {error}")),
+        }
+
+        if tokio::time::Instant::now() >= deadline {
+            return Err(format!(
+                "Surface action did not publish an updated snapshot within {} seconds{}",
+                CONVERGENCE_TIMEOUT.as_secs(),
+                last_error
+                    .as_deref()
+                    .map(|error| format!(": {error}"))
+                    .unwrap_or_default()
+            ));
+        }
+        tokio::time::sleep(POLL_INTERVAL).await;
+    }
 }
 
 async fn attach_surface_via_loom(
@@ -2142,7 +2484,7 @@ async fn attach_surface_via_loom(
         .timeout(Duration::from_secs(10))
         .build()
         .map_err(|error| format!("build Surface HTTP client: {error}"))?;
-    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let send_json = |request: reqwest::RequestBuilder| async {
         let response = request
             .send()
@@ -2241,7 +2583,7 @@ async fn remount_surface_via_loom(
         .timeout(Duration::from_secs(10))
         .build()
         .map_err(|error| format!("build Surface remount client: {error}"))?;
-    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let mut mount_url = reqwest::Url::parse(base)
         .map_err(|error| format!("parse Surface remount base URL: {error}"))?;
     mount_url
@@ -2305,7 +2647,7 @@ async fn send_surface_lifecycle_to_loom(
         .timeout(Duration::from_secs(10))
         .build()
         .map_err(|error| format!("build Surface lifecycle client: {error}"))?;
-    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let request = authorization
         .apply(client.post(format!(
             "{base}/v1/surfaces/instances/{instance_id}/lifecycle"
@@ -2340,7 +2682,7 @@ async fn send_surface_confirmation_to_loom(
         .timeout(Duration::from_secs(10))
         .build()
         .map_err(|error| format!("build Surface confirmation client: {error}"))?;
-    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let request = authorization
         .apply(client.post(format!("{base}/v1/surfaces/confirmations/decision")))
         .json(&decision);
@@ -2373,7 +2715,7 @@ async fn send_surface_cancel_to_loom(
         .timeout(Duration::from_secs(10))
         .build()
         .map_err(|error| format!("build Surface cancellation client: {error}"))?;
-    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     request_body["deviceId"] = serde_json::Value::String(authorization.device_id.clone());
     let request = authorization
         .apply(client.post(format!("{base}/v1/surfaces/actions/cancel")))
@@ -2556,7 +2898,7 @@ async fn fetch_surface_resource_from_loom(
         .timeout(Duration::from_secs(20))
         .build()
         .map_err(|error| format!("build Surface resource client: {error}"))?;
-    let authorization = crate::device_session::authorize_surface_request(app, base).await?;
+    let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let request = authorization
         .apply(client.get(format!("{base}{path}")))
         .header("X-Loom-Surface-Lease", lease_id);
@@ -2730,7 +3072,7 @@ fn prepare_hook_input(
                 });
             }
             Err(error) => {
-                println!(
+                console_line!(
                     "[LOOM_HOOK] Shared-memory Art input allocation failed; falling back to Base64: {error}"
                 );
             }
@@ -2858,18 +3200,20 @@ fn materialize_shader_image_input(value: Option<&String>, label: &str) -> Option
                         return Some(path.to_string_lossy().to_string());
                     }
                     Err(error) => {
-                        println!(
+                        console_line!(
                             "[LoomHook] Failed to write materialized shader {} image: {}",
-                            label, error
+                            label,
+                            error
                         );
                         return None;
                     }
                 }
             }
             Err(error) => {
-                println!(
+                console_line!(
                     "[LoomHook] Failed to decode shader {} data URI: {}",
-                    label, error
+                    label,
+                    error
                 );
                 return None;
             }
@@ -3003,13 +3347,13 @@ fn prefetch_shader_blocking(
     input_path: Option<String>,
     reference_path: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    println!("[LoomHook] Prefetching shader for Art: {}", art_id);
+    console_line!("[LoomHook] Prefetching shader for Art: {}", art_id);
 
     let resolved_input_path = materialize_shader_image_input(input_path.as_ref(), "input");
     let resolved_reference_path =
         materialize_shader_image_input(reference_path.as_ref(), "reference");
 
-    println!(
+    console_line!(
         "[LoomHook] Resolved paths: input={}, reference={}",
         resolved_input_path.as_deref().unwrap_or("<none>"),
         resolved_reference_path.as_deref().unwrap_or("<none>")
@@ -3020,7 +3364,7 @@ fn prefetch_shader_blocking(
         resolved_input_path.as_deref(),
         resolved_reference_path.as_deref(),
     )?;
-    println!("[LoomHook] Loom shader prefetch succeeded.");
+    console_line!("[LoomHook] Loom shader prefetch succeeded.");
     Ok(result)
 }
 

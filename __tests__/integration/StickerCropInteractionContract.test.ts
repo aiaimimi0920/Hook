@@ -28,7 +28,8 @@ describe("Hook sticker crop interaction contract", () => {
     it("keeps the floating toolbar visible while crop mode is active so crop controls do not disappear", () => {
         expect(unitViewSource).toContain("<StickerTopStrip");
         expect(unitViewSource).not.toContain("<StickerEditToolbar");
-        expect(unitViewSource).toContain('props.unit.type === "sticker" && props.isSelected && activeStickerEditTargetId() === props.unit.id');
+        expect(unitViewSource).toContain("props.isSelected && activeStickerEditTargetId() === props.unit.id");
+        expect(unitViewSource).toContain('supportsBitmapTools={props.unit.type === "sticker"}');
         expect(annotationLayerSource).toContain('if (shape.mode === "crop")');
         expect(cropCommitSource).not.toContain('uiActions.setStickerEditMode("select");');
         expect(cropCommitSource).not.toContain("setStickerEditMode");

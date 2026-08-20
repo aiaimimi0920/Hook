@@ -256,6 +256,22 @@ describe("overlaySyntheticEvents", () => {
         expect(h.typesFor("A")).not.toContain("click");
     });
 
+    it("delivers a direct Surface control click when native down/up jitter exceeds 4px", () => {
+        const button = document.createElement("button");
+        button.dataset.overlaySyntheticTarget = "direct";
+        h.sticker.append(button);
+        let clicks = 0;
+        button.addEventListener("click", () => {
+            clicks += 1;
+        });
+        h.setHit(() => button);
+
+        h.d.dispatch("mousedown", { x: 10, y: 10 });
+        h.d.dispatch("mouseup", { x: 16, y: 11 });
+
+        expect(clicks).toBe(1);
+    });
+
     it("6. shift+mousedown on a sticker interaction root bypasses pointer capture", () => {
         // Bypass case: after shift-mousedown on the sticker root, a later plain
         // mousemove should be treated as a fresh hover (capture NOT held), so it
@@ -308,6 +324,216 @@ describe("overlaySyntheticEvents", () => {
         h.input.blur();
         h.d.dispatch("mouseup", { x: 10, y: 10 });
         expect(document.activeElement).toBe(h.input);
+    });
+
+    it("keeps Surface controls as direct targets instead of promoting them to sticker drag roots", () => {
+        const surface = document.createElement("div");
+        surface.dataset.overlaySyntheticTarget = "direct";
+        h.sticker.append(surface);
+        surface.append(h.input);
+        h.setHit(() => h.input);
+
+        h.d.dispatch("mousedown", { x: 10, y: 10 });
+        h.d.dispatch("mouseup", { x: 10, y: 10 });
+
+        expect(document.activeElement).toBe(h.input);
+        expect(h.typesFor("I")).toEqual(expect.arrayContaining(["mousedown", "mouseup", "click"]));
+        expect(h.typesFor("S")).toEqual(expect.arrayContaining(["mousedown", "mouseup", "click"]));
+    });
+
+    it("relays native-shield pointer samples to a JavaScript Surface iframe", () => {
+        const iframe = document.createElement("iframe");
+        iframe.dataset.javascriptSurfaceFrame = "true";
+        iframe.dataset.overlaySyntheticTarget = "direct";
+        h.sticker.append(iframe);
+        const received: Array<{ type: string; x?: number; y?: number; gestureId?: number }> = [];
+        let parentMouseEvents = 0;
+        iframe.addEventListener("hook:javascript-surface-pointer", (event) => {
+            received.push((event as CustomEvent).detail);
+        });
+        for (const eventType of ["mousedown", "mousemove", "mouseup", "click"]) {
+            iframe.addEventListener(eventType, () => {
+                parentMouseEvents += 1;
+            });
+        }
+        h.setHit(() => iframe);
+
+        h.d.dispatch("mousedown", { x: 12, y: 18 });
+        h.d.relayPointerMove({
+            clientX: 24,
+            clientY: 30,
+            screenX: 24,
+            screenY: 30,
+            ctrlKey: false,
+            altKey: false,
+            shiftKey: false,
+            metaKey: false,
+            buttons: 1,
+            target: h.b,
+        } as unknown as MouseEvent);
+        h.d.dispatch("mouseup", { x: 24, y: 30 });
+
+        expect(received).toEqual([
+            expect.objectContaining({ type: "mousedown", x: 12, y: 18 }),
+            expect.objectContaining({ type: "mousemove", x: 24, y: 30 }),
+            expect.objectContaining({ type: "mouseup", x: 24, y: 30 }),
+        ]);
+        expect(received[0].gestureId).toBeGreaterThan(0);
+        expect(received.map((event) => event.gestureId)).toEqual([
+            received[0].gestureId,
+            received[0].gestureId,
+            received[0].gestureId,
+        ]);
+        expect(parentMouseEvents).toBe(0);
+    });
+
+    it("relays native-shield pointer samples when hit-testing returns the Surface host", () => {
+        const host = document.createElement("div");
+        host.className = "javascript-surface-host";
+        host.dataset.overlaySyntheticTarget = "direct";
+        const iframe = document.createElement("iframe");
+        iframe.dataset.javascriptSurfaceFrame = "true";
+        host.append(iframe);
+        h.sticker.append(host);
+        const received: Array<{ type: string; x?: number; y?: number }> = [];
+        iframe.addEventListener("hook:javascript-surface-pointer", (event) => {
+            received.push((event as CustomEvent).detail);
+        });
+        h.setHit(() => host);
+
+        h.d.dispatch("mousedown", { x: 12, y: 18 });
+        h.d.dispatch("mouseup", { x: 12, y: 18 });
+
+        expect(received).toEqual([
+            expect.objectContaining({ type: "mousedown", x: 12, y: 18 }),
+            expect.objectContaining({ type: "mouseup", x: 12, y: 18 }),
+        ]);
+    });
+
+    it("uses the ordinary parent double-click path when a minified JavaScript Surface is non-interactive", () => {
+        const host = document.createElement("div");
+        host.className = "javascript-surface-host";
+        host.dataset.overlaySyntheticTarget = "direct";
+        const iframe = document.createElement("iframe");
+        iframe.dataset.javascriptSurfaceFrame = "true";
+        iframe.dataset.javascriptSurfaceInteractive = "false";
+        host.append(iframe);
+        h.sticker.append(host);
+        let relayedPointerEvents = 0;
+        iframe.addEventListener("hook:javascript-surface-pointer", () => {
+            relayedPointerEvents += 1;
+        });
+        h.setHit(() => host);
+
+        h.setClock(1_000);
+        h.d.dispatch("mousedown", { x: 12, y: 18 });
+        h.d.dispatch("mouseup", { x: 12, y: 18 });
+        h.setClock(1_200);
+        h.d.dispatch("mousedown", { x: 12, y: 18 });
+        h.d.dispatch("mouseup", { x: 12, y: 18 });
+
+        expect(relayedPointerEvents).toBe(0);
+        expect(h.typesFor("S")).toContain("dblclick");
+    });
+
+    it("lets blank Art overlay hits reach the live Surface while preserving annotation hits", () => {
+        const visual = document.createElement("div");
+        visual.className = "sticker-visual";
+        const presentation = document.createElement("div");
+        presentation.className = "art-surface-presentation";
+        const frame = document.createElement("iframe");
+        frame.dataset.javascriptSurfaceFrame = "true";
+        frame.style.pointerEvents = "auto";
+        Object.defineProperty(frame, "getBoundingClientRect", {
+            configurable: true,
+            value: () => ({
+                left: 0,
+                top: 0,
+                right: 200,
+                bottom: 200,
+                width: 200,
+                height: 200,
+            } as DOMRect),
+        });
+        presentation.append(frame);
+
+        const annotationViewport = document.createElement("div");
+        const annotationRoot = document.createElement("div");
+        annotationRoot.dataset.stickerInteractionRoot = "true";
+        annotationRoot.dataset.stickerSurfacePassThrough = "true";
+        let annotationMouseDowns = 0;
+        annotationRoot.addEventListener("mousedown", () => {
+            annotationMouseDowns += 1;
+        });
+        annotationViewport.append(annotationRoot);
+        visual.append(presentation, annotationViewport);
+        document.body.append(visual);
+
+        const received: string[] = [];
+        frame.addEventListener("hook:javascript-surface-pointer", (event) => {
+            received.push((event as CustomEvent).detail.type);
+        });
+        h.setHit(() => annotationRoot);
+        h.d.dispatch("mousedown", { x: 50, y: 60 });
+        h.d.dispatch("mouseup", { x: 50, y: 60 });
+
+        expect(received).toEqual(["mousedown", "mouseup"]);
+        expect(annotationMouseDowns).toBe(0);
+
+        const annotation = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        annotation.dataset.stickerAnnotationId = "annotation-1";
+        annotationRoot.append(annotation);
+        received.length = 0;
+        h.setHit(() => annotation);
+        h.d.dispatch("mousedown", { x: 50, y: 60 });
+        h.d.dispatch("mouseup", { x: 50, y: 60 });
+
+        expect(received).toEqual([]);
+        expect(annotationMouseDowns).toBe(1);
+
+        annotationRoot.dataset.stickerSurfacePassThrough = "false";
+        received.length = 0;
+        h.setHit(() => annotationRoot);
+        h.d.dispatch("mousedown", { x: 50, y: 60 });
+        h.d.dispatch("mouseup", { x: 50, y: 60 });
+        expect(received).toEqual([]);
+        expect(annotationMouseDowns).toBe(2);
+    });
+
+    it("resolves a declarative Surface control behind the Art annotation overlay", () => {
+        const visual = document.createElement("div");
+        visual.className = "sticker-visual";
+        const presentation = document.createElement("div");
+        presentation.className = "art-surface-presentation";
+        Object.defineProperty(presentation, "getBoundingClientRect", {
+            configurable: true,
+            value: () => ({ left: 0, top: 0, right: 240, bottom: 240, width: 240, height: 240 } as DOMRect),
+        });
+        const declarative = document.createElement("div");
+        declarative.className = "declarative-surface";
+        const button = document.createElement("button");
+        button.dataset.surfaceNodeId = "refresh";
+        Object.defineProperty(button, "getBoundingClientRect", {
+            configurable: true,
+            value: () => ({ left: 20, top: 20, right: 120, bottom: 60, width: 100, height: 40 } as DOMRect),
+        });
+        declarative.append(button);
+        presentation.append(declarative);
+        const annotationRoot = document.createElement("div");
+        annotationRoot.dataset.stickerInteractionRoot = "true";
+        annotationRoot.dataset.stickerSurfacePassThrough = "true";
+        visual.append(presentation, annotationRoot);
+        document.body.append(visual);
+
+        let clicks = 0;
+        button.addEventListener("click", () => {
+            clicks += 1;
+        });
+        h.setHit(() => annotationRoot);
+        h.d.dispatch("mousedown", { x: 40, y: 40 });
+        h.d.dispatch("mouseup", { x: 40, y: 40 });
+
+        expect(clicks).toBe(1);
     });
 
     it("10. sets the correct button/buttons bitmask per event kind", () => {

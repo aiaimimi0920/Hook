@@ -59,4 +59,24 @@ describe("sticker double-click target guard", () => {
         expect(isStickerSurfaceDoubleClickTarget({} as EventTarget, container)).toBe(false);
         expect(isStickerSurfaceDoubleClickTarget(null, container)).toBe(false);
     });
+
+    it("resolves an iframe target from a bubbling JavaScript Surface double-click", () => {
+        const container = document.createElement("div");
+        const stickerVisual = document.createElement("div");
+        const iframe = document.createElement("iframe");
+        stickerVisual.className = "sticker-visual";
+        stickerVisual.append(iframe);
+        container.append(stickerVisual);
+
+        let resolvedTarget: HTMLElement | null = null;
+        container.addEventListener("dblclick", (event) => {
+            expect(event.target).toBe(iframe);
+            expect(event.currentTarget).toBe(container);
+            resolvedTarget = resolveStickerSurfaceDoubleClickTarget(event.target, event.currentTarget);
+        });
+
+        iframe.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+
+        expect(resolvedTarget).toBe(stickerVisual);
+    });
 });

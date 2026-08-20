@@ -24,6 +24,7 @@ interface Props {
     snapshot: SurfaceSnapshot;
     generation: number;
     interactive?: boolean;
+    onActivate?: () => void | Promise<void>;
     resolveResource?: (resourceId: string) => string | undefined;
     onEvent: (event: SurfaceEvent) => void;
 }
@@ -409,8 +410,24 @@ export const DeclarativeSurface: Component<Props> = (props) => (
         data-surface-attachment-id={props.snapshot.attachmentId}
         data-surface-revision={props.snapshot.revision}
         data-surface-unit-id={props.unitId}
-        onPointerDown={(event) => event.stopPropagation()}
-        onDblClick={(event) => event.stopPropagation()}
+        data-overlay-synthetic-target="direct"
+        onPointerDown={(event) => {
+            if (props.interactive === false) return;
+            event.stopPropagation();
+            const editable = event.target instanceof Element
+                ? event.target.closest<HTMLElement>("input, textarea, select, [contenteditable='true']")
+                : null;
+            void Promise.resolve(props.onActivate?.()).finally(() => {
+                if (!editable?.isConnected) return;
+                requestAnimationFrame(() => editable.focus());
+            });
+        }}
+        onMouseDown={(event) => {
+            if (props.interactive !== false) event.stopPropagation();
+        }}
+        onDblClick={(event) => {
+            if (props.interactive !== false) event.stopPropagation();
+        }}
     >
         <SurfaceNodeView {...props} node={props.snapshot.scene} />
     </div>

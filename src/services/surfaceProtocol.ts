@@ -36,6 +36,12 @@ export interface SurfaceSize {
     height: number;
 }
 
+export interface SurfaceViewDefinition {
+    id: string;
+    label: string;
+    fullSize: SurfaceSize;
+}
+
 export interface SurfaceVariant {
     runtime: SurfaceRuntimeKind;
     entry: string;
@@ -60,6 +66,8 @@ export interface SurfacePackageManifest {
     stateSchemaVersion?: number;
     migrations?: SurfaceStateMigration[];
     minimumSize?: SurfaceSize;
+    views?: SurfaceViewDefinition[];
+    defaultViewId?: string;
     themeMode?: SurfaceThemeMode;
 }
 
@@ -193,6 +201,7 @@ export interface SurfaceSnapshot {
     revision: number;
     runtime?: SurfaceRuntimeKind;
     entryResourceId?: string;
+    viewId?: string;
     scene: SurfaceNode;
     authoritativeState?: unknown;
     resources?: SurfaceResourceDescriptor[];

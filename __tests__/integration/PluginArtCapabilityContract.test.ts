@@ -13,6 +13,7 @@ describe("plugin Art capability boundary", () => {
       "custom-1770131241684",
       "custom-image-blend-script",
       "custom-image-blend-compress-workflow",
+      "custom-stock-monitor",
     ];
     const productionFiles = [
       "src/app.tsx",

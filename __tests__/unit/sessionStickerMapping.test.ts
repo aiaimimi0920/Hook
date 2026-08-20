@@ -44,6 +44,7 @@ describe("mapSessionStickerToUnit", () => {
             h: 80,
             src: "data:img",
             previewSrc: "data:preview",
+            surfaceViewId: "trade-price",
             minified: true,
             savedRect: { x: 1, y: 2, w: 3, h: 4 },
             cropOffset: { x: 5, y: 6 },
@@ -86,6 +87,7 @@ describe("mapSessionStickerToUnit", () => {
         expect(unit.data.opacityNormal).toBe(0.5);
         expect(unit.data.opacityMini).toBe(0.3);
         expect(unit.data.previewSrc).toBe("data:preview");
+        expect(unit.data.surfaceViewId).toBe("trade-price");
         expect(unit.data.filePath).toBe("/tmp/a.png");
         expect(unit.data.rasterizedAnnotationLayerSrc).toBe("data:anno");
         expect(unit.data.outputs).toEqual({ out: 1 });

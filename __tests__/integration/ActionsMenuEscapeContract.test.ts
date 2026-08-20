@@ -46,13 +46,52 @@ describe("Hook Escape delete contract", () => {
 
     expect(deleteStart).toBeGreaterThan(-1);
     expect(deleteEnd).toBeGreaterThan(deleteStart);
-    expect(deleteBlock).toContain("removeAnnotationById");
+    expect(deleteBlock).toContain("removeAnnotationsByIds");
     expect(deleteBlock).toContain("graphStore.actions.removeUnit(id)");
     expect(deleteBlock).toContain("uiActions.clearStickerHistory(id)");
     expect(deleteBlock).toContain("selectionActions.clear()");
     expect(deleteBlock).toContain("uiActions.hideStickerToolbar()");
     expect(deleteBlock).toContain("syncService.updateBackendRects()");
     expect(appSource).toContain("hasActiveStickerEditTarget:");
+  });
+
+  it("gives focused editors and blocking dialogs priority over node deletion", () => {
+    const shortcutsSource = readSource("src/hooks/useShortcuts.ts");
+    const appSource = readSource("src/app.tsx");
+
+    expect(shortcutsSource).toContain("handleDeferredEditableEscape");
+    expect(shortcutsSource).toContain("e.defaultPrevented");
+    expect(shortcutsSource).toContain('options.contextProvider() === "modal"');
+    expect(shortcutsSource.indexOf('options.contextProvider() === "modal"')).toBeLessThan(
+      shortcutsSource.indexOf("handlers.onCloseActions()"),
+    );
+    expect(appSource).toContain("hasBlockingDialog:");
+    expect(appSource).toContain("hasSelectedAnnotation:");
+    expect(appSource).toContain("hasActiveEditableShortcutTarget()");
+    expect(appSource).toContain("hasFocusedDomShortcutOwner()");
+
+    const nativeEscapeStart = appSource.indexOf('listen("trigger-escape"');
+    const nativeEscapeEnd = appSource.indexOf('listen("trigger-delete"', nativeEscapeStart);
+    const nativeEscapeBlock = appSource.slice(nativeEscapeStart, nativeEscapeEnd);
+    expect(nativeEscapeBlock.indexOf("surfaceConfirmations().length > 0")).toBeLessThan(
+      nativeEscapeBlock.indexOf("deleteSelectedUnitOrAnnotation()"),
+    );
+    expect(nativeEscapeBlock).toContain("decideCurrentSurfaceConfirmation(false)");
+    expect(nativeEscapeBlock).toContain("hasActiveEditableShortcutTarget()");
+    expect(nativeEscapeBlock).toContain("hasFocusedDomShortcutOwner()");
+    expect(nativeEscapeBlock.indexOf("hasFocusedDomShortcutOwner()")).toBeLessThan(
+      nativeEscapeBlock.indexOf("closeSelectedActionsMenu()"),
+    );
+
+    const nativeDeleteStart = nativeEscapeEnd;
+    const nativeDeleteEnd = appSource.indexOf("// Create a minimal MouseEvent-compatible", nativeDeleteStart);
+    const nativeDeleteBlock = appSource.slice(nativeDeleteStart, nativeDeleteEnd);
+    expect(nativeDeleteBlock).toContain("surfaceConfirmations().length > 0");
+    expect(nativeDeleteBlock).toContain("hasActiveEditableShortcutTarget()");
+    expect(nativeDeleteBlock).toContain("hasFocusedDomShortcutOwner()");
+    expect(nativeDeleteBlock.indexOf("hasFocusedDomShortcutOwner()")).toBeLessThan(
+      nativeDeleteBlock.indexOf("deleteSelectedUnitOrAnnotation()"),
+    );
   });
 
   it("emits global Escape from the backend so the same selected-unit delete behavior works when the overlay is not focused", () => {

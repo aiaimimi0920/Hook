@@ -142,6 +142,70 @@ describe("DeclarativeSurface", () => {
         dispose();
     });
 
+    it("lets a non-interactive compact Surface double-click bubble to the Art node restore handler", () => {
+        const host = document.createElement("div");
+        document.body.append(host);
+        let doubleClicks = 0;
+        const dispose = render(
+            () => (
+                <div onDblClick={() => {
+                    doubleClicks += 1;
+                }}>
+                    <DeclarativeSurface
+                        unitId="unit:stock"
+                        snapshot={snapshot}
+                        generation={4}
+                        interactive={false}
+                        onEvent={() => undefined}
+                    />
+                </div>
+            ),
+            host,
+        );
+
+        host.querySelector(".declarative-surface")?.dispatchEvent(
+            new MouseEvent("dblclick", { bubbles: true }),
+        );
+
+        expect(doubleClicks).toBe(1);
+        dispose();
+    });
+
+    it.each([
+        { interactive: false, expectedHostMouseDowns: 1, label: "compact" },
+        { interactive: true, expectedHostMouseDowns: 0, label: "full" },
+    ])("keeps $label declarative Surface pointer ownership aligned with sticker dragging", ({
+        interactive,
+        expectedHostMouseDowns,
+    }) => {
+        const host = document.createElement("div");
+        document.body.append(host);
+        let hostMouseDowns = 0;
+        const dispose = render(
+            () => (
+                <div onMouseDown={() => {
+                    hostMouseDowns += 1;
+                }}>
+                    <DeclarativeSurface
+                        unitId="unit:stock"
+                        snapshot={snapshot}
+                        generation={4}
+                        interactive={interactive}
+                        onEvent={() => undefined}
+                    />
+                </div>
+            ),
+            host,
+        );
+
+        host.querySelector(".declarative-surface")?.dispatchEvent(
+            new MouseEvent("mousedown", { bubbles: true, button: 0 }),
+        );
+
+        expect(hostMouseDowns).toBe(expectedHostMouseDowns);
+        dispose();
+    });
+
     it("rejects malicious and unbounded declarative style values", () => {
         expect(safeSurfaceCssLength("8192px")).toBe("8192px");
         expect(safeSurfaceCssLength("8193px")).toBeUndefined();

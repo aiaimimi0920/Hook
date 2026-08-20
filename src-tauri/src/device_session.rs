@@ -41,14 +41,25 @@ struct CachedDeviceSession {
 #[derive(Clone, Debug)]
 pub(crate) struct DeviceSessionAuthorization {
     pub(crate) device_id: String,
-    token: String,
+    credential: SurfaceRequestCredential,
+}
+
+#[derive(Clone, Debug)]
+enum SurfaceRequestCredential {
+    None,
+    Bearer(String),
+    Device(String),
 }
 
 impl DeviceSessionAuthorization {
     pub(crate) fn apply(&self, request: RequestBuilder) -> RequestBuilder {
-        request
-            .header("Authorization", format!("Device {}", self.token))
-            .header("X-Loom-Device-Nonce", random_url_safe(24))
+        match &self.credential {
+            SurfaceRequestCredential::None => request,
+            SurfaceRequestCredential::Bearer(token) => request.bearer_auth(token),
+            SurfaceRequestCredential::Device(token) => request
+                .header("Authorization", format!("Device {token}"))
+                .header("X-Loom-Device-Nonce", random_url_safe(24)),
+        }
     }
 }
 
@@ -86,8 +97,13 @@ struct DeviceSessionResponse {
 
 pub(crate) async fn authorize_surface_request(
     app: &AppHandle,
-    base_url: &str,
+    manifest: &crate::loom_connector::LoomManifest,
 ) -> Result<DeviceSessionAuthorization, String> {
+    if let Some(authorization) = loopback_surface_authorization(manifest)? {
+        return Ok(authorization);
+    }
+
+    let base_url = manifest.transport.base_url.as_str();
     validate_secure_loom_base_url(base_url)?;
     let mut identity = load_or_create_device_identity(app)?;
     if identity.device_id.is_none() {
@@ -110,14 +126,14 @@ pub(crate) async fn authorize_surface_request(
     {
         return Ok(DeviceSessionAuthorization {
             device_id: cached.device_id,
-            token: cached.token,
+            credential: SurfaceRequestCredential::Device(cached.token),
         });
     }
 
     let session = wait_for_approved_device_session(base_url, &identity).await?;
     let authorization = DeviceSessionAuthorization {
         device_id: session.device_id.clone(),
-        token: session.token.clone(),
+        credential: SurfaceRequestCredential::Device(session.token.clone()),
     };
     device_session_cache()
         .lock()
@@ -131,6 +147,37 @@ pub(crate) async fn authorize_surface_request(
             },
         );
     Ok(authorization)
+}
+
+fn loopback_surface_authorization(
+    manifest: &crate::loom_connector::LoomManifest,
+) -> Result<Option<DeviceSessionAuthorization>, String> {
+    if !crate::loom_connector::is_loopback_base_url(&manifest.transport.base_url) {
+        return Ok(None);
+    }
+
+    let auth_mode = manifest.transport.auth.as_deref().unwrap_or("none");
+    let credential = if auth_mode.eq_ignore_ascii_case("none") {
+        SurfaceRequestCredential::None
+    } else if auth_mode.eq_ignore_ascii_case("bearer") {
+        let token = manifest
+            .transport
+            .auth_token
+            .as_deref()
+            .map(str::trim)
+            .filter(|token| !token.is_empty())
+            .ok_or_else(|| "Loom manifest requires bearer auth but has no auth token".to_owned())?;
+        SurfaceRequestCredential::Bearer(token.to_owned())
+    } else {
+        return Err(format!(
+            "unsupported Loom Surface auth mode `{auth_mode}` for loopback transport"
+        ));
+    };
+
+    Ok(Some(DeviceSessionAuthorization {
+        device_id: "device-000-local".to_owned(),
+        credential,
+    }))
 }
 
 fn validate_secure_loom_base_url(base_url: &str) -> Result<(), String> {
@@ -441,6 +488,28 @@ fn unix_time_millis() -> u64 {
 mod tests {
     use super::*;
 
+    fn loom_manifest(
+        base_url: &str,
+        auth: Option<&str>,
+        auth_token: Option<&str>,
+    ) -> crate::loom_connector::LoomManifest {
+        crate::loom_connector::LoomManifest {
+            schema_version: 1,
+            app_id: "loom".to_owned(),
+            display_name: "Loom".to_owned(),
+            version: "0.1.0".to_owned(),
+            pid: Some(1),
+            transport: crate::loom_connector::LoomManifestTransport {
+                transport_type: "http".to_owned(),
+                base_url: base_url.to_owned(),
+                auth: auth.map(str::to_owned),
+                auth_token: auth_token.map(str::to_owned),
+            },
+            capabilities: vec!["brain.plan".to_owned()],
+            started_at: Some(serde_json::json!(1)),
+        }
+    }
+
     #[test]
     fn identity_round_trip_preserves_one_ed25519_key_pair() {
         let root = std::env::temp_dir().join(format!(
@@ -468,6 +537,59 @@ mod tests {
         assert!(validate_secure_loom_base_url("http://192.168.1.20:8765").is_err());
         validate_secure_loom_base_url("https://loom.example.test").expect("remote HTTPS");
         validate_secure_loom_base_url("http://127.0.0.1:8765").expect("loopback HTTP");
+    }
+
+    #[test]
+    fn loopback_surface_auth_uses_manifest_none_without_device_pairing() {
+        let authorization = loopback_surface_authorization(&loom_manifest(
+            "http://127.0.0.1:8765",
+            Some("none"),
+            None,
+        ))
+        .expect("valid loopback auth")
+        .expect("loopback authorization");
+        assert_eq!(authorization.device_id, "device-000-local");
+        assert!(matches!(
+            authorization.credential,
+            SurfaceRequestCredential::None
+        ));
+    }
+
+    #[test]
+    fn loopback_surface_auth_uses_manifest_bearer_token() {
+        let authorization = loopback_surface_authorization(&loom_manifest(
+            "http://localhost:8765",
+            Some("bearer"),
+            Some("test-token"),
+        ))
+        .expect("valid loopback auth")
+        .expect("loopback authorization");
+        assert_eq!(authorization.device_id, "device-000-local");
+        assert!(matches!(
+            authorization.credential,
+            SurfaceRequestCredential::Bearer(token) if token == "test-token"
+        ));
+    }
+
+    #[test]
+    fn remote_surface_auth_still_requires_device_session_pairing() {
+        assert!(loopback_surface_authorization(&loom_manifest(
+            "https://loom.example.test",
+            None,
+            None,
+        ))
+        .expect("remote auth routing")
+        .is_none());
+    }
+
+    #[test]
+    fn loopback_bearer_surface_auth_rejects_missing_token() {
+        assert!(loopback_surface_authorization(&loom_manifest(
+            "http://127.0.0.1:8765",
+            Some("bearer"),
+            None,
+        ))
+        .is_err());
     }
 
     #[test]

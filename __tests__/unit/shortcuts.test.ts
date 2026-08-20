@@ -58,15 +58,111 @@ describe("ShortcutManager Hook shortcuts", () => {
         expect(unitMenuCalls).toBe(0);
     });
 
-    it("ignores Tab inside editable inputs so the parameter panel does not steal focus", () => {
+    it("defers every shortcut inside editable controls so their local handlers get priority", () => {
         const input = document.createElement("input");
         const textarea = document.createElement("textarea");
+        const select = document.createElement("select");
         const shell = document.createElement("div");
         shell.contentEditable = "true";
+        const editableChild = document.createElement("span");
+        shell.append(editableChild);
 
         expect(shouldIgnoreGlobalShortcut(input, "Tab")).toBe(true);
         expect(shouldIgnoreGlobalShortcut(textarea, "a")).toBe(true);
-        expect(shouldIgnoreGlobalShortcut(shell, "Escape")).toBe(false);
+        expect(shouldIgnoreGlobalShortcut(select, "Delete")).toBe(true);
+        expect(shouldIgnoreGlobalShortcut(editableChild, "Escape")).toBe(true);
+    });
+
+    it("lets a focused editor consume Escape before selected-unit deletion", () => {
+        const host = document.createElement("div");
+        const input = document.createElement("input");
+        document.body.append(host);
+        let localEscapeCalls = 0;
+        let deleteCalls = 0;
+        input.addEventListener("keydown", (event) => {
+            if (event.key !== "Escape") return;
+            localEscapeCalls += 1;
+            event.preventDefault();
+        });
+        const dispose = render(() => {
+            useShortcuts({
+                contextProvider: () => "unit-selected",
+                handlers: {
+                    onDelete: () => {
+                        deleteCalls += 1;
+                    },
+                },
+            });
+            return input;
+        }, host);
+
+        const escape = new KeyboardEvent("keydown", {
+            key: "Escape",
+            bubbles: true,
+            cancelable: true,
+        });
+        input.dispatchEvent(escape);
+
+        expect(localEscapeCalls).toBe(1);
+        expect(deleteCalls).toBe(0);
+        expect(escape.defaultPrevented).toBe(true);
+        dispose();
+        host.remove();
+    });
+
+    it("keeps a blocking dialog ahead of the actions menu and selected-unit shortcuts", () => {
+        const host = document.createElement("div");
+        document.body.append(host);
+        let closeCalls = 0;
+        let deleteCalls = 0;
+        const dispose = render(() => {
+            useShortcuts({
+                contextProvider: () => "modal",
+                handlers: {
+                    onCloseActions: () => {
+                        closeCalls += 1;
+                        return true;
+                    },
+                    onDelete: () => {
+                        deleteCalls += 1;
+                    },
+                },
+            });
+            return document.createElement("div");
+        }, host);
+
+        const blockedEvents = ["Escape", "Delete", "Backspace"].map((key) => {
+            const event = new KeyboardEvent("keydown", {
+                key,
+                bubbles: true,
+                cancelable: true,
+            });
+            window.dispatchEvent(event);
+            return event;
+        });
+
+        expect(closeCalls).toBe(0);
+        expect(deleteCalls).toBe(0);
+        expect(blockedEvents.every((event) => !event.defaultPrevented)).toBe(true);
+        dispose();
+        host.remove();
+    });
+
+    it("routes Escape, Delete, and Backspace through one contextual delete action", () => {
+        let deleteCalls = 0;
+        ShortcutManager.setContextProvider(() => "unit-selected");
+        const onDelete = () => {
+            deleteCalls += 1;
+        };
+        ShortcutManager.register("delete", onDelete);
+        ShortcutManager.register("delete-backspace", onDelete);
+        ShortcutManager.register("delete-escape", onDelete);
+
+        for (const key of ["Escape", "Delete", "Backspace"]) {
+            expect(ShortcutManager.handleKeyDown(new KeyboardEvent("keydown", { key }))).toBe(true);
+        }
+
+        expect(deleteCalls).toBe(3);
     });
 
     it("recognizes Escape and Shift+1 as active actions-menu dismiss shortcuts", () => {
@@ -229,7 +325,9 @@ describe("ShortcutManager Hook shortcuts", () => {
             quick_bindings: [{ id: "q1", art: "neuro.official/compress", key: "Alt+8 / F8" }],
         });
         ShortcutManager.setContextProvider(() => context);
-        ShortcutManager.setQuickBindingHandler((artId) => arts.push(artId));
+        ShortcutManager.setQuickBindingHandler((artId) => {
+            arts.push(artId);
+        });
 
         expect(ShortcutManager.handleKeyDown(new KeyboardEvent("keydown", {
             key: "8",

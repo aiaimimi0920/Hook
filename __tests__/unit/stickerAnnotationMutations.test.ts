@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
     removeAnnotationById,
+    removeAnnotationsByIds,
     updateTextAnnotationFontFamilyById,
     updateTextAnnotationById,
 } from "../../src/services/stickerAnnotationMutations";
@@ -58,6 +59,20 @@ describe("stickerAnnotationMutations", () => {
 
         expect(updateTextAnnotationById(state, "text-1", "   ")).toEqual(state);
         expect(updateTextAnnotationById(state, "missing", "after")).toEqual(state);
+    });
+
+    it("removes every selected annotation in one immutable update", () => {
+        const state = makeState();
+        const next = removeAnnotationsByIds(state, ["shape-1", "text-1", "shape-1"]);
+
+        expect(next.elements).toEqual([]);
+        expect(state.elements.map((item) => item.id)).toEqual(["text-1", "shape-1"]);
+    });
+
+    it("preserves the original state when every selected annotation id is stale", () => {
+        const state = makeState();
+
+        expect(removeAnnotationsByIds(state, ["missing"])).toBe(state);
     });
 
     it("updates text font family in place while leaving non-text annotations untouched", () => {

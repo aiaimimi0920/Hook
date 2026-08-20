@@ -107,6 +107,70 @@ describe("Surface state store", () => {
             .toBe("lease:recovered");
     });
 
+    it("rejects an older full snapshot from the same Surface instance", () => {
+        const current = snapshot();
+        current.revision = 8;
+        surfaceStore.actions.mountSnapshot("unit:stock", current, 3);
+
+        const stale = snapshot();
+        stale.revision = 7;
+        expect(() => surfaceStore.actions.mountSnapshot("unit:stock", stale, 4)).toThrowError(
+            SurfaceStateError,
+        );
+        expect(surfaceStore.byUnit["unit:stock"].snapshot.revision).toBe(8);
+        expect(surfaceStore.byUnit["unit:stock"].generation).toBe(3);
+    });
+
+    it("replaces an older binding with a lower revision from a new Surface instance", () => {
+        const current = snapshot();
+        current.revision = 516;
+        surfaceStore.actions.mountSnapshot("unit:stock", current, 3);
+        expect(surfaceStore.actions.acceptPreviewCommit("unit:stock", {
+            protocolVersion: SURFACE_PROTOCOL_VERSION,
+            instanceId: current.instanceId,
+            requestId: "request:old-preview",
+            generation: 3,
+            previewRevision: 482,
+            portId: "preview",
+            value: { kind: "value", value: "old" },
+        })).toBe(true);
+        expect(surfaceStore.actions.acceptResultCommit("unit:stock", {
+            protocolVersion: SURFACE_PROTOCOL_VERSION,
+            instanceId: current.instanceId,
+            requestId: "request:old-result",
+            generation: 3,
+            resultRevision: 482,
+            outputs: { price: { kind: "value", value: 100 } },
+        })).toBe(true);
+        expect(surfaceStore.actions.applyLifecycle("unit:stock", {
+            protocolVersion: SURFACE_PROTOCOL_VERSION,
+            instanceId: current.instanceId,
+            attachmentId: current.attachmentId,
+            state: "active",
+            revision: 2,
+        })).toBe(true);
+
+        const replacement = snapshot();
+        replacement.instanceId = "instance:stock-v2";
+        replacement.attachmentId = "attachment:desktop-v2";
+        replacement.artVersion = "2.0.0";
+        replacement.revision = 51;
+        replacement.authoritativeState = { price: 105, refreshed: true };
+
+        expect(() => {
+            surfaceStore.actions.mountSnapshot("unit:stock", replacement, 7);
+        }).not.toThrow();
+        const mounted = surfaceStore.byUnit["unit:stock"];
+        expect(mounted.snapshot.instanceId).toBe("instance:stock-v2");
+        expect(mounted.snapshot.attachmentId).toBe("attachment:desktop-v2");
+        expect(mounted.snapshot.revision).toBe(51);
+        expect(mounted.generation).toBe(7);
+        expect(mounted.previewRevision).toBe(0);
+        expect(mounted.resultRevision).toBe(0);
+        expect(mounted.lifecycle).toBe("mounted");
+        expect(mounted.lifecycleRevision).toBe(1);
+    });
+
     it("rejects patches that duplicate stable scene ids", () => {
         const invalid: SurfacePatch = {
             protocolVersion: SURFACE_PROTOCOL_VERSION,

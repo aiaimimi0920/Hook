@@ -43,13 +43,25 @@ interface UseShortcutsOptions {
   contextProvider: () => string | null;
 }
 
-export function isGlobalShortcutEditingTarget(target: EventTarget | null): target is HTMLElement {
-  return target instanceof HTMLElement
-    && (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA");
+export function isGlobalShortcutEditingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  for (let current: Element | null = target; current; current = current.parentElement) {
+    if (
+      current instanceof HTMLElement
+      && (current.isContentEditable
+        || current.contentEditable === "true"
+        || current.contentEditable === "plaintext-only")
+    ) {
+      return true;
+    }
+  }
+  return target.closest(
+    "input, textarea, select, [contenteditable='true'], [contenteditable='plaintext-only']",
+  ) !== null;
 }
 
-export function shouldIgnoreGlobalShortcut(target: EventTarget | null, key: string): boolean {
-  return isGlobalShortcutEditingTarget(target) && key !== "Escape";
+export function shouldIgnoreGlobalShortcut(target: EventTarget | null, _key: string): boolean {
+  return isGlobalShortcutEditingTarget(target);
 }
 
 export function isActionsMenuDismissShortcut(
@@ -121,9 +133,22 @@ export function useShortcuts(options: UseShortcutsOptions) {
       return true;
     };
 
-    // Global keydown listener
+    const executeShortcut = (e: KeyboardEvent) => {
+      const handled = ShortcutManager.handleKeyDown(e);
+      if (handled) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    // Global capture listener. Editable targets are deferred so their target
+    // handler can consume Escape before the selected-unit fallback runs.
     const handleKeyDown = (e: KeyboardEvent) => {
       if (suppressBareAlt(e)) return;
+
+      // A blocking dialog owns its keyboard context. In particular, do not
+      // close an actions menu behind the dialog from this capture listener.
+      if (options.contextProvider() === "modal") return;
 
       if (
         handlers.onCloseActions
@@ -137,11 +162,16 @@ export function useShortcuts(options: UseShortcutsOptions) {
 
       if (shouldIgnoreGlobalShortcut(e.target, e.key)) return;
 
-      const handled = ShortcutManager.handleKeyDown(e);
-      if (handled) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
+      executeShortcut(e);
+    };
+
+    const handleDeferredEditableEscape = (e: KeyboardEvent) => {
+      if (
+        e.key !== "Escape"
+        || !isGlobalShortcutEditingTarget(e.target)
+        || e.defaultPrevented
+      ) return;
+      executeShortcut(e);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -149,10 +179,12 @@ export function useShortcuts(options: UseShortcutsOptions) {
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keydown', handleDeferredEditableEscape);
     window.addEventListener('keyup', handleKeyUp, true);
 
     onCleanup(() => {
       window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keydown', handleDeferredEditableEscape);
       window.removeEventListener('keyup', handleKeyUp, true);
 
       // Unregister all handlers

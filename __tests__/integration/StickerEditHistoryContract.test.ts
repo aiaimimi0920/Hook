@@ -39,8 +39,9 @@ describe("Hook sticker edit history contract", () => {
         expect(annotationLayerSource).toContain("setReshapeLine");
         expect(annotationLayerSource).toContain("lineHandlePoints");
 
-        expect(appSource).toContain("removeAnnotationById");
+        expect(appSource).toContain("removeAnnotationsByIds");
         expect(appSource).toContain("selectedStickerAnnotationId()");
+        expect(appSource).toContain("selectedStickerAnnotationIds");
         expect(appSource).toContain("uiActions.setSelectedStickerAnnotation(null)");
     });
 });

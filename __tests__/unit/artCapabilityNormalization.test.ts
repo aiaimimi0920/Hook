@@ -3,6 +3,59 @@ import { normalizeArtCapabilities } from "../../src/services/artCapabilityNormal
 import { findArtCapability } from "../../src/services/artCapabilityLookup";
 
 describe("Loom Art capability normalization", () => {
+    it("keeps the packaged Stock Monitor visible with its canonical Loom handshake fields", () => {
+        const [capability] = normalizeArtCapabilities([{
+            id: "neuro.official/custom-stock-monitor",
+            label: "股票盯盘",
+            description: "通过 stock-api MCP 服务观察行情。",
+            enabled: true,
+            supportedTransports: ["shared_memory", "websocket"],
+            parameters: [
+                {
+                    id: "code",
+                    label: "股票代码",
+                    widget: "text",
+                    required: true,
+                    default: "SZ000034",
+                    data_type: "string",
+                },
+                {
+                    id: "interval_seconds",
+                    label: "刷新间隔（秒）",
+                    widget: "slider",
+                    default: 60,
+                    min: 30,
+                    max: 300,
+                    step: 30,
+                    data_type: "number",
+                },
+            ],
+            outputs: [{ name: "quote", label: "行情快照", type: "object" }],
+            execution: { type: "framework_art", framework: "mcp" },
+            metadata: {
+                capabilities: {
+                    surface: { protocolVersion: "loom.surface.v1" },
+                },
+            },
+        }]);
+
+        expect(capability).toMatchObject({
+            id: "neuro.official/custom-stock-monitor",
+            label: "股票盯盘",
+            supported_transports: ["shared_memory", "websocket"],
+            execution: { type: "framework_art", framework: "mcp" },
+        });
+        expect(capability.params.map((param) => param.id)).toEqual([
+            "code",
+            "interval_seconds",
+        ]);
+        expect(capability.outputs?.map((output) => output.name)).toEqual(["quote"]);
+        expect(capability.metadata?.capabilities?.surface).toEqual({
+            protocolVersion: "loom.surface.v1",
+        });
+        expect(findArtCapability([capability], "neuro.official/custom-stock-monitor")).toBe(capability);
+    });
+
     it("normalizes current framework Art manifests without dropping package metadata", () => {
         const [capability] = normalizeArtCapabilities([
             {

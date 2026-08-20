@@ -141,8 +141,16 @@ export function useUnitActions() {
           }
 
           // Double-click centers the compact crop around the clicked point.
-          const target = resolveStickerSurfaceDoubleClickTarget(e.target, e.currentTarget) ?? (e.currentTarget as HTMLElement);
+          const target = resolveStickerSurfaceDoubleClickTarget(e.target, e.currentTarget)
+              ?? (e.currentTarget instanceof HTMLElement ? e.currentTarget : null);
+          if (!target) return;
           const rect = target.getBoundingClientRect();
+          if (
+              !Number.isFinite(rect.width)
+              || !Number.isFinite(rect.height)
+              || rect.width <= 0
+              || rect.height <= 0
+          ) return;
           // Relative click in the full visible sticker frame. The mini window
           // position should stay centered on the actual click whenever the
           // square crop fits inside the full sticker bounds.

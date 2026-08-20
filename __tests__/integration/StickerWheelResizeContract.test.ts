@@ -103,7 +103,7 @@ describe("Hook sticker wheel resize contract", () => {
         const suppressStart = shortcutsSource.indexOf(
             "const suppressBareAlt = (e: KeyboardEvent) => {",
         );
-        const suppressEnd = shortcutsSource.indexOf("// Global keydown listener", suppressStart);
+        const suppressEnd = shortcutsSource.indexOf("const executeShortcut", suppressStart);
         const suppressSource = shortcutsSource.slice(suppressStart, suppressEnd);
 
         expect(suppressStart).toBeGreaterThanOrEqual(0);

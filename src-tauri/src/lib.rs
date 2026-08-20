@@ -1,3 +1,22 @@
+fn write_console_line(stream: &mut dyn std::io::Write, arguments: std::fmt::Arguments<'_>) {
+    let _ = stream.write_fmt(arguments);
+    let _ = stream.write_all(b"\n");
+}
+
+macro_rules! console_line {
+    ($($arg:tt)*) => {{
+        let mut stream = std::io::stdout().lock();
+        $crate::write_console_line(&mut stream, format_args!($($arg)*));
+    }};
+}
+
+macro_rules! console_error_line {
+    ($($arg:tt)*) => {{
+        let mut stream = std::io::stderr().lock();
+        $crate::write_console_line(&mut stream, format_args!($($arg)*));
+    }};
+}
+
 mod app_settings;
 mod capture;
 mod capture_coords;
@@ -50,6 +69,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, LogicalSize, Manager, PhysicalPosition, Size, WindowEvent};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+
 // Windows Imports
 #[cfg(target_os = "windows")]
 use uiautomation::types::Point as UiaPoint;
@@ -125,7 +145,7 @@ fn read_shm_winapi(name: &str, size: usize) -> Result<Vec<u8>, String> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
 
-    println!("Backend: Opening SHM via WinAPI: {}", name);
+    console_line!("Backend: Opening SHM via WinAPI: {}", name);
 
     // Convert string to wide string (UTF-16) + null terminator
     let wide_name: Vec<u16> = OsStr::new(name)
@@ -681,7 +701,7 @@ fn install_panic_logger() {
         );
         // Synchronous write so the record survives the imminent abort.
         append_runtime_log_line_sync(&line);
-        eprintln!("{line}");
+        console_error_line!("{line}");
         // Preserve default behavior (prints to stderr) for good measure.
         default_hook(info);
     }));
@@ -4016,6 +4036,18 @@ fn hook_process_has_foreground_window() -> bool {
     foreground_pid == std::process::id()
 }
 
+#[tauri::command]
+fn hook_has_foreground_window() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        return hook_process_has_foreground_window();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        true
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn should_passthrough_foreign_alt_input(
     alt_pressed: bool,
@@ -5601,9 +5633,12 @@ fn read_shared_memory(
     width: u32,
     height: u32,
 ) -> Result<String, String> {
-    println!(
+    console_line!(
         "Backend: read_shared_memory called for '{}' with size {}, dims {}x{}",
-        handle, size, width, height
+        handle,
+        size,
+        width,
+        height
     );
 
     // Validate dimensions and that `size` is consistent with the declared
@@ -5630,7 +5665,7 @@ fn read_shared_memory(
     // Read raw RGBA bytes from shared memory
     let data = read_shm_winapi(&handle, size)?;
 
-    println!("Backend: Read {} bytes from shared memory", data.len());
+    console_line!("Backend: Read {} bytes from shared memory", data.len());
 
     // Convert RGBA raw bytes to PNG
     let img = image::RgbaImage::from_raw(width, height, data)
@@ -5642,7 +5677,7 @@ fn read_shared_memory(
 
     // Encode as Base64 and return as data URL
     let b64 = base64::engine::general_purpose::STANDARD.encode(png_buf.into_inner());
-    println!("Backend: Returning PNG base64 ({} chars)", b64.len());
+    console_line!("Backend: Returning PNG base64 ({} chars)", b64.len());
     Ok(format!("data:image/png;base64,{}", b64))
 }
 
@@ -5685,7 +5720,7 @@ fn save_sticker_image(
     let (file, file_path) = create_unique_file(&saved_dir, &stem, Some("png"))?;
     write_allocated_bytes(file, &file_path, &image_data, "write saved sticker")?;
 
-    println!("Saved sticker to: {:?}", file_path);
+    console_line!("Saved sticker to: {:?}", file_path);
     Ok(file_path.to_string_lossy().to_string())
 }
 
@@ -5715,7 +5750,7 @@ fn save_sticker_image_as(
         .map_err(|e| format!("Failed to write file: {}", e))?;
 
     let path_string = file_path.to_string_lossy().to_string();
-    println!("Saved sticker via save-as dialog to: {}", path_string);
+    console_line!("Saved sticker via save-as dialog to: {}", path_string);
     Ok(Some(path_string))
 }
 
@@ -6504,7 +6539,7 @@ fn copy_node_image_to_clipboard(
         .write_clipboard(&paths)
         .map_err(|e| format!("Clipboard write file list failed: {}", e))?;
 
-    println!(
+    console_line!(
         "Copied file to clipboard cache: {}",
         cache_file_name_for_log(&file_path)
     );
@@ -6575,7 +6610,7 @@ fn copy_sticker_image_to_smart_clipboard(
         .map_err(|e| format!("Clipboard file-list write failed: {}", e))?;
 
     let path_string = file_path.to_string_lossy().to_string();
-    println!(
+    console_line!(
         "Copied smart image/file clipboard cache payload: {}",
         cache_file_name_for_log(&file_path)
     );
@@ -6619,7 +6654,7 @@ fn copy_to_clipboard(base64_image: String) -> Result<(), String> {
         .set_image(image_data)
         .map_err(|e| format!("Clipboard write failed: {}", e))?;
 
-    println!("Image copied to system clipboard");
+    console_line!("Image copied to system clipboard");
     Ok(())
 }
 
@@ -6748,7 +6783,7 @@ fn mime_from_image_path(path: &Path, bytes: &[u8]) -> &'static str {
 
 #[tauri::command]
 fn read_image_from_path(path: String) -> Result<String, String> {
-    println!("Backend: Reading image from path: {}", path);
+    console_line!("Backend: Reading image from path: {}", path);
 
     // Bound the read: refuse files above the encoded-image limit before
     // loading them into memory. This keeps the command a bounded image reader
@@ -7073,16 +7108,19 @@ async fn get_precise_selection(
         // Offload to a blocking thread to avoid freezing the main UI thread.
         // Tokio's spawn_blocking handles the thread pool.
         let result = tokio::task::spawn_blocking(move || {
-            println!(
+            console_line!(
                 "[Precise] get_precise_selection: ({}, {}, {}, {})",
-                x, y, w, h
+                x,
+                y,
+                w,
+                h
             );
 
             // Initialization
             let automation = match UIAutomation::new() {
                 Ok(a) => a,
                 Err(e) => {
-                    println!("[Precise] ERROR: UIAutomation init failed: {}", e);
+                    console_line!("[Precise] ERROR: UIAutomation init failed: {}", e);
                     return None;
                 }
             };
@@ -7133,7 +7171,7 @@ async fn get_precise_selection(
             while let Some(el) = stack.pop() {
                 count += 1;
                 if count > 5000 {
-                    println!(
+                    console_line!(
                         "[Precise] Warning: Element limit reached (5000). Stopping traversal."
                     );
                     break;
@@ -7558,10 +7596,10 @@ fn save_session(
     if let Err(error) =
         cleanup_unreferenced_session_image_assets(&images_dir, &session_data, SystemTime::now())
     {
-        println!("Warning: session image asset cleanup skipped: {}", error);
+        console_line!("Warning: session image asset cleanup skipped: {}", error);
     }
 
-    println!(
+    console_line!(
         "Session saved with {} stickers and {} links.",
         session_data.stickers.len(),
         session_data.links.len()
@@ -7577,9 +7615,10 @@ fn restore_loaded_session_stickers(stickers: &mut [StickerData]) {
 
         let path = std::path::Path::new(&sticker.src);
         if !path.exists() {
-            println!(
+            console_line!(
                 "Warning: Image file not found for sticker {}: {}",
-                sticker.id, sticker.src
+                sticker.id,
+                sticker.src
             );
         }
     }
@@ -7611,7 +7650,7 @@ fn load_session(app: tauri::AppHandle) -> Result<SessionData, String> {
 
     restore_loaded_session_stickers(&mut session_data.stickers);
 
-    println!(
+    console_line!(
         "Session loaded with {} stickers and {} links.",
         session_data.stickers.len(),
         session_data.links.len()
@@ -8776,7 +8815,7 @@ fn setup_overlay_window(window: &tauri::WebviewWindow) {
     apply_overlay_window_bounds(window);
 
     if let Err(e) = window.show() {
-        println!("Failed to show window: {}", e);
+        console_line!("Failed to show window: {}", e);
     }
     apply_overlay_no_activate(window);
     install_overlay_mouse_activate_no_activate(window);
@@ -9551,11 +9590,11 @@ fn show_canvas_window_impl(window: &tauri::WebviewWindow) {
     let _ = window.center();
 
     if let Err(e) = window.show() {
-        println!("Failed to show canvas window: {}", e);
+        console_line!("Failed to show canvas window: {}", e);
     }
 
     if let Err(e) = window.set_focus() {
-        println!("Failed to focus canvas window: {}", e);
+        console_line!("Failed to focus canvas window: {}", e);
     }
 }
 
@@ -9597,7 +9636,7 @@ fn hide_to_tray_impl(window: &tauri::WebviewWindow) {
     set_overlay_transparent_style(window, false);
     OVERLAY_CLICK_THROUGH_ACTIVE.store(false, Ordering::SeqCst);
     if let Err(e) = window.hide() {
-        println!("Failed to hide window to tray: {}", e);
+        console_line!("Failed to hide window to tray: {}", e);
     }
 }
 
@@ -9609,9 +9648,9 @@ fn enter_capture_mode(window: &tauri::WebviewWindow) {
     }
     show_overlay_host_impl(window, true);
 
-    println!("Overlay setup done. Emitting trigger-capture...");
+    console_line!("Overlay setup done. Emitting trigger-capture...");
     if let Err(e) = window.emit("trigger-capture", ()) {
-        println!("Failed to emit trigger-capture: {}", e);
+        console_line!("Failed to emit trigger-capture: {}", e);
         append_runtime_log_line(&format!("enter_capture_mode emit_failed :: {}", e));
         set_capture_input_runtime_active(false);
     } else {
@@ -9628,7 +9667,7 @@ fn enter_long_capture_mode(window: &tauri::WebviewWindow) {
     show_overlay_host_impl(window, true);
 
     if let Err(e) = window.emit("trigger-long-capture", ()) {
-        println!("Failed to emit trigger-long-capture: {}", e);
+        console_line!("Failed to emit trigger-long-capture: {}", e);
         append_runtime_log_line(&format!("enter_long_capture_mode emit_failed :: {}", e));
         set_capture_input_runtime_active(false);
     } else {
@@ -10146,7 +10185,7 @@ fn trigger_toggle_sticker_toolbar(window: &tauri::WebviewWindow) {
     append_runtime_log_line("trigger_toggle_sticker_toolbar");
 
     if let Err(e) = window.set_focus() {
-        println!("Failed to set focus: {}", e);
+        console_line!("Failed to set focus: {}", e);
         append_runtime_log_line(&format!(
             "trigger_toggle_sticker_toolbar focus_failed :: {}",
             e
@@ -10154,7 +10193,7 @@ fn trigger_toggle_sticker_toolbar(window: &tauri::WebviewWindow) {
     }
 
     if let Err(e) = window.emit("trigger-toggle-sticker-toolbar", ()) {
-        println!("Failed to emit trigger-toggle-sticker-toolbar: {}", e);
+        console_line!("Failed to emit trigger-toggle-sticker-toolbar: {}", e);
         append_runtime_log_line(&format!(
             "trigger_toggle_sticker_toolbar emit_failed :: {}",
             e
@@ -10167,7 +10206,7 @@ fn trigger_toggle_sticker_toolbar(window: &tauri::WebviewWindow) {
 #[tauri::command]
 fn initialize_overlay(app: tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        println!("Initializing overlay window state...");
+        console_line!("Initializing overlay window state...");
         setup_overlay_window(&window);
     }
 }
@@ -10670,10 +10709,10 @@ pub fn run() {
                                 _ => {}
                             }
                         } else if shortcut.matches(Modifiers::CONTROL, Code::Digit2) {
-                            println!("Global Shortcut Ctrl+2 Triggered (OCR)");
+                            console_line!("Global Shortcut Ctrl+2 Triggered (OCR)");
                             if let Some(window) = app.get_webview_window("main") {
                                 if let Err(e) = window.emit("trigger-ocr", ()) {
-                                    println!("Failed to emit trigger-ocr: {}", e);
+                                    console_line!("Failed to emit trigger-ocr: {}", e);
                                 }
                             }
                         } else if shortcut
@@ -10724,6 +10763,11 @@ pub fn run() {
             .build(),
         )
         .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let WindowEvent::Focused(focused) = event {
+                    let _ = window.emit("hook/window_focus_changed", *focused);
+                }
+            }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 if shortcut_config::close_to_tray_enabled() {
                     api.prevent_close();
@@ -10763,6 +10807,7 @@ pub fn run() {
             load_app_settings,
             get_loom_shortcut_settings,
             get_installed_fonts,
+            hook_has_foreground_window,
              initialize_overlay,
              get_boot_profile,
              request_native_acceptance_exit,
@@ -10892,13 +10937,13 @@ pub fn run() {
                     ));
                 }
                 if let Err(e) = app.global_shortcut().register(ctrl_2) {
-                     println!("Warning: Failed to register Ctrl+2: {}", e);
+                     console_line!("Warning: Failed to register Ctrl+2: {}", e);
                      append_runtime_log_line(&format!("register_ctrl2_failed :: {}", e));
                 } else {
                      append_runtime_log_line("register_ctrl2_success");
                 }
                 if let Err(e) = app.global_shortcut().register(ctrl_alt_space) {
-                    println!("Warning: Failed to register Ctrl+Alt+Space: {}", e);
+                    console_line!("Warning: Failed to register Ctrl+Alt+Space: {}", e);
                     append_runtime_log_line(&format!("register_voice_hotkey_failed :: {}", e));
                 } else {
                     append_runtime_log_line("register_voice_hotkey_success");
@@ -11356,7 +11401,7 @@ pub fn run() {
                             _ => {}
                         }
                     }) {
-                        println!("Error: {:?}", error);
+                        console_line!("Error: {:?}", error);
                         append_runtime_log_line(&format!("rdev_listen_failed :: {:?}", error));
                     }
                 });
@@ -12728,5 +12773,22 @@ mod app_cli_tests {
         let written = std::fs::read_to_string(&output_path).expect("read cli output");
         let _ = std::fs::remove_file(&output_path);
         assert_eq!(written, "hook 0.1.4\n");
+    }
+
+    #[test]
+    fn closed_gui_console_does_not_panic() {
+        struct ClosedConsole;
+
+        impl std::io::Write for ClosedConsole {
+            fn write(&mut self, _buffer: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe))
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        write_console_line(&mut ClosedConsole, format_args!("release without stdout"));
     }
 }

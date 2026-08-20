@@ -926,6 +926,9 @@ export const api = {
     getInstalledFonts: (): Promise<string[]> =>
         safeInvoke("get_installed_fonts", undefined, () => [], false),
 
+    hasForegroundWindow: (): Promise<boolean> =>
+        safeInvoke("hook_has_foreground_window", undefined, () => true, false),
+
     // --- UI / Overlay ---
     updatePinRects: (rects: PinRect[]): Promise<void> =>
         safeInvoke("update_pin_rects", { rects }, () => undefined, false),

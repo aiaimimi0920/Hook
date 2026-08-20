@@ -22,6 +22,7 @@ export const mapUnitToSessionSticker = (unit: Unit): SessionSticker => ({
     params: unit.params || {},
     filePath: unit.data.filePath || null,
     previewSrc: normalizePreviewSrc(unit) || null,
+    surfaceViewId: unit.data.surfaceViewId || null,
     rasterizedAnnotationLayerSrc: unit.data.rasterizedAnnotationLayerSrc || null,
     outputs: unit.data.outputs || null,
     originWorkflowId: unit.data.originWorkflowId || null,

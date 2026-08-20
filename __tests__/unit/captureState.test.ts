@@ -121,6 +121,39 @@ describe("capture state helpers", () => {
     it("resolves shortcut context with capture selection taking priority over sticker editing", () => {
         expect(
             resolveShortcutContext({
+                hasBlockingDialog: true,
+                isSelecting: true,
+                hasSelectedSticker: true,
+                hasActiveStickerEditTarget: true,
+                stickerEditingDomain: "create",
+                stickerTransformMode: "select",
+                stickerCanvasTool: "idle",
+            }),
+        ).toBe("modal");
+        expect(
+            resolveShortcutContext({
+                hasActiveLongCapture: true,
+                isSelecting: false,
+                hasSelectedSticker: true,
+                hasActiveStickerEditTarget: false,
+                stickerEditingDomain: "create",
+                stickerTransformMode: "select",
+                stickerCanvasTool: "idle",
+            }),
+        ).toBe("capture-selecting");
+        expect(
+            resolveShortcutContext({
+                hasSelectedAnnotation: true,
+                isSelecting: false,
+                hasSelectedSticker: true,
+                hasActiveStickerEditTarget: true,
+                stickerEditingDomain: "create",
+                stickerTransformMode: "select",
+                stickerCanvasTool: "idle",
+            }),
+        ).toBe("unit-selected");
+        expect(
+            resolveShortcutContext({
                 isSelecting: true,
                 hasSelectedSticker: true,
                 hasActiveStickerEditTarget: true,

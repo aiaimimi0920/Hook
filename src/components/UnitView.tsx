@@ -80,6 +80,15 @@ import { surfaceStore } from "../store/surfaceStore";
 import { surfaceResourceStore } from "../store/surfaceResourceStore";
 import { loomHook } from "../services/client";
 import { surfaceAttachmentRequests } from "../services/surfaceAttachmentRequests";
+import { blurActiveEditableOutside } from "../services/editableFocus";
+import {
+  applySurfaceViewToSnapshot,
+  clearSurfaceViewCrop,
+  computeSurfaceViewResetFrame,
+  computeSurfaceViewWindowPresentation,
+  normalizeSurfaceViews,
+  resolveSurfaceView,
+} from "../services/artSurfaceViews";
 
 interface Props {
   unit: Unit;
@@ -210,8 +219,8 @@ export const UnitView: Component<Props> = (props) => {
   const hasSelectedExistingAnnotations = () =>
       selectedStickerAnnotationIds.length > 0 || selectedStickerAnnotationId() !== null;
   const shouldBlockContainerMouseDown = () => {
-      if (props.unit.type !== "sticker") return false;
       if (activeStickerEditTargetId() !== props.unit.id) return false;
+      if (props.unit.type !== "sticker" && props.unit.type !== "art") return false;
       if (stickerToolSettings.domain !== "existing") {
           if (stickerToolSettings.domain === "create") return true;
           return stickerToolSettings.activeCanvasTool !== "idle";
@@ -220,6 +229,13 @@ export const UnitView: Component<Props> = (props) => {
       return hasSelectedExistingAnnotations();
   };
   const allowContainerMouseDown = () => !shouldBlockContainerMouseDown();
+  const activateUnit = () => {
+      blurActiveEditableOutside(unitContainerRef, props.unit.id);
+      if (!selectionActions.isSelected(props.unit.id)) {
+          selectionActions.set([props.unit.id]);
+      }
+      return api.focusOverlayWindow();
+  };
   const handleUnitDoubleClick = (event: MouseEvent) => {
       if (props.unit.type === "sticker" && !isStickerSurfaceDoubleClickTarget(event.target, event.currentTarget)) {
           event.stopPropagation();
@@ -231,6 +247,44 @@ export const UnitView: Component<Props> = (props) => {
   const isShaderArt = () => isArt() && supportsShaderPreview(props.capability);
   const surfaceState = () => isArt() ? surfaceStore.byUnit[props.unit.id] : undefined;
   const hasDeclarativeSurface = () => !!surfaceState();
+  const surfaceManifest = () => props.capability?.metadata?.capabilities?.surface;
+  const surfaceViews = createMemo(() => normalizeSurfaceViews(surfaceManifest()));
+  const selectedSurfaceView = createMemo(() => resolveSurfaceView(
+      surfaceManifest(),
+      liveUnit().data.surfaceViewId ?? surfaceState()?.snapshot.viewId,
+  ));
+  const effectiveSurfaceSnapshot = () => {
+      const snapshot = surfaceState()?.snapshot;
+      return snapshot ? applySurfaceViewToSnapshot(snapshot, selectedSurfaceView()) : undefined;
+  };
+  const surfacePresentation = createMemo(() => {
+      const unit = liveUnit();
+      return computeSurfaceViewWindowPresentation(unit, selectedSurfaceView(), {
+          minified: unit.data.minified,
+          savedRect: unit.data.savedRect,
+          cropOffset: unit.data.cropOffset,
+          imageEditState: unit.data.imageEditState,
+      });
+  });
+  const selectSurfaceView = (viewId: string) => {
+      const view = surfaceViews().find((candidate) => candidate.id === viewId);
+      if (!view || liveUnit().data.surfaceViewId === view.id) return;
+      const currentUnit = liveUnit();
+      graphStore.actions.updateUnitData(currentUnit.id, {
+          surfaceViewId: view.id,
+          imageEditState: clearSurfaceViewCrop(currentUnit.data.imageEditState),
+          minified: false,
+          savedRect: undefined,
+          cropOffset: undefined,
+      });
+      props.onResize(computeSurfaceViewResetFrame(currentUnit, view));
+  };
+  createEffect(() => {
+      const view = selectedSurfaceView();
+      if (!view || liveUnit().data.surfaceViewId === view.id) return;
+      const currentUnit = liveUnit();
+      graphStore.actions.updateUnitData(currentUnit.id, { surfaceViewId: view.id });
+  });
   createEffect(() => {
       const leases = surfaceState()?.snapshot.resourceLeases ?? [];
       for (const lease of leases) {
@@ -915,6 +969,7 @@ export const UnitView: Component<Props> = (props) => {
       onPointerEnter={() => enterStickerGpuWarmHover(props.unit.id)}
       onPointerLeave={() => leaveStickerGpuWarmHover(props.unit.id)}
       onMouseDown={(event) => {
+        blurActiveEditableOutside(unitContainerRef, props.unit.id);
         if (allowContainerMouseDown()) {
             props.onMouseDown(event);
         }
@@ -1025,14 +1080,38 @@ export const UnitView: Component<Props> = (props) => {
         }}>
             <Show when={surfaceState()} keyed>
                 {(surface) => (
+                    <div
+                        class="art-surface-presentation"
+                        style={(() => {
+                            const presentation = surfacePresentation();
+                            if (!presentation) {
+                                return {
+                                    position: "absolute" as const,
+                                    inset: "0",
+                                    width: "100%",
+                                    height: "100%",
+                                };
+                            }
+                            return {
+                                position: "absolute" as const,
+                                left: `${presentation.left}px`,
+                                top: `${presentation.top}px`,
+                                width: `${presentation.logicalWidth}px`,
+                                height: `${presentation.logicalHeight}px`,
+                                transform: `scale(${presentation.scale})`,
+                                "transform-origin": "top left",
+                            };
+                        })()}
+                    >
                     <Show
                         when={(surface.snapshot.runtime ?? "declarative") === "javascript"}
                         fallback={(
                             <DeclarativeSurface
                                 unitId={props.unit.id}
-                                snapshot={surface.snapshot}
+                                snapshot={effectiveSurfaceSnapshot() ?? surface.snapshot}
                                 generation={surface.generation}
                                 interactive={!isMinified()}
+                                onActivate={activateUnit}
                                 resolveResource={surfaceResourceStore.actions.resolve}
                                 onEvent={(event) => {
                                     void loomHook.dispatchSurfaceEvent(event).catch((error) => {
@@ -1047,13 +1126,21 @@ export const UnitView: Component<Props> = (props) => {
                             />
                         )}
                     >
-                        <JavaScriptSurface
+                            <JavaScriptSurface
                             unitId={props.unit.id}
-                            snapshot={surface.snapshot}
+                            snapshot={effectiveSurfaceSnapshot() ?? surface.snapshot}
                             generation={surface.generation}
                             lifecycle={surface.lifecycle}
                             interactive={!isMinified()}
+                            displayScale={surfacePresentation().scale}
                             resolveResource={surfaceResourceStore.actions.resolve}
+                            onActivate={activateUnit}
+                            onDragStart={(event) => {
+                                blurActiveEditableOutside(unitContainerRef, props.unit.id);
+                                if (allowContainerMouseDown()) {
+                                    props.onMouseDown(event);
+                                }
+                            }}
                             onEvent={(event) => {
                                 void loomHook.dispatchSurfaceEvent(event).catch((error) => {
                                     graphStore.actions.updateUnitData(props.unit.id, {
@@ -1066,6 +1153,7 @@ export const UnitView: Component<Props> = (props) => {
                             }}
                         />
                     </Show>
+                    </div>
                 )}
             </Show>
 
@@ -1481,7 +1569,7 @@ export const UnitView: Component<Props> = (props) => {
                 }} />
             </Show>
 
-            <Show when={props.unit.type === "sticker"}>
+            <Show when={props.unit.type === "sticker" || props.unit.type === "art"}>
                 <div
                     class="sticker-annotation-layer-viewport absolute"
                     style={(() => {
@@ -1499,6 +1587,10 @@ export const UnitView: Component<Props> = (props) => {
                             height: `${viewport.height}px`,
                             left: `${-viewport.offsetX}px`,
                             top: `${-viewport.offsetY}px`,
+                            // This wrapper only supplies crop geometry. The
+                            // annotation root opts back into pointer input while
+                            // editing; otherwise the live Surface stays hittable.
+                            "pointer-events": "none",
                         };
                     })()}
                 >
@@ -1514,13 +1606,18 @@ export const UnitView: Component<Props> = (props) => {
         </div>
 
         <Show when={!isMinified() && !isCleanView()}>
-            <Show when={props.unit.type === "sticker" && props.isSelected && activeStickerEditTargetId() === props.unit.id}>
+            <Show when={props.isSelected && activeStickerEditTargetId() === props.unit.id}>
                 <StickerTopStrip
                     unitId={props.unit.id}
                     x={props.unit.x}
                     y={props.unit.y}
                     stickerWidth={props.unit.w}
                     stickerHeight={props.unit.h}
+                    supportsBitmapTools={props.unit.type === "sticker"}
+                    isArt={props.unit.type === "art"}
+                    surfaceViews={surfaceViews()}
+                    selectedSurfaceViewId={selectedSurfaceView()?.id}
+                    onSurfaceViewChange={selectSurfaceView}
                 />
             </Show>
             <Show when={showSelectionBorder()}>

@@ -1,13 +1,23 @@
 import type { StickerAnnotationState, StickerTextAnnotation } from "../types/stickerEditing";
 import { translateAnnotation } from "./stickerGeometry";
 
+export const removeAnnotationsByIds = (
+    state: StickerAnnotationState,
+    annotationIds: readonly string[],
+): StickerAnnotationState => {
+    const selectedIds = new Set(annotationIds);
+    const elements = state.elements.filter((annotation) => !selectedIds.has(annotation.id));
+    if (elements.length === state.elements.length) return state;
+    return {
+        ...state,
+        elements,
+    };
+};
+
 export const removeAnnotationById = (
     state: StickerAnnotationState,
     annotationId: string,
-): StickerAnnotationState => ({
-    ...state,
-    elements: state.elements.filter((annotation) => annotation.id !== annotationId),
-});
+): StickerAnnotationState => removeAnnotationsByIds(state, [annotationId]);
 
 export const updateTextAnnotationById = (
     state: StickerAnnotationState,

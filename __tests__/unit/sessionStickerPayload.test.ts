@@ -41,6 +41,7 @@ describe("session sticker payload helpers", () => {
             data: {
                 ...makeSticker().data,
                 previewSrc: "data:image/png;base64,PREVIEW",
+                surfaceViewId: "favorites-summary",
             },
         });
 
@@ -48,6 +49,7 @@ describe("session sticker payload helpers", () => {
             id: "sticker-1",
             src: "data:image/png;base64,BASE",
             previewSrc: "data:image/png;base64,PREVIEW",
+            surfaceViewId: "favorites-summary",
         });
 
         const renderBakedPreviewSrc = vi.fn();

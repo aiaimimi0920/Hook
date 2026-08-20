@@ -37,6 +37,19 @@ describe("sticker wheel resize", () => {
         expect((pointer.y - resized.y) / resized.h).toBeCloseTo(0.5);
     });
 
+    it("preserves a rectangular Art view ratio when one dimension reaches the minimum", () => {
+        const frame = { x: 10, y: 20, w: 96, h: 48 };
+        const pointer = { x: 34, y: 32 };
+
+        const resized = computeStickerWheelResizeFrame(frame, pointer, 10_000);
+
+        expect(resized.w).toBe(48);
+        expect(resized.h).toBe(24);
+        expect(resized.w / resized.h).toBe(frame.w / frame.h);
+        expect((pointer.x - resized.x) / resized.w).toBeCloseTo(0.25);
+        expect((pointer.y - resized.y) / resized.h).toBeCloseTo(0.25);
+    });
+
     it("scales a cropped image source and crop offset with the resized sticker frame", () => {
         const viewport = computeCroppedStickerImageViewport(
             { w: 200, h: 100 },

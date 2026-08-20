@@ -2,8 +2,23 @@ import type { ArtCapability } from "./protocol";
 import type { Unit } from "../types/unit";
 import { getCapabilityInputsForPorts } from "./artPorts";
 import { deriveUnitExecutionConfig } from "./nodeExecutionConfig";
+import { resolveSurfaceView } from "./artSurfaceViews";
 
 const DEFAULT_ART_NODE_SIZE = { w: 320, h: 240 };
+
+const resolveArtNodeDimension = (
+    requested: number | undefined,
+    fallback: number,
+    minimum: number | undefined,
+): number => {
+    const base = typeof requested === "number" && Number.isFinite(requested) && requested >= 0
+        ? requested
+        : fallback;
+    const validMinimum = typeof minimum === "number" && Number.isFinite(minimum) && minimum >= 0
+        ? minimum
+        : 0;
+    return Math.max(base, validMinimum);
+};
 
 type CapabilityInput = NonNullable<ArtCapability["inputs"]>[number];
 type CapabilityOutput = NonNullable<ArtCapability["outputs"]>[number];
@@ -132,18 +147,24 @@ export const buildStandaloneArtNodeUnit = (input: {
     h?: number;
 }): Unit => {
     const { inputs, outputs } = buildUnitPortsFromCapability("art", input.capability);
+    const surface = input.capability.metadata?.capabilities?.surface;
+    const defaultView = resolveSurfaceView(surface);
+    const minimumSize = surface?.minimumSize;
     return {
         id: input.id,
         type: "art",
         artId: input.capability.id,
         x: input.x,
         y: input.y,
-        w: input.w ?? DEFAULT_ART_NODE_SIZE.w,
-        h: input.h ?? DEFAULT_ART_NODE_SIZE.h,
+        w: defaultView?.fullSize.width
+            ?? resolveArtNodeDimension(input.w, DEFAULT_ART_NODE_SIZE.w, minimumSize?.width),
+        h: defaultView?.fullSize.height
+            ?? resolveArtNodeDimension(input.h, DEFAULT_ART_NODE_SIZE.h, minimumSize?.height),
         params: buildDefaultParamsFromCapability(input.capability),
         inputs,
         outputs,
         data: {
+            surfaceViewId: defaultView?.id,
             executionConfig: deriveUnitExecutionConfig({
                 capability: input.capability,
             }),

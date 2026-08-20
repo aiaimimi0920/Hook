@@ -553,16 +553,18 @@ export const computeStickerWheelResizeFrame = (
     minimumSize = 24,
 ) => {
     const scaleFactor = Math.max(0.5, Math.min(1.5, Math.exp(-deltaY * 0.001)));
-    const nextW = Math.max(minimumSize, frame.w * scaleFactor);
-    const nextH = Math.max(minimumSize, frame.h * scaleFactor);
-    const effectiveScaleX = frame.w > 0 ? nextW / frame.w : 1;
-    const effectiveScaleY = frame.h > 0 ? nextH / frame.h : 1;
+    const minimumScale = frame.w > 0 && frame.h > 0
+        ? Math.max(minimumSize / frame.w, minimumSize / frame.h)
+        : 1;
+    const effectiveScale = Math.max(minimumScale, scaleFactor);
+    const nextW = frame.w * effectiveScale;
+    const nextH = frame.h * effectiveScale;
     const relativeX = Math.max(0, Math.min(frame.w, pointer.x - frame.x));
     const relativeY = Math.max(0, Math.min(frame.h, pointer.y - frame.y));
 
     return {
-        x: frame.x + relativeX * (1 - effectiveScaleX),
-        y: frame.y + relativeY * (1 - effectiveScaleY),
+        x: frame.x + relativeX * (1 - effectiveScale),
+        y: frame.y + relativeY * (1 - effectiveScale),
         w: nextW,
         h: nextH,
     };

@@ -9,12 +9,13 @@
 import type { Unit } from "../types/unit";
 
 export type DeletionPlan =
-    | { kind: "annotation"; stickerId: string; annotationId: string }
+    | { kind: "annotation"; unitId: string; annotationIds: string[] }
     | { kind: "units"; unitIds: string[] }
     | { kind: "none" };
 
 export interface DeletionPlanInput {
     selectedAnnotationId: string | null | undefined;
+    selectedAnnotationIds?: readonly string[];
     selectedStickerId: string | null | undefined;
     selectedUnitIds: readonly string[];
     units: readonly Unit[];
@@ -22,22 +23,26 @@ export interface DeletionPlanInput {
 
 /**
  * Decides what a delete action targets:
- *  1. If a sticker annotation is selected on a sticker that actually carries an
- *     annotation layer, delete just that annotation.
+ *  1. If annotations are selected on a unit that actually carries an annotation
+ *     layer, delete those annotations. Sticker and Art units share this layer.
  *  2. Otherwise delete units: the multi-selection if present, else the single
  *     selected sticker.
  *  3. Otherwise nothing.
  */
 export const resolveDeletionPlan = (input: DeletionPlanInput): DeletionPlan => {
     const { selectedAnnotationId, selectedStickerId } = input;
+    const annotationIds = Array.from(new Set([
+        ...(input.selectedAnnotationIds ?? []),
+        ...(selectedAnnotationId ? [selectedAnnotationId] : []),
+    ]));
 
-    if (selectedAnnotationId && selectedStickerId) {
+    if (annotationIds.length > 0 && selectedStickerId) {
         const activeUnit = input.units.find((unit) => unit.id === selectedStickerId);
-        if (activeUnit?.type === "sticker" && activeUnit.data.annotationState) {
+        if (activeUnit?.data.annotationState) {
             return {
                 kind: "annotation",
-                stickerId: selectedStickerId,
-                annotationId: selectedAnnotationId,
+                unitId: selectedStickerId,
+                annotationIds,
             };
         }
     }

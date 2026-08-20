@@ -34,6 +34,13 @@ const arts: ArtCapability[] = [
     supported_transports: ["shared_memory"],
     params: [],
   },
+  {
+    id: "neuro.official/custom-stock-monitor",
+    label: "股票盯盘",
+    description: "Monitors quotes through stock-api",
+    supported_transports: ["shared_memory", "websocket"],
+    params: [],
+  },
   ...Array.from({ length: 10 }, (_, index): ArtCapability => ({
     id: `fixture-art-${index}`,
     label: `Fixture Art ${index}`,
@@ -127,6 +134,25 @@ describe("UnitAddNodeMenu compact search and scrolling", () => {
     const visibleArts = [...document.querySelectorAll("[data-add-art-id]")]
       .map((element) => element.getAttribute("data-add-art-id"));
     expect(visibleArts).toEqual(["color-transfer"]);
+
+    dispose();
+  });
+
+  it("finds and adds the packaged Stock Monitor from Loom capabilities", async () => {
+    const onAddNode = vi.fn();
+    const dispose = renderMenu({ onAddNode });
+    const search = document.querySelector("[data-add-art-search]") as HTMLInputElement;
+
+    search.value = "股票";
+    search.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await Promise.resolve();
+
+    const button = document.querySelector(
+      '[data-add-art-id="neuro.official/custom-stock-monitor"]',
+    ) as HTMLButtonElement | null;
+    expect(button).toBeInstanceOf(HTMLButtonElement);
+    button!.click();
+    expect(onAddNode).toHaveBeenCalledWith("neuro.official/custom-stock-monitor");
 
     dispose();
   });

@@ -2130,7 +2130,7 @@ mod tests {
     #[cfg(target_os = "windows")]
     fn primary_display_hdr_probe_returns_sane_values_when_available() {
         if let Some(info) = hdr_display_info_for(&Display::primary()) {
-            println!(
+            console_line!(
                 "primary display HDR probe: enabled={} sdr_white={} min={} max={}",
                 info.enabled,
                 info.sdr_white_level_nits,

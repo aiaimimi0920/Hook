@@ -2,6 +2,12 @@ import { onMount, onCleanup, createEffect, createSignal, Show, ErrorBoundary, un
 import { api, isTauriRuntimeAvailable, listenBrowserLoomHookMethod, type TeaTicketSummary, type VoiceSettingsSummary } from "./services/api";
 import { listen } from "@tauri-apps/api/event";
 import { installErrorDiagnostics } from "./services/errorDiagnostics";
+import {
+  hasActiveEditableShortcutTarget,
+  hasFocusedDomShortcutOwner,
+  installEditableFocusLifecycle,
+  notifyNativeAppFocus,
+} from "./services/editableFocus";
 import { logger } from "./services/logger";
 
 import "./app.css";
@@ -43,6 +49,7 @@ import {
     setCaptureMode,
     stickerToolSettings,
     selectedStickerAnnotationId,
+    selectedStickerAnnotationIds,
     longCaptureSession,
     draggingStickerId,
     unitUiState,
@@ -82,7 +89,7 @@ import { resolveDeletionPlan } from "./services/deletionPlan";
 import { composeTeaTicketText, summarizeUnitsForTea } from "./services/teaTicketText";
 import type { BootProfile } from "./services/bootProfile";
 import { captureStickerEditSnapshot } from "./services/stickerHistory";
-import { removeAnnotationById } from "./services/stickerAnnotationMutations";
+import { removeAnnotationsByIds } from "./services/stickerAnnotationMutations";
 import { stickerContextMenuController } from "./services/stickerContextMenuController";
 import {
     beginCaptureSelectionState,
@@ -207,6 +214,28 @@ export default function App() {
   let portsLayerRef: HTMLDivElement | undefined;
   let activeBootProfile: BootProfile | null = null;
   const tauriRuntime = isTauriRuntimeAvailable();
+  const disposeEditableFocusLifecycle = installEditableFocusLifecycle();
+  onCleanup(disposeEditableFocusLifecycle);
+  if (tauriRuntime) {
+      let focusPollInFlight = false;
+      let lastNativeFocus: boolean | undefined;
+      const pollNativeFocus = async () => {
+          if (focusPollInFlight) return;
+          focusPollInFlight = true;
+          try {
+              const focused = await api.hasForegroundWindow();
+              if (focused !== lastNativeFocus) {
+                  lastNativeFocus = focused;
+                  notifyNativeAppFocus(focused);
+              }
+          } finally {
+              focusPollInFlight = false;
+          }
+      };
+      const nativeFocusPoll = window.setInterval(() => void pollNativeFocus(), 250);
+      void pollNativeFocus();
+      onCleanup(() => window.clearInterval(nativeFocusPoll));
+  }
   const [_voiceStatus, setVoiceStatus] = createSignal<VoiceStatus>("idle");
   const [_lastVoiceHotkey, setLastVoiceHotkey] = createSignal<VoiceHotkeyPayload | null>(null);
   const [lastVoiceSession, setLastVoiceSession] = createSignal<VoiceSessionPayload | null>(null);
@@ -285,7 +314,14 @@ export default function App() {
       ((art.params || []).some((param) => param.widget === "image_link" || param.id === "reference") ||
           (art.inputs || []).some((input) => input.name === "reference"));
 
+  let lastStickerToolbarToggleAt = Number.NEGATIVE_INFINITY;
   const toggleStickerToolbarVisibility = () => {
+      const now = performance.now();
+      // A native global shortcut and the focused WebView can both observe the
+      // same Ctrl+E. Treat that pair as one toggle while retaining the local
+      // path as a fallback when native registration/focus routing misses it.
+      if (now - lastStickerToolbarToggleAt < 250) return;
+      lastStickerToolbarToggleAt = now;
       const stickerId = selectedStickerId();
       if (tauriRuntime) {
           void api.debugLogEvent(
@@ -295,7 +331,7 @@ export default function App() {
       }
       if (!stickerId) return;
       const selectedUnit = graphStore.units.find((unit) => unit.id === stickerId);
-      if (selectedUnit?.type !== "sticker") return;
+      if (selectedUnit?.type !== "sticker" && selectedUnit?.type !== "art") return;
 
       if (activeStickerEditTargetId() === stickerId) {
           uiActions.hideStickerToolbar();
@@ -303,6 +339,9 @@ export default function App() {
       }
 
       uiActions.showStickerToolbar(stickerId);
+      if (selectedUnit.type === "art") {
+          uiActions.setStickerEditMode("select");
+      }
   };
 
   const scheduleOverlayHitTestRefresh = (options: { forceClickThrough?: boolean } = {}) => {
@@ -331,7 +370,7 @@ export default function App() {
       const id = selectedStickerId();
       if (!id) return;
       const unit = graphStore.units.find((item) => item.id === id);
-      if (!unit || unit.type !== "sticker") return;
+      if (!unit || (unit.type !== "sticker" && unit.type !== "art")) return;
 
       const current = captureStickerEditSnapshot(unit, { includeImageData: true });
       const snapshot =
@@ -749,19 +788,30 @@ export default function App() {
   const deleteSelectedUnitOrAnnotation = () => {
       const plan = resolveDeletionPlan({
           selectedAnnotationId: selectedStickerAnnotationId(),
+          selectedAnnotationIds: [...selectedStickerAnnotationIds],
           selectedStickerId: selectedStickerId(),
           selectedUnitIds: [...selectedUnitIds],
           units: graphStore.units,
       });
 
       if (plan.kind === "annotation") {
-          const activeUnit = graphStore.units.find((unit) => unit.id === plan.stickerId);
+          const activeUnit = graphStore.units.find((unit) => unit.id === plan.unitId);
           if (activeUnit?.data.annotationState) {
-              uiActions.pushStickerHistory(plan.stickerId, captureStickerEditSnapshot(activeUnit));
-              graphStore.actions.updateStickerEditData(plan.stickerId, {
-                  annotationState: removeAnnotationById(activeUnit.data.annotationState, plan.annotationId),
+              const nextAnnotationState = removeAnnotationsByIds(
+                  activeUnit.data.annotationState,
+                  plan.annotationIds,
+              );
+              if (nextAnnotationState === activeUnit.data.annotationState) {
+                  // A stale annotation selection must not fall through to unit
+                  // deletion or create a no-op history/sync entry.
+                  uiActions.setSelectedStickerAnnotation(null);
+                  return;
+              }
+              uiActions.pushStickerHistory(plan.unitId, captureStickerEditSnapshot(activeUnit));
+              graphStore.actions.updateStickerEditData(plan.unitId, {
+                  annotationState: nextAnnotationState,
               });
-              graphStore.actions.propagateStickerEditsFrom(plan.stickerId);
+              graphStore.actions.propagateStickerEditsFrom(plan.unitId);
               uiActions.setSelectedStickerAnnotation(null);
               void syncService.performWorkflowSync();
           }
@@ -854,8 +904,12 @@ export default function App() {
   useShortcuts({
       contextProvider: () => {
           return resolveShortcutContext({
+              hasBlockingDialog: appSettingsOpen() || surfaceConfirmations().length > 0,
+              hasActiveLongCapture: Boolean(longCaptureSession()?.active),
               isSelecting: isSelecting(),
               hasSelectedSticker: Boolean(selectedStickerId()),
+              hasSelectedAnnotation:
+                  selectedStickerAnnotationIds.length > 0 || Boolean(selectedStickerAnnotationId()),
               hasActiveStickerEditTarget: activeStickerEditTargetId() === selectedStickerId(),
               stickerEditingDomain: stickerToolSettings.domain,
               stickerTransformMode: stickerToolSettings.transformMode,
@@ -873,6 +927,10 @@ export default function App() {
           onDelete: deleteSelectedUnitOrAnnotation,
           onCloseActions: closeSelectedActionsMenu,
           onCancelSelection: async () => {
+              if (longCaptureSession()?.active) {
+                  await cancelAutoLongCaptureSession();
+                  return;
+              }
               invalidateCaptureSessionLifecycle();
               nativeCapturePointerActive = false;
               captureCtrlReleasedSinceStart = false;
@@ -894,7 +952,7 @@ export default function App() {
           onCancelStickerEdit: () => {
               uiActions.requestStickerEditCancel();
           },
-          onToggleStickerToolbar: tauriRuntime ? undefined : () => {
+          onToggleStickerToolbar: () => {
               toggleStickerToolbarVisibility();
           },
           onToggleActions: () => {
@@ -1202,6 +1260,12 @@ export default function App() {
               );
           });
 
+          const unlistenWindowFocus = await listen<boolean>("hook/window_focus_changed", (event) => {
+              // The native event is immediate; polling is intentionally only a
+              // fallback because WebView timers can be throttled after focus loss.
+              notifyNativeAppFocus(event.payload);
+          });
+
            const unlistenCreateTeaTicket = await listen("trigger-create-tea-ticket", () => {
                untrack(() => {
                    logger.debug("Backend Triggered Tea Ticket Creation");
@@ -1230,8 +1294,18 @@ export default function App() {
 
           const unlistenEscape = await listen("trigger-escape", () => {
               void api.debugLogEvent("trigger-escape-listener");
+              if (surfaceConfirmations().length > 0) {
+                  void decideCurrentSurfaceConfirmation(false);
+                  return;
+              }
               if (appSettingsOpen()) {
                   setAppSettingsOpen(false);
+                  return;
+              }
+              // When the WebView has focus, the DOM keydown path already owns
+              // this physical key. Ignore rdev's native echo so one keypress
+              // cannot delete an annotation and then its containing unit.
+              if (hasFocusedDomShortcutOwner()) {
                   return;
               }
               if (longCaptureSession()?.active) {
@@ -1253,6 +1327,9 @@ export default function App() {
                   })();
                   return;
               }
+              if (hasActiveEditableShortcutTarget()) {
+                  return;
+              }
               if (closeSelectedActionsMenu()) {
                   return;
               }
@@ -1266,7 +1343,16 @@ export default function App() {
               if (activeBootProfile?.nativeAcceptance) {
                   return;
               }
-              if (appSettingsOpen() || longCaptureSession()?.active || isSelecting()) {
+              if (hasFocusedDomShortcutOwner()) {
+                  return;
+              }
+              if (
+                  appSettingsOpen()
+                  || surfaceConfirmations().length > 0
+                  || longCaptureSession()?.active
+                  || isSelecting()
+                  || hasActiveEditableShortcutTarget()
+              ) {
                   return;
               }
               if (!selectedStickerId()) {
@@ -1551,6 +1637,7 @@ export default function App() {
           const unlistenSurfacePatch = await loomHook.listenForSurfacePatch((delivery) => {
               const current = surfaceStore.byUnit[delivery.hookNodeId];
               if (!current || current.snapshot.instanceId !== delivery.patch.instanceId) return;
+              if (delivery.patch.revision <= current.snapshot.revision) return;
               try {
                   surfaceStore.actions.applyPatch(delivery.hookNodeId, delivery.patch);
                   surfaceStore.actions.setGeneration(delivery.hookNodeId, delivery.generation);
@@ -1770,6 +1857,7 @@ export default function App() {
               unlistenCopy,
               unlistenPaste,
               unlistenOverlayShortcut,
+              unlistenWindowFocus,
                unlistenCreateTeaTicket,
                unlistenVoiceHotkey,
                unlistenVoiceSession,

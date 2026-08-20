@@ -2011,6 +2011,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             ref={hostRef}
             class="absolute inset-0 z-[16]"
             data-sticker-interaction-root="true"
+            data-sticker-surface-pass-through={usesExistingNodeInteractions() ? "true" : "false"}
             style={{
                 "pointer-events": interactionEnabled() ? "auto" : "none",
                 "overflow": cropClipped() ? "hidden" : "visible",

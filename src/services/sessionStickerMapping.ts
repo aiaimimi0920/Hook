@@ -90,6 +90,7 @@ export const mapSessionStickerToUnit = (
             opacityNormal: sticker.opacityNormal ?? 1,
             opacityMini: sticker.opacityMini ?? 0.9,
             previewSrc: sticker.previewSrc && sticker.previewSrc !== sticker.src ? sticker.previewSrc : undefined,
+            surfaceViewId: sticker.surfaceViewId || undefined,
             restoredPreviewLocked:
                 unitType === "art" &&
                 !!sticker.previewSrc &&
@@ -122,6 +123,7 @@ const KNOWN_SESSION_STICKER_KEYS = {
     h: true,
     src: true,
     previewSrc: true,
+    surfaceViewId: true,
     minified: true,
     savedRect: true,
     cropOffset: true,

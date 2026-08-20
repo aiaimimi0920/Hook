@@ -58,6 +58,7 @@ export interface UnitData {
     progress?: number;
     previewSrc?: string; // Result from Art Node (Shared Memory)
     restoredPreviewLocked?: boolean; // Restored shader art keeps persisted preview until a real invalidation occurs
+    surfaceViewId?: string; // Developer-declared Surface view selected for this Art node
     errorMessage?: string;
     rasterizedAnnotationLayerSrc?: string; // Transparent flattened annotation layer above src
     resultHandle?: string; // SHM Handle
@@ -193,6 +194,7 @@ export interface SessionSticker {
     h: number;
     src?: string | null;
     previewSrc?: string | null;
+    surfaceViewId?: string | null;
     minified?: boolean | null;
     savedRect?: { x: number; y: number; w: number; h: number } | null;
     cropOffset?: { x: number; y: number } | null;

@@ -44,4 +44,13 @@ describe("workflow preview delivery contract", () => {
         expect(parameterSource).toContain("requiresFormalExecutionAfterPreview");
         expect(unitViewSource).toContain("shaderReferenceInputPortName");
     });
+
+    it("ignores replayed Surface patches after snapshot convergence", () => {
+        expect(appSource).toContain(
+            "if (delivery.patch.revision <= current.snapshot.revision) return;",
+        );
+        expect(appSource).toMatch(
+            /delivery\.patch\.revision <= current\.snapshot\.revision[\s\S]*?surfaceStore\.actions\.applyPatch/,
+        );
+    });
 });

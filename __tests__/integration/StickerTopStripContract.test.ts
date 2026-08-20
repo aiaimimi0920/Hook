@@ -50,15 +50,14 @@ describe("Hook sticker top strip contract", () => {
         expect(legacyToolbarExists).toBe(false);
     });
 
-    it("only mounts the top strip when sticker edit mode is active, matching the ctrl+e toolbar gate", () => {
+    it("mounts the shared top strip only when the selected unit edit mode is active", () => {
         const topStripMountIndex = unitViewSource.indexOf("<StickerTopStrip");
         const topStripGuardIndex = unitViewSource.lastIndexOf("<Show when={", topStripMountIndex);
         const topStripMountBlock = unitViewSource.slice(topStripGuardIndex, topStripMountIndex + 240);
 
         expect(unitViewSource).toContain("<StickerTopStrip");
-        expect(topStripMountBlock).toContain(
-            'props.unit.type === "sticker" && props.isSelected && activeStickerEditTargetId() === props.unit.id',
-        );
+        expect(topStripMountBlock).toContain("props.isSelected && activeStickerEditTargetId() === props.unit.id");
+        expect(unitViewSource).toContain('supportsBitmapTools={props.unit.type === "sticker"}');
         expect(unitViewSource).toContain("activeStickerEditTargetId() === props.unit.id");
         expect(unitViewSource).not.toContain("<StickerEditToolbar");
     });

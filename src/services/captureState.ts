@@ -8,6 +8,7 @@ import type {
 export type CaptureSelectionMode = "region" | "long-vertical";
 
 export type CaptureShortcutContext =
+    | "modal"
     | "capture-selecting"
     | "sticker-editing"
     | "unit-selected"
@@ -165,15 +166,20 @@ export const shouldConfirmCaptureWindowDoubleClick = (
 );
 
 export const resolveShortcutContext = (input: {
+    hasBlockingDialog?: boolean;
+    hasActiveLongCapture?: boolean;
     isSelecting: boolean;
     hasSelectedSticker: boolean;
+    hasSelectedAnnotation?: boolean;
     hasActiveStickerEditTarget: boolean;
     stickerEditingDomain: StickerEditingDomain;
     stickerTransformMode: StickerTransformMode;
     stickerCanvasTool: StickerCanvasTool;
 }): CaptureShortcutContext => {
-    if (input.isSelecting) return "capture-selecting";
+    if (input.hasBlockingDialog) return "modal";
+    if (input.isSelecting || input.hasActiveLongCapture) return "capture-selecting";
     if (!input.hasSelectedSticker) return "canvas";
+    if (input.hasSelectedAnnotation) return "unit-selected";
     if (!input.hasActiveStickerEditTarget) return "unit-selected";
     if (input.stickerEditingDomain === "create") {
         return "sticker-editing";

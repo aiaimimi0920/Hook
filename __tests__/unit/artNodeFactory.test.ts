@@ -36,6 +36,40 @@ const imageSearchCapability: ArtCapability = {
     outputs: [{ name: "output", label: "output", type: "image" }],
 };
 
+const surfaceCapability: ArtCapability = {
+    ...imageSearchCapability,
+    id: "custom-stock-monitor",
+    metadata: {
+        capabilities: {
+            surface: {
+                protocolVersion: "loom.surface.v1",
+                apiVersion: "1.0",
+                variants: [{ runtime: "javascript", entry: "surface/main.js" }],
+                minimumSize: { width: 760, height: 640 },
+            },
+        },
+    },
+};
+
+const multiViewSurfaceCapability: ArtCapability = {
+    ...surfaceCapability,
+    metadata: {
+        capabilities: {
+            surface: {
+                protocolVersion: "loom.surface.v1",
+                apiVersion: "1.0",
+                variants: [{ runtime: "javascript", entry: "surface/main.js" }],
+                minimumSize: { width: 320, height: 240 },
+                views: [
+                    { id: "full", label: "全视图", fullSize: { width: 960, height: 820 } },
+                    { id: "price", label: "交易价格视图", fullSize: { width: 620, height: 560 } },
+                ],
+                defaultViewId: "full",
+            },
+        },
+    },
+};
+
 describe("standalone ArtNode factory", () => {
     it("keeps pure generator params editable without forcing upstream sticker ports", () => {
         expect(buildUnitPortsFromCapability("art", imageSearchCapability)).toEqual({
@@ -91,6 +125,62 @@ describe("standalone ArtNode factory", () => {
                 notifyDownstream: true,
             },
         });
+    });
+
+    it("raises requested dimensions to the Surface minimum size", () => {
+        const unit = buildStandaloneArtNodeUnit({
+            id: "surface-node",
+            capability: surfaceCapability,
+            x: 120,
+            y: 80,
+            w: 320,
+            h: 240,
+        });
+
+        expect(unit).toMatchObject({ w: 760, h: 640 });
+    });
+
+    it("preserves requested dimensions above the Surface minimum size", () => {
+        const unit = buildStandaloneArtNodeUnit({
+            id: "surface-node",
+            capability: surfaceCapability,
+            x: 120,
+            y: 80,
+            w: 1024,
+            h: 768,
+        });
+
+        expect(unit).toMatchObject({ w: 1024, h: 768 });
+    });
+
+    it("opens a multi-view Art at the default view full size", () => {
+        const unit = buildStandaloneArtNodeUnit({
+            id: "surface-node",
+            capability: multiViewSurfaceCapability,
+            x: 120,
+            y: 80,
+            w: 320,
+            h: 240,
+        });
+
+        expect(unit).toMatchObject({
+            w: 960,
+            h: 820,
+            data: { surfaceViewId: "full" },
+        });
+    });
+
+    it("falls back to stable defaults when requested dimensions are invalid", () => {
+        const unit = buildStandaloneArtNodeUnit({
+            id: "surface-node",
+            capability: imageSearchCapability,
+            x: 120,
+            y: 80,
+            w: Number.NaN,
+            h: -1,
+        });
+
+        expect(unit).toMatchObject({ w: 320, h: 240 });
     });
 
     it("keeps image-link parameters on the parameter row instead of creating duplicate node endpoints", () => {

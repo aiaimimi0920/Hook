@@ -1,5 +1,10 @@
 import { Component, Show, createEffect, createSignal, onCleanup } from "solid-js";
 import { api } from "../../../services/api";
+import {
+  beginEditableFocusRequest,
+  cancelPendingEditableFocus,
+  isEditableFocusRequestCurrent,
+} from "../../../services/editableFocus";
 import { clampOptional, normalizePrecision } from "../../../utils/math";
 
 interface NumberControlProps {
@@ -75,22 +80,30 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
   };
 
   const focusEditableTarget = (
-    event:
-      | (MouseEvent & { currentTarget: HTMLInputElement })
-      | (PointerEvent & { currentTarget: HTMLInputElement }),
+    event: PointerEvent & { currentTarget: HTMLInputElement },
   ) => {
     stopInteractiveEvent(event);
     if (props.isDisabled) return;
     const target = event.currentTarget;
+    const focusGeneration = beginEditableFocusRequest();
     target.focus();
     void api.focusOverlayWindow().finally(() => {
-      requestAnimationFrame(() => target.focus());
+      requestAnimationFrame(() => {
+        if (!target.isConnected || !isEditableFocusRequestCurrent(focusGeneration)) return;
+        target.focus();
+      });
     });
   };
 
   const commitDraft = () => {
+    const wasEditing = isEditing();
     const next = parseDraft();
     setIsEditing(false);
+
+    if (!wasEditing) {
+      setDraftValue(formatNumber(currentValue()));
+      return;
+    }
 
     if (next === undefined) {
       setDraftValue(formatNumber(currentValue()));
@@ -230,22 +243,24 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
         }}
         onChange={(event) => {
           setDraftValue(event.currentTarget.value);
-          commitDraft();
         }}
         onBlur={commitDraft}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault();
-            commitDraft();
+            cancelPendingEditableFocus();
+            event.currentTarget.blur();
           }
           if (event.key === "Escape") {
             event.preventDefault();
+            cancelPendingEditableFocus();
             setIsEditing(false);
             setDraftValue(formatNumber(currentValue()));
+            event.currentTarget.blur();
           }
         }}
         onPointerDown={focusEditableTarget}
-        onMouseDown={focusEditableTarget}
+        onMouseDown={stopInteractiveEvent}
         onClick={stopInteractiveEvent}
         onContextMenu={(event) => {
           stopInteractiveEvent(event);

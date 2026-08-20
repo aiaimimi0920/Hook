@@ -48,6 +48,45 @@ describe("NumberControl runtime behavior", () => {
     dispose();
   });
 
+  it("commits once and exits numeric editing when Enter is pressed", () => {
+    const onChange = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    const dispose = render(
+      () => (
+        <NumberControl
+          id="count"
+          label="Count"
+          widget="number"
+          value={1}
+          min={1}
+          max={10}
+          step={1}
+          isDisabled={false}
+          onChange={onChange}
+          onContextMenu={() => undefined}
+        />
+      ),
+      host,
+    );
+
+    const input = host.querySelector("input[type='number']") as HTMLInputElement;
+    input.focus();
+    input.value = "3";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    }));
+
+    expect(document.activeElement).not.toBe(input);
+    expect(onChange).toHaveBeenCalledWith(3, false);
+    expect(onChange.mock.calls.filter(([value, isFinal]) => value === 3 && isFinal === true)).toHaveLength(1);
+
+    dispose();
+  });
+
   it("updates slider values through the overlay-safe drag track instead of a native range input", () => {
     const onChange = vi.fn();
     const host = document.createElement("div");
