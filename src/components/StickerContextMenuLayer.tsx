@@ -13,6 +13,7 @@ import {
 } from "../services/stickerLibraryModel";
 import { stickerContextMenuController } from "../services/stickerContextMenuController";
 import { captureFrozenStickerSnapshot } from "../services/stickerSnapshot";
+import { acceptsSurfaceRelayedKeydown } from "../services/surfaceHostKeydown";
 import { syncService } from "../services/syncService";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import { graphStore } from "../store/graphStore";
@@ -193,6 +194,10 @@ export const StickerContextMenuLayer = () => {
         };
 
         const handleKeyDown = (event: KeyboardEvent) => {
+            // Opted in: dismissing an open sticker menu is the behavior the surface
+            // bootstrap preserves an otherwise unused Escape for, and closing a menu is
+            // not a destructive action.
+            if (!acceptsSurfaceRelayedKeydown(event, { surfaceRelayed: true })) return;
             if (event.key !== "Escape") {
                 return;
             }

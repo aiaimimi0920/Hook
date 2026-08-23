@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { render } from "solid-js/web";
 
 import { SurfaceConfirmationDialog } from "../../src/components/SurfaceConfirmationDialog";
+import { markSurfaceRelayedKeydown } from "../../src/services/surfaceHostKeydown";
 import {
     SURFACE_PROTOCOL_VERSION,
     type SurfaceConfirmationRequest,
@@ -66,6 +67,28 @@ describe("SurfaceConfirmationDialog", () => {
             ),
             host,
         );
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        expect(decisions).toEqual([false]);
+        dispose();
+    });
+
+    it("ignores an Escape relayed out of a sandboxed Surface", () => {
+        const decisions: boolean[] = [];
+        const host = document.createElement("div");
+        document.body.append(host);
+        const dispose = render(
+            () => (
+                <SurfaceConfirmationDialog
+                    request={request()}
+                    onDecision={(approved) => decisions.push(approved)}
+                />
+            ),
+            host,
+        );
+        window.dispatchEvent(markSurfaceRelayedKeydown(
+            new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+        ));
+        expect(decisions).toEqual([]);
         window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
         expect(decisions).toEqual([false]);
         dispose();

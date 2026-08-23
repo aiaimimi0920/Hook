@@ -19,6 +19,8 @@ $ErrorActionPreference = "Stop"
 $resolvedExePath = [System.IO.Path]::GetFullPath($ExePath)
 $resolvedOutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+$fileHashScript = Join-Path $PSScriptRoot "file-hash.ps1"
+. $fileHashScript
 $projectLicensePath = Join-Path $repoRoot "LICENSE"
 $thirdPartyNoticesPath = Join-Path $repoRoot "THIRD_PARTY_NOTICES.md"
 $capLicensePath = Join-Path $repoRoot "src-tauri\crates\LICENSE_CAP_SCAP_MIT"
@@ -26,6 +28,7 @@ $dragApacheLicensePath = Join-Path $repoRoot "src-tauri\crates\drag\LICENSE_APAC
 $dragMitLicensePath = Join-Path $repoRoot "src-tauri\crates\drag\LICENSE_MIT"
 $assetName = "hook-windows-x64-$Tag.zip"
 $zipPath = Join-Path $resolvedOutputDir $assetName
+$provenancePath = Join-Path (Split-Path -Parent $resolvedExePath) "build-provenance.json"
 
 if ($DryRun) {
     [ordered]@{
@@ -39,6 +42,16 @@ if ($DryRun) {
 
 if (-not (Test-Path -LiteralPath $resolvedExePath -PathType Leaf)) {
     throw "Missing Hook executable for release packaging: $resolvedExePath"
+}
+
+if (-not (Test-Path -LiteralPath $provenancePath -PathType Leaf)) {
+    throw "Missing Hook build provenance beside executable: $provenancePath"
+}
+$provenance = Get-Content -LiteralPath $provenancePath -Raw | ConvertFrom-Json
+$expectedName = Split-Path -Leaf $resolvedExePath
+$actualSha256 = Get-HookFileSha256 -Path $resolvedExePath
+if ([string]$provenance.artifact.name -ne $expectedName -or [string]$provenance.artifact.sha256 -ne $actualSha256) {
+    throw "Hook build provenance does not match the executable being packaged: $provenancePath"
 }
 
 foreach ($requiredPath in @(
@@ -73,6 +86,7 @@ try {
     New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
     New-Item -ItemType Directory -Path $stagingThirdPartyRoot -Force | Out-Null
     Copy-Item -LiteralPath $resolvedExePath -Destination $stagingFile -Force
+    Copy-Item -LiteralPath $provenancePath -Destination (Join-Path $stagingRoot "build-provenance.json") -Force
     Copy-Item -LiteralPath $projectLicensePath -Destination (Join-Path $stagingRoot "LICENSE.txt") -Force
     Copy-Item -LiteralPath $thirdPartyNoticesPath -Destination (Join-Path $stagingRoot "THIRD_PARTY_NOTICES.md") -Force
     Copy-Item -LiteralPath $capLicensePath -Destination (Join-Path $stagingThirdPartyRoot "CAP_SCAP_MIT.txt") -Force

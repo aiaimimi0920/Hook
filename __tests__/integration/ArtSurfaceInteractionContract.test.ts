@@ -54,6 +54,29 @@ describe("Art Surface native interaction contract", () => {
         expect(stickerAnnotationSource).toContain('data-sticker-surface-pass-through={usesExistingNodeInteractions() ? "true" : "false"}');
     });
 
+    it("keeps the Surface init listener alive until an init message is actually accepted", () => {
+        const bootstrapSource = readSource("public/javascript-surface-bootstrap.js");
+        const initListener = sourceBetween(
+            bootstrapSource,
+            "const onHostMessage = async (event) => {",
+            'globalThis.addEventListener("message", onHostMessage);',
+        );
+
+        // `once: true` drops the listener when it is invoked, not when it succeeds, so one
+        // stray message before init would burn the only chance and strand the Surface.
+        expect(initListener).not.toContain("once: true");
+        expect(bootstrapSource).toContain('globalThis.addEventListener("message", onHostMessage);');
+        expect(initListener).toContain('globalThis.removeEventListener("message", onHostMessage);');
+        expect(initListener).toContain("if (event.source !== globalThis.parent) return;");
+
+        const ignoreIndex = initListener.indexOf('event.data?.type !== "surface:init"');
+        const sourceCheckIndex = initListener.indexOf("event.source !== globalThis.parent");
+        const removalIndex = initListener.indexOf("removeEventListener");
+        expect(ignoreIndex).toBeGreaterThanOrEqual(0);
+        expect(sourceCheckIndex).toBeGreaterThan(ignoreIndex);
+        expect(removalIndex).toBeGreaterThan(sourceCheckIndex);
+    });
+
     it("keeps Surface controls hit-testable before Ctrl+E while edit annotations opt back into pointer input", () => {
         const unitViewSource = readSource("src/components/UnitView.tsx");
         const stickerAnnotationSource = readSource("src/components/StickerAnnotationLayer.tsx");

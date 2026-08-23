@@ -22,6 +22,7 @@ import {
     renderFileNamingStem,
     validateFileNamingPattern,
 } from "../services/fileNaming";
+import { acceptsSurfaceRelayedKeydown } from "../services/surfaceHostKeydown";
 
 interface Props {
     open: boolean;
@@ -134,6 +135,9 @@ export const AppSettingsDialog: Component<Props> = (props) => {
 
     onMount(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
+            // Settings is a modal a surface cannot open, so a sandbox-relayed Escape has
+            // no business closing it out from under the user.
+            if (!acceptsSurfaceRelayedKeydown(event)) return;
             if (!props.open || event.key !== "Escape") return;
             event.preventDefault();
             event.stopImmediatePropagation();

@@ -44,8 +44,14 @@ jobs:
       - name: Audit open-source dependency metadata
         run: npm run audit:licenses
 
+      - name: ESLint
+        run: npm run lint
+
       - name: TypeScript typecheck
         run: npm run typecheck
+
+      - name: TypeScript typecheck (tests)
+        run: npm run typecheck:test
 
       - name: Run frontend tests
         run: npm test
@@ -104,6 +110,16 @@ jobs:
 
       - name: Run deterministic runtime performance gates
         run: npm run test:performance
+
+      # The JavaScript Surface smoke drives a real Chromium against a Vite server
+      # with the shipped Tauri CSP, so it needs the Playwright browser payload.
+      # It lives in this job rather than the release build to keep the artifact
+      # path free of the browser download.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run JavaScript Surface browser smoke
+        run: npm run test:surface-browser
 
       - name: Run Rust tests with default parallel test threads
         run: cargo test --manifest-path src-tauri/Cargo.toml

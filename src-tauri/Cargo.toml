@@ -24,10 +24,16 @@ tauri-build = { version = "2", features = [] }
 filetime = "0.2"
 
 [features]
+default = ["remote-surface"]
 # Force-enables capture-path diagnostic logging (writes hook_runtime.log next to
 # the exe) without needing any environment variable. Build a diagnostic exe with
 # `cargo tauri build --no-bundle --features diag_capture`.
 diag_capture = []
+# Cross-device Loom Surface support: device pairing, the Ed25519 device identity,
+# session tokens, the remote poll listener, and strict HTTPS remote origins. The
+# feature is on by default; `--no-default-features` retains the loopback-only build
+# for compatibility testing.
+remote-surface = []
 
 [dependencies]
 tauri = { version = "=2.11.2", features = ["protocol-asset", "tray-icon"] }
@@ -58,6 +64,7 @@ anyhow = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "time", "macros"] }
 uuid = { version = "1.10.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 dirs = "5.0"
+fs2 = "0.4"
 tungstenite = "0.24"
 clipboard-win = "5.4.1"
 

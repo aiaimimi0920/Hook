@@ -16,7 +16,6 @@ describe("stickerEffects", () => {
                 { w: 120, h: 80 },
                 { w: 300, h: 200 },
                 {
-                    contentEraseStrokes: [],
                     cropRect: { x: 50, y: 25, w: 120, h: 80 },
                     sourceSize: { w: 300, h: 200 },
                 },
@@ -39,9 +38,7 @@ describe("stickerEffects", () => {
                 { x: 10, y: 5, w: 80, h: 40 },
                 { w: 120, h: 80 },
                 { w: 60, h: 30 },
-                {
-                    contentEraseStrokes: [],
-                },
+                {},
             ),
         ).toEqual({
             sourceX: 5,

@@ -51,7 +51,8 @@ describe("stickerBitmapLayers", () => {
         const canvas = {
             width: 0,
             height: 0,
-            getContext: () => context,
+            // Cast because only the "2d" overload of `getContext` is stubbed here.
+            getContext: (() => context) as unknown as HTMLCanvasElement["getContext"],
             toDataURL: () => "data:image/png;base64,ERASED",
         } satisfies Partial<HTMLCanvasElement>;
 
@@ -123,7 +124,8 @@ describe("stickerBitmapLayers", () => {
         const canvas = {
             width: 0,
             height: 0,
-            getContext: () => context,
+            // Cast because only the "2d" overload of `getContext` is stubbed here.
+            getContext: (() => context) as unknown as HTMLCanvasElement["getContext"],
             toDataURL: () => {
                 dataUrlCounter += 1;
                 calls.push(`toDataURL:${dataUrlCounter}`);
@@ -210,7 +212,8 @@ describe("stickerBitmapLayers", () => {
         const canvas = {
             width: 0,
             height: 0,
-            getContext: () => context,
+            // Cast because only the "2d" overload of `getContext` is stubbed here.
+            getContext: (() => context) as unknown as HTMLCanvasElement["getContext"],
             toDataURL: () => {
                 dataUrlCounter += 1;
                 calls.push(`toDataURL:${dataUrlCounter}`);
@@ -467,7 +470,8 @@ describe("stickerBitmapLayers", () => {
         const canvas = {
             width: 0,
             height: 0,
-            getContext: () => context,
+            // Cast because only the "2d" overload of `getContext` is stubbed here.
+            getContext: (() => context) as unknown as HTMLCanvasElement["getContext"],
             toDataURL: () => "data:image/png;base64,FLIPPED",
         } satisfies Partial<HTMLCanvasElement>;
 

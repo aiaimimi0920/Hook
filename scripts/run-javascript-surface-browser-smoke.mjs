@@ -2,12 +2,12 @@
 
 import { Buffer } from "node:buffer";
 import fs from "node:fs/promises";
+import http from "node:http";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright";
-import { createServer } from "vite";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tauriConfig = JSON.parse(await fs.readFile(
@@ -24,28 +24,45 @@ const outputPath = path.resolve(
         || "artifacts/runtime-performance/javascript-surface-browser.json",
 );
 
-const vite = await createServer({
-    configFile: path.join(root, "vite.config.ts"),
-    root,
-    server: {
-        host: "127.0.0.1",
-        port: 0,
-        strictPort: false,
-        headers: { "Content-Security-Policy": tauriCsp },
-    },
-    appType: "custom",
-    logLevel: "error",
-});
-vite.middlewares.use("/__javascript-surface-smoke", (_request, response) => {
-    response.statusCode = 200;
-    response.setHeader("Content-Type", "text/html; charset=utf-8");
-    response.end("<!doctype html><html><body></body></html>");
+const publicAssets = new Map([
+    ["/javascript-surface-host.html", ["javascript-surface-host.html", "text/html; charset=utf-8"]],
+    ["/javascript-surface-bootstrap.js", ["javascript-surface-bootstrap.js", "text/javascript; charset=utf-8"]],
+]);
+const server = http.createServer(async (request, response) => {
+    try {
+        const requestPath = new URL(request.url || "/", "http://127.0.0.1").pathname;
+        response.setHeader("Content-Security-Policy", tauriCsp);
+        if (requestPath === "/__javascript-surface-smoke") {
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "text/html; charset=utf-8");
+            response.end("<!doctype html><html><body></body></html>");
+            return;
+        }
+        const asset = publicAssets.get(requestPath);
+        if (!asset) {
+            response.statusCode = 404;
+            response.end("Not found");
+            return;
+        }
+        const [assetName, contentType] = asset;
+        const body = await fs.readFile(path.join(root, "public", assetName));
+        response.statusCode = 200;
+        response.setHeader("Content-Type", contentType);
+        response.setHeader("Content-Length", String(body.byteLength));
+        response.end(body);
+    } catch (error) {
+        response.statusCode = 500;
+        response.end(String(error));
+    }
 });
 
 let browser;
 try {
-    await vite.listen();
-    const address = vite.httpServer?.address();
+    await new Promise((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    const address = server.address();
     if (!address || typeof address === "string") throw new Error("Vite test server did not bind TCP");
     const harnessUrl = `http://127.0.0.1:${address.port}/__javascript-surface-smoke`;
     const surfaceHostUrl = `http://127.0.0.1:${address.port}/javascript-surface-host.html`;
@@ -154,6 +171,75 @@ try {
             }
         }
         return { name, expectedFailure: expectedFailure || null, ...result };
+    };
+
+    // init 监听器过去注册成 { once: true }，而 once 在监听器被“调用”时就摘掉它，不是在它
+    // 成功时。于是任何早到一步的 message 都会把这唯一一次机会用掉，此后 surface 永远起不来。
+    // 这个场景先塞两条本该被忽略的消息——类型不对的，以及形状对但没带 MessagePort 的——
+    // 再发真正的 init，然后要求心跳照旧出现。
+    const runStrayMessageScenario = async () => {
+        browserEvents.length = 0;
+        const source = "NeuroSurface.define({ mount({ root }) { root.textContent = 'ready'; } });";
+        const entryBase64 = Buffer.from(source, "utf8").toString("base64");
+        const result = await page.evaluate(
+            async ({ surfaceHostUrl, entryBase64, snapshot }) => {
+                const iframe = window.document.createElement("iframe");
+                iframe.setAttribute("sandbox", "allow-scripts");
+
+                const messages = [];
+                const token = "surface-token-stray-message";
+                const outcome = await new Promise((resolve) => {
+                    const timeout = window.setTimeout(() => {
+                        resolve({ kind: "timeout" });
+                    }, 30_000);
+                    iframe.addEventListener("load", () => {
+                        const channel = new MessageChannel();
+                        channel.port1.onmessage = (event) => {
+                            messages.push(event.data);
+                            const message = event.data;
+                            if (message?.type === "failure") {
+                                window.clearTimeout(timeout);
+                                channel.port1.close();
+                                resolve({ kind: "failure", message: String(message.message || "") });
+                            } else if (message?.type === "heartbeat") {
+                                channel.port1.postMessage({ type: "dispose", token });
+                                window.clearTimeout(timeout);
+                                channel.port1.close();
+                                resolve({ kind: "heartbeat", budget: message.budget });
+                            }
+                        };
+                        channel.port1.start();
+                        iframe.contentWindow.postMessage({ type: "surface:stray" }, "*");
+                        iframe.contentWindow.postMessage({
+                            type: "surface:init",
+                            token,
+                            entryBase64,
+                            snapshot,
+                            resources: {},
+                        }, "*");
+                        iframe.contentWindow.postMessage({
+                            type: "surface:init",
+                            token,
+                            entryBase64,
+                            snapshot,
+                            resources: {},
+                        }, "*", [channel.port2]);
+                    }, { once: true });
+                    iframe.src = surfaceHostUrl;
+                    window.document.body.replaceChildren(iframe);
+                });
+                iframe.remove();
+                return { outcome, messageTypes: messages.map((message) => message?.type) };
+            },
+            { surfaceHostUrl, entryBase64, snapshot },
+        );
+
+        result.frameUrls = page.frames().map((frame) => frame.url());
+        result.browserEvents = [...browserEvents];
+        if (result.outcome.kind !== "heartbeat") {
+            throw new Error(`stray-message did not survive a pre-init message: ${JSON.stringify(result)}`);
+        }
+        return { name: "stray-message", expectedFailure: null, ...result };
     };
 
     const runPointerRoutingScenario = async () => {
@@ -468,6 +554,9 @@ try {
         "NeuroSurface.define({ mount({ root }) { root.textContent = 'ready'; } });",
         null,
     );
+    if (!scenarioFilter || scenarioFilter === "stray-message") {
+        scenarios.push(await runStrayMessageScenario());
+    }
     if (!scenarioFilter || scenarioFilter === "pointer-routing") {
         scenarios.push(await runPointerRoutingScenario());
     }
@@ -505,5 +594,10 @@ try {
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 } finally {
     await browser?.close();
-    await vite.close();
+    if (server.listening) {
+        await new Promise((resolve, reject) => {
+            server.close((error) => (error ? reject(error) : resolve()));
+            server.closeAllConnections?.();
+        });
+    }
 }

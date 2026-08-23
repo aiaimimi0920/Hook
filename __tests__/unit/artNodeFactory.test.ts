@@ -25,7 +25,9 @@ const imageSearchCapability: ArtCapability = {
         { id: "query", label: "query", widget: "text", default: "" },
         { id: "safesearch", label: "safesearch", widget: "text", default: "off" },
         { id: "spellcheck", label: "spellcheck", widget: "text", default: "true" },
-        { id: "brave_api_key", label: "Brave API Key", widget: "text", secret: true },
+        // Secret params carry no default: the normalizer drops it so the value
+        // never reaches the node params (see artCapabilityNormalization).
+        { id: "brave_api_key", label: "Brave API Key", widget: "text", default: undefined, secret: true },
     ],
     inputs: [
         { name: "count", label: "count", type: "number" },
@@ -235,7 +237,7 @@ describe("standalone ArtNode factory", () => {
             id: "local-workflow-art",
             label: "本地流程",
             description: "",
-            supported_transports: ["file_path"],
+            supported_transports: ["shared_memory"],
             execution: { type: "workflow", workflowId: "workflow-1" },
             params: [
                 { id: "strength", label: "强度", widget: "slider", default: 0.75 },

@@ -310,10 +310,12 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
         window.addEventListener("mousemove", onMouseMove);
         window.addEventListener("mouseup", onMouseUp);
 
-        return () => {
+        // Solid ignores a value returned from onMount, so the window listeners
+        // have to be released through onCleanup or they outlive the picker.
+        onCleanup(() => {
             window.removeEventListener("mousemove", onMouseMove);
             window.removeEventListener("mouseup", onMouseUp);
-        };
+        });
     });
 
     // Register the picker's screen rect with the Tauri backend so the OS-level

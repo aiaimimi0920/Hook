@@ -1,3 +1,5 @@
+// This file is a module (see the trailing `export {}`) so that the `declare
+// global` block below is a legal global augmentation.
 const DEFAULT_FONT_SIZE = 16;
 const DEFAULT_TEXT_WIDTH_FACTOR = 0.6;
 
@@ -139,7 +141,10 @@ declare global {
 if (typeof HTMLCanvasElement !== "undefined") {
   const originalGetContext = HTMLCanvasElement.prototype.getContext;
 
+  // The stub only implements the "2d" context; the assignment is cast because a
+  // single-signature function cannot satisfy `getContext`'s overload set.
   HTMLCanvasElement.prototype.getContext = function getContextPatched(
+    this: HTMLCanvasElement,
     contextId: string,
     options?: unknown,
   ): RenderingContext | null {
@@ -151,5 +156,7 @@ if (typeof HTMLCanvasElement !== "undefined") {
     }
 
     return originalGetContext.call(this, contextId, options as never);
-  };
+  } as typeof HTMLCanvasElement.prototype.getContext;
 }
+
+export {};

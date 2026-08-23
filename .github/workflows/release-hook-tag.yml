@@ -84,13 +84,14 @@ jobs:
       - name: Build portable Hook EXE
         shell: powershell
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-hook-exe.ps1 -OutputDir "release\Hook\portable" -Force
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-hook-exe.ps1 -OutputDir "release\Hook\portable" -RequireCleanSource -Force
 
       - name: Build reviewed UIAccess signing candidate
         shell: powershell
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-hook-exe.ps1 `
             -OutputDir ".\release\Hook\signing-candidate" `
+            -RequireCleanSource `
             -UiAccess `
             -AllowUnsignedUiAccessBuild `
             -Force

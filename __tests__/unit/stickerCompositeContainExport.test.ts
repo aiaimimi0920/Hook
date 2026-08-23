@@ -188,7 +188,7 @@ describe("sticker composite export base-image placement", () => {
             },
         };
         const target = makeUnit();
-        target.inputs = [{ id: "image", label: "Image", type: "image" }];
+        target.inputs = [{ id: "image", label: "Image", type: "image", direction: "input" }];
         target.data.src = "data:image/png;base64,STALE_WIDE";
 
         graphStore.setUnits([target, upstream]);

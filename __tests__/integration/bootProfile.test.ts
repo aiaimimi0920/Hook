@@ -25,8 +25,8 @@ describe("Hook boot profile", () => {
   it("normalizes partial or invalid raw profile values", () => {
     expect(
       normalizeBootProfile({
-        startupMode: "unsupported",
-        initialUiMode: "unknown",
+        startupMode: "unsupported" as never,
+        initialUiMode: "unknown" as never,
         autoStartCapture: "nope" as never,
         loomHookEnabled: false,
         loomHookWsUrl: "",

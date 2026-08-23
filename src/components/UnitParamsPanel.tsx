@@ -1,6 +1,6 @@
 
-import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { Unit, Link } from "../types/unit";
+import { Component, For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js";
+import { Unit, Link, NodeExecutionConfig } from "../types/unit";
 import { ArtCapability, ArtParam } from "../services/protocol";
 import { updatePortOffset, addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import { UnitActionsMenu } from "./UnitActionsMenu";
@@ -38,11 +38,7 @@ import {
 interface UnitParamsPanelProps {
   unit: Unit;
   params: Record<string, any>; // Reactive
-  execConfig?: {
-      triggerMode: { upstreamDriven: boolean; paramDriven: boolean };
-      propagation: { listenUpstream: boolean; notifyDownstream: boolean };
-      __expanded: boolean;
-  };
+  execConfig?: NodeExecutionConfig;
   capability?: ArtCapability;
   connectedLinks?: Link[];
   resolveUnitImage?: (unitId: string) => string | undefined;
@@ -408,6 +404,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
       clearScrollThumbDrag();
       window.addEventListener("mousemove", handleMouseMove, true);
       window.addEventListener("mouseup", handleMouseUp, true);
+      // eslint-disable-next-line solid/reactivity -- detach-only closure; the reactive reads happen in the handlers while the drag is live.
       scrollThumbDragCleanup = () => {
           window.removeEventListener("mousemove", handleMouseMove, true);
           window.removeEventListener("mouseup", handleMouseUp, true);
@@ -495,12 +492,12 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
       setTempText(formatArtParamTextValue(param, getParamValue(id, param.default)));
   });
 
-  createEffect(() => {
-      derivedParams().length;
-      paramGroups().length;
-      candidateSetSignature();
-      requestAnimationFrame(() => syncScrollMetrics());
-  });
+  createEffect(on(
+      () => [derivedParams().length, paramGroups().length, candidateSetSignature()],
+      () => {
+          requestAnimationFrame(() => syncScrollMetrics());
+      },
+  ));
 
   // Rect Registration for Panel
   createEffect(() => {

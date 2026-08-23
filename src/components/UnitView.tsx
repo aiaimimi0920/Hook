@@ -13,7 +13,7 @@ import {
   stickerToolSettings,
   uiActions,
 } from "../store/uiStore";
-import { Unit, Link } from "../types/unit";
+import { Unit, Link, NodeExecutionConfig } from "../types/unit";
 import { ArtCapability } from "../services/protocol";
 import { addOrUpdateRect, removeRect, updatePortOffset } from "../services/uiRegistry";
 import {
@@ -93,11 +93,8 @@ import {
 interface Props {
   unit: Unit;
   params: Record<string, any>; // Direct Store reference for reactivity
-  execConfig?: {  // Separate store for execution config (avoids re-render flickering)
-      triggerMode: { upstreamDriven: boolean; paramDriven: boolean };
-      propagation: { listenUpstream: boolean; notifyDownstream: boolean };
-      __expanded: boolean;
-  };
+  // Separate store for execution config (avoids re-render flickering)
+  execConfig?: NodeExecutionConfig;
   capability?: ArtCapability; // Metadata for Art nodes
   isSelected: boolean;
   showActions: boolean;
@@ -286,6 +283,7 @@ export const UnitView: Component<Props> = (props) => {
       graphStore.actions.updateUnitData(currentUnit.id, { surfaceViewId: view.id });
   });
   createEffect(() => {
+      const unitId = props.unit.id;
       const leases = surfaceState()?.snapshot.resourceLeases ?? [];
       for (const lease of leases) {
           if (
@@ -296,7 +294,7 @@ export const UnitView: Component<Props> = (props) => {
           if (!surfaceResourceStore.actions.begin(resourceId)) continue;
           void loomHook.fetchSurfaceResource(lease).catch((error) => {
               surfaceResourceStore.actions.fail(resourceId);
-              graphStore.actions.updateUnitData(props.unit.id, {
+              graphStore.actions.updateUnitData(unitId, {
                   nodeStatus: "error",
                   errorMessage: error instanceof Error
                       ? error.message
@@ -307,17 +305,18 @@ export const UnitView: Component<Props> = (props) => {
   });
   createEffect(() => {
       const artId = props.unit.artId;
+      const unitId = props.unit.id;
       if (
           !artId ||
           !supportsSurface(props.capability) ||
           hasDeclarativeSurface() ||
-          !surfaceAttachmentRequests.begin(props.unit.id)
+          !surfaceAttachmentRequests.begin(unitId)
       ) {
           return;
       }
-      void loomHook.attachSurface(artId, props.unit.id).catch((error) => {
-          surfaceAttachmentRequests.fail(props.unit.id);
-          graphStore.actions.updateUnitData(props.unit.id, {
+      void loomHook.attachSurface(artId, unitId).catch((error) => {
+          surfaceAttachmentRequests.fail(unitId);
+          graphStore.actions.updateUnitData(unitId, {
               nodeStatus: "error",
               errorMessage: error instanceof Error ? error.message : "Surface attach failed",
           });
@@ -1114,8 +1113,9 @@ export const UnitView: Component<Props> = (props) => {
                                 onActivate={activateUnit}
                                 resolveResource={surfaceResourceStore.actions.resolve}
                                 onEvent={(event) => {
+                                    const unitId = props.unit.id;
                                     void loomHook.dispatchSurfaceEvent(event).catch((error) => {
-                                        graphStore.actions.updateUnitData(props.unit.id, {
+                                        graphStore.actions.updateUnitData(unitId, {
                                             nodeStatus: "error",
                                             errorMessage: error instanceof Error
                                                 ? error.message
@@ -1142,8 +1142,9 @@ export const UnitView: Component<Props> = (props) => {
                                 }
                             }}
                             onEvent={(event) => {
+                                const unitId = props.unit.id;
                                 void loomHook.dispatchSurfaceEvent(event).catch((error) => {
-                                    graphStore.actions.updateUnitData(props.unit.id, {
+                                    graphStore.actions.updateUnitData(unitId, {
                                         nodeStatus: "error",
                                         errorMessage: error instanceof Error
                                             ? error.message

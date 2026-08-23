@@ -33,7 +33,7 @@ describe("NumberControl runtime behavior", () => {
       host,
     );
 
-    const input = host.querySelector("input[type='number']");
+    const input = host.querySelector<HTMLInputElement>("input[type='number']");
     expect(input).toBeInstanceOf(HTMLInputElement);
 
     input!.value = "2";

@@ -80,6 +80,7 @@ import {
     translateAnnotation,
 } from "../services/stickerGeometry";
 import { updateTextAnnotationById } from "../services/stickerAnnotationMutations";
+import { acceptsSurfaceRelayedKeydown } from "../services/surfaceHostKeydown";
 import { syncService } from "../services/syncService";
 import { renderStickerEffectOverlay, StickerEffectDraftOverlay, buildStrokePath } from "./StickerEffectOverlay";
 import {
@@ -1966,6 +1967,10 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
 
     createEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
+            // Opted in: a host drag that started inside a JavaScript Surface keeps the
+            // pointer over the iframe, so the modifier keydowns arrive through the
+            // sandbox relay and this tracking would otherwise go stale mid-drag.
+            if (!acceptsSurfaceRelayedKeydown(event, { surfaceRelayed: true })) return;
             if (event.key === "Control") {
                 setCtrlPressed(true);
             }

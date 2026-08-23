@@ -8,7 +8,6 @@ import type { SessionSticker, Unit } from "../../src/types/unit";
 import type { ArtCapability } from "../../src/services/protocol";
 
 const mkUnit = (over: Partial<Unit> & { id: string }): Unit => ({
-    id: over.id,
     type: "sticker",
     x: 0,
     y: 0,
@@ -21,22 +20,20 @@ const mkUnit = (over: Partial<Unit> & { id: string }): Unit => ({
     ...over,
 });
 
-const mkCapability = (id: string): ArtCapability =>
-    ({
-        id,
-        label: id,
-        description: "",
-        icon: "",
-        params: [],
-        enabled: true,
-        auto_process: false,
-        defaults: {},
-    }) as ArtCapability;
+const mkCapability = (id: string): ArtCapability => ({
+    id,
+    label: id,
+    description: "",
+    supported_transports: ["shared_memory"],
+    params: [],
+    enabled: true,
+    auto_process: false,
+    defaults: {},
+});
 
 const mkSessionSticker = (
     over: Partial<SessionSticker> & { id: string },
 ): SessionSticker => ({
-    id: over.id,
     type: "sticker",
     x: 0,
     y: 0,

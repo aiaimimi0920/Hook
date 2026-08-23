@@ -495,6 +495,37 @@ describe('Hook api browser mode', () => {
     expect(compactPayload.stickers[0].previewSrc).toBeNull();
   });
 
+  it('saveSession compares and advances the browser document revision', async () => {
+    const localStorageMock = installBrowserGlobals();
+    const { api } = await import('../../src/services/api');
+
+    await expect(api.saveSession([], [], [], [], [], { workflows: {} }, 0)).resolves.toEqual({
+      documentRevision: 1,
+    });
+    await expect(api.saveSession([], [], [], [], [], { workflows: {} }, 0)).rejects.toThrow(
+      'SESSION_REVISION_CONFLICT expected 0, current 1',
+    );
+
+    const stored = JSON.parse(Object.values(localStorageMock.dump())[0]);
+    expect(stored).toMatchObject({ documentSchemaVersion: 1, documentRevision: 1 });
+  });
+
+  it('loadSession rejects a future browser document schema without overwriting it', async () => {
+    const localStorageMock = createLocalStorageMock();
+    const future = JSON.stringify({
+      documentSchemaVersion: 2,
+      documentRevision: 7,
+      stickers: [],
+      links: [],
+    });
+    localStorageMock.setRaw('hook_browser_preview_session', future);
+    installBrowserGlobals(localStorageMock);
+    const { api } = await import('../../src/services/api');
+
+    await expect(api.loadSession()).rejects.toThrow('SESSION_SCHEMA_UNSUPPORTED');
+    expect(Object.values(localStorageMock.dump())).toContain(future);
+  });
+
   it('prefetchShader returns unsupported fallback in browser preview mode', async () => {
     installBrowserGlobals();
     const { api } = await import('../../src/services/api');

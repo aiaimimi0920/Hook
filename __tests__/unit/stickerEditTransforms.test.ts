@@ -16,7 +16,7 @@ import {
   scaleAnnotationsAroundOwnCenters,
   translateAnnotation,
 } from "../../src/services/stickerGeometry";
-import type { StickerAnnotation } from "../../src/types/stickerEditing";
+import type { StickerAnnotation, StickerShapeAnnotation } from "../../src/types/stickerEditing";
 import type { Unit } from "../../src/types/unit";
 
 describe("sticker edit transforms", () => {
@@ -401,7 +401,7 @@ describe("sticker edit transforms", () => {
   });
 
   it("clones store-backed annotations before transform interactions snapshot their baseline", () => {
-    const [state] = createStore<{ elements: StickerAnnotation[] }>({
+    const [state] = createStore<{ elements: StickerShapeAnnotation[] }>({
       elements: [
         {
           id: "rect",

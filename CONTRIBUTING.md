@@ -71,14 +71,21 @@ Use the smallest relevant checks while developing, then run the appropriate
 release gate before publishing a functional change.
 
 ```powershell
+npm run lint
 npm run typecheck
+npm run typecheck:test
 npm run test:performance
 npm run test:parallel
 npm test
+npm run test:surface-browser
 cargo fmt --check --manifest-path src-tauri\Cargo.toml
 cargo test --manifest-path src-tauri\Cargo.toml
 npm run build
 ```
+
+`npm run lint` is a blocking gate (`--max-warnings 0`), so a new warning fails
+the build. `npm run test:surface-browser` drives a real Chromium through
+Playwright; run `npx playwright install chromium` once before its first use.
 
 `npm run verify:local` runs the full serial verification and also creates a local
 release package. Use it only when that side effect is intended.

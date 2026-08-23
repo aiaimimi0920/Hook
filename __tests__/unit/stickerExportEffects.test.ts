@@ -61,7 +61,14 @@ describe("sticker effect export rasterization", () => {
             beginPath: () => calls.push(["beginPath"]),
             rect: (...args: number[]) => calls.push(["rect", ...args]),
             clip: () => calls.push(["clip"]),
-            arc: (...args: number[]) => calls.push(["arc", ...args]),
+            arc: (
+                x: number,
+                y: number,
+                radius: number,
+                startAngle: number,
+                endAngle: number,
+                counterclockwise?: boolean,
+            ) => calls.push(["arc", x, y, radius, startAngle, endAngle, counterclockwise]),
             moveTo: (...args: number[]) => calls.push(["moveTo", ...args]),
             lineTo: (...args: number[]) => calls.push(["lineTo", ...args]),
             stroke: () => calls.push(["stroke"]),
@@ -72,10 +79,12 @@ describe("sticker effect export rasterization", () => {
                 calls.push(["createPattern"]);
                 return "__pattern__" as unknown as CanvasPattern;
             },
-            createImageData: (w: number, h: number) => {
+            // Cast because the real `createImageData` is overloaded and the stub only
+            // implements the (width, height) form the exporter uses.
+            createImageData: ((w: number, h: number) => {
                 calls.push(["createImageData", w, h]);
                 return { width: w, height: h, data: new Uint8ClampedArray(w * h * 4) } as unknown as ImageData;
-            },
+            }) as CanvasRenderingContext2D["createImageData"],
             putImageData: (...args: unknown[]) => calls.push(["putImageData", ...args]),
             set fillStyle(value: string) {
                 calls.push(["fillStyle", value]);
@@ -86,13 +95,13 @@ describe("sticker effect export rasterization", () => {
             set lineWidth(value: number) {
                 calls.push(["lineWidth", value]);
             },
-            set lineCap(value: string) {
+            set lineCap(value: CanvasLineCap) {
                 calls.push(["lineCap", value]);
             },
-            set lineJoin(value: string) {
+            set lineJoin(value: CanvasLineJoin) {
                 calls.push(["lineJoin", value]);
             },
-            set globalCompositeOperation(value: string) {
+            set globalCompositeOperation(value: GlobalCompositeOperation) {
                 calls.push(["globalCompositeOperation", value]);
             },
             set filter(value: string) {
@@ -106,7 +115,8 @@ describe("sticker effect export rasterization", () => {
         const canvas = {
             width: 0,
             height: 0,
-            getContext: () => context,
+            // Cast for the same reason as `createImageData`: only the "2d" overload is stubbed.
+            getContext: (() => context) as unknown as HTMLCanvasElement["getContext"],
             toDataURL: () => "data:image/png;base64,LAYER",
         } satisfies Partial<HTMLCanvasElement>;
 

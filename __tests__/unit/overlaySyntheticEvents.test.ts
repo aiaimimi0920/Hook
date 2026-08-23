@@ -557,18 +557,20 @@ describe("overlaySyntheticEvents", () => {
     });
 
     it("11b. preserves Alt on a synthetic overlay wheel event", () => {
-        let received: WheelEvent | null = null;
+        // Collected into an array rather than a `let` so control-flow analysis
+        // keeps the WheelEvent type across the listener boundary.
+        const received: WheelEvent[] = [];
         h.a.addEventListener("wheel", (event) => {
-            received = event;
+            received.push(event);
         });
         h.setHit(() => h.a);
 
         h.d.dispatch("wheel", { x: 10, y: 10, deltaY: -120, altKey: true });
 
-        expect(received).not.toBeNull();
-        expect(received?.altKey).toBe(true);
-        expect(received?.ctrlKey).toBe(false);
-        expect(received?.deltaY).toBe(-120);
+        expect(received).toHaveLength(1);
+        expect(received[0].altKey).toBe(true);
+        expect(received[0].ctrlKey).toBe(false);
+        expect(received[0].deltaY).toBe(-120);
     });
 
     it("12. leaves the current hover and dispatches nothing when a no-button move hits the overlay root", () => {

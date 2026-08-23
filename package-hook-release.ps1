@@ -2,7 +2,8 @@
 param(
     [string]$OutputDir = "..\release\Hook",
     [switch]$Force,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$RequireCleanSource
 )
 
 Set-StrictMode -Version Latest
@@ -30,6 +31,10 @@ if ($Force) {
 
 if ($DryRun) {
     $arguments += "-DryRun"
+}
+
+if ($RequireCleanSource) {
+    $arguments += "-RequireCleanSource"
 }
 
 & powershell.exe @arguments

@@ -444,7 +444,7 @@ describe("JavaScript Surface sandbox contract", () => {
         expect(source).toContain('message.type === "host-drag-end"');
         expect(source).toContain('message.type === "host-background-double-click"');
         expect(source).toContain('window.dispatchEvent(new MouseEvent(');
-        expect(source).toContain("window.dispatchEvent(new KeyboardEvent");
+        expect(source).toContain("window.dispatchEvent(markSurfaceRelayedKeydown(new KeyboardEvent");
         expect(source).not.toContain('data-surface-drag-handle="true"');
         expect(source).not.toContain("javascript-surface-drag-handle");
         expect(source).toContain("EDITABLE_FOCUS_RELEASE_EVENT");
@@ -467,8 +467,37 @@ describe("JavaScript Surface sandbox contract", () => {
             resolve(process.cwd(), "src/components/UnitView.tsx"),
             "utf8",
         );
+
         expect(unitView).toContain("onActivate={activateUnit}");
         expect(unitView).toContain("onDragStart={(event) => {");
         expect(unitView).toContain("blurActiveEditableOutside(unitContainerRef, props.unit.id)");
+    });
+
+    it("filters and throttles the sandbox keydown relay before it reaches the host", () => {
+        const source = readFileSync(
+            resolve(process.cwd(), "src/components/JavaScriptSurface.tsx"),
+            "utf8",
+        );
+        const branchStart = source.indexOf('if (message.type === "host-keydown") {');
+        expect(branchStart).toBeGreaterThan(-1);
+        const branch = source.slice(
+            branchStart,
+            source.indexOf('if (message.type === "heartbeat") {', branchStart),
+        );
+        // Shape validation admits any key with any modifier combination, so the relay
+        // needs the allowlist as well, and it must run before the budget so that
+        // non-relayable spam is dropped without consuming the shared event budget.
+        const validateIndex = branch.indexOf("validateJavaScriptSurfaceHostKeydown(message.keydown)");
+        const allowlistIndex = branch.indexOf("isRelayableSurfaceHostKeydown(keydown)");
+        const budgetIndex = branch.indexOf(
+            "consumeJavaScriptSurfaceEventBudget(eventBudgetWindow, Date.now())",
+        );
+        const dispatchIndex = branch.indexOf("window.dispatchEvent(markSurfaceRelayedKeydown(");
+        expect(validateIndex).toBeGreaterThanOrEqual(0);
+        expect(allowlistIndex).toBeGreaterThan(validateIndex);
+        expect(budgetIndex).toBeGreaterThan(allowlistIndex);
+        expect(dispatchIndex).toBeGreaterThan(budgetIndex);
+        expect(branch).toContain("if (!keydownBudget.allowed) return;");
+        expect(branch).toContain("eventBudgetWindow = keydownBudget.window;");
     });
 });

@@ -6,6 +6,8 @@ dist
 .tmp/
 artifacts/
 release
+.memsearch/
+.playwright-cli/
 *.log
 tmp-*
 tmp/

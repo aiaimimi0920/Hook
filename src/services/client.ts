@@ -27,6 +27,10 @@ export interface SurfaceSnapshotDelivery {
     generation: number;
 }
 
+export interface SurfaceResetDelivery {
+    cursor: number;
+}
+
 export interface SurfacePatchDelivery {
     hookNodeId: string;
     patch: SurfacePatch;
@@ -196,6 +200,12 @@ export class LoomHookClient {
 
     async listenForSurfaceSnapshot(callback: (delivery: SurfaceSnapshotDelivery) => void) {
         return await listen<SurfaceSnapshotDelivery>("surface/snapshot", (event) => {
+            callback(event.payload);
+        });
+    }
+
+    async listenForSurfaceReset(callback: (delivery: SurfaceResetDelivery) => void) {
+        return await listen<SurfaceResetDelivery>("surface/reset", (event) => {
             callback(event.payload);
         });
     }

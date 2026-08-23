@@ -21,15 +21,6 @@ const pointToSegmentDistance = (point: StickerPoint, start: StickerPoint, end: S
     return Math.hypot(point.x - projX, point.y - projY);
 };
 
-const isPointInEllipse = (point: StickerPoint, x: number, y: number, w: number, h: number) => {
-    const rx = w / 2;
-    const ry = h / 2;
-    if (rx <= 0 || ry <= 0) return false;
-    const cx = x + rx;
-    const cy = y + ry;
-    return (((point.x - cx) ** 2) / (rx ** 2)) + (((point.y - cy) ** 2) / (ry ** 2)) <= 1;
-};
-
 const isPointInPolygon = (point: StickerPoint, vertices: StickerPoint[]) => {
     if (vertices.length < 3) return false;
 
@@ -400,11 +391,14 @@ export const findTopmostAnnotationAtPoint = (
     return sorted.find((annotation) => annotationContainsPoint(annotation, point, tolerance));
 };
 
-export const translateAnnotation = (
-    annotation: StickerAnnotation,
+// Generic over the concrete annotation kind so callers that already know they
+// hold a line (or an effect) keep that type through the translate, instead of
+// widening back to the whole union.
+export const translateAnnotation = <T extends StickerAnnotation>(
+    annotation: T,
     deltaX: number,
     deltaY: number,
-): StickerAnnotation => {
+): T => {
     switch (annotation.type) {
         case "mosaic":
         case "blur":
@@ -452,7 +446,7 @@ export const translateAnnotation = (
     }
 };
 
-export const cloneStickerAnnotation = (annotation: StickerAnnotation): StickerAnnotation =>
+export const cloneStickerAnnotation = <T extends StickerAnnotation>(annotation: T): T =>
     structuredClone(unwrap(annotation));
 
 export const resizeBoxAnnotation = (
@@ -526,11 +520,11 @@ export const resizeBoxAnnotation = (
     };
 };
 
-export const moveLineEndpoint = (
-    annotation: StickerAnnotation,
+export const moveLineEndpoint = <T extends StickerAnnotation>(
+    annotation: T,
     handle: LineEndpointHandle,
     point: StickerPoint,
-): StickerAnnotation => {
+): T => {
     if (
         !(
             annotation.type === "line" ||

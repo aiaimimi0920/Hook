@@ -7,6 +7,7 @@ import {
     type Component,
 } from "solid-js";
 
+import { acceptsSurfaceRelayedKeydown } from "../services/surfaceHostKeydown";
 import type { SurfaceConfirmationRequest } from "../services/surfaceProtocol";
 import "./SurfaceConfirmationDialog.css";
 
@@ -54,6 +55,9 @@ export const SurfaceConfirmationDialog: Component<Props> = (props) => {
     onMount(() => {
         const timer = window.setInterval(() => setNow(Date.now()), 1_000);
         const handleKeyDown = (event: KeyboardEvent) => {
+            // A surface must not be able to answer its own permission prompt, not even
+            // with the safe answer, so the sandbox keydown relay is not opted in here.
+            if (!acceptsSurfaceRelayedKeydown(event)) return;
             if (!props.request || event.key !== "Escape" || props.submitting) return;
             event.preventDefault();
             event.stopImmediatePropagation();

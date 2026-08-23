@@ -123,6 +123,13 @@ pub struct LoomInvokeErrorPayload {
     pub message: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LoomBaseUrlKind {
+    LoopbackHttp,
+    LoopbackHttps,
+    RemoteHttps,
+}
+
 pub fn validate_loom_manifest(raw: &str) -> Result<LoomManifest, LoomConnectorError> {
     let manifest: LoomManifest = serde_json::from_str(raw)
         .map_err(|error| LoomConnectorError::ManifestParse(error.to_string()))?;
@@ -181,12 +188,18 @@ pub fn validate_loom_manifest_value(
         )));
     }
 
-    if !is_loopback_base_url(&manifest.transport.base_url) {
+    let base_url_kind = classify_loom_base_url(&manifest.transport.base_url).map_err(|error| {
+        LoomConnectorError::InvalidManifest(format!("transport.baseUrl {error}"))
+    })?;
+    #[cfg(not(feature = "remote-surface"))]
+    if base_url_kind != LoomBaseUrlKind::LoopbackHttp {
         return Err(LoomConnectorError::InvalidManifest(format!(
             "transport.baseUrl must be an origin-only http loopback URL, got {}",
             manifest.transport.base_url
         )));
     }
+    #[cfg(feature = "remote-surface")]
+    let _ = base_url_kind;
 
     let auth_mode = manifest.transport.auth.as_deref().unwrap_or("none");
     if !auth_mode.eq_ignore_ascii_case("none") && !auth_mode.eq_ignore_ascii_case("bearer") {
@@ -234,29 +247,38 @@ pub fn validate_loom_manifest_value(
 }
 
 pub fn is_loopback_base_url(base_url: &str) -> bool {
-    let Ok(url) = reqwest::Url::parse(base_url) else {
-        return false;
-    };
-    if url.scheme() != "http" {
-        return false;
+    classify_loom_base_url(base_url) == Ok(LoomBaseUrlKind::LoopbackHttp)
+}
+
+pub fn classify_loom_base_url(base_url: &str) -> Result<LoomBaseUrlKind, &'static str> {
+    let url = reqwest::Url::parse(base_url).map_err(|_| "must be a valid URL origin")?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err("must use http or https");
     }
     if !url.username().is_empty() || url.password().is_some() {
-        return false;
+        return Err("must not contain userinfo");
     }
     if url.path() != "/" || url.query().is_some() || url.fragment().is_some() {
-        return false;
+        return Err("must contain only an origin (no path, query, or fragment)");
     }
 
-    let Some(host) = url.host_str() else {
-        return false;
-    };
-    if host.eq_ignore_ascii_case("localhost") {
-        return true;
-    }
+    let host = url.host_str().ok_or("must contain a host")?;
+    let ip_host = host
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+        .unwrap_or(host);
+    let loopback = host.eq_ignore_ascii_case("localhost")
+        || ip_host
+            .parse::<IpAddr>()
+            .map(|ip| ip.is_loopback())
+            .unwrap_or(false);
 
-    host.parse::<IpAddr>()
-        .map(|ip| ip.is_loopback())
-        .unwrap_or(false)
+    match (url.scheme(), loopback) {
+        ("http", true) => Ok(LoomBaseUrlKind::LoopbackHttp),
+        ("https", true) => Ok(LoomBaseUrlKind::LoopbackHttps),
+        ("https", false) => Ok(LoomBaseUrlKind::RemoteHttps),
+        _ => Err("must use https unless the host is loopback"),
+    }
 }
 
 pub fn build_brain_plan_envelope(request: LoomBrainPlanRequest) -> LoomInvokeEnvelope {
@@ -296,11 +318,10 @@ pub async fn invoke_brain_plan_with_manifest(
         manifest.transport.base_url.trim_end_matches('/')
     );
 
-    let mut builder = crate::network_proxy::apply_to_url(reqwest::Client::builder(), &endpoint)?
-        .timeout(Duration::from_millis(timeout_ms))
-        .build()?
-        .post(endpoint)
-        .json(&envelope);
+    let mut builder =
+        crate::network_proxy::shared_client(&endpoint, Some(Duration::from_millis(timeout_ms)))?
+            .post(endpoint)
+            .json(&envelope);
     if manifest
         .transport
         .auth
@@ -524,4 +545,85 @@ fn default_loom_manifest_paths() -> Vec<PathBuf> {
     );
 
     paths
+}
+
+#[cfg(test)]
+mod base_url_tests {
+    use super::*;
+
+    fn manifest(base_url: &str) -> LoomManifest {
+        LoomManifest {
+            schema_version: 1,
+            app_id: LOOM_APP_ID.to_owned(),
+            display_name: "Loom".to_owned(),
+            version: "1.0.0".to_owned(),
+            pid: Some(1),
+            transport: LoomManifestTransport {
+                transport_type: "http".to_owned(),
+                base_url: base_url.to_owned(),
+                auth: Some("none".to_owned()),
+                auth_token: None,
+            },
+            capabilities: vec![BRAIN_PLAN.to_owned()],
+            started_at: Some(serde_json::json!(1)),
+        }
+    }
+
+    #[test]
+    fn classifies_only_origin_shaped_loopback_and_https_urls() {
+        assert_eq!(
+            classify_loom_base_url("http://127.0.0.1:8765"),
+            Ok(LoomBaseUrlKind::LoopbackHttp)
+        );
+        assert_eq!(
+            classify_loom_base_url("https://[::1]:8765"),
+            Ok(LoomBaseUrlKind::LoopbackHttps)
+        );
+        assert_eq!(
+            classify_loom_base_url("https://loom.example.test"),
+            Ok(LoomBaseUrlKind::RemoteHttps)
+        );
+        assert_eq!(
+            classify_loom_base_url("https://127.0.0.1.evil.example/"),
+            Ok(LoomBaseUrlKind::RemoteHttps),
+            "a lookalike host must be treated as remote, never loopback"
+        );
+
+        for hostile in [
+            "http://localhost:8080@evil.example/",
+            "https://loom.example.test/path",
+            "https://loom.example.test/?query=1",
+            "https://loom.example.test/#fragment",
+            "http://loom.example.test",
+            "http://127.0.0.1.evil.example/",
+        ] {
+            assert!(
+                classify_loom_base_url(hostile).is_err(),
+                "hostile or non-origin URL was accepted: {hostile}"
+            );
+        }
+    }
+
+    #[cfg(feature = "remote-surface")]
+    #[test]
+    fn remote_surface_build_accepts_only_strict_https_remote_manifests() {
+        validate_loom_manifest_value(manifest("https://loom.example.test"))
+            .expect("remote HTTPS origin");
+        for rejected in [
+            "http://loom.example.test",
+            "https://loom.example.test/path",
+            "http://localhost:8080@evil.example/",
+            "http://127.0.0.1.evil.example/",
+        ] {
+            assert!(validate_loom_manifest_value(manifest(rejected)).is_err());
+        }
+    }
+
+    #[cfg(not(feature = "remote-surface"))]
+    #[test]
+    fn loopback_only_build_rejects_remote_manifests() {
+        assert!(validate_loom_manifest_value(manifest("https://loom.example.test")).is_err());
+        validate_loom_manifest_value(manifest("http://127.0.0.1:8765"))
+            .expect("loopback HTTP origin");
+    }
 }

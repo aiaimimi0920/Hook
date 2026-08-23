@@ -42,11 +42,12 @@ describe("Loom-managed Hook general settings contract", () => {
         expect(bridgeSource).toContain("network_proxy::apply_loom_settings(settings)");
         expect(bridgeSource).toContain("configure_runtime_log_level_from_loom(settings)");
         expect(nativeSource).toContain("RUNTIME_LOG_LEVEL");
-        expect(nativeSource).toContain("network_proxy::apply_to_url");
+        expect(nativeSource).toContain("network_proxy::shared_client_with");
         expect(proxySource).toContain("settings.network.hook.mode");
         expect(proxySource).toContain("endpoint_is_loopback");
+        expect(proxySource).toContain("apply_to_url(Client::builder(), endpoint)");
         expect(teaSource).toContain("network_proxy::apply_to_url");
-        expect(loomConfigSource).toContain("network_proxy::apply_to_url");
+        expect(loomConfigSource).toContain("network_proxy::shared_client");
         expect(voiceSource.match(/network_proxy::apply_to_url/g)).toHaveLength(2);
     });
 });

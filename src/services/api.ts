@@ -79,12 +79,18 @@ export interface EnhancementCapabilities {
 }
 
 export interface SessionData {
+    documentSchemaVersion: number;
+    documentRevision: number;
     stickers: SessionSticker[];
     links: SessionLink[];
     groups?: SessionGroup[];
     recycleBin?: FrozenStickerEntry[];
     referenceLibrary?: FrozenStickerEntry[];
     workflowAssetArchiveIndex?: WorkflowAssetArchiveIndex;
+}
+
+export interface SessionSaveResult {
+    documentRevision: number;
 }
 
 export interface PreciseSelectionResult {
@@ -741,11 +747,28 @@ const loadBrowserPreviewSession = (): SessionData => {
     try {
         const raw = window.localStorage.getItem(BROWSER_SESSION_STORAGE_KEY);
         if (!raw) {
-            return { stickers: [], links: [], groups: [], recycleBin: [], referenceLibrary: [] };
+            return { documentSchemaVersion: 1, documentRevision: 0, stickers: [], links: [], groups: [], recycleBin: [], referenceLibrary: [] };
         }
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed?.stickers) && Array.isArray(parsed?.links)) {
+            const hasSchema = parsed?.documentSchemaVersion !== undefined;
+            const hasRevision = parsed?.documentRevision !== undefined;
+            if (
+                hasSchema
+                && (parsed.documentSchemaVersion !== 1
+                    || !Number.isSafeInteger(parsed.documentRevision)
+                    || parsed.documentRevision < 0)
+            ) {
+                throw new Error(
+                    `SESSION_SCHEMA_UNSUPPORTED browser session schema ${String(parsed.documentSchemaVersion)} is not supported`,
+                );
+            }
+            if (!hasSchema && hasRevision) {
+                throw new Error("SESSION_SCHEMA_INVALID documentRevision requires documentSchemaVersion");
+            }
             return {
+                documentSchemaVersion: 1,
+                documentRevision: hasSchema ? parsed.documentRevision : 0,
                 stickers: parsed.stickers,
                 links: parsed.links,
                 groups: Array.isArray(parsed?.groups) ? parsed.groups : [],
@@ -758,10 +781,11 @@ const loadBrowserPreviewSession = (): SessionData => {
             } as SessionData;
         }
     } catch (error) {
+        if (String(error).includes("SESSION_SCHEMA_")) throw error;
         console.warn("[API] Failed to parse browser preview session:", error);
     }
 
-    return { stickers: [], links: [], groups: [], recycleBin: [], referenceLibrary: [] };
+    return { documentSchemaVersion: 1, documentRevision: 0, stickers: [], links: [], groups: [], recycleBin: [], referenceLibrary: [] };
 };
 
 const trimBrowserSessionValue = (
@@ -780,7 +804,10 @@ const compactBrowserPreviewSession = (
     recycleBin: FrozenStickerEntry[] = [],
     referenceLibrary: FrozenStickerEntry[] = [],
     workflowAssetArchiveIndex?: WorkflowAssetArchiveIndex,
+    documentRevision = 0,
 ): SessionData => ({
+    documentSchemaVersion: 1,
+    documentRevision,
     stickers: stickers.map((sticker) => ({
         ...sticker,
         src: trimBrowserSessionValue(sticker?.src),
@@ -801,11 +828,31 @@ const saveBrowserPreviewSession = (
     recycleBin: FrozenStickerEntry[] = [],
     referenceLibrary: FrozenStickerEntry[] = [],
     workflowAssetArchiveIndex?: WorkflowAssetArchiveIndex,
-) => {
+    expectedDocumentRevision?: number,
+): SessionSaveResult => {
+    const current = loadBrowserPreviewSession();
+    if (
+        expectedDocumentRevision !== undefined
+        && expectedDocumentRevision !== current.documentRevision
+    ) {
+        throw new Error(
+            `SESSION_REVISION_CONFLICT expected ${expectedDocumentRevision}, current ${current.documentRevision}; refresh the Hook session before retrying`,
+        );
+    }
+    const documentRevision = current.documentRevision + 1;
     try {
         window.localStorage.setItem(
             BROWSER_SESSION_STORAGE_KEY,
-            JSON.stringify({ stickers, links, groups, recycleBin, referenceLibrary, workflowAssetArchiveIndex }),
+            JSON.stringify({
+                documentSchemaVersion: 1,
+                documentRevision,
+                stickers,
+                links,
+                groups,
+                recycleBin,
+                referenceLibrary,
+                workflowAssetArchiveIndex,
+            }),
         );
     } catch {
         try {
@@ -816,6 +863,7 @@ const saveBrowserPreviewSession = (
                 recycleBin,
                 referenceLibrary,
                 workflowAssetArchiveIndex,
+                documentRevision,
             );
             window.localStorage.setItem(
                 BROWSER_SESSION_STORAGE_KEY,
@@ -825,6 +873,7 @@ const saveBrowserPreviewSession = (
             console.warn("[API] Failed to save browser preview session:", compactError);
         }
     }
+    return { documentRevision };
 };
 
 /**
@@ -881,10 +930,19 @@ export const api = {
         recycleBin: FrozenStickerEntry[] = [],
         referenceLibrary: FrozenStickerEntry[] = [],
         workflowAssetArchiveHints: WorkflowAssetArchiveHints = { workflows: {} },
-    ): Promise<void> =>
+        expectedDocumentRevision?: number,
+    ): Promise<SessionSaveResult> =>
         safeInvoke(
             "save_session",
-            { stickers, links, groups, recycleBin, referenceLibrary, workflowAssetArchiveHints },
+            {
+                stickers,
+                links,
+                groups,
+                recycleBin,
+                referenceLibrary,
+                workflowAssetArchiveHints,
+                expectedDocumentRevision,
+            },
             () =>
                 saveBrowserPreviewSession(
                     stickers,
@@ -892,6 +950,8 @@ export const api = {
                     groups,
                     recycleBin,
                     referenceLibrary,
+                    undefined,
+                    expectedDocumentRevision,
                 ),
             false,
         ),

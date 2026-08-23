@@ -99,7 +99,7 @@ export const StringControl: Component<StringControlProps> = (props) => {
             onPointerDown={stopInteractiveEvent}
             onClick={(event) => {
               stopInteractiveEvent(event);
-              !props.isDisabled && props.onEditStart?.();
+              if (!props.isDisabled) props.onEditStart?.();
             }}
             onContextMenu={(event) => {
               stopInteractiveEvent(event);

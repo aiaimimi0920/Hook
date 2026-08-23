@@ -250,6 +250,17 @@ export default function App() {
   const [surfaceConfirmations, setSurfaceConfirmations] = createSignal<SurfaceConfirmationRequest[]>([]);
   const [surfaceConfirmationSubmitting, setSurfaceConfirmationSubmitting] = createSignal(false);
   const [surfaceConfirmationError, setSurfaceConfirmationError] = createSignal<string>();
+  const [sessionConflictMessage, setSessionConflictMessage] = createSignal<string>();
+  const onSessionRevisionConflict = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string }>).detail;
+      setSessionConflictMessage(
+          detail?.message ?? "Loom 与 Hook 同时修改了画布。请刷新后重试。",
+      );
+  };
+  window.addEventListener("hook:session-revision-conflict", onSessionRevisionConflict);
+  onCleanup(() => {
+      window.removeEventListener("hook:session-revision-conflict", onSessionRevisionConflict);
+  });
 
   const decideCurrentSurfaceConfirmation = async (approved: boolean) => {
       const current = surfaceConfirmations()[0];
@@ -1292,6 +1303,7 @@ export default function App() {
               );
           });
 
+          // eslint-disable-next-line solid/reactivity -- Tauri listener runs outside any tracking scope; the signal reads intentionally sample the state at event time.
           const unlistenEscape = await listen("trigger-escape", () => {
               void api.debugLogEvent("trigger-escape-listener");
               if (surfaceConfirmations().length > 0) {
@@ -1338,6 +1350,7 @@ export default function App() {
               }
           });
 
+          // eslint-disable-next-line solid/reactivity -- Tauri listener runs outside any tracking scope; the signal reads intentionally sample the state at event time.
           const unlistenDelete = await listen("trigger-delete", () => {
               void api.debugLogEvent("trigger-delete-listener");
               if (activeBootProfile?.nativeAcceptance) {
@@ -1607,6 +1620,15 @@ export default function App() {
               });
           });
 
+          const surfaceRemountsInFlight = new Set<string>();
+          const unlistenSurfaceReset = await loomHook.listenForSurfaceReset(() => {
+              surfaceRemountsInFlight.clear();
+              setSurfaceConfirmations([]);
+              surfaceStore.actions.clearAll();
+              surfaceResourceStore.actions.clearAll();
+              surfaceAttachmentRequests.clearAll();
+          });
+
           const unlistenSurfaceSnapshot = await loomHook.listenForSurfaceSnapshot((delivery) => {
               const unit = graphStore.units.find((candidate) => candidate.id === delivery.hookNodeId);
               if (!unit || unit.type !== "art") {
@@ -1633,7 +1655,6 @@ export default function App() {
               }
           });
 
-          const surfaceRemountsInFlight = new Set<string>();
           const unlistenSurfacePatch = await loomHook.listenForSurfacePatch((delivery) => {
               const current = surfaceStore.byUnit[delivery.hookNodeId];
               if (!current || current.snapshot.instanceId !== delivery.patch.instanceId) return;
@@ -1878,6 +1899,7 @@ export default function App() {
               unlistenConnectionState,
               unlistenProgress,
               unlistenDelivery,
+              unlistenSurfaceReset,
               unlistenSurfaceSnapshot,
               unlistenSurfacePatch,
               unlistenSurfaceGeneration,
@@ -2218,6 +2240,33 @@ export default function App() {
             );
         }}
     >
+        <Show when={sessionConflictMessage()}>
+            {(message) => (
+                <div class="fixed left-3 right-3 top-3 z-[2147483000] border border-[#ffd60a] bg-[#181818] px-4 py-3 text-[#f6f6f6] shadow-2xl">
+                    <div class="text-xs font-semibold text-[#ffd60a]">画布修订冲突</div>
+                    <div class="mt-1 text-[11px] leading-relaxed">{message()}</div>
+                    <div class="mt-3 flex gap-2">
+                        <button
+                            type="button"
+                            class="border border-[#ffd60a] bg-[#ffd60a] px-3 py-1 text-[11px] font-semibold text-black"
+                            onClick={() => {
+                                setSessionConflictMessage(undefined);
+                                void syncService.performWorkflowSync();
+                            }}
+                        >
+                            重试同步
+                        </button>
+                        <button
+                            type="button"
+                            class="border border-[#666] px-3 py-1 text-[11px] text-[#ddd]"
+                            onClick={() => setSessionConflictMessage(undefined)}
+                        >
+                            稍后处理
+                        </button>
+                    </div>
+                </div>
+            )}
+        </Show>
     <main
         id="app-main"
         class="w-screen h-screen bg-transparent overflow-hidden select-none"

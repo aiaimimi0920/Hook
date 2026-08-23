@@ -45,6 +45,12 @@ const mapGroupToSessionGroup = (group: StickerGroup) => ({
     locked: group.locked ?? false,
 });
 
+const SESSION_REVISION_CONFLICT_EVENT = "hook:session-revision-conflict";
+let currentSessionRevision = 0;
+
+const isSessionRevisionConflict = (error: unknown) =>
+    String(error instanceof Error ? error.message : error).includes("SESSION_REVISION_CONFLICT");
+
 const ensureWorkflowArchiveHint = (
     hints: WorkflowAssetArchiveHints,
     workflowId: string,
@@ -410,25 +416,8 @@ const executeSyncCycle = async () => {
         liveWorkflowArchiveHint.nodes[u.id] = { stickerId: u.id };
     });
 
-    // Wait for all syncs to complete
-    await Promise.all(
-        syncRequests.map(({ workflowId, snapshot }) =>
-            loomHook.syncWorkflow(workflowId, snapshot)
-        ),
-    );
-    if (!isSyncImageCacheEpochCurrent(syncEpoch)) {
-        return;
-    }
-
-    // Commit image state updates
-    const liveUnitIds = new Set(graphStore.units.map((unit) => unit.id));
-    pendingImageCommits.forEach(({ unitId, token, signature }, key) => {
-        if (liveUnitIds.has(unitId) && isSyncImageCacheTokenCurrent(unitId, token)) {
-            lastSyncedImageSignatures.set(key, signature);
-        }
-    });
-
-    // Persist the current local runtime state after a successful sync cycle.
+    // Hook owns the durable document revision. Save first so every Loom snapshot
+    // carries the exact generation against which later Loom patches must compare.
     const sessionStickers = await buildSessionStickersForSave(graphStore.units, {
         renderBakedPreviewSrc,
         previewCache: bakedSyncPreviewCache,
@@ -440,14 +429,50 @@ const executeSyncCycle = async () => {
         return;
     }
 
-    await api.saveSession(
-        sessionStickers,
-        graphStore.links.map(mapLinkToSessionLink),
-        graphStore.stickerGroups.map(mapGroupToSessionGroup),
-        graphStore.recycleBin.map((entry) => entry),
-        graphStore.referenceLibrary.map((entry) => entry),
-        workflowAssetArchiveHints,
+    let saveResult;
+    try {
+        saveResult = await api.saveSession(
+            sessionStickers,
+            graphStore.links.map(mapLinkToSessionLink),
+            graphStore.stickerGroups.map(mapGroupToSessionGroup),
+            graphStore.recycleBin.map((entry) => entry),
+            graphStore.referenceLibrary.map((entry) => entry),
+            workflowAssetArchiveHints,
+            currentSessionRevision,
+        );
+    } catch (error) {
+        if (!isSessionRevisionConflict(error)) throw error;
+        const latest = await api.loadSession();
+        await syncService.restoreSession(undefined, latest);
+        window.dispatchEvent(new CustomEvent(SESSION_REVISION_CONFLICT_EVENT, {
+            detail: {
+                message: "Loom 与 Hook 同时修改了画布。Hook 已刷新到磁盘中的最新版本；请确认内容后重试同步。",
+            },
+        }));
+        return;
+    }
+    currentSessionRevision = saveResult.documentRevision;
+
+    await Promise.all(
+        syncRequests.map(({ workflowId, snapshot }) =>
+            loomHook.syncWorkflow(workflowId, {
+                ...(snapshot as Record<string, unknown>),
+                documentSchemaVersion: 1,
+                documentRevision: currentSessionRevision,
+            })
+        ),
     );
+    if (!isSyncImageCacheEpochCurrent(syncEpoch)) {
+        return;
+    }
+
+    // Commit image state updates only after both the durable save and Loom sync succeed.
+    const liveUnitIds = new Set(graphStore.units.map((unit) => unit.id));
+    pendingImageCommits.forEach(({ unitId, token, signature }, key) => {
+        if (liveUnitIds.has(unitId) && isSyncImageCacheTokenCurrent(unitId, token)) {
+            lastSyncedImageSignatures.set(key, signature);
+        }
+    });
 };
 
 const scheduler = new SyncScheduler(executeSyncCycle);
@@ -509,6 +534,7 @@ export const syncService = {
         try {
             const sessionData = preloadedSessionData ?? await api.loadSession();
             if (sessionData) {
+                 currentSessionRevision = sessionData.documentRevision ?? 0;
                  const rawStickers = sessionData.stickers || [];
                  const loadedUnits = rawStickers.map((s) =>
                      mapSessionStickerToUnit(s, { capabilities: graphStore.capabilities }),

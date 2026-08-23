@@ -1,6 +1,5 @@
 import type {
     ArtCapability,
-    ArtCapabilityMetadata,
     ArtParam,
     ArtParamOption,
     ArtPortDefinition,
@@ -183,7 +182,6 @@ const normalizeCapability = (value: unknown): ArtCapability | undefined => {
         })
         : [];
     const execution = isRecord(value.execution) ? value.execution : undefined;
-    const executionType = execution ? stringValue(execution, "type") : undefined;
 
     return {
         id,

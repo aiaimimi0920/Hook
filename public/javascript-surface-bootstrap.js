@@ -637,8 +637,18 @@
     }
   };
 
-  globalThis.addEventListener("message", async (event) => {
+  // `once: true` 在监听器被“调用”时就摘掉它，而不是在它成功时；下面两个 return 却是按
+  // “不匹配就忽略、继续等真正的 surface:init”写的，两者对不上。任何早到一步的 message 事件
+  // 都会把这唯一一次机会用掉，此后 surface 永远起不来：入口不 import、ready 不发，宿主只
+  // 能等到心跳超时，而报出来的位置离真正的原因很远。所以自己在接受 init 之后再摘监听器。
+  const onHostMessage = async (event) => {
     if (port || event.data?.type !== "surface:init" || !event.ports?.[0]) return;
+    // 只接父窗口发来的 init。宿主帧是 opaque origin，宿主只能用 "*" 发（见
+    // JavaScriptSurface.tsx 里那处注释），所以 event.origin 不是可靠的判据，发件人才是。
+    // 今天不是活着的漏洞——沙箱没有 allow-same-origin，监听器在任何 surface 模块能跑之前
+    // 就注册好了——但这个检查不要钱。
+    if (event.source !== globalThis.parent) return;
+    globalThis.removeEventListener("message", onHostMessage);
     token = event.data.token;
     context = { snapshot: event.data.snapshot, resources: event.data.resources || {} };
     port = event.ports[0];
@@ -677,5 +687,6 @@
     } catch (error) {
       fail(error);
     }
-  }, { once: true });
+  };
+  globalThis.addEventListener("message", onHostMessage);
 })();

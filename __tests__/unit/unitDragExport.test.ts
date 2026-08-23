@@ -127,6 +127,7 @@ describe("unit drag export planning", () => {
                 previewSrc: "data:image/png;base64,DISPLAY",
                 annotationState: {
                     elements: [],
+                    serialCounter: 1,
                 },
             },
         });

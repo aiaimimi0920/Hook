@@ -36,6 +36,7 @@ import { flipRasterizedAnnotationLayer } from "../services/stickerBitmapLayers";
 import { flipStickerEditDataForFrame } from "../services/stickerEditTransforms";
 import { mergeStickerFontFamilies } from "../services/fontCatalog";
 import { api } from "../services/api";
+import { acceptsSurfaceRelayedKeydown } from "../services/surfaceHostKeydown";
 import { syncService } from "../services/syncService";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import {
@@ -687,6 +688,9 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
         };
 
         const handleKeyDown = (event: KeyboardEvent) => {
+            // Opted in for the same reason as the sticker context menu: closing this
+            // dropdown is non-destructive and matches what Escape means everywhere else.
+            if (!acceptsSurfaceRelayedKeydown(event, { surfaceRelayed: true })) return;
             if (event.key === "Escape") {
                 closeDropdownMenu();
             }

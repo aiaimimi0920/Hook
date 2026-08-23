@@ -188,6 +188,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
     clearSliderDrag();
     window.addEventListener("mousemove", handleMouseMove, true);
     window.addEventListener("mouseup", handleMouseUp, true);
+    // eslint-disable-next-line solid/reactivity -- detach-only closure; the reactive reads happen in the handlers while the drag is live.
     sliderDragCleanup = () => {
       window.removeEventListener("mousemove", handleMouseMove, true);
       window.removeEventListener("mouseup", handleMouseUp, true);

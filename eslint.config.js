@@ -2,8 +2,8 @@
 // src/. Intentionally pragmatic: this codebase was written without a linter, so
 // the rules here focus on catching real bugs (no-unused-vars as warnings,
 // solid-specific reactivity foot-guns) rather than enforcing a style rewrite.
-// Runs as a non-blocking `npm run lint` for now; not wired into the CI gate
-// until the existing warnings are burned down.
+// `npm run lint` is a blocking gate: it runs with `--max-warnings 0` in
+// `verify:local` and in the build-hook-exe workflow, so a new warning fails CI.
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import solid from "eslint-plugin-solid";

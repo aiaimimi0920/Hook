@@ -379,11 +379,10 @@ pub async fn capture_voice_once_with_manifest(
         manifest.transport.base_url.trim_end_matches('/')
     );
 
-    let mut builder = crate::network_proxy::apply_to_url(reqwest::Client::builder(), &endpoint)?
-        .timeout(Duration::from_millis(timeout_ms))
-        .build()?
-        .post(endpoint)
-        .json(&envelope);
+    let mut builder =
+        crate::network_proxy::shared_client(&endpoint, Some(Duration::from_millis(timeout_ms)))?
+            .post(endpoint)
+            .json(&envelope);
     if manifest
         .transport
         .auth

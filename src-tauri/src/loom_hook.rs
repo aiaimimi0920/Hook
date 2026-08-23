@@ -264,6 +264,12 @@ unsafe impl Send for SafeShmem {}
 
 const SHARED_MEMORY_ART_INPUT_MIN_BYTES: usize = 256 * 1024;
 
+// `/v1/surfaces/stream` 的应答自带协议标识，Hook 此前完全不读它，于是任何一侧改了流
+// 协议在运行期都察觉不到。Hook 不依赖 loom_protocol crate（两个仓库各自独立），所以这里
+// 保留一份同名字面量；改动线上取值必须两边同时改。
+const SURFACE_STREAM_PROTOCOL_VERSION: &str = "loom.surface-stream.v1";
+const REMOTE_SURFACE_IDLE_POLL_DELAY: Duration = Duration::from_millis(100);
+
 pub struct LoomHookState {
     pub session_id: String,
     pub listener_started: bool,
@@ -313,10 +319,16 @@ pub fn ensure_loom_hook_listener(app_handle: &AppHandle, state: &LoomHook) -> Re
         claim_loom_hook_listener_start(&mut state_guard)
     };
     if should_start {
+        // A loopback-only compatibility build omits the remote poll listener entirely.
+        #[cfg(feature = "remote-surface")]
         let remote_surface = crate::loom_connector::read_default_loom_manifest()
             .ok()
             .is_some_and(|manifest| !loom_base_url_is_loopback(&manifest.transport.base_url));
+        #[cfg(not(feature = "remote-surface"))]
+        let remote_surface = false;
+
         if remote_surface {
+            #[cfg(feature = "remote-surface")]
             start_remote_surface_poll_listener(app_handle.clone(), state.state.clone());
         } else {
             start_listener(app_handle.clone(), state.state.clone());
@@ -325,16 +337,10 @@ pub fn ensure_loom_hook_listener(app_handle: &AppHandle, state: &LoomHook) -> Re
     Ok(should_start)
 }
 
+/// The local listener is valid only for Loom's origin-only HTTP loopback transport.
+#[cfg(feature = "remote-surface")]
 fn loom_base_url_is_loopback(base_url: &str) -> bool {
-    let lower = base_url.trim().to_ascii_lowercase();
-    lower.starts_with("http://127.0.0.1:")
-        || lower.starts_with("https://127.0.0.1:")
-        || lower.starts_with("http://localhost:")
-        || lower.starts_with("https://localhost:")
-        || matches!(
-            lower.as_str(),
-            "http://127.0.0.1" | "https://127.0.0.1" | "http://localhost" | "https://localhost"
-        )
+    crate::loom_connector::is_loopback_base_url(base_url)
 }
 
 fn loom_hook_ws_url() -> String {
@@ -1295,6 +1301,8 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<LoomHookState>>) {
     });
 }
 
+/// Poll loop for a paired remote Loom Surface.
+#[cfg(feature = "remote-surface")]
 fn start_remote_surface_poll_listener(app: AppHandle, state: Arc<Mutex<LoomHookState>>) {
     thread::spawn(move || {
         let runtime = match tokio::runtime::Builder::new_current_thread()
@@ -1314,8 +1322,8 @@ fn start_remote_surface_poll_listener(app: AppHandle, state: Arc<Mutex<LoomHookS
             loop {
                 let result = poll_remote_surface_once(&app, cursor).await;
                 match result {
-                    Ok((next, messages)) => {
-                        cursor = next;
+                    Ok((next, reset, messages)) => {
+                        let poll_delay = remote_surface_poll_delay(cursor, next);
                         if let Ok(mut guard) = state.lock() {
                             guard.backend_connected = true;
                         }
@@ -1323,12 +1331,20 @@ fn start_remote_surface_poll_listener(app: AppHandle, state: Arc<Mutex<LoomHookS
                             "art/loom_connection_state",
                             serde_json::json!({ "connected": true }),
                         );
+                        if reset {
+                            let _ =
+                                app.emit("surface/reset", serde_json::json!({ "cursor": next }));
+                        }
                         for message in messages {
                             if let Some(method) =
                                 message.get("method").and_then(serde_json::Value::as_str)
                             {
                                 emit_surface_push(&app, method, &message["params"]);
                             }
+                        }
+                        cursor = next;
+                        if let Some(delay) = poll_delay {
+                            tokio::time::sleep(delay).await;
                         }
                     }
                     Err(error) => {
@@ -1350,18 +1366,16 @@ fn start_remote_surface_poll_listener(app: AppHandle, state: Arc<Mutex<LoomHookS
     });
 }
 
+#[cfg(feature = "remote-surface")]
 async fn poll_remote_surface_once(
     app: &AppHandle,
     cursor: u64,
-) -> Result<(u64, Vec<serde_json::Value>), String> {
+) -> Result<(u64, bool, Vec<serde_json::Value>), String> {
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface stream: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
-    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
-        .map_err(|error| format!("configure Surface stream client: {error}"))?
-        .timeout(Duration::from_secs(30))
-        .build()
+    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(30)))
         .map_err(|error| format!("build Surface stream client: {error}"))?;
     let response = authorization
         .apply(client.get(format!(
@@ -1383,16 +1397,64 @@ async fn poll_remote_surface_once(
     }
     let response: serde_json::Value = serde_json::from_str(&body)
         .map_err(|error| format!("parse Loom Surface stream: {error}"))?;
+    surface_stream_envelope(&response, cursor)
+}
+
+// 协议标识不符时按错误返回，而不是照旧消费 messages：拿到的可能是另一个版本的流语义，
+// 也可能压根不是 Loom——base_url 指错时对方同样会回 200 加一段 JSON。缺字段一律算不符，
+// 与 Hook 校验 `loom.hook.v1` 的写法一致；唯一的产出方无条件带上这个字段。
+//
+// 这一段在 `remote-surface` 关闭时只被测试调用：留着编译是有意的，协议判定的用例要在两种
+// feature 组合下都跑，见 `docs/REMOTE_SURFACE_STAGED.md`。
+#[cfg_attr(not(feature = "remote-surface"), allow(dead_code))]
+fn surface_stream_envelope(
+    response: &serde_json::Value,
+    cursor: u64,
+) -> Result<(u64, bool, Vec<serde_json::Value>), String> {
+    let protocol_version = response["protocolVersion"].as_str();
+    if protocol_version != Some(SURFACE_STREAM_PROTOCOL_VERSION) {
+        return Err(format!(
+            "Loom Surface stream protocol is {}, expected \"{SURFACE_STREAM_PROTOCOL_VERSION}\"",
+            describe_stream_protocol_version(protocol_version)
+        ));
+    }
     let next = response
         .get("next")
         .and_then(serde_json::Value::as_u64)
         .unwrap_or(cursor);
+    if next < cursor {
+        return Err(format!(
+            "Loom Surface stream cursor rewound from {cursor} to {next}"
+        ));
+    }
+    let reset = response
+        .get("reset")
+        .and_then(serde_json::Value::as_bool)
+        .ok_or_else(|| "Loom Surface stream reset flag is absent or invalid".to_owned())?;
     let messages = response
         .get("messages")
         .and_then(serde_json::Value::as_array)
         .cloned()
         .unwrap_or_default();
-    Ok((next, messages))
+    Ok((next, reset, messages))
+}
+
+#[cfg_attr(not(feature = "remote-surface"), allow(dead_code))]
+fn remote_surface_poll_delay(cursor: u64, next: u64) -> Option<Duration> {
+    (next == cursor).then_some(REMOTE_SURFACE_IDLE_POLL_DELAY)
+}
+
+// 不匹配的一方可以往这个字段里塞任意长度的串，而错误串会进运行日志，所以按字符截断
+// （不是字节，免得切开一个多字节字符），只留够定位的长度。
+fn describe_stream_protocol_version(value: Option<&str>) -> String {
+    let Some(version) = value else {
+        return "absent".to_owned();
+    };
+    let mut clipped: String = version.chars().take(64).collect();
+    if version.chars().nth(64).is_some() {
+        clipped.push('…');
+    }
+    format!("\"{clipped}\"")
 }
 
 fn emit_surface_push(app: &AppHandle, method: &str, params: &serde_json::Value) {
@@ -1416,6 +1478,143 @@ fn emit_surface_push(app: &AppHandle, method: &str, params: &serde_json::Value) 
 #[cfg(test)]
 mod loom_hook_listener_subscription_tests {
     use super::*;
+
+    #[test]
+    fn surface_stream_envelope_accepts_the_declared_protocol() {
+        let (next, reset, messages) = surface_stream_envelope(
+            &serde_json::json!({
+                "protocolVersion": "loom.surface-stream.v1",
+                "next": 42,
+                "reset": false,
+                "messages": [{ "method": "loom.surface.patch", "params": { "revision": 3 } }]
+            }),
+            7,
+        )
+        .expect("a well-formed envelope must be accepted");
+        assert_eq!(next, 42);
+        assert!(!reset);
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["method"], "loom.surface.patch");
+    }
+
+    #[test]
+    fn surface_stream_envelope_keeps_the_cursor_when_next_is_missing() {
+        let (next, reset, messages) = surface_stream_envelope(
+            &serde_json::json!({
+                "protocolVersion": "loom.surface-stream.v1",
+                "reset": false
+            }),
+            19,
+        )
+        .expect("a cursor-less envelope is still a valid one");
+        assert_eq!(
+            next, 19,
+            "a missing cursor must not rewind the stream to zero"
+        );
+        assert!(!reset);
+        assert!(messages.is_empty());
+    }
+
+    #[test]
+    fn surface_stream_envelope_preserves_reset_with_or_without_messages() {
+        for messages in [
+            serde_json::json!([]),
+            serde_json::json!([{ "method": "loom.surface.snapshot", "params": {} }]),
+        ] {
+            let expected_len = messages.as_array().map(Vec::len).unwrap_or_default();
+            let (_, reset, parsed) = surface_stream_envelope(
+                &serde_json::json!({
+                    "protocolVersion": "loom.surface-stream.v1",
+                    "next": 9,
+                    "reset": true,
+                    "messages": messages
+                }),
+                7,
+            )
+            .expect("reset envelope");
+            assert!(reset);
+            assert_eq!(parsed.len(), expected_len);
+        }
+    }
+
+    #[test]
+    fn surface_stream_envelope_rejects_missing_reset_and_cursor_rewind() {
+        let missing = surface_stream_envelope(
+            &serde_json::json!({
+                "protocolVersion": "loom.surface-stream.v1",
+                "next": 8,
+                "messages": []
+            }),
+            7,
+        )
+        .expect_err("reset is a required stream semantic");
+        assert!(missing.contains("reset"));
+
+        let rewind = surface_stream_envelope(
+            &serde_json::json!({
+                "protocolVersion": "loom.surface-stream.v1",
+                "next": 6,
+                "reset": false,
+                "messages": []
+            }),
+            7,
+        )
+        .expect_err("the stream cursor must be monotonic");
+        assert!(rewind.contains("rewound"));
+    }
+
+    #[test]
+    fn unchanged_remote_cursor_requires_a_bounded_delay() {
+        assert_eq!(
+            remote_surface_poll_delay(7, 7),
+            Some(Duration::from_millis(100))
+        );
+        assert_eq!(remote_surface_poll_delay(7, 8), None);
+    }
+
+    #[test]
+    fn surface_stream_envelope_rejects_a_foreign_protocol() {
+        let error = surface_stream_envelope(
+            &serde_json::json!({
+                "protocolVersion": "loom.surface-stream.v2",
+                "next": 42,
+                "messages": [{ "method": "loom.surface.patch", "params": {} }]
+            }),
+            7,
+        )
+        .expect_err("a different stream protocol must not be consumed as if it matched");
+        assert!(
+            error.contains("loom.surface-stream.v2")
+                && error.contains(SURFACE_STREAM_PROTOCOL_VERSION),
+            "the error must name both the received and the expected protocol: {error}"
+        );
+    }
+
+    #[test]
+    fn surface_stream_envelope_rejects_a_missing_protocol() {
+        let error = surface_stream_envelope(&serde_json::json!({ "next": 42, "messages": [] }), 7)
+            .expect_err("an envelope without the protocol field must be refused");
+        assert!(
+            error.contains("absent"),
+            "an absent protocol must be reported as absent, not as an empty string: {error}"
+        );
+    }
+
+    #[test]
+    fn surface_stream_envelope_error_clips_a_hostile_protocol_string() {
+        let hostile = "版".repeat(4096);
+        let error = surface_stream_envelope(&serde_json::json!({ "protocolVersion": hostile }), 0)
+            .expect_err("a non-Loom peer must not be accepted");
+        assert!(
+            error.chars().count() < 200,
+            "the peer controls this string and it reaches the runtime log; it must be clipped: {} chars",
+            error.chars().count()
+        );
+        assert!(
+            error.contains('…'),
+            "a clipped protocol string must show that it was clipped: {error}"
+        );
+    }
 
     #[test]
     fn cache_settings_event_reads_canonical_camel_case_only() {
@@ -2233,10 +2432,7 @@ async fn send_surface_event_to_loom(
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface event: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
-    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
-        .map_err(|error| format!("configure Surface event client: {error}"))?
-        .timeout(Duration::from_secs(10))
-        .build()
+    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(10)))
         .map_err(|error| format!("build Surface event client: {error}"))?;
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let response = authorization
@@ -2479,10 +2675,7 @@ async fn attach_surface_via_loom(
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface attach: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
-    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
-        .map_err(|error| format!("configure Surface HTTP client: {error}"))?
-        .timeout(Duration::from_secs(10))
-        .build()
+    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(10)))
         .map_err(|error| format!("build Surface HTTP client: {error}"))?;
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let send_json = |request: reqwest::RequestBuilder| async {
@@ -2578,10 +2771,7 @@ async fn remount_surface_via_loom(
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface remount: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
-    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
-        .map_err(|error| format!("configure Surface remount client: {error}"))?
-        .timeout(Duration::from_secs(10))
-        .build()
+    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(10)))
         .map_err(|error| format!("build Surface remount client: {error}"))?;
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let mut mount_url = reqwest::Url::parse(base)
@@ -2642,10 +2832,7 @@ async fn send_surface_lifecycle_to_loom(
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface lifecycle: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
-    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
-        .map_err(|error| format!("configure Surface lifecycle client: {error}"))?
-        .timeout(Duration::from_secs(10))
-        .build()
+    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(10)))
         .map_err(|error| format!("build Surface lifecycle client: {error}"))?;
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let request = authorization
@@ -2677,10 +2864,7 @@ async fn send_surface_confirmation_to_loom(
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface confirmation: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
-    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
-        .map_err(|error| format!("configure Surface confirmation client: {error}"))?
-        .timeout(Duration::from_secs(10))
-        .build()
+    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(10)))
         .map_err(|error| format!("build Surface confirmation client: {error}"))?;
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let request = authorization
@@ -2710,10 +2894,7 @@ async fn send_surface_cancel_to_loom(
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface cancellation: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
-    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
-        .map_err(|error| format!("configure Surface cancellation client: {error}"))?
-        .timeout(Duration::from_secs(10))
-        .build()
+    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(10)))
         .map_err(|error| format!("build Surface cancellation client: {error}"))?;
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     request_body["deviceId"] = serde_json::Value::String(authorization.device_id.clone());
@@ -2893,10 +3074,7 @@ async fn fetch_surface_resource_from_loom(
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface resource: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
-    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base)
-        .map_err(|error| format!("configure Surface resource client: {error}"))?
-        .timeout(Duration::from_secs(20))
-        .build()
+    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(20)))
         .map_err(|error| format!("build Surface resource client: {error}"))?;
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let request = authorization

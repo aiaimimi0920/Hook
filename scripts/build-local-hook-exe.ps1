@@ -4,7 +4,8 @@ param(
     [switch]$Force,
     [switch]$DryRun,
     [switch]$UiAccess,
-    [switch]$AllowUnsignedUiAccessBuild
+    [switch]$AllowUnsignedUiAccessBuild,
+    [switch]$RequireCleanSource
 )
 
 Set-StrictMode -Version Latest
@@ -18,6 +19,70 @@ $outputRoot = if ([System.IO.Path]::IsPathRooted($OutputDir)) {
 }
 $releaseExe = Join-Path $hookRoot "src-tauri\target\release\hook.exe"
 $versionPreflightScript = Join-Path $hookRoot "scripts\assert-release-version.ps1"
+$fileHashScript = Join-Path $hookRoot "scripts\file-hash.ps1"
+. $fileHashScript
+
+function Get-HookGitText {
+    param([string[]]$Arguments)
+
+    try {
+        $output = @(& git -C $hookRoot @Arguments 2>$null)
+        if ($LASTEXITCODE -eq 0) {
+            return (($output | ForEach-Object { $_.ToString() }) -join "`n").Trim()
+        }
+    }
+    catch {
+        return ""
+    }
+    return ""
+}
+
+function Get-HookGitDirty {
+    try {
+        $output = @(& git -C $hookRoot status --porcelain --untracked-files=all 2>$null)
+        if ($LASTEXITCODE -ne 0) {
+            return $null
+        }
+        return (@($output | Where-Object { -not [string]::IsNullOrWhiteSpace($_.ToString()) }).Count -gt 0)
+    }
+    catch {
+        return $null
+    }
+}
+
+function Write-HookBuildProvenance {
+    param(
+        [string]$PublishedExe,
+        [AllowNull()][object]$GitDirty
+    )
+
+    $gitHead = Get-HookGitText -Arguments @("rev-parse", "HEAD")
+    if ([string]::IsNullOrWhiteSpace($gitHead)) {
+        $gitHead = "unknown"
+    }
+    $productVersion = [string]((Get-Content -LiteralPath (Join-Path $hookRoot "package.json") -Raw | ConvertFrom-Json).version)
+    $artifact = Get-Item -LiteralPath $PublishedExe
+    $manifest = [ordered]@{
+        schemaVersion = 1
+        app = "Hook"
+        builder = "Hook scripts/build-local-hook-exe.ps1"
+        builtAt = (Get-Date).ToString("o")
+        productVersion = $productVersion
+        gitHead = $gitHead
+        gitDirty = $GitDirty
+        sourcePaths = @(".")
+        uiAccess = $UiAccess.IsPresent
+        artifact = [ordered]@{
+            name = $artifact.Name
+            bytes = [int64]$artifact.Length
+            sha256 = Get-HookFileSha256 -Path $artifact.FullName
+        }
+    }
+    $manifestPath = Join-Path $outputRoot "build-provenance.json"
+    $json = ($manifest | ConvertTo-Json -Depth 10) + "`n"
+    [System.IO.File]::WriteAllText($manifestPath, $json, [System.Text.UTF8Encoding]::new($false))
+    return $manifestPath
+}
 
 function Ensure-OutputDirectory {
     param(
@@ -52,6 +117,11 @@ function Get-TimestampedHookExePath {
     return $candidate
 }
 
+$sourceGitDirty = Get-HookGitDirty
+if ($RequireCleanSource -and $sourceGitDirty -ne $false) {
+    throw "Formal Hook release requires a clean, readable Git worktree. gitDirty=$sourceGitDirty"
+}
+
 if ($DryRun) {
     $buildCommand = if ($UiAccess) {
         "set HOOK_WINDOWS_UIACCESS=1 && npm run tauri build -- --no-bundle"
@@ -67,6 +137,8 @@ if ($DryRun) {
         buildCommand = $buildCommand
         uiAccess = $UiAccess.IsPresent
         allowUnsignedUiAccessBuild = $AllowUnsignedUiAccessBuild.IsPresent
+        requireCleanSource = $RequireCleanSource.IsPresent
+        sourceGitDirty = $sourceGitDirty
     } | ConvertTo-Json -Depth 5
     exit 0
 }
@@ -118,8 +190,11 @@ catch {
     $publishedExe = $fallbackExe
 }
 
+$provenancePath = Write-HookBuildProvenance -PublishedExe $publishedExe -GitDirty $sourceGitDirty
 Write-Host "[hook-local-build] Built exe:"
 Write-Host "  $publishedExe"
+Write-Host "[hook-local-build] Provenance:"
+Write-Host "  $provenancePath"
 if ($UiAccess) {
     Write-Warning "This build embeds a uiAccess manifest, but Windows only honors uiAccess when the binary is digitally signed and installed in a trusted location such as Program Files."
 }

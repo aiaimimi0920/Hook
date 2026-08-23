@@ -310,8 +310,12 @@ fn loom_connector_disables_system_http_proxy_for_loopback_capability_calls() {
     let proxy_source = include_str!("../src/network_proxy.rs");
 
     assert!(
-        connector_source.contains("network_proxy::apply_to_url"),
+        connector_source.contains("network_proxy::shared_client"),
         "Loom capability calls must use the shared Hook proxy policy"
+    );
+    assert!(
+        proxy_source.contains("apply_to_url(Client::builder(), endpoint)"),
+        "the shared client must still run the endpoint through the proxy policy"
     );
     assert!(
         proxy_source.contains("endpoint_is_loopback(endpoint)")

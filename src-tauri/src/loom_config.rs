@@ -16,10 +16,8 @@ pub async fn read_hook_voice_config(
     auth_token: Option<&str>,
 ) -> Result<Option<VoiceConfig>, String> {
     let base = base_url.trim_end_matches('/');
-    let client = crate::network_proxy::apply_to_url(reqwest::Client::builder(), base_url)
-        .map_err(|error| error.to_string())?
-        .build()
-        .map_err(|error| error.to_string())?;
+    let client =
+        crate::network_proxy::shared_client(base_url, None).map_err(|error| error.to_string())?;
     let mut claim = client.get(format!("{base}/v1/configuration/claims?app=hook"));
     if let Some(token) = auth_token {
         claim = claim.bearer_auth(token);

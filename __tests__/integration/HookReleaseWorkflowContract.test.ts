@@ -11,6 +11,10 @@ describe("Hook release workflow contract", () => {
     process.cwd(),
     "scripts/package-release-zip.ps1",
   );
+  const buildScriptPath = resolve(
+    process.cwd(),
+    "scripts/build-local-hook-exe.ps1",
+  );
   const installerPackageScriptPath = resolve(
     process.cwd(),
     "scripts/package-uiaccess-installer-zip.ps1",
@@ -43,6 +47,7 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource).toContain("run: cargo fmt --check --manifest-path src-tauri/Cargo.toml");
     expect(workflowSource).toContain("run-rust-tests-ci.ps1");
     expect(workflowSource).toContain("-RequireReachableFromBranch \"origin/main\"");
+    expect(workflowSource).toContain("-RequireCleanSource");
     expect(workflowSource.indexOf("Verify release provenance and product versions")).toBeLessThan(
       workflowSource.indexOf("Setup Node.js"),
     );
@@ -54,6 +59,7 @@ describe("Hook release workflow contract", () => {
 
     const workflowSource = readFileSync(workflowPath, "utf8");
     const packageScriptSource = readFileSync(packageScriptPath, "utf8");
+    const buildScriptSource = readFileSync(buildScriptPath, "utf8");
     const installerPackageScriptSource = readFileSync(installerPackageScriptPath, "utf8");
 
     expect(workflowSource).toContain("package-release-zip.ps1");
@@ -84,6 +90,9 @@ describe("Hook release workflow contract", () => {
     expect(packageScriptSource).toContain("THIRD_PARTY_NOTICES.md");
     expect(packageScriptSource).toContain("LICENSE.txt");
     expect(packageScriptSource).toContain("third-party-licenses");
+    expect(packageScriptSource).toContain("build-provenance.json");
+    expect(buildScriptSource).toContain("RequireCleanSource");
+    expect(buildScriptSource).toContain("build-provenance.json");
     expect(packageScriptSource).toContain("Compress-Archive");
     expect(packageScriptSource).not.toContain("start-hook.bat");
     expect(packageScriptSource).not.toContain("start-hook.vbs");

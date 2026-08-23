@@ -26,6 +26,10 @@ import {
     type EditableFocusReleaseDetail,
     type NativeAppFocusDetail,
 } from "../services/editableFocus";
+import {
+    isRelayableSurfaceHostKeydown,
+    markSurfaceRelayedKeydown,
+} from "../services/surfaceHostKeydown";
 import { DeclarativeSurface } from "./DeclarativeSurface";
 import "./JavaScriptSurface.css";
 
@@ -681,7 +685,16 @@ export const JavaScriptSurface: Component<Props> = (props) => {
         if (message.type === "host-keydown") {
             if (!validateJavaScriptSurfaceHostKeydown(message.keydown)) return;
             const keydown = message.keydown;
-            window.dispatchEvent(new KeyboardEvent("keydown", {
+            // Shape validation admits any key with any modifier combination, so the
+            // allowlist decides what a sandbox may actually reach, and the relay shares
+            // the per-second event budget with surface events instead of running
+            // unthrottled. The dispatched event is tagged so host keydown listeners can
+            // ignore sandbox-originated keystrokes unless they opted in.
+            if (!isRelayableSurfaceHostKeydown(keydown)) return;
+            const keydownBudget = consumeJavaScriptSurfaceEventBudget(eventBudgetWindow, Date.now());
+            eventBudgetWindow = keydownBudget.window;
+            if (!keydownBudget.allowed) return;
+            window.dispatchEvent(markSurfaceRelayedKeydown(new KeyboardEvent("keydown", {
                 bubbles: true,
                 cancelable: true,
                 key: keydown.key,
@@ -691,7 +704,7 @@ export const JavaScriptSurface: Component<Props> = (props) => {
                 altKey: keydown.altKey,
                 shiftKey: keydown.shiftKey,
                 metaKey: keydown.metaKey,
-            }));
+            })));
             return;
         }
         if (message.type === "heartbeat") {

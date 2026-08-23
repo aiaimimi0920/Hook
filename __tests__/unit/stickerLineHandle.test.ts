@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import { moveLineEndpoint } from "../../src/services/stickerGeometry";
-import type { StickerAnnotation } from "../../src/types/stickerEditing";
+import type { StickerLineAnnotation } from "../../src/types/stickerEditing";
 
-const makeLine = (type: StickerAnnotation["type"] = "line"): StickerAnnotation => ({
+const makeLine = (type: StickerLineAnnotation["type"] = "line"): StickerLineAnnotation => ({
     id: "line-1",
-    type: type as "line",
+    type,
     zIndex: 1,
     points: [
         { x: 20, y: 30 },
         { x: 90, y: 120 },
     ],
     style: { color: "#fff", width: 3, opacity: 1 },
-} as StickerAnnotation);
+});
 
 describe("sticker line handle helpers", () => {
     it("moves only the requested endpoint for line-like annotations", () => {

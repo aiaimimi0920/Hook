@@ -1,26 +1,49 @@
+//! Surface request authorization.
+//!
+//! The loopback half runs in every build. The remote / device-session half — device pairing, the
+//! Ed25519 device identity, session tokens, and the HTTPS-origin rule — is enabled by Hook's default
+//! feature set. `--no-default-features` retains a loopback-only compatibility build.
+
+#[cfg(feature = "remote-surface")]
 use std::collections::HashMap;
+#[cfg(feature = "remote-surface")]
 use std::fs;
+#[cfg(feature = "remote-surface")]
 use std::path::{Path, PathBuf};
+#[cfg(feature = "remote-surface")]
 use std::sync::{Mutex, OnceLock};
+#[cfg(feature = "remote-surface")]
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+#[cfg(feature = "remote-surface")]
 use base64::engine::general_purpose::{STANDARD as BASE64, URL_SAFE_NO_PAD as BASE64_URL};
+#[cfg(feature = "remote-surface")]
 use base64::Engine as _;
+#[cfg(feature = "remote-surface")]
 use ed25519_dalek::{Signer as _, SigningKey};
+#[cfg(feature = "remote-surface")]
 use rand_core::{OsRng, RngCore};
 use reqwest::RequestBuilder;
+#[cfg(feature = "remote-surface")]
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
+#[cfg(feature = "remote-surface")]
 const DEVICE_IDENTITY_SCHEMA_VERSION: u32 = 1;
+#[cfg(feature = "remote-surface")]
 const DEVICE_SESSION_RENEWAL_MARGIN_MILLIS: u64 = 30_000;
+#[cfg(feature = "remote-surface")]
 const DEVICE_PAIRING_APPROVAL_TIMEOUT: Duration = Duration::from_secs(90);
+#[cfg(feature = "remote-surface")]
 const DEVICE_PAIRING_APPROVAL_POLL_INTERVAL: Duration = Duration::from_millis(250);
 
+#[cfg(feature = "remote-surface")]
 static DEVICE_IDENTITY_IO_LOCK: Mutex<()> = Mutex::new(());
+#[cfg(feature = "remote-surface")]
 static DEVICE_SESSION_CACHE: OnceLock<Mutex<HashMap<String, CachedDeviceSession>>> =
     OnceLock::new();
 
+#[cfg(feature = "remote-surface")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DeviceIdentityDocument {
@@ -31,6 +54,7 @@ struct DeviceIdentityDocument {
     public_key: String,
 }
 
+#[cfg(feature = "remote-surface")]
 #[derive(Clone, Debug)]
 struct CachedDeviceSession {
     device_id: String,
@@ -48,6 +72,7 @@ pub(crate) struct DeviceSessionAuthorization {
 enum SurfaceRequestCredential {
     None,
     Bearer(String),
+    #[cfg(feature = "remote-surface")]
     Device(String),
 }
 
@@ -56,6 +81,7 @@ impl DeviceSessionAuthorization {
         match &self.credential {
             SurfaceRequestCredential::None => request,
             SurfaceRequestCredential::Bearer(token) => request.bearer_auth(token),
+            #[cfg(feature = "remote-surface")]
             SurfaceRequestCredential::Device(token) => request
                 .header("Authorization", format!("Device {token}"))
                 .header("X-Loom-Device-Nonce", random_url_safe(24)),
@@ -63,6 +89,7 @@ impl DeviceSessionAuthorization {
     }
 }
 
+#[cfg(feature = "remote-surface")]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DeviceSummary {
@@ -71,6 +98,7 @@ struct DeviceSummary {
     public_key: Option<String>,
 }
 
+#[cfg(feature = "remote-surface")]
 #[derive(Debug, Deserialize)]
 struct DeviceRegistryResponse {
     #[serde(default)]
@@ -79,6 +107,7 @@ struct DeviceRegistryResponse {
     pending: Vec<DeviceSummary>,
 }
 
+#[cfg(feature = "remote-surface")]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DeviceSessionChallenge {
@@ -87,6 +116,7 @@ struct DeviceSessionChallenge {
     challenge: String,
 }
 
+#[cfg(feature = "remote-surface")]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DeviceSessionResponse {
@@ -95,6 +125,11 @@ struct DeviceSessionResponse {
     expires_at_ms: u64,
 }
 
+/// Authorize one Surface request. A loopback-only build refuses remote origins instead of
+/// pretending to pair.
+// With `remote-surface` off there is nothing to await; the signature stays `async` so both feature
+// combinations share one call site in `loom_hook.rs`.
+#[cfg_attr(not(feature = "remote-surface"), allow(clippy::unused_async))]
 pub(crate) async fn authorize_surface_request(
     app: &AppHandle,
     manifest: &crate::loom_connector::LoomManifest,
@@ -103,7 +138,34 @@ pub(crate) async fn authorize_surface_request(
         return Ok(authorization);
     }
 
+    #[cfg(not(feature = "remote-surface"))]
+    {
+        let _ = app;
+        Err(disabled_remote_surface_error(&manifest.transport.base_url))
+    }
+
+    #[cfg(feature = "remote-surface")]
+    {
+        remote_surface_authorization(app, manifest).await
+    }
+}
+
+/// The refusal a deliberately loopback-only build returns for a remote Surface endpoint.
+#[cfg(not(feature = "remote-surface"))]
+fn disabled_remote_surface_error(base_url: &str) -> String {
+    format!(
+        "cross-device Loom Surface support is disabled in this build: `{base_url}` is not a \
+         loopback transport (rebuild with Hook's default features or `--features remote-surface`)"
+    )
+}
+
+#[cfg(feature = "remote-surface")]
+async fn remote_surface_authorization(
+    app: &AppHandle,
+    manifest: &crate::loom_connector::LoomManifest,
+) -> Result<DeviceSessionAuthorization, String> {
     let base_url = manifest.transport.base_url.as_str();
+
     validate_secure_loom_base_url(base_url)?;
     let mut identity = load_or_create_device_identity(app)?;
     if identity.device_id.is_none() {
@@ -180,40 +242,43 @@ fn loopback_surface_authorization(
     }))
 }
 
+/// Accept only an origin-shaped loopback URL or an HTTPS remote origin.
+#[cfg(feature = "remote-surface")]
 fn validate_secure_loom_base_url(base_url: &str) -> Result<(), String> {
-    let lower = base_url.trim().to_ascii_lowercase();
-    let loopback = lower.starts_with("http://127.0.0.1:")
-        || lower.starts_with("https://127.0.0.1:")
-        || lower.starts_with("http://localhost:")
-        || lower.starts_with("https://localhost:")
-        || matches!(
-            lower.as_str(),
-            "http://127.0.0.1" | "https://127.0.0.1" | "http://localhost" | "https://localhost"
-        );
-    if !loopback && !lower.starts_with("https://") {
-        return Err(
-            "remote Loom Surface connections require an authenticated HTTPS endpoint".to_owned(),
-        );
-    }
-    Ok(())
+    crate::loom_connector::classify_loom_base_url(base_url)
+        .map(|_| ())
+        .map_err(|error| format!("invalid Loom Surface origin: {error}"))
 }
 
+/// Drop every cached device session for one Loom endpoint.
+///
+/// Compiled in both feature combinations because `loom_hook` calls it from a live loopback path.
+/// With `remote-surface` off there is no session cache to clear, so this is a no-op.
 pub(crate) fn invalidate_surface_sessions(base_url: &str) {
-    let prefix = format!("{}\n", base_url.trim_end_matches('/'));
-    if let Ok(mut cache) = device_session_cache().lock() {
-        cache.retain(|key, _| !key.starts_with(&prefix));
+    #[cfg(not(feature = "remote-surface"))]
+    let _ = base_url;
+
+    #[cfg(feature = "remote-surface")]
+    {
+        let prefix = format!("{}\n", base_url.trim_end_matches('/'));
+        if let Ok(mut cache) = device_session_cache().lock() {
+            cache.retain(|key, _| !key.starts_with(&prefix));
+        }
     }
 }
 
+#[cfg(feature = "remote-surface")]
 fn device_session_cache() -> &'static Mutex<HashMap<String, CachedDeviceSession>> {
     DEVICE_SESSION_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+#[cfg(feature = "remote-surface")]
 fn load_or_create_device_identity(app: &AppHandle) -> Result<DeviceIdentityDocument, String> {
     let app_data_dir = crate::effective_app_data_dir(app)?;
     load_or_create_device_identity_at(&app_data_dir)
 }
 
+#[cfg(feature = "remote-surface")]
 fn load_or_create_device_identity_at(
     app_data_dir: &Path,
 ) -> Result<DeviceIdentityDocument, String> {
@@ -241,6 +306,7 @@ fn load_or_create_device_identity_at(
     Ok(identity)
 }
 
+#[cfg(feature = "remote-surface")]
 fn validate_device_identity(identity: &DeviceIdentityDocument) -> Result<(), String> {
     if identity.schema_version != DEVICE_IDENTITY_SCHEMA_VERSION {
         return Err(format!(
@@ -255,6 +321,7 @@ fn validate_device_identity(identity: &DeviceIdentityDocument) -> Result<(), Str
     Ok(())
 }
 
+#[cfg(feature = "remote-surface")]
 fn persist_device_identity(path: &Path, identity: &DeviceIdentityDocument) -> Result<(), String> {
     let parent = path
         .parent()
@@ -271,10 +338,12 @@ fn persist_device_identity(path: &Path, identity: &DeviceIdentityDocument) -> Re
     fs::rename(&temporary, path).map_err(|error| format!("activate Hook device identity: {error}"))
 }
 
+#[cfg(feature = "remote-surface")]
 fn temporary_identity_path(path: &Path) -> PathBuf {
     path.with_extension(format!("json.{}.tmp", std::process::id()))
 }
 
+#[cfg(feature = "remote-surface")]
 async fn register_device_pairing_request(
     base_url: &str,
     identity: &mut DeviceIdentityDocument,
@@ -325,12 +394,14 @@ async fn register_device_pairing_request(
     persist_device_identity(&app_data_dir.join("device-identity.json"), identity)
 }
 
+#[cfg(feature = "remote-surface")]
 #[derive(Debug)]
 enum DeviceSessionAttemptError {
     PendingApproval(String),
     Fatal(String),
 }
 
+#[cfg(feature = "remote-surface")]
 async fn wait_for_approved_device_session(
     base_url: &str,
     identity: &DeviceIdentityDocument,
@@ -353,6 +424,7 @@ async fn wait_for_approved_device_session(
     }
 }
 
+#[cfg(feature = "remote-surface")]
 async fn create_device_session_attempt(
     base_url: &str,
     identity: &DeviceIdentityDocument,
@@ -430,6 +502,7 @@ async fn create_device_session_attempt(
     })
 }
 
+#[cfg(feature = "remote-surface")]
 fn is_pending_device_approval(status: u16, body: &str) -> bool {
     status == 403
         && serde_json::from_str::<serde_json::Value>(body)
@@ -444,14 +517,13 @@ fn is_pending_device_approval(status: u16, body: &str) -> bool {
             == Some("device_not_authorized")
 }
 
+#[cfg(feature = "remote-surface")]
 fn surface_client(base_url: &str) -> Result<reqwest::Client, String> {
-    crate::network_proxy::apply_to_url(reqwest::Client::builder(), base_url)
-        .map_err(|error| format!("configure Hook device session client: {error}"))?
-        .timeout(Duration::from_secs(10))
-        .build()
+    crate::network_proxy::shared_client(base_url, Some(Duration::from_secs(10)))
         .map_err(|error| format!("build Hook device session client: {error}"))
 }
 
+#[cfg(feature = "remote-surface")]
 fn decode_signing_key(encoded: &str) -> Result<SigningKey, String> {
     let bytes = BASE64
         .decode(encoded.trim())
@@ -462,6 +534,7 @@ fn decode_signing_key(encoded: &str) -> Result<SigningKey, String> {
     Ok(SigningKey::from_bytes(&bytes))
 }
 
+#[cfg(feature = "remote-surface")]
 fn device_session_signature_message(
     device_id: &str,
     challenge_id: &str,
@@ -471,12 +544,14 @@ fn device_session_signature_message(
     format!("loom.device-session.v1\n{device_id}\n{challenge_id}\n{challenge}\n{client_nonce}")
 }
 
+#[cfg(feature = "remote-surface")]
 fn random_url_safe(byte_count: usize) -> String {
     let mut bytes = vec![0_u8; byte_count];
     OsRng.fill_bytes(&mut bytes);
     BASE64_URL.encode(bytes)
 }
 
+#[cfg(feature = "remote-surface")]
 fn unix_time_millis() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -510,6 +585,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "remote-surface")]
     #[test]
     fn identity_round_trip_preserves_one_ed25519_key_pair() {
         let root = std::env::temp_dir().join(format!(
@@ -524,6 +600,7 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 
+    #[cfg(feature = "remote-surface")]
     #[test]
     fn signature_message_is_stable_and_context_bound() {
         assert_eq!(
@@ -532,11 +609,25 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "remote-surface")]
     #[test]
     fn remote_device_sessions_reject_plaintext_http() {
         assert!(validate_secure_loom_base_url("http://192.168.1.20:8765").is_err());
         validate_secure_loom_base_url("https://loom.example.test").expect("remote HTTPS");
+        validate_secure_loom_base_url("https://127.0.0.1.evil.example/")
+            .expect("lookalike host is a remote HTTPS origin, not loopback");
         validate_secure_loom_base_url("http://127.0.0.1:8765").expect("loopback HTTP");
+        for hostile in [
+            "http://localhost:8080@evil.example/",
+            "http://127.0.0.1.evil.example/",
+            "https://loom.example.test/path",
+            "https://loom.example.test/?query=1",
+        ] {
+            assert!(
+                validate_secure_loom_base_url(hostile).is_err(),
+                "hostile origin was accepted: {hostile}"
+            );
+        }
     }
 
     #[test]
@@ -592,6 +683,7 @@ mod tests {
         .is_err());
     }
 
+    #[cfg(feature = "remote-surface")]
     #[test]
     fn only_pending_device_approval_is_retryable() {
         assert!(is_pending_device_approval(
@@ -607,5 +699,13 @@ mod tests {
             r#"{"error":{"code":"device_not_authorized","message":"pending"}}"#
         ));
         assert!(!is_pending_device_approval(403, "not-json"));
+    }
+
+    #[cfg(not(feature = "remote-surface"))]
+    #[test]
+    fn loopback_only_surface_error_names_the_feature() {
+        let message = disabled_remote_surface_error("https://loom.example.test");
+        assert!(message.contains("https://loom.example.test"));
+        assert!(message.contains("remote-surface"));
     }
 }

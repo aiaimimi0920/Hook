@@ -22,7 +22,7 @@ beforeAll(() => {
     unobserve() {}
   }
 
-  (globalThis as { ResizeObserver?: typeof ResizeObserverMock }).ResizeObserver =
+  (globalThis as unknown as { ResizeObserver?: typeof ResizeObserverMock }).ResizeObserver =
     ResizeObserverMock;
 });
 
