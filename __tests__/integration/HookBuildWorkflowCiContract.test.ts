@@ -26,6 +26,11 @@ describe("Hook build workflow CI contract", () => {
     });
 
     it("runs effective-line, type, frontend, and Rust verification before packaging", () => {
+        const primaryJob = workflowSource.slice(
+            workflowSource.indexOf("build-windows-exe:"),
+            workflowSource.indexOf("parallel-race:"),
+        );
+        expect(primaryJob).toContain("fetch-depth: 0");
         expect(workflowSource).toContain("components: rustfmt");
         expect(workflowSource).toContain("run: npm run test:effective-lines");
         expect(workflowSource).toContain("run: npm run check:effective-lines");
