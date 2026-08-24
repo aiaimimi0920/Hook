@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "checkerVersion": 1,
+  "checkerVersion": 2,
   "baselineSourceCommit": "6fca3eae224a6856c829900beb94917826392d07",
   "baselineSourceTree": "e11235e2b9a7341c2d536f1f04dbeda9560b782b",
   "thresholds": {

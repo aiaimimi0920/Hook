@@ -16,6 +16,7 @@ import {
   normalizeRepoPath,
   scanRepository,
   summarizeRows,
+  CHECKER_VERSION,
   toolHashes,
   validateExceptions,
 } from "../effective-code-lines.mjs";
@@ -144,7 +145,7 @@ test("exception validation rejects stale, expired, and over-limit records", () =
   };
   const document = {
     schemaVersion: 1,
-    checkerVersion: 1,
+    checkerVersion: CHECKER_VERSION,
     ...toolHashes(),
     policySha256: policyHash,
     exceptions: [validEntry],
@@ -189,6 +190,16 @@ test("repository scan hashes LF and CRLF source identically", (context) => {
   const result = scanRepository(root, policy);
   assert.equal(result.rows.length, 2);
   assert.equal(result.rows[0].sourceSha256, result.rows[1].sourceSha256);
+});
+
+test("integrity hashes normalize checker and lexer line endings", () => {
+  const checker = fs.readFileSync(path.join(repoRoot, "scripts", "effective-code-lines.mjs"), "utf8")
+    .replace(/\r\n|\r/g, "\n");
+  const lexer = fs.readFileSync(path.join(repoRoot, "scripts", "effective-code-lines-lexer.mjs"), "utf8")
+    .replace(/\r\n|\r/g, "\n");
+  const hashes = toolHashes();
+  assert.equal(hashes.checkerSha256, digest(checker));
+  assert.equal(hashes.lexerSha256, digest(lexer));
 });
 
 test("summary uses the exact Phase 79 tiers", () => {

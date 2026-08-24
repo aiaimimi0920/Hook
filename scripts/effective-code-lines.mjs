@@ -13,7 +13,7 @@ import {
   SUPPORTED_EXTENSIONS,
 } from "./effective-code-lines-lexer.mjs";
 
-export const CHECKER_VERSION = 1;
+export const CHECKER_VERSION = 2;
 
 const FIXED_THRESHOLDS = Object.freeze({
   target: 150,
@@ -174,12 +174,17 @@ function readJson(filePath, label) {
   }
 }
 
+function canonicalTextSha256(filePath, label) {
+  const source = decodeUtf8(fs.readFileSync(filePath), label).replace(/\r\n|\r/g, "\n");
+  return sha256(Buffer.from(source, "utf8"));
+}
+
 function checkerSha256() {
-  return sha256(fs.readFileSync(fileURLToPath(import.meta.url)));
+  return canonicalTextSha256(fileURLToPath(import.meta.url), "effective-line checker");
 }
 
 function lexerSha256() {
-  return sha256(fs.readFileSync(new URL("./effective-code-lines-lexer.mjs", import.meta.url)));
+  return canonicalTextSha256(fileURLToPath(new URL("./effective-code-lines-lexer.mjs", import.meta.url)), "effective-line lexer");
 }
 
 export function toolHashes() {
@@ -187,7 +192,7 @@ export function toolHashes() {
 }
 
 function policySha256(policyPath) {
-  return sha256(fs.readFileSync(policyPath));
+  return canonicalTextSha256(policyPath, "effective-line policy");
 }
 
 export function createBaseline(root, policy, policyPath) {

@@ -80,6 +80,8 @@ describe("formal release security contract", () => {
     expect(workflow).toContain("draft: true");
     expect(workflow).toContain("publishVerifiedDraft");
     expect(workflow).toContain("-RunHeadlessSmoke");
+    expect(workflow).toContain("Effective-line ratchet failed with exit code");
+    expect(workflow).toContain("Dependency security contract failed with exit code");
     expect(workflow).toContain("hook-formal-release-smoke-");
     expect(workflow).toContain("if: always()");
     expect(workflow).toContain(

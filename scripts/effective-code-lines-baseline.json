@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "checkerVersion": 1,
+  "checkerVersion": 2,
   "sourceCommit": "6fca3eae224a6856c829900beb94917826392d07",
   "sourceTree": "e11235e2b9a7341c2d536f1f04dbeda9560b782b",
-  "checkerSha256": "db2381257ae56028c33e653f2b7b5d41256fd6eae631d14babee251b415ebbcc",
+  "checkerSha256": "56177fa25ee3ad5004108c48697c7dbd9fa0efe9326939fccfe0d9fd8153281a",
   "lexerSha256": "2a722a339f88e854e70240b1b52564c86b65f172f39d978de7dc075ed50a91fe",
-  "policySha256": "9540c98424365429908f1c21687fd4b92c51e68432d2d473fa0a2b935c32c2d8",
+  "policySha256": "6317f09750891927b71d80afa621e1bbe567d9200e63a7bae94481440679c3ca",
   "files": [
     {
       "path": "__tests__/integration/api.browser.test.ts",

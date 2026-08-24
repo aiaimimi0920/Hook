@@ -89,8 +89,11 @@ jobs:
         shell: powershell
         run: |
           npm run test:effective-lines
+          if ($LASTEXITCODE -ne 0) { throw "Effective-line checker tests failed with exit code $LASTEXITCODE." }
           npm run check:effective-lines
+          if ($LASTEXITCODE -ne 0) { throw "Effective-line ratchet failed with exit code $LASTEXITCODE." }
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\Test-DependencySecurityContract.ps1
+          if ($LASTEXITCODE -ne 0) { throw "Dependency security contract failed with exit code $LASTEXITCODE." }
       - name: Audit open-source dependency metadata
         run: npm run audit:licenses
       - name: TypeScript and lint gates
