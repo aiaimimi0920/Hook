@@ -1,66 +1,64 @@
-## Hook V0.1.7
+## Hook V0.1.8
 
-This release summarizes changes since **V0.1.5**. V0.1.6 is intentionally not
-used as the changelog baseline.
+This release focuses on maintainability, runtime safety, dependency security,
+and verifiable publication while preserving Hook's portable-first distribution.
 
 ### Added
 
-- Added HDR-aware screenshots with automatic SDR fallback.
-- Added hovered-window targeting and double-click window capture.
-- Added unified image naming rules for save, clipboard, and drag export.
-- Added a compact searchable Art selector and expanded Loom Art integration.
+- Added Windows CurrentUser DPAPI protection for the persistent Ed25519 device
+  private key, including validated atomic migration from legacy plaintext data.
+- Added exact-lock OSV scanning, CodeQL, Dependabot policy, CycloneDX 1.6 and
+  SPDX 2.3 SBOMs, build provenance, checksums, and a formal release manifest.
+- Added clean-source formal build and verifier scripts with traversal,
+  reparse-point, resource-bound, archive-content, checksum, and tamper gates.
+- Added draft-first GitHub publication with exact remote asset verification and
+  GitHub OIDC build/SBOM attestations.
 
 ### Improved
 
-- Improved sticker dragging, annotation movement, minify/restore, wheel controls,
-  and shader preview responsiveness.
-- Improved crop, export sizing, session restoration, cache lifetime, and long-run
-  memory stability.
-- Improved release verification, signing provenance, and project documentation.
+- Split large Rust, TypeScript, test, and automation owners into cohesive files;
+  the strict effective-code-line gate now reports no maintained file above 500
+  effective lines.
+- Reduced the primary Vite entry chunk from 613.70 kB to 435.09 kB by lazily
+  loading Surface, shader, sticker-strip, and parameter-panel owners.
+- Split the JavaScript Surface bootstrap into bounded maintained fragments and
+  added deterministic byte-for-byte generation checks.
+- Updated all directly fixable npm and Cargo advisory findings. Remaining
+  exceptions are advisory-specific, time-bounded unmaintained transitive or
+  Linux-only dependencies that are outside the formal Windows release.
+- Expanded native candidate acceptance, resource cleanup, restart/persistence,
+  homepage capture, release workflow, and regression contracts.
 
-### Fixed
+### Compatibility note
 
-- Fixed focus and shortcut conflicts after capture, including Alt key passthrough.
-- Fixed sticker drag detachment, delayed overlay panels, and hidden fullscreen
-  stickers intercepting input.
-- Fixed emergency exit reliability and cursor restoration after abnormal exits.
-- Fixed Art parameter/image propagation and asynchronous preview update issues.
+On Windows, first use migrates a valid legacy device identity to DPAPI-protected
+schema 2. A Hook version older than V0.1.8 cannot read that protected identity;
+rolling back can require deleting the identity and pairing the device again.
 
 ### 主要更新
 
-#### 新增
-
-- 新增 HDR 截图，并在不支持时自动降级为 SDR。
-- 新增窗口悬停识别与双击窗口截图。
-- 新增保存、剪贴板和拖出文件的统一图片命名规则。
-- 新增紧凑可搜索的 Art 选择器，并扩展 Loom Art 联动能力。
-
-#### 完善
-
-- 提升贴图拖动、标注移动、缩小/恢复、滚轮操作和 Shader 预览响应速度。
-- 完善裁剪、导出尺寸、会话恢复、缓存生命周期和长时间运行内存稳定性。
-- 完善版本验证、签名来源校验和项目文档。
-
-#### 修复
-
-- 修复截图后的焦点与快捷键冲突，包括 Alt 键传递问题。
-- 修复贴图快速拖动脱手、浮动面板延迟，以及全屏遮挡后仍拦截输入的问题。
-- 修复紧急退出可靠性和异常退出后的鼠标指针恢复。
-- 修复 Art 参数、图片输入传递和异步预览更新问题。
-
-**Full Changelog**: [V0.1.5...V0.1.7](https://github.com/aiaimimi0920/Hook/compare/V0.1.5...V0.1.7)
+- 将大量 Rust、TypeScript、测试与自动化大文件按职责拆分；严格有效代码行检查中，
+  已无任何维护文件超过 500 行。
+- Windows 设备私钥改为 CurrentUser DPAPI 加密，并对旧明文身份执行校验后原子迁移。
+- 主 Vite 入口从 613.70 kB 降至 435.09 kB，并保持按需加载失败时的回退路径。
+- 新增精确锁文件 OSV 扫描、CodeQL、Dependabot、双格式 SBOM、构建来源、清单、
+  校验和、GitHub OIDC 证明和草稿优先发布核验。
+- 修复所有当前可直接升级的 npm/Cargo 公告；剩余项仅为限时的停止维护传递依赖或
+  不进入正式 Windows 产物的 Linux 依赖，并明确阻止未复核的 Linux 发布。
 
 ### Package notes
 
-The portable archive is the current user-facing package. Extract it and run
-`hook.exe`. The attached signing-candidate JSON is provenance metadata, not an
-installer.
+The portable archive remains the only current user-facing executable package.
+Extract it and run `hook.exe`. The signing-candidate JSON is provenance metadata,
+not an installer; the unsigned UIAccess executable is not published.
 
 Free code signing provided by [SignPath.io](https://signpath.io/), certificate
-by [SignPath Foundation](https://signpath.org/), applies only after the Hook
-project is provisioned and the hosted signing request receives manual approval.
+by [SignPath Foundation](https://signpath.org/), applies only after Hook is
+provisioned and a hosted signing request receives manual approval.
 
-- [UIAccess distribution notes](https://github.com/aiaimimi0920/Hook/blob/main/UIACCESS_DISTRIBUTION.md)
+- [Release provenance](https://github.com/aiaimimi0920/Hook/blob/main/docs/release-provenance.md)
+- [Dependency security](https://github.com/aiaimimi0920/Hook/blob/main/docs/DEPENDENCY_SECURITY.md)
 - [Code signing policy](https://github.com/aiaimimi0920/Hook/blob/main/docs/CODE_SIGNING_POLICY.md)
-- [Privacy policy](https://github.com/aiaimimi0920/Hook/blob/main/docs/PRIVACY_POLICY.md)
 - [Security policy](https://github.com/aiaimimi0920/Hook/blob/main/SECURITY.md)
+
+**Full Changelog**: [V0.1.7...V0.1.8](https://github.com/aiaimimi0920/Hook/compare/V0.1.7...V0.1.8)

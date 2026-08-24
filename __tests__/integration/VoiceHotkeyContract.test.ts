@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -7,7 +8,7 @@ const readSource = (relativePath: string) =>
 
 describe("Hook voice hotkey contract", () => {
   it("keeps the voice toggle state machine in Rust and emits a frontend status payload", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const hotkeySource = readSource("src-tauri/src/voice/hotkey.rs");
     const sessionSource = readSource("src-tauri/src/voice/session.rs");
 
@@ -34,10 +35,12 @@ describe("Hook voice hotkey contract", () => {
   });
 
   it("keeps voice status and settings wired without rendering a desktop overlay", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
-    const apiSource = readSource("src/services/api.ts");
+    const rustSource = readHookLibRustSources();
+    const apiTypesSource = readSource("src/services/apiTypes.ts");
+    const voiceApiSource = readSource("src/services/apiVoice.ts");
     const appSource = readSource("src/app.tsx");
-    const cssSource = readSource("src/app.css");
+    const startupSource = readSource("src/services/appStartupLifecycle.ts");
+    const cssSource = readSource("src/styles/feature-surfaces.css");
 
     expect(rustSource).toContain("#[tauri::command]");
     expect(rustSource).toContain("fn get_voice_settings_summary() -> VoiceSettingsSummary");
@@ -51,23 +54,26 @@ describe("Hook voice hotkey contract", () => {
     expect(rustSource).toContain("voice_mode:");
     expect(rustSource).toContain("get_voice_settings_summary");
 
-    expect(apiSource).toContain("export interface VoiceSettingsSummary");
-    expect(apiSource).toContain("getVoiceSettingsSummary");
-    expect(apiSource).toContain('safeInvoke("get_voice_settings_summary"');
+    expect(apiTypesSource).toContain("export interface VoiceSettingsSummary");
+    expect(voiceApiSource).toContain("getVoiceSettingsSummary");
+    expect(voiceApiSource).toContain("safeInvoke(");
+    expect(voiceApiSource).toContain('"get_voice_settings_summary"');
 
     expect(appSource).toContain("VoiceSettingsSummary");
     expect(appSource).toContain("createSignal<VoiceSettingsSummary | null>(null)");
-    expect(appSource).toContain("api.getVoiceSettingsSummary()");
-    expect(appSource).toContain("setVoiceSettings(settings)");
-    expect(appSource).toContain('listen<VoiceHotkeyPayload>("voice-hotkey-event"');
+    expect(startupSource).toContain("api.getVoiceSettingsSummary()");
+    expect(startupSource).toContain("setVoiceSettings(settings)");
+    const commandSource = readFileSync(resolve(process.cwd(), "src/services/appCommandListeners.ts"), "utf8");
+    expect(appSource).toContain("registerAppCommandListeners");
+    expect(commandSource).toContain('listen<VoiceHotkeyPayload>("voice-hotkey-event"');
     expect(appSource).toContain("createSignal<VoiceStatus>(\"idle\")");
-    expect(appSource).toContain("setVoiceStatus(resolveVoiceHotkeyStatus(event.payload))");
-    expect(appSource).toContain('listen<VoiceSessionPayload>("voice-session-event"');
-    expect(appSource).toContain("setLastVoiceSession(event.payload)");
-    expect(appSource).toContain("resolveVoiceSessionStatus(event.payload)");
-    expect(appSource).toContain("voice-settings-loaded");
-    expect(appSource).toContain("voice-hotkey-listener");
-    expect(appSource).toContain("voice-session-listener");
+    expect(commandSource).toContain("setVoiceStatus(resolveVoiceHotkeyStatus(event.payload))");
+    expect(commandSource).toContain('listen<VoiceSessionPayload>("voice-session-event"');
+    expect(commandSource).toContain("setLastVoiceSession(event.payload)");
+    expect(commandSource).toContain("resolveVoiceSessionStatus(event.payload)");
+    expect(startupSource).toContain("voice-settings-loaded");
+    expect(commandSource).toContain("voice-hotkey-listener");
+    expect(commandSource).toContain("voice-session-listener");
     expect(appSource).not.toContain('data-testid="voice-status-panel"');
     expect(appSource).not.toContain("fixed right-4 top-4");
     expect(appSource).not.toContain('class="voice-settings"');

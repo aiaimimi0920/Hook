@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -16,7 +17,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 describe("capture input shield contract", () => {
   it("uses a Hook-owned Windows low-level mouse hook for capture input instead of relying on rdev mouse grab", () => {
     const cargoToml = readSource("src-tauri/Cargo.toml");
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
 
     expect(cargoToml).toContain('rdev = "0.5.3"');
     expect(rustSource).toContain("install_capture_mouse_hook_thread");
@@ -27,7 +28,7 @@ describe("capture input shield contract", () => {
   });
 
   it("keeps physical cursor movement alive during capture while still consuming buttons and wheels", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const hookProcBlock = sourceBetween(
       rustSource,
       "unsafe extern \"system\" fn capture_mouse_hook_proc",
@@ -79,10 +80,10 @@ describe("capture input shield contract", () => {
   });
 
   it("keeps the overlay click-through during capture because the native hook owns the pointer stream", () => {
-    const appSource = readSource("src/app.tsx");
-    const beginStart = appSource.indexOf("const beginCaptureSelection =");
-    const beginEnd = appSource.indexOf("// Initialization", beginStart);
-    const beginBlock = appSource.slice(beginStart, beginEnd);
+    const nativeActionSource = readSource("src/services/appNativeActionController.ts");
+    const beginStart = nativeActionSource.indexOf("const beginCaptureSelection =");
+    const beginEnd = nativeActionSource.indexOf("const handleNativeEscape =", beginStart);
+    const beginBlock = nativeActionSource.slice(beginStart, beginEnd);
 
     const monitorOffIndex = beginBlock.indexOf("await api.setMouseMonitorActive(false);");
     const captureInputIndex = beginBlock.indexOf("await api.setCaptureInputActive(true);");
@@ -97,37 +98,41 @@ describe("capture input shield contract", () => {
 
   it("ends desktop capture only from the matching native down/up stream", () => {
     const appSource = readSource("src/app.tsx");
+    const pointerListenerSource = readSource("src/services/appPointerListeners.ts");
+    const canvasInteractionSource = readSource("src/services/appCanvasInteractions.ts");
     const captureListeners = sourceBetween(
-      appSource,
-      'const unlistenCaptureDown = await listen<NativeCaptureMousePayload>(',
-      'const unlistenOverlayMouseDown = await listen<OverlaySyntheticMousePayload>',
+      pointerListenerSource,
+      '"capture/global_mouse_down"',
+      '"overlay/global_mouse_down"',
     );
     const globalMouseUp = sourceBetween(
-      appSource,
-      "const handleGlobalMouseUp = (e: MouseEvent) => {",
-      "const handleGlobalMouseDown = (e: MouseEvent) => {",
+      canvasInteractionSource,
+      "const handleGlobalMouseUp = (event: MouseEvent) => {",
+      "const handleGlobalMouseDown = (event: MouseEvent) => {",
     );
 
-    expect(appSource).toContain("let nativeCapturePointerActive = false;");
-    expect(captureListeners).toContain("if (!isSelecting() || nativeCapturePointerActive) return;");
-    expect(captureListeners).toContain("nativeCapturePointerActive = true;");
-    expect(captureListeners).toContain("if (!isSelecting() || !nativeCapturePointerActive) return;");
-    expect(captureListeners).toContain("nativeCapturePointerActive = false;");
-    expect(appSource).toContain("shiftKey: !!payload?.shiftKey");
-    expect(appSource).toContain("resolveCaptureCtrlModifier(");
-    expect(appSource).toContain("ctrlKey: ctrlModifier.effectiveCtrlKey");
-    expect(globalMouseUp).toContain("if (!tauriRuntime || !isSelecting()) {");
-    expect(globalMouseUp).toContain("handleSelectionEnd(e);");
+    expect(appSource).toContain("const captureInput: AppCaptureInputState");
+    expect(captureListeners).toContain("if (!isSelecting() || captureInput.nativePointerActive) return;");
+    expect(captureListeners).toContain("captureInput.nativePointerActive = true;");
+    expect(captureListeners).toContain("if (!isSelecting() || !captureInput.nativePointerActive) return;");
+    expect(captureListeners).toContain("captureInput.nativePointerActive = false;");
+    expect(pointerListenerSource).toContain("shiftKey: !!payload?.shiftKey");
+    expect(pointerListenerSource).toContain("resolveCaptureCtrlModifier(");
+    expect(pointerListenerSource).toContain("ctrlKey: ctrlModifier.effectiveCtrlKey");
+    expect(globalMouseUp).toContain("if (!tauriRuntime || !isSelecting()) handleSelectionEnd(event);");
   });
 
   it("updates capture mouse position from backend global events and uses a native cursor instead of an in-overlay crosshair", () => {
     const appSource = readSource("src/app.tsx");
-    const rustSource = readSource("src-tauri/src/lib.rs");
-    const cssSource = readSource("src/app.css");
+    const nativeActionSource = readSource("src/services/appNativeActionController.ts");
+    const pointerListenerSource = readSource("src/services/appPointerListeners.ts");
+    const rustSource = readHookLibRustSources();
+    const cssSource = readSource("src/styles/feature-surfaces.css");
     const canvasSelectionSource = readSource("src/components/CanvasSelection.tsx");
 
-    expect(appSource).toContain("setMousePos({ x: captureEvent.clientX, y: captureEvent.clientY });");
-    expect(appSource).toContain("await api.getCaptureCursorPosition()");
+    expect(appSource).toContain("registerAppPointerListeners");
+    expect(pointerListenerSource).toContain("setMousePos({ x: captureEvent.clientX, y: captureEvent.clientY });");
+    expect(nativeActionSource).toContain("await api.getCaptureCursorPosition()");
     expect(rustSource).toContain("set_capture_cursor_crosshair()");
     expect(rustSource).toContain("SetSystemCursor");
     expect(rustSource).toContain("SystemParametersInfoW(SPI_SETCURSORS");
@@ -137,7 +142,7 @@ describe("capture input shield contract", () => {
   });
 
   it("coalesces high-frequency capture mouse move events before emitting them to the webview", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const eventThreadBlock = sourceBetween(
       rustSource,
       '.name("hook-capture-mouse-events".to_string())',
@@ -155,7 +160,7 @@ describe("capture input shield contract", () => {
   });
 
   it("keeps the overlay no-activate so clicking stickers does not steal focus from video surfaces", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const setupOverlayBlock = sourceBetween(
       rustSource,
       "fn setup_overlay_window",
@@ -196,11 +201,12 @@ describe("capture input shield contract", () => {
   });
 
   it("keeps sticker hover synthetic while the overlay window stays click-through so hover/click do not leak or black out the app underneath", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const appSource = readSource("src/app.tsx");
-    // The synthetic overlay mouse-event engine now lives in its own module
-    // (extracted from app.tsx); app.tsx retains only the overlay/* listener wiring.
-    const overlaySource = readSource("src/services/overlaySyntheticEvents.ts");
+    const pointerListenerSource = readSource("src/services/appPointerListeners.ts");
+    const overlayDispatchSource = readSource("src/services/overlaySyntheticDispatch.ts");
+    const overlayTargetsSource = readSource("src/services/overlaySyntheticTargets.ts");
+    const overlayHoverSource = readSource("src/services/overlaySyntheticHover.ts");
     const overlayRouteBlock = sourceBetween(
       rustSource,
       "fn should_route_overlay_mouse_events",
@@ -261,22 +267,23 @@ describe("capture input shield contract", () => {
     expect(rdevMouseMoveBlock).toContain("should_overlay_window_ignore_cursor_events");
     expect(rdevMouseMoveBlock).toContain("window.set_ignore_cursor_events(should_ignore)");
 
-    expect(overlaySource).toContain("const dispatchSyntheticOverlayMouseEvent =");
-    expect(overlaySource).toContain("doc.elementFromPoint");
-    expect(overlaySource).toContain("new MouseEvent");
-    expect(overlaySource).toContain('"mouseenter"');
-    expect(overlaySource).toContain('"mouseleave"');
-    expect(overlaySource).toContain('"click"');
-    expect(overlaySource).toContain('"contextmenu"');
-    expect(appSource).toContain('"overlay/global_mouse_down"');
-    expect(appSource).toContain('"overlay/global_mouse_move"');
-    expect(appSource).toContain('"overlay/global_mouse_up"');
-    expect(appSource).toContain('"overlay/global_mouse_wheel"');
-    expect(appSource).toContain('"overlay/global_context_menu"');
+    expect(overlayDispatchSource).toContain("const dispatchSyntheticOverlayMouseEvent =");
+    expect(overlayTargetsSource).toContain("doc.elementFromPoint");
+    expect(overlayDispatchSource).toContain("new MouseEvent");
+    expect(overlayHoverSource).toContain('"mouseenter"');
+    expect(overlayHoverSource).toContain('"mouseleave"');
+    expect(overlayDispatchSource).toContain('"click"');
+    expect(overlayDispatchSource).toContain('"contextmenu"');
+    expect(appSource).toContain("registerAppPointerListeners");
+    expect(pointerListenerSource).toContain('"overlay/global_mouse_down"');
+    expect(pointerListenerSource).toContain('"overlay/global_mouse_move"');
+    expect(pointerListenerSource).toContain('"overlay/global_mouse_up"');
+    expect(pointerListenerSource).toContain('"overlay/global_mouse_wheel"');
+    expect(pointerListenerSource).toContain('"overlay/global_context_menu"');
   });
 
   it("reuses the native shield as a full-screen capture blocker so Ctrl+1 drag-select never hovers the app underneath", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const shieldBlock = sourceBetween(
       rustSource,
       "fn sync_overlay_input_shield_region(",
@@ -294,7 +301,7 @@ describe("capture input shield contract", () => {
   });
 
   it("keeps a synthetic hover-exit handoff so leaving a sticker clears overlay hover state before native mouse input resumes underneath", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const hookProcBlock = sourceBetween(
       rustSource,
       "unsafe extern \"system\" fn capture_mouse_hook_proc",

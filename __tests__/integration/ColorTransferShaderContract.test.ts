@@ -1,13 +1,19 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { readLoomHookRustSources } from "../helpers/loomHookRustSources";
 
 describe("Color Transfer shader node contract", () => {
   it("does not cache contextual shader arts before their image context is known", () => {
-    const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
+    const workflowControllerSource = readFileSync(
+      resolve(process.cwd(), "src", "services", "appArtWorkflowController.ts"),
+      "utf8",
+    );
 
-    expect(appSource).toContain("isContextualShaderArt");
-    expect(appSource).toMatch(/shaderArts[\s\S]*filter\(\(art\) => !isContextualShaderArt\(art\)\)/);
+    expect(workflowControllerSource).toContain("isContextualShaderArt");
+    expect(workflowControllerSource).toMatch(
+      /arts[\s\S]*filter\(\(art\) => supportsShaderPreview\(art\) && !isContextualShaderArt\(art\)\)/,
+    );
   });
 
   it("refreshes LUT shaders with source and reference images instead of loading reference as an unused texture", () => {
@@ -22,20 +28,23 @@ describe("Color Transfer shader node contract", () => {
 
   it("passes connected Color Transfer input/reference images and writes shader output back to the graph", () => {
     const unitViewSource = readFileSync(resolve(process.cwd(), "src", "components", "UnitView.tsx"), "utf8");
+    const surfaceControllerSource = readFileSync(resolve(process.cwd(), "src", "components", "unitSurfaceController.ts"), "utf8");
+    const surfaceContentSource = readFileSync(resolve(process.cwd(), "src", "components", "UnitSurfaceContent.tsx"), "utf8");
     const canvasUnitsSource = readFileSync(resolve(process.cwd(), "src", "components", "CanvasUnits.tsx"), "utf8");
     const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
 
-    expect(unitViewSource).toContain("getShaderInputSrc");
-    expect(unitViewSource).toContain("getShaderReferenceSrc");
-    expect(unitViewSource).toContain("referenceImageSrc={getShaderReferenceSrc()}");
-    expect(unitViewSource).toContain("onIntrinsicSizeChange");
+    expect(surfaceControllerSource).toContain("shaderInputSrc");
+    expect(surfaceControllerSource).toContain("shaderReferenceSrc");
+    expect(surfaceContentSource).toContain("referenceImageSrc={props.referenceImageSrc}");
+    expect(surfaceContentSource).toContain("onIntrinsicSizeChange={props.onIntrinsicSizeChange}");
+    expect(surfaceContentSource).toContain("onRendered={props.onRendered}");
     expect(unitViewSource).toContain("onRendered={(dataUrl) => props.onRendered(props.unit.id, dataUrl)}");
     expect(canvasUnitsSource).toContain("onRendered: (id: string, dataUrl: string) => void");
     expect(appSource).toContain("propagateFromUnit(id)");
   });
 
   it("materializes data URI shader inputs before sending them to Loom", () => {
-    const rustSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "loom_hook.rs"), "utf8");
+    const rustSource = readLoomHookRustSources();
 
     expect(rustSource).toContain("materialize_shader_image_input");
     expect(rustSource).toContain('starts_with("data:")');
@@ -45,7 +54,7 @@ describe("Color Transfer shader node contract", () => {
   });
 
   it("runs contextual shader prefetch work away from the Tauri IPC handler thread", () => {
-    const rustSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "loom_hook.rs"), "utf8");
+    const rustSource = readLoomHookRustSources();
 
     expect(rustSource).toMatch(/pub\s+async\s+fn\s+prefetch_shader/);
     expect(rustSource).toContain("tauri::async_runtime::spawn_blocking");
@@ -53,7 +62,7 @@ describe("Color Transfer shader node contract", () => {
   });
 
   it("uses the installed Loom Art package as the only shader-prefetch runtime", () => {
-    const rustSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "loom_hook.rs"), "utf8");
+    const rustSource = readLoomHookRustSources();
 
     expect(rustSource).toContain('"method": "loom.hook.art.execute"');
     expect(rustSource).not.toContain("/v1/python-arts/shader/prefetch");
@@ -62,14 +71,19 @@ describe("Color Transfer shader node contract", () => {
   });
 
   it("coalesces interactive WebGL draws and asynchronous PNG persistence", () => {
-    const source = readFileSync(resolve(process.cwd(), "src", "components", "ShaderPreview.tsx"), "utf8");
+    const previewSource = readFileSync(resolve(process.cwd(), "src", "components", "ShaderPreview.tsx"), "utf8");
+    const renderSource = readFileSync(
+      resolve(process.cwd(), "src", "components", "shaderPreviewRenderController.ts"),
+      "utf8",
+    );
 
-    expect(source).toContain("canvas.toBlob");
-    expect(source).toContain("scheduleRendererRender");
-    expect(source).toContain("requestAnimationFrame");
-    expect(source).toContain("scheduleRenderedExport");
-    expect(source).toContain("clearRenderExportTimer");
-    expect(source).not.toContain('renderer.toDataURL("image/png")');
+    expect(previewSource).toContain("createShaderPreviewRenderController");
+    expect(renderSource).toContain("canvas.toBlob");
+    expect(renderSource).toContain("scheduleRendererRender");
+    expect(renderSource).toContain("requestAnimationFrame");
+    expect(renderSource).toContain("scheduleRenderedExport");
+    expect(renderSource).toContain("clearRenderExportTimer");
+    expect(renderSource).not.toContain('renderer.toDataURL("image/png")');
   });
 
   it("keeps pure shader changes local while hybrid previews reach formal execution", () => {

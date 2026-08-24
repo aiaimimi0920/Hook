@@ -22,13 +22,15 @@ describe("sticker edit propagation contract", () => {
 
   it("marks direct sticker annotation edits as local and propagates the committed edit downstream", () => {
     const annotationLayerSource = readSource("src/components/StickerAnnotationLayer.tsx");
-    const appSource = readSource("src/app.tsx");
+    const persistenceSource = readSource("src/components/stickerAnnotationPersistenceController.ts");
+    const editingControllerSource = readSource("src/services/appStickerEditingController.ts");
 
-    expect(annotationLayerSource).toContain("graphStore.actions.updateStickerEditData(props.unitId");
-    expect(annotationLayerSource).toContain("graphStore.actions.propagateStickerEditsFrom(props.unitId)");
-    expect(annotationLayerSource).toContain("propagateStickerEditFromCurrentUnit");
-    expect(appSource).toContain("graphStore.actions.updateStickerEditData(plan.unitId");
-    expect(appSource).toContain("graphStore.actions.propagateStickerEditsFrom(plan.unitId)");
+    expect(annotationLayerSource).toContain("createStickerAnnotationPersistence");
+    expect(persistenceSource).toContain("graphStore.actions.updateStickerEditData(options.unitId()");
+    expect(persistenceSource).toContain("graphStore.actions.propagateStickerEditsFrom(options.unitId())");
+    expect(persistenceSource).toContain("propagateStickerEditFromCurrentUnit");
+    expect(editingControllerSource).toContain("graphStore.actions.updateStickerEditData(plan.unitId");
+    expect(editingControllerSource).toContain("graphStore.actions.propagateStickerEditsFrom(plan.unitId)");
   });
 
   it("backfills existing sticker edits when a new downstream link is created", () => {
@@ -42,23 +44,24 @@ describe("sticker edit propagation contract", () => {
   });
 
   it("renders and exports propagated image edits inside the current upstream content frame", () => {
-    const unitViewSource = readSource("src/components/UnitView.tsx");
-    const exportSource = readSource("src/services/stickerExport.ts");
+    const imageModelSource = readSource("src/components/unitImageModel.ts");
+    const imageContentSource = readSource("src/components/UnitStickerImageContent.tsx");
+    const exportSource = readSource("src/services/stickerCompositeRenderer.ts");
 
-    expect(unitViewSource).toContain("resolveStickerContentFrame(unit)");
-    expect(unitViewSource).toContain('class="sticker-image-content-frame"');
-    expect(unitViewSource).toContain('overflow: "hidden"');
+    expect(imageModelSource).toContain("resolveStickerContentFrame(options.unit())");
+    expect(imageContentSource).toContain('class="sticker-image-content-frame"');
+    expect(imageContentSource).toContain('overflow: "hidden"');
     expect(exportSource).toContain("const contentFrame = resolveStickerContentFrame(unit);");
     expect(exportSource).toContain("contentFrame.x");
     expect(exportSource).toContain("contentFrame.w");
   });
 
   it("exposes a sticker setting to stop accepting upstream edit propagation", () => {
-    const paramsSource = readSource("src/components/UnitParamsPanel.tsx");
+    const paramsSource = readSource("src/components/UnitParamsExpandedSettings.tsx");
 
     expect(paramsSource).toContain("接受上级贴图编辑传导");
     expect(paramsSource).toContain("stickerEditPropagation");
     expect(paramsSource).toContain("acceptUpstream");
-    expect(paramsSource).toContain("props.unit.type === 'sticker'");
+    expect(paramsSource).toContain('props.unit.type === "sticker"');
   });
 });

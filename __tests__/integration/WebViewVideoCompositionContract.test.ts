@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const rustSource = readFileSync(resolve(process.cwd(), "src-tauri/src/lib.rs"), "utf8");
+const rustSource = readHookLibRustSources();
 
 const sourceBetween = (startMarker: string, endMarker: string) => {
   const start = rustSource.indexOf(startMarker);

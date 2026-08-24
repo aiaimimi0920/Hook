@@ -7,7 +7,7 @@ const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTo
 const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
 const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(propertyBarSectionsPath, "utf8") : "";
 const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
-const exportSource = readFileSync(resolve(process.cwd(), "src/services/stickerExport.ts"), "utf8");
+const exportSource = readFileSync(resolve(process.cwd(), "src/services/stickerCompositeRenderer.ts"), "utf8");
 const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitView.tsx"), "utf8");
 
 describe("Hook sticker opacity contract", () => {

@@ -1,18 +1,25 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitView.tsx"), "utf8");
-const annotationLayerSource = readFileSync(
-    resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"),
+const unitImageModelSource = readFileSync(resolve(process.cwd(), "src/components/unitImageModel.ts"), "utf8");
+const unitImageContentSource = readFileSync(resolve(process.cwd(), "src/components/UnitStickerImageContent.tsx"), "utf8");
+const annotationWheelSource = readFileSync(
+    resolve(process.cwd(), "src/components/stickerAnnotationWheelController.ts"),
     "utf8",
 );
-const stickerEditingSource = readFileSync(
+const stickerEditingFacadeSource = readFileSync(
     resolve(process.cwd(), "src/services/stickerEditing.ts"),
     "utf8",
 );
+const stickerFrameGeometrySource = readFileSync(
+    resolve(process.cwd(), "src/services/stickerFrameGeometry.ts"),
+    "utf8",
+);
 const shortcutsSource = readFileSync(resolve(process.cwd(), "src/hooks/useShortcuts.ts"), "utf8");
-const rustSource = readFileSync(resolve(process.cwd(), "src-tauri/src/lib.rs"), "utf8");
+const rustSource = readHookLibRustSources();
 
 describe("Hook sticker wheel resize contract", () => {
     it("keeps the minified ctrl+wheel guard without focusing the sticker container during wheel opacity edits", () => {
@@ -21,14 +28,14 @@ describe("Hook sticker wheel resize contract", () => {
         expect(unitViewSource).not.toContain("e.currentTarget.focus();");
         expect(unitViewSource).not.toContain("event.currentTarget.focus();");
         expect(unitViewSource).toContain("queueWheelResize(e);");
-        expect(stickerEditingSource).toContain("computeStickerWheelResizeFrame");
-        expect(stickerEditingSource).toContain("Math.exp(-deltaY * 0.001)");
+        expect(stickerEditingFacadeSource).toContain("computeStickerWheelResizeFrame");
+        expect(stickerFrameGeometrySource).toContain("Math.exp(-deltaY * 0.001)");
         expect(unitViewSource).toContain("props.onOpacityChange(newOp);");
     });
 
     it("normalizes Windows overlay wheel input to browser WheelEvent direction so wheel-up zooms in and increases opacity", () => {
         expect(rustSource).toContain('"deltaY": -delta_y');
-        expect(stickerEditingSource).toContain("Math.exp(-deltaY * 0.001)");
+        expect(stickerFrameGeometrySource).toContain("Math.exp(-deltaY * 0.001)");
         expect(unitViewSource).toContain("const delta = -e.deltaY * 0.001;");
         expect(rustSource).not.toContain('"deltaY": delta_y');
     });
@@ -51,25 +58,25 @@ describe("Hook sticker wheel resize contract", () => {
     });
 
     it("scales cropped image pixels and crop offsets with the current sticker frame instead of only resizing the clipping window", () => {
-        expect(unitViewSource).toContain("computeCroppedStickerImageViewport");
-        expect(unitViewSource).toContain("const croppedViewport = getCroppedImageViewport();");
-        expect(unitViewSource).toContain('"width": `${croppedViewport.width}px`');
-        expect(unitViewSource).toContain('"left": `-${croppedViewport.offsetX}px`');
-        expect(stickerEditingSource).toContain("const scaleX = frame.w / cropRect.w;");
-        expect(stickerEditingSource).toContain("width: sourceSize.w * scaleX");
-        expect(stickerEditingSource).toContain("offsetX: cropRect.x * scaleX");
+        expect(unitImageModelSource).toContain("computeCroppedStickerImageViewport(imageContentFrame(), imageEditState())");
+        expect(unitImageContentSource).toContain("const viewport = croppedImageViewport;");
+        expect(unitImageContentSource).toContain("width: `${viewport.width}px`");
+        expect(unitImageContentSource).toContain("left: `-${viewport.offsetX}px`");
+        expect(stickerFrameGeometrySource).toContain("const scaleX = frame.w / cropRect.w;");
+        expect(stickerFrameGeometrySource).toContain("width: sourceSize.w * scaleX");
+        expect(stickerFrameGeometrySource).toContain("offsetX: cropRect.x * scaleX");
     });
 
     it("lets ctrl+wheel bubble back to the sticker frame when ctrl+alt+wheel finds no selected annotations, so a prior alt-wheel opacity tweak cannot black-hole the next scale wheel", () => {
-        const wheelStart = annotationLayerSource.indexOf(
+        const wheelStart = annotationWheelSource.indexOf(
             "const onWheel = async (event: WheelEvent) => {",
         );
-        const preventIndex = annotationLayerSource.indexOf("event.preventDefault();", wheelStart);
-        const noSelectionIndex = annotationLayerSource.indexOf(
+        const preventIndex = annotationWheelSource.indexOf("event.preventDefault();", wheelStart);
+        const noSelectionIndex = annotationWheelSource.indexOf(
             "if (annotationIds.length < 1)",
             wheelStart,
         );
-        const noTargetsIndex = annotationLayerSource.indexOf(
+        const noTargetsIndex = annotationWheelSource.indexOf(
             "if (targetAnnotations.length < 1)",
             wheelStart,
         );
@@ -80,23 +87,25 @@ describe("Hook sticker wheel resize contract", () => {
         expect(noTargetsIndex).toBeGreaterThanOrEqual(0);
         expect(noSelectionIndex).toBeLessThan(preventIndex);
         expect(noTargetsIndex).toBeLessThan(preventIndex);
-        expect(annotationLayerSource.slice(wheelStart, preventIndex)).not.toContain("debugLogEvent");
+        expect(annotationWheelSource.slice(wheelStart, preventIndex)).not.toContain("debugLogEvent");
     });
 
     it("requires an existing annotation selection before ctrl+alt+wheel can be consumed, so a hovered node cannot hijack the next whole-sticker scale after an alt-wheel opacity tweak", () => {
-        const wheelStart = annotationLayerSource.indexOf(
+        const wheelStart = annotationWheelSource.indexOf(
             "const onWheel = async (event: WheelEvent) => {",
         );
-        const wheelEnd = annotationLayerSource.indexOf(
-            "const draftShapeRect = createMemo(() => {",
+        const wheelEnd = annotationWheelSource.indexOf(
+            "dispose: () => {",
             wheelStart,
         );
-        const wheelSource = annotationLayerSource.slice(wheelStart, wheelEnd);
+        const wheelSource = annotationWheelSource.slice(wheelStart, wheelEnd);
 
         expect(wheelStart).toBeGreaterThanOrEqual(0);
         expect(wheelEnd).toBeGreaterThan(wheelStart);
-        expect(wheelSource).toContain("const annotationIds = currentSelectionIds;");
+        expect(wheelSource).toContain("const annotationIds = options.selectedAnnotationIds();");
         expect(wheelSource).not.toContain(": [hit.id]");
+        expect(wheelSource).toContain("const task = commitTail.then(async () => {");
+        expect(wheelSource).toContain("const currentElements = options.annotationState().elements;");
     });
 
     it("prevents only the native bare-Alt accelerator default without swallowing Alt from the remaining event chain", () => {

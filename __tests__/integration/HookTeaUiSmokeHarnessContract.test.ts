@@ -4,7 +4,12 @@ import { resolve } from "node:path";
 
 const harnessPath = resolve(process.cwd(), "scripts", "smoke-hook-tea-ui-real.ps1");
 const harnessExists = existsSync(harnessPath);
-const harnessSource = harnessExists ? readFileSync(harnessPath, "utf8") : "";
+const harnessOwnerPaths = ["command-tea.ps1", "process-artifact.ps1"].map((fileName) =>
+  resolve(process.cwd(), "scripts", "smoke-hook-tea-ui-real", fileName),
+);
+const harnessSource = harnessExists
+  ? [harnessPath, ...harnessOwnerPaths].map((filePath) => readFileSync(filePath, "utf8")).join("\n")
+  : "";
 
 describe("Hook Tea UI real smoke harness contract", () => {
   it("exists as a root-level operator script with collision-resistant artifacts", () => {

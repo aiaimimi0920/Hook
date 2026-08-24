@@ -23,6 +23,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot "file-hash.ps1")
+. (Join-Path $PSScriptRoot "release\PathSafety.ps1")
 
 $resolvedExePath = [System.IO.Path]::GetFullPath($ExePath)
 $resolvedManifestPath = [System.IO.Path]::GetFullPath($ManifestPath)
@@ -33,11 +34,17 @@ if (-not (Test-Path -LiteralPath $resolvedExePath -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $resolvedManifestPath -PathType Leaf)) {
     throw "Missing reviewed signing candidate manifest: $resolvedManifestPath"
 }
+$resolvedExePath = Assert-HookAbsolutePathNoReparsePoints -Path $resolvedExePath -TrustedRootPath (Split-Path -Parent $resolvedExePath)
+$resolvedManifestPath = Assert-HookAbsolutePathNoReparsePoints -Path $resolvedManifestPath -TrustedRootPath (Split-Path -Parent $resolvedManifestPath)
+$exeInfo = Get-Item -LiteralPath $resolvedExePath
+if ($exeInfo.Length -le 0 -or $exeInfo.Length -gt 512MB) {
+    throw "Reviewed signing candidate has an invalid size: $($exeInfo.Length) bytes"
+}
 if ($ReviewedSha256 -notmatch '^[0-9A-Fa-f]{64}$') {
     throw "Reviewed SHA-256 must contain exactly 64 hexadecimal characters."
 }
 
-$manifest = Get-Content -LiteralPath $resolvedManifestPath -Raw | ConvertFrom-Json
+$manifest = Read-HookBoundedText -Path $resolvedManifestPath -MaxBytes 1MB | ConvertFrom-Json
 $actualSha256 = Get-HookFileSha256 -Path $resolvedExePath
 $reviewedSha256 = $ReviewedSha256.ToLowerInvariant()
 $manifestSha256 = ([string]$manifest.sha256).ToLowerInvariant()

@@ -211,7 +211,11 @@ The tag workflow may also attach a provenance JSON file for the unsigned
 UIAccess signing candidate. That JSON is review metadata, not an installer.
 
 See [`UIACCESS_DISTRIBUTION.md`](UIACCESS_DISTRIBUTION.md) and
-[`docs/RELEASE_STRATEGY.md`](docs/RELEASE_STRATEGY.md).
+[`docs/RELEASE_STRATEGY.md`](docs/RELEASE_STRATEGY.md). Formal clean-source
+packaging, checksums, SBOMs, attestations, and draft verification are documented
+in [`docs/release-provenance.md`](docs/release-provenance.md); dependency
+inventory and vulnerability response are in
+[`docs/DEPENDENCY_SECURITY.md`](docs/DEPENDENCY_SECURITY.md).
 
 ## Code signing status
 

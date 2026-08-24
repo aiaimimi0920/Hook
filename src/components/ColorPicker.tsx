@@ -2,6 +2,7 @@ import { Component, createSignal, createEffect, onMount, onCleanup, For, Show, u
 
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import { syncService } from "../services/syncService";
+import { hexToRgb, hsvToRgb, normalizeHexColor, rgbToHex, rgbToHsv } from "./ColorPicker/colorMath";
 
 const COLOR_PICKER_RECT_ID = "color-picker-popup";
 const COLOR_PICKER_RECT_NAME = "COLOR_PICKER";
@@ -17,100 +18,6 @@ interface ColorPickerProps {
     onPickFromScreen?: () => void;
 }
 
-const hexToRgb = (hex: string): { r: number; g: number; b: number; a: number } => {
-    if (!hex || typeof hex !== "string") {
-        return { r: 255, g: 0, b: 0, a: 1 };
-    }
-    // Literal "transparent": keep a neutral hue but zero alpha so opening a
-    // transparent slot shows a transparent (not opaque-red) starting color.
-    if (hex.trim().toLowerCase() === "transparent") {
-        return { r: 255, g: 0, b: 0, a: 0 };
-    }
-    const parseByte = (str: string, fallback: number) => {
-        const parsed = parseInt(str, 16);
-        return Number.isNaN(parsed) ? fallback : parsed;
-    };
-    const cleaned = hex.replace("#", "");
-    if (cleaned.length === 8) {
-        return {
-            r: parseByte(cleaned.substring(0, 2), 0),
-            g: parseByte(cleaned.substring(2, 4), 0),
-            b: parseByte(cleaned.substring(4, 6), 0),
-            a: parseByte(cleaned.substring(6, 8), 255) / 255,
-        };
-    }
-    if (cleaned.length === 6) {
-        return {
-            r: parseByte(cleaned.substring(0, 2), 0),
-            g: parseByte(cleaned.substring(2, 4), 0),
-            b: parseByte(cleaned.substring(4, 6), 0),
-            a: 1,
-        };
-    }
-    return { r: 255, g: 0, b: 0, a: 1 };
-};
-
-const rgbToHex = (r: number, g: number, b: number, a: number): string => {
-    const toHex = (n: number) => Math.round(n).toString(16).padStart(2, "0");
-    if (a < 1) {
-        return `#${toHex(r)}${toHex(g)}${toHex(b)}${toHex(a * 255)}`;
-    }
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-};
-
-const rgbToHsv = (r: number, g: number, b: number): { h: number; s: number; v: number } => {
-    const rNorm = r / 255;
-    const gNorm = g / 255;
-    const bNorm = b / 255;
-    const max = Math.max(rNorm, gNorm, bNorm);
-    const min = Math.min(rNorm, gNorm, bNorm);
-    const delta = max - min;
-
-    let h = 0;
-    if (delta !== 0) {
-        if (max === rNorm) {
-            h = ((gNorm - bNorm) / delta) % 6;
-        } else if (max === gNorm) {
-            h = (bNorm - rNorm) / delta + 2;
-        } else {
-            h = (rNorm - gNorm) / delta + 4;
-        }
-        h = Math.round(h * 60);
-        if (h < 0) h += 360;
-    }
-
-    const s = max === 0 ? 0 : delta / max;
-    const v = max;
-
-    return { h, s, v };
-};
-
-const hsvToRgb = (h: number, s: number, v: number): { r: number; g: number; b: number } => {
-    const c = v * s;
-    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-    const m = v - c;
-
-    let r = 0, g = 0, b = 0;
-    if (h < 60) {
-        r = c; g = x; b = 0;
-    } else if (h < 120) {
-        r = x; g = c; b = 0;
-    } else if (h < 180) {
-        r = 0; g = c; b = x;
-    } else if (h < 240) {
-        r = 0; g = x; b = c;
-    } else if (h < 300) {
-        r = x; g = 0; b = c;
-    } else {
-        r = c; g = 0; b = x;
-    }
-
-    return {
-        r: Math.round((r + m) * 255),
-        g: Math.round((g + m) * 255),
-        b: Math.round((b + m) * 255),
-    };
-};
 
 interface ColorPickerPropsExtended extends ColorPickerProps {
     anchorRect?: { x: number; y: number; width: number; height: number };
@@ -140,8 +47,8 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
     };
 
     const isValidHex = (hex: string) => {
-        const cleaned = hex.trim().replace(/^#/, "");
-        return /^[0-9a-fA-F]{6}$/.test(cleaned) || /^[0-9a-fA-F]{8}$/.test(cleaned);
+        const normalized = normalizeHexColor(hex);
+        return normalized !== null && normalized !== "transparent";
     };
 
     const loadColor = (hex: string) => {
@@ -192,6 +99,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
     const handleSvPick = (event: MouseEvent) => {
         if (!svPickerRef) return;
         const rect = svPickerRef.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
         const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width));
         const y = Math.max(0, Math.min(event.clientY - rect.top, rect.height));
         setSaturation(x / rect.width);
@@ -201,6 +109,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
     const handleHuePick = (event: MouseEvent) => {
         if (!hueSliderRef) return;
         const rect = hueSliderRef.getBoundingClientRect();
+        if (rect.width <= 0) return;
         const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width));
         setHue((x / rect.width) * 360);
     };
@@ -225,7 +134,11 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
 
     // Copy the current color as HEX (#RRGGBB[AA]) or as an rgb()/rgba() string.
     const copyText = (text: string) => {
-        void navigator.clipboard.writeText(text);
+        const clipboard = navigator.clipboard;
+        if (!clipboard?.writeText) return;
+        // Clipboard permission can be denied outside a user gesture. Handle the
+        // rejection locally so it never becomes an unhandled promise rejection.
+        void clipboard.writeText(text).catch(() => undefined);
     };
 
     const handleCopyHex = () => copyText(currentColor());
@@ -279,33 +192,31 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
             hueDragging = false;
             alphaDragging = false;
         };
+        const onSvMouseDown = (event: MouseEvent) => {
+            event.preventDefault();
+            event.stopPropagation();
+            svDragging = true;
+            handleSvPick(event);
+        };
+        const onHueMouseDown = (event: MouseEvent) => {
+            event.preventDefault();
+            event.stopPropagation();
+            hueDragging = true;
+            handleHuePick(event);
+        };
+        const onAlphaMouseDown = (event: MouseEvent) => {
+            event.preventDefault();
+            event.stopPropagation();
+            alphaDragging = true;
+            handleAlphaPick(event);
+        };
 
-        if (svPickerRef) {
-            svPickerRef.addEventListener("mousedown", (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                svDragging = true;
-                handleSvPick(event);
-            });
-        }
-
-        if (hueSliderRef) {
-            hueSliderRef.addEventListener("mousedown", (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                hueDragging = true;
-                handleHuePick(event);
-            });
-        }
-
-        if (alphaSliderRef) {
-            alphaSliderRef.addEventListener("mousedown", (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                alphaDragging = true;
-                handleAlphaPick(event);
-            });
-        }
+        const svPicker = svPickerRef;
+        const hueSlider = hueSliderRef;
+        const alphaSlider = alphaSliderRef;
+        svPicker?.addEventListener("mousedown", onSvMouseDown);
+        hueSlider?.addEventListener("mousedown", onHueMouseDown);
+        alphaSlider?.addEventListener("mousedown", onAlphaMouseDown);
 
         window.addEventListener("mousemove", onMouseMove);
         window.addEventListener("mouseup", onMouseUp);
@@ -313,6 +224,9 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
         // Solid ignores a value returned from onMount, so the window listeners
         // have to be released through onCleanup or they outlive the picker.
         onCleanup(() => {
+            svPicker?.removeEventListener("mousedown", onSvMouseDown);
+            hueSlider?.removeEventListener("mousedown", onHueMouseDown);
+            alphaSlider?.removeEventListener("mousedown", onAlphaMouseDown);
             window.removeEventListener("mousemove", onMouseMove);
             window.removeEventListener("mouseup", onMouseUp);
         });
@@ -532,7 +446,9 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                         <div class="flex flex-wrap gap-1">
                             <For each={props.palette}>
                                 {(paletteColor) => {
-                                    const isTransparent = !paletteColor || paletteColor.toLowerCase() === "transparent";
+                                    const normalizedColor = normalizeHexColor(paletteColor);
+                                    const isTransparent = normalizedColor === "transparent";
+                                    const displayColor = isTransparent ? "transparent" : normalizedColor ?? "#ff0000";
                                     return (
                                         <button
                                             class="hook-color-swatch h-6 w-6 overflow-hidden"
@@ -552,7 +468,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                                                     // so the current color actually becomes transparent.
                                                     setAlpha(0);
                                                 } else {
-                                                    loadColor(paletteColor);
+                                                    loadColor(displayColor);
                                                 }
                                             }}
                                             onPointerDown={(e) => e.stopPropagation()}
@@ -560,7 +476,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                                         >
                                             <span
                                                 class="block h-full w-full"
-                                                style={{ background: isTransparent ? "transparent" : paletteColor }}
+                                                style={{ background: displayColor }}
                                             />
                                         </button>
                                     );

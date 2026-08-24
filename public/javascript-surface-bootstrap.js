@@ -7,6 +7,9 @@
   const MAX_DOM_NODES = 1000;
   const MAX_HEAP_GROWTH_BYTES = 64 * 1024 * 1024;
   const MAX_CPU_WINDOW_MILLIS = 250;
+  const MAX_ENTRY_BYTES = 512 * 1024;
+  const MAX_ENTRY_BASE64_CHARS = Math.ceil(MAX_ENTRY_BYTES / 3) * 4;
+  const SAFE_TOKEN = /^[A-Za-z0-9._:/-]{1,160}$/;
   const SYNTHETIC_INTERACTIVE_CLICK_MAX_DISTANCE = 8;
   const SYNTHETIC_BACKGROUND_CLICK_MAX_DISTANCE = 4;
   const SYNTHETIC_BACKGROUND_DOUBLE_CLICK_MAX_DELAY_MILLIS = 320;
@@ -34,6 +37,7 @@
   let activeHostGesture = null;
   let lastSyntheticBackgroundClick = null;
   let pendingEditableFocusTarget = null;
+  let runtimeMessageTail = Promise.resolve();
 
   const nextHostGestureId = () => {
     hostGestureSequence = hostGestureSequence >= Number.MAX_SAFE_INTEGER
@@ -226,9 +230,18 @@
   };
   const heapBaselineBytes = readHeapBytes();
 
+  const postToHost = (message) => {
+    if (!port || !token) return false;
+    try {
+      port.postMessage(message);
+      return true;
+    } catch {
+      return false;
+    }
+  };
   const fail = (error) => {
     const message = error instanceof Error ? error.message : String(error);
-    if (port && token) port.postMessage({ type: "failure", token, message });
+    postToHost({ type: "failure", token, message });
   };
   const wrapTimer = (nativeCreate, nativeClear, repeat) => (callback, delay = 0, ...args) => {
     if (timers.size >= MAX_TIMERS) throw new Error("Surface timer budget exceeded");
@@ -271,8 +284,7 @@
     },
     emit(event) {
       if (!port || !token || disposed) return false;
-      port.postMessage({ type: "event", token, event });
-      return true;
+      return postToHost({ type: "event", token, event });
     },
     snapshot() {
       return context ? structuredClone(context.snapshot) : null;
@@ -293,6 +305,7 @@
     if (typeof handler !== "function") return undefined;
     return await handler(argument);
   };
+
   const dispatchSyntheticPointer = (value) => {
     const allowedTypes = new Set(["mousedown", "mousemove", "mouseup", "wheel", "contextmenu"]);
     if (!value || !allowedTypes.has(value.type)) return;
@@ -522,6 +535,7 @@
       syntheticPointerDownPoint = null;
     }
   };
+
   const start = async () => {
     if (started || disposed || !context || !moduleDefinition) return;
     started = true;
@@ -535,7 +549,9 @@
       if (typeof cleanup === "function") mountCleanup = cleanup;
       cpuWindowStartedAt = performance.now();
       cpuWindowMillis = 0;
-      port.postMessage({ type: "ready", token });
+      if (!postToHost({ type: "ready", token })) {
+        throw new Error("JavaScript Surface host connection closed before ready");
+      }
     } catch (error) {
       started = false;
       fail(error);
@@ -566,7 +582,8 @@
     syntheticPointerDownInteractiveTarget = null;
     syntheticPointerDownPoint = null;
     globalThis.removeEventListener("blur", blurActiveEditable);
-    port?.close();
+    try { port?.close(); } catch { /* Best-effort teardown. */ }
+    port = null;
   };
 
   const observer = new MutationObserver(() => {
@@ -617,7 +634,7 @@
       void dispose();
       return;
     }
-    port.postMessage({ type: "heartbeat", token, budget });
+    postToHost({ type: "heartbeat", token, budget });
     if (cpuWindowElapsed >= 1_000) {
       cpuWindowStartedAt = now;
       cpuWindowMillis = 0;
@@ -625,10 +642,18 @@
   }, 500);
 
   const loadEntry = async (entryBase64) => {
-    if (typeof entryBase64 !== "string" || entryBase64.length === 0) {
+    if (
+      typeof entryBase64 !== "string"
+      || entryBase64.length === 0
+      || entryBase64.length > MAX_ENTRY_BASE64_CHARS
+      || entryBase64.length % 4 === 1
+      || !/^[A-Za-z0-9+/]+={0,2}$/.test(entryBase64)
+    ) {
       throw new Error("JavaScript Surface entry is missing");
     }
-    const bytes = Uint8Array.from(atob(entryBase64), (character) => character.charCodeAt(0));
+    const decoded = atob(entryBase64);
+    if (decoded.length > MAX_ENTRY_BYTES) throw new Error("JavaScript Surface entry is too large");
+    const bytes = Uint8Array.from(decoded, (character) => character.charCodeAt(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: "application/javascript" }));
     try {
       await import(url);
@@ -648,14 +673,16 @@
     // 今天不是活着的漏洞——沙箱没有 allow-same-origin，监听器在任何 surface 模块能跑之前
     // 就注册好了——但这个检查不要钱。
     if (event.source !== globalThis.parent) return;
+    if (typeof event.data.token !== "string" || !SAFE_TOKEN.test(event.data.token)) return;
     globalThis.removeEventListener("message", onHostMessage);
     token = event.data.token;
     context = { snapshot: event.data.snapshot, resources: event.data.resources || {} };
     port = event.ports[0];
-    port.onmessage = async (messageEvent) => {
+    port.onmessage = (messageEvent) => {
       const message = messageEvent.data;
       if (!message || message.token !== token || disposed) return;
-      try {
+      runtimeMessageTail = runtimeMessageTail.then(async () => {
+        if (disposed) return;
         if (message.type === "snapshot") {
           context = { snapshot: message.snapshot, resources: message.resources || {} };
           await invoke("update", {
@@ -678,7 +705,7 @@
         } else if (message.type === "dispose") {
           await dispose();
         }
-      } catch (error) { fail(error); }
+      }).catch((error) => { fail(error); });
     };
     port.start();
     try {
@@ -686,6 +713,7 @@
       await start();
     } catch (error) {
       fail(error);
+      await dispose();
     }
   };
   globalThis.addEventListener("message", onHostMessage);

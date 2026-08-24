@@ -4,6 +4,9 @@ setlocal
 pushd "%~dp0.."
 if errorlevel 1 exit /b %errorlevel%
 
+node scripts\generate-javascript-surface-bootstrap.mjs
+if errorlevel 1 goto :fail
+
 call node_modules\.bin\vite.cmd build
 if errorlevel 1 goto :fail
 

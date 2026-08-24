@@ -1,0 +1,215 @@
+/* Canonical Neuro tokens, document reset, and shared utility rules. */
+:root {
+  /* Canonical Neuro tokens shared semantically with Loom. */
+  --neuro-bg: #06080d;
+  --neuro-surface: #090c11;
+  --neuro-panel: #0e1218;
+  --neuro-rail: #070a0f;
+  --neuro-control: #111720;
+  --neuro-control-hover: #18222c;
+  --neuro-text: #f7f8ef;
+  --neuro-text-muted: #929a9f;
+  --neuro-line: rgba(255, 255, 255, 0.12);
+  --neuro-hover: rgba(255, 255, 255, 0.08);
+  --neuro-signal-yellow: #d9ff38;
+  --neuro-signal-green: #22c55e;
+  --neuro-info-blue: #06b6d4;
+  --neuro-danger-red: #f43f5e;
+  --neuro-signal-text: var(--neuro-signal-yellow);
+  --neuro-brand-text: var(--neuro-signal-green);
+  --neuro-info-text: color-mix(in srgb, var(--neuro-info-blue) 76%, white);
+  --neuro-danger-text: color-mix(in srgb, var(--neuro-danger-red) 78%, white);
+  --neuro-on-signal: color-mix(in srgb, var(--neuro-signal-yellow) 14%, black);
+  --neuro-overlay: rgba(4, 6, 10, 0.78);
+  --neuro-shadow: rgba(0, 0, 0, 0.38);
+
+  /* Hook component tokens mapped onto the canonical Neuro palette. */
+  --theme-signal: var(--neuro-signal-yellow);
+  --theme-signal-text: var(--neuro-signal-text);
+  --theme-success: var(--neuro-signal-green);
+  --theme-success-text: var(--neuro-brand-text);
+  --theme-info: var(--neuro-info-blue);
+  --theme-info-text: var(--neuro-info-text);
+  --theme-danger: var(--neuro-danger-red);
+  --theme-danger-text: var(--neuro-danger-text);
+  --theme-on-signal: var(--neuro-on-signal);
+  --theme-panel: color-mix(in srgb, var(--neuro-panel) 96%, transparent);
+  --theme-panel-soft: color-mix(in srgb, var(--neuro-panel) 90%, transparent);
+  --theme-panel-raised: color-mix(in srgb, var(--neuro-control) 98%, transparent);
+  --theme-control: var(--neuro-control);
+  --theme-control-hover: var(--neuro-control-hover);
+  --theme-border: var(--neuro-line);
+  --theme-border-strong: color-mix(in srgb, var(--theme-signal) 38%, transparent);
+  --theme-border-success: color-mix(in srgb, var(--theme-success) 34%, transparent);
+  --theme-border-info: color-mix(in srgb, var(--theme-info) 34%, transparent);
+  --theme-border-danger: color-mix(in srgb, var(--theme-danger) 34%, transparent);
+  --theme-line: color-mix(in srgb, var(--neuro-text) 8%, transparent);
+  --theme-hover: var(--neuro-hover);
+  --theme-hover-strong: color-mix(in srgb, var(--theme-signal) 14%, transparent);
+  --theme-success-soft: color-mix(in srgb, var(--theme-success) 18%, transparent);
+  --theme-info-soft: color-mix(in srgb, var(--theme-info) 14%, transparent);
+  --theme-danger-soft: color-mix(in srgb, var(--theme-danger) 18%, transparent);
+  --theme-text: var(--neuro-text);
+  --theme-text-secondary: color-mix(in srgb, var(--neuro-text) 78%, transparent);
+  --theme-text-muted: var(--neuro-text-muted);
+  --theme-overlay: var(--neuro-overlay);
+  --theme-backdrop-blur: 0px;
+
+  /* Control-level semantic tokens */
+  --primary: var(--theme-signal);
+  --primary-light: color-mix(in srgb, var(--theme-signal) 86%, white);
+  --primary-dark: color-mix(in srgb, var(--theme-signal) 82%, black);
+  --primary-glow: color-mix(in srgb, var(--theme-signal) 18%, transparent);
+  --accent-blue: var(--theme-info);
+  --accent-blue-glow: color-mix(in srgb, var(--theme-info) 16%, transparent);
+  --accent-pale: var(--theme-text);
+  --accent-pale-glow: color-mix(in srgb, var(--theme-text) 12%, transparent);
+  --accent-green: var(--theme-success);
+  --accent-red: var(--theme-danger);
+  --glass-bg: var(--theme-panel);
+  --glass-bg-light: color-mix(in srgb, var(--theme-text) 5%, transparent);
+  --glass-border: var(--theme-border);
+  --glass-blur: var(--theme-backdrop-blur);
+  --shadow-float: 0 16px 38px color-mix(in srgb, var(--neuro-shadow) 89%, transparent);
+  --shadow-subtle: 0 8px 18px color-mix(in srgb, var(--neuro-shadow) 68%, transparent);
+  --text-primary: var(--theme-text);
+  --text-secondary: var(--theme-text-secondary);
+  --text-muted: var(--theme-text-muted);
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow: 300ms ease;
+
+  /* Border Radius */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+}
+
+:root[data-hook-theme="light"] {
+  --neuro-bg: #edf1e4;
+  --neuro-surface: #f8faf3;
+  --neuro-panel: #ffffff;
+  --neuro-rail: #e4e9dc;
+  --neuro-control: #f1f4ea;
+  --neuro-control-hover: #e7ecdf;
+  --neuro-text: #10150e;
+  --neuro-text-muted: #5d6659;
+  --neuro-line: rgba(16, 21, 14, 0.16);
+  --neuro-hover: rgba(16, 21, 14, 0.07);
+  --neuro-signal-text: color-mix(in srgb, var(--neuro-signal-yellow) 34%, var(--neuro-text));
+  --neuro-brand-text: color-mix(in srgb, var(--neuro-signal-green) 52%, var(--neuro-text));
+  --neuro-info-text: color-mix(in srgb, var(--neuro-info-blue) 52%, var(--neuro-text));
+  --neuro-danger-text: color-mix(in srgb, var(--neuro-danger-red) 68%, var(--neuro-text));
+  --neuro-overlay: rgba(16, 21, 14, 0.48);
+  --neuro-shadow: rgba(18, 28, 14, 0.16);
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-hook-theme="system"] {
+    --neuro-bg: #edf1e4;
+    --neuro-surface: #f8faf3;
+    --neuro-panel: #ffffff;
+    --neuro-rail: #e4e9dc;
+    --neuro-control: #f1f4ea;
+    --neuro-control-hover: #e7ecdf;
+    --neuro-text: #10150e;
+    --neuro-text-muted: #5d6659;
+    --neuro-line: rgba(16, 21, 14, 0.16);
+    --neuro-hover: rgba(16, 21, 14, 0.07);
+    --neuro-signal-text: color-mix(in srgb, var(--neuro-signal-yellow) 34%, var(--neuro-text));
+    --neuro-brand-text: color-mix(in srgb, var(--neuro-signal-green) 52%, var(--neuro-text));
+    --neuro-info-text: color-mix(in srgb, var(--neuro-info-blue) 52%, var(--neuro-text));
+    --neuro-danger-text: color-mix(in srgb, var(--neuro-danger-red) 68%, var(--neuro-text));
+    --neuro-overlay: rgba(16, 21, 14, 0.48);
+    --neuro-shadow: rgba(18, 28, 14, 0.16);
+  }
+}
+
+/* Ensure transparent background for Tauri window */
+html, body {
+  background: transparent;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  color: var(--theme-text);
+}
+
+#app {
+  background: transparent;
+  width: 100%;
+  height: 100%;
+}
+
+main {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Missing Tailwind Utilities - REMOVED (Handled by Tailwind) */
+
+
+/* Utilities */
+.border-primary {
+  border-color: var(--primary);
+}
+
+.bg-primary {
+  background-color: var(--primary);
+}
+
+.text-primary {
+  color: var(--primary);
+}
+
+.cursor-crosshair {
+  cursor: crosshair;
+}
+
+/* Flexbox Utilities */
+/* Flexbox Utilities - REMOVED (Handled by Tailwind) */
+
+/* Sizing & Text Utilities */
+/* Sizing & Text Utilities - REMOVED (Handled by Tailwind) */
+
+.animate-in {
+  animation: zoomIn 0.2s ease-out forwards;
+}
+
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* --- Added Utilities for UI Widgets (replacing JIT) --- */
+
+/* Detailed Utilities - REMOVED (Handled by Tailwind) */
+
+/* Color Utilities (Manual JIT replacements) */
+.bg-transparent { background-color: transparent; }
+.bg-white-5 { background-color: color-mix(in srgb, var(--theme-text) 5%, transparent); }
+.bg-white-10 { background-color: color-mix(in srgb, var(--theme-text) 10%, transparent); }
+
+.border-white-10 { border-color: color-mix(in srgb, var(--theme-text) 10%, transparent); }
+.border-white-20 { border-color: color-mix(in srgb, var(--theme-text) 20%, transparent); }
+.border-white-30 { border-color: color-mix(in srgb, var(--theme-text) 30%, transparent); }
+
+/* Hover States (Group Hover) */
+.group:hover .group-hover-border-white-50 {
+  border-color: color-mix(in srgb, var(--theme-text) 50%, transparent);
+}
+.group:hover .group-hover-text-white-70 {
+  color: color-mix(in srgb, var(--theme-text) 70%, transparent);
+}
+
+.bg-dimmer {
+    background-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Manual Tailwind Polyfills - REMOVED (Handled by Tailwind) */

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "scanner": {
+    "name": "osv-scanner",
+    "version": "2.5.0",
+    "reusableWorkflow": "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@0c58c542420dfd23fcac08dd9c8ca3cca9c36f1a",
+    "actionCommit": "06b2ab4348248b456ee06c9e953637f55e03504f",
+    "windowsX64Url": "https://github.com/google/osv-scanner/releases/download/v2.5.0/osv-scanner_windows_amd64.exe",
+    "windowsX64Sha256": "4342285bd8be36b9f113468f3eea86e7900befbcd19ca8dc6ac4f0f6cbe7c362"
+  },
+  "config": "security/osv-scanner.toml",
+  "evidenceDirectory": ".tmp/dependency-security",
+  "maximumExceptionDays": 90,
+  "lockfiles": [
+    "package-lock.json",
+    "src-tauri/Cargo.lock",
+    "src-tauri/crates/drag/Cargo.lock",
+    "src-tauri/crates/scap-direct3d/Cargo.lock"
+  ]
+}

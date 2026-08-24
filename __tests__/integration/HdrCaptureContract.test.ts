@@ -7,72 +7,106 @@ const readSource = (relativePath: string) =>
 
 describe("HDR capture contract", () => {
   it("captures HDR displays as transient R16G16B16A16Float frames", () => {
-    const screenshotSource = readSource("src-tauri/src/screenshot.rs");
-    const direct3dSource = readSource("src-tauri/crates/scap-direct3d/src/lib.rs");
+    const capturePixelSource = readSource(
+      "src-tauri/src/screenshot/capture_pixels.rs",
+    );
+    const hdrAnalysisSource = readSource(
+      "src-tauri/src/screenshot/hdr_analysis.rs",
+    );
+    const hdrDisplaySource = readSource(
+      "src-tauri/src/screenshot/hdr_display.rs",
+    );
+    const wgcSessionSource = readSource(
+      "src-tauri/src/screenshot/wgc_session.rs",
+    );
+    const direct3dSource = readSource(
+      "src-tauri/crates/scap-direct3d/src/settings.rs",
+    );
 
     expect(direct3dSource).toContain("R16G16B16A16Float");
-    expect(screenshotSource).toContain("DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO");
-    expect(screenshotSource).toContain("DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL");
-    expect(screenshotSource).toContain("try_hdr_capture_transient");
-    expect(screenshotSource).toContain("PixelFormat::R16G16B16A16Float");
-    expect(screenshotSource).toContain('std::env::var("HOOK_CAPTURE_DYNAMIC_RANGE")');
-    const hdrTransientStart = screenshotSource.indexOf("fn try_hdr_capture_transient(");
-    const hdrTransientEnd = screenshotSource.indexOf("fn try_fast_capture(", hdrTransientStart);
+    expect(hdrDisplaySource).toContain("DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO");
+    expect(hdrDisplaySource).toContain("DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL");
+    expect(wgcSessionSource).toContain("try_hdr_capture_transient");
+    expect(wgcSessionSource).toContain("PixelFormat::R16G16B16A16Float");
+    expect(hdrAnalysisSource).toContain(
+      'std::env::var("HOOK_CAPTURE_DYNAMIC_RANGE")',
+    );
+    const hdrTransientStart = wgcSessionSource.indexOf("fn try_hdr_capture_transient(");
+    const hdrTransientEnd = wgcSessionSource.indexOf("fn try_fast_capture(", hdrTransientStart);
     expect(hdrTransientStart).toBeGreaterThan(-1);
     expect(hdrTransientEnd).toBeGreaterThan(hdrTransientStart);
-    expect(screenshotSource.slice(hdrTransientStart, hdrTransientEnd)).not.toContain("PERSISTENT_CAPTURER");
+    expect(wgcSessionSource.slice(hdrTransientStart, hdrTransientEnd)).not.toContain(
+      "PERSISTENT_CAPTURER",
+    );
   });
 
   it("selects HDR and SDR capture backends from the active capture monitor", () => {
     const captureSource = readSource("src-tauri/src/capture.rs");
-    const screenshotSource = readSource("src-tauri/src/screenshot.rs");
-    const capturePlanStart = screenshotSource.indexOf("fn capture_plan(");
-    const capturePlanEnd = screenshotSource.indexOf("fn capture_sdr_from_plan(", capturePlanStart);
-    const capturePlan = screenshotSource.slice(capturePlanStart, capturePlanEnd);
+    const dispatchSource = readSource("src-tauri/src/screenshot/dispatch.rs");
+    const displaySelectionSource = readSource(
+      "src-tauri/src/screenshot/display_selection.rs",
+    );
+    const capturePlanStart = displaySelectionSource.indexOf(
+      "pub(super) fn capture_plan(",
+    );
+    const capturePlan = displaySelectionSource.slice(capturePlanStart);
 
     expect(captureSource).toContain("fn capture_display_metrics(window: &Window)");
     expect(captureSource).toContain("Some(display_metrics),");
-    expect(screenshotSource).toContain("fn capture_display_for_metrics(");
-    expect(screenshotSource).toContain("Display::list()");
+    expect(capturePlanStart).toBeGreaterThan(-1);
+    expect(displaySelectionSource).toContain("fn capture_display_for_metrics(");
+    expect(displaySelectionSource).toContain("Display::list()");
     expect(capturePlan).toContain("capture_display_for_metrics(display_metrics)");
     expect(capturePlan).not.toContain("let display = Display::primary()");
-    expect(screenshotSource).toContain("hdr_display_info_for(&plan.display)");
-    expect(screenshotSource).toContain("plan.physical_origin_x + plan.crop.left as i32");
-    expect(screenshotSource).toContain("plan.physical_origin_y + plan.crop.top as i32");
+    expect(dispatchSource).toContain("hdr_display_info_for(&plan.display)");
+    expect(dispatchSource).toContain("checked_gdi_capture_rect(");
+    expect(dispatchSource).not.toContain("plan.crop.left as i32");
+    expect(dispatchSource).not.toContain("plan.crop.top as i32");
   });
 
   it("writes real 16-bit BT.2020 PQ PNG metadata instead of relabeling SDR pixels", () => {
-    const libSource = readSource("src-tauri/src/lib.rs");
-    const screenshotSource = readSource("src-tauri/src/screenshot.rs");
+    const encodingSource = readSource(
+      "src-tauri/src/native/long_capture_encoding.rs",
+    );
+    const capturePixelSource = readSource(
+      "src-tauri/src/screenshot/capture_pixels.rs",
+    );
 
-    expect(screenshotSource).toContain("scrgb_buffer_to_hdr_pq");
-    expect(screenshotSource).toContain("pq_oetf_from_nits");
-    expect(libSource).toContain("png::BitDepth::Sixteen");
-    expect(libSource).toContain("write_chunk(png::chunk::cICP, &[9, 16, 0, 1])");
-    expect(libSource).toContain("png::chunk::mDCV");
-    expect(libSource).toContain("png::chunk::cLLI");
+    expect(capturePixelSource).toContain("scrgb_buffer_to_hdr_pq");
+    expect(capturePixelSource).toContain("pq_oetf_from_nits");
+    expect(encodingSource).toContain("png::BitDepth::Sixteen");
+    expect(encodingSource).toContain("write_chunk(png::chunk::cICP, &[9, 16, 0, 1])");
+    expect(encodingSource).toContain("png::chunk::mDCV");
+    expect(encodingSource).toContain("png::chunk::cLLI");
   });
 
   it("keeps long capture SDR and degrades HDR through SDR WGC before GDI", () => {
     const captureSource = readSource("src-tauri/src/capture.rs");
-    const screenshotSource = readSource("src-tauri/src/screenshot.rs");
-    const longCaptureSource = readSource("src-tauri/src/long_capture.rs");
+    const dispatchSource = readSource("src-tauri/src/screenshot/dispatch.rs");
+    const hdrAnalysisSource = readSource(
+      "src-tauri/src/screenshot/hdr_analysis.rs",
+    );
+    const longCaptureSource = readSource(
+      "src-tauri/src/long_capture/capture_loop.rs",
+    );
 
     expect(captureSource).toContain("capture_region_with_dynamic_range");
-    expect(screenshotSource).toContain("falling_back_to_sdr_wgc_then_gdi");
-    expect(screenshotSource).toContain("profile == CaptureWorkloadProfile::StandardRegion");
+    expect(dispatchSource).toContain("falling_back_to_sdr_wgc_then_gdi");
+    expect(hdrAnalysisSource).toContain(
+      "profile == CaptureWorkloadProfile::StandardRegion",
+    );
     expect(longCaptureSource).toContain("CaptureWorkloadProfile::LongCapture");
     expect(longCaptureSource).not.toContain("capture_region_with_dynamic_range");
   });
 
   it("exposes HDR and downgrade metadata to stickers", () => {
-    const apiSource = readSource("src/services/api.ts");
-    const selectionSource = readSource("src/hooks/useSelection.ts");
+    const apiTypesSource = readSource("src/services/apiTypes.ts");
+    const captureUnitSource = readSource("src/hooks/captureUnitController.ts");
 
-    expect(apiSource).toContain('dynamicRange?: "sdr" | "hdr"');
-    expect(apiSource).toContain('colorSpace?: "srgb" | "bt2020-pq"');
-    expect(apiSource).toContain("downgradedFromHdr?: boolean");
-    expect(selectionSource).toContain("dynamicRange: response.dynamicRange");
-    expect(selectionSource).toContain("captureBackend: response.captureBackend");
+    expect(apiTypesSource).toContain('dynamicRange?: "sdr" | "hdr"');
+    expect(apiTypesSource).toContain('colorSpace?: "srgb" | "bt2020-pq"');
+    expect(apiTypesSource).toContain("downgradedFromHdr?: boolean");
+    expect(captureUnitSource).toContain("dynamicRange: response.dynamicRange");
+    expect(captureUnitSource).toContain("captureBackend: response.captureBackend");
   });
 });

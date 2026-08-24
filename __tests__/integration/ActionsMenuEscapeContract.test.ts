@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -9,17 +10,20 @@ describe("Hook Escape delete contract", () => {
   it("closes an open actions menu before the selected-unit delete handler", () => {
     const shortcutsSource = readSource("src/hooks/useShortcuts.ts");
     const appSource = readSource("src/app.tsx");
+    const appShortcutSource = readSource("src/hooks/useAppShortcutController.ts");
+    const nativeActionSource = readSource("src/services/appNativeActionController.ts");
+    const stickerEditingSource = readSource("src/services/appStickerEditingController.ts");
 
     expect(shortcutsSource).toContain("isActionsMenuDismissShortcut(e)");
     expect(shortcutsSource).toContain("handlers.onCloseActions()");
-    expect(appSource).toContain("const closeSelectedActionsMenu = () =>");
-    expect(appSource).toContain("onCloseActions: closeSelectedActionsMenu");
+    expect(stickerEditingSource).toContain("const closeSelectedActionsMenu = () =>");
+    expect(appShortcutSource).toContain("onCloseActions: dependencies.closeSelectedActionsMenu");
 
-    const nativeEscapeStart = appSource.indexOf('listen("trigger-escape"');
-    const nativeEscapeEnd = appSource.indexOf('listen("trigger-delete"', nativeEscapeStart);
-    const nativeEscapeBlock = appSource.slice(nativeEscapeStart, nativeEscapeEnd);
-    expect(nativeEscapeBlock.indexOf("closeSelectedActionsMenu()")).toBeLessThan(
-      nativeEscapeBlock.indexOf("deleteSelectedUnitOrAnnotation()"),
+    const nativeEscapeStart = nativeActionSource.indexOf("const handleNativeEscape = () =>");
+    const nativeEscapeEnd = nativeActionSource.indexOf("const handleNativeDelete = () =>", nativeEscapeStart);
+    const nativeEscapeBlock = nativeActionSource.slice(nativeEscapeStart, nativeEscapeEnd);
+    expect(nativeEscapeBlock.indexOf("dependencies.closeSelectedActionsMenu()")).toBeLessThan(
+      nativeEscapeBlock.indexOf("dependencies.deleteSelectedUnitOrAnnotation()"),
     );
   });
 
@@ -35,14 +39,17 @@ describe("Hook Escape delete contract", () => {
 
   it("keeps the selected-unit delete logic shared by Delete, Backspace, frontend Escape, and backend Escape", () => {
     const appSource = readSource("src/app.tsx");
+    const appShortcutSource = readSource("src/hooks/useAppShortcutController.ts");
+    const nativeActionSource = readSource("src/services/appNativeActionController.ts");
+    const stickerEditingSource = readSource("src/services/appStickerEditingController.ts");
 
-    expect(appSource).toContain("const deleteSelectedUnitOrAnnotation = () =>");
-    expect(appSource).toContain("onDelete: deleteSelectedUnitOrAnnotation");
-    expect(appSource).toContain("deleteSelectedUnitOrAnnotation();");
+    expect(stickerEditingSource).toContain("const deleteSelectedUnitOrAnnotation = () =>");
+    expect(appShortcutSource).toContain("onDelete: dependencies.deleteSelectedUnitOrAnnotation");
+    expect(nativeActionSource).toContain("dependencies.deleteSelectedUnitOrAnnotation();");
 
-    const deleteStart = appSource.indexOf("const deleteSelectedUnitOrAnnotation = () =>");
-    const deleteEnd = appSource.indexOf("useShortcuts({", deleteStart);
-    const deleteBlock = appSource.slice(deleteStart, deleteEnd);
+    const deleteStart = stickerEditingSource.indexOf("const deleteSelectedUnitOrAnnotation = () =>");
+    const deleteEnd = stickerEditingSource.indexOf("const openImageForEdit =", deleteStart);
+    const deleteBlock = stickerEditingSource.slice(deleteStart, deleteEnd);
 
     expect(deleteStart).toBeGreaterThan(-1);
     expect(deleteEnd).toBeGreaterThan(deleteStart);
@@ -52,12 +59,14 @@ describe("Hook Escape delete contract", () => {
     expect(deleteBlock).toContain("selectionActions.clear()");
     expect(deleteBlock).toContain("uiActions.hideStickerToolbar()");
     expect(deleteBlock).toContain("syncService.updateBackendRects()");
-    expect(appSource).toContain("hasActiveStickerEditTarget:");
+    expect(appShortcutSource).toContain("hasActiveStickerEditTarget:");
   });
 
   it("gives focused editors and blocking dialogs priority over node deletion", () => {
     const shortcutsSource = readSource("src/hooks/useShortcuts.ts");
     const appSource = readSource("src/app.tsx");
+    const appShortcutSource = readSource("src/hooks/useAppShortcutController.ts");
+    const nativeActionSource = readSource("src/services/appNativeActionController.ts");
 
     expect(shortcutsSource).toContain("handleDeferredEditableEscape");
     expect(shortcutsSource).toContain("e.defaultPrevented");
@@ -65,37 +74,37 @@ describe("Hook Escape delete contract", () => {
     expect(shortcutsSource.indexOf('options.contextProvider() === "modal"')).toBeLessThan(
       shortcutsSource.indexOf("handlers.onCloseActions()"),
     );
-    expect(appSource).toContain("hasBlockingDialog:");
-    expect(appSource).toContain("hasSelectedAnnotation:");
-    expect(appSource).toContain("hasActiveEditableShortcutTarget()");
-    expect(appSource).toContain("hasFocusedDomShortcutOwner()");
+    expect(appShortcutSource).toContain("hasBlockingDialog:");
+    expect(appShortcutSource).toContain("hasSelectedAnnotation:");
+    expect(nativeActionSource).toContain("hasActiveEditableShortcutTarget()");
+    expect(nativeActionSource).toContain("hasFocusedDomShortcutOwner()");
 
-    const nativeEscapeStart = appSource.indexOf('listen("trigger-escape"');
-    const nativeEscapeEnd = appSource.indexOf('listen("trigger-delete"', nativeEscapeStart);
-    const nativeEscapeBlock = appSource.slice(nativeEscapeStart, nativeEscapeEnd);
-    expect(nativeEscapeBlock.indexOf("surfaceConfirmations().length > 0")).toBeLessThan(
-      nativeEscapeBlock.indexOf("deleteSelectedUnitOrAnnotation()"),
+    const nativeEscapeStart = nativeActionSource.indexOf("const handleNativeEscape = () =>");
+    const nativeEscapeEnd = nativeActionSource.indexOf("const handleNativeDelete = () =>", nativeEscapeStart);
+    const nativeEscapeBlock = nativeActionSource.slice(nativeEscapeStart, nativeEscapeEnd);
+    expect(nativeEscapeBlock.indexOf("dependencies.surfaceConfirmationCount() > 0")).toBeLessThan(
+      nativeEscapeBlock.indexOf("dependencies.deleteSelectedUnitOrAnnotation()"),
     );
-    expect(nativeEscapeBlock).toContain("decideCurrentSurfaceConfirmation(false)");
+    expect(nativeEscapeBlock).toContain("dependencies.rejectCurrentSurfaceConfirmation()");
     expect(nativeEscapeBlock).toContain("hasActiveEditableShortcutTarget()");
     expect(nativeEscapeBlock).toContain("hasFocusedDomShortcutOwner()");
     expect(nativeEscapeBlock.indexOf("hasFocusedDomShortcutOwner()")).toBeLessThan(
-      nativeEscapeBlock.indexOf("closeSelectedActionsMenu()"),
+      nativeEscapeBlock.indexOf("dependencies.closeSelectedActionsMenu()"),
     );
 
     const nativeDeleteStart = nativeEscapeEnd;
-    const nativeDeleteEnd = appSource.indexOf("// Create a minimal MouseEvent-compatible", nativeDeleteStart);
-    const nativeDeleteBlock = appSource.slice(nativeDeleteStart, nativeDeleteEnd);
-    expect(nativeDeleteBlock).toContain("surfaceConfirmations().length > 0");
+    const nativeDeleteEnd = nativeActionSource.indexOf("return { beginCaptureSelection", nativeDeleteStart);
+    const nativeDeleteBlock = nativeActionSource.slice(nativeDeleteStart, nativeDeleteEnd);
+    expect(nativeDeleteBlock).toContain("dependencies.surfaceConfirmationCount() > 0");
     expect(nativeDeleteBlock).toContain("hasActiveEditableShortcutTarget()");
     expect(nativeDeleteBlock).toContain("hasFocusedDomShortcutOwner()");
     expect(nativeDeleteBlock.indexOf("hasFocusedDomShortcutOwner()")).toBeLessThan(
-      nativeDeleteBlock.indexOf("deleteSelectedUnitOrAnnotation()"),
+      nativeDeleteBlock.indexOf("dependencies.deleteSelectedUnitOrAnnotation()"),
     );
   });
 
   it("emits global Escape from the backend so the same selected-unit delete behavior works when the overlay is not focused", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const escapeStart = rustSource.indexOf("rdev::EventType::KeyPress(rdev::Key::Escape)");
     const escapeEnd = rustSource.indexOf("rdev::EventType::MouseMove", escapeStart);
     const escapeBlock = rustSource.slice(escapeStart, escapeEnd);
@@ -107,7 +116,7 @@ describe("Hook Escape delete contract", () => {
   });
 
   it("routes Delete and Backspace to the active sticker without an artificial timeout", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const deleteStart = rustSource.indexOf("rdev::EventType::KeyPress(rdev::Key::Delete)");
     const deleteEnd = rustSource.indexOf("rdev::EventType::KeyPress(rdev::Key::Return)", deleteStart);
     const deleteBlock = rustSource.slice(deleteStart, deleteEnd);
@@ -119,19 +128,21 @@ describe("Hook Escape delete contract", () => {
     expect(deleteBlock).toContain("append_runtime_log_line(\"rdev_delete_triggered\")");
 
     const appSource = readSource("src/app.tsx");
-    const deleteListenerStart = appSource.indexOf('listen("trigger-delete"');
-    const deleteListenerEnd = appSource.indexOf("});", deleteListenerStart);
-    const deleteListenerBlock = appSource.slice(deleteListenerStart, deleteListenerEnd);
+    const commandSource = readSource("src/services/appCommandListeners.ts");
+    const nativeActionSource = readSource("src/services/appNativeActionController.ts");
+    const deleteHandlerStart = nativeActionSource.indexOf("const handleNativeDelete = () =>");
+    const deleteHandlerEnd = nativeActionSource.indexOf("return { beginCaptureSelection", deleteHandlerStart);
+    const deleteHandlerBlock = nativeActionSource.slice(deleteHandlerStart, deleteHandlerEnd);
 
-    expect(appSource).toContain('listen("trigger-delete"');
+    expect(commandSource).toContain('listen("trigger-delete"');
     expect(appSource).not.toContain("STICKER_GLOBAL_DELETE_ARM_WINDOW_MS");
     expect(appSource).not.toContain("lastStickerKeyboardDeleteArmAt");
-    expect(deleteListenerBlock).toContain("if (!selectedStickerId())");
-    expect(deleteListenerBlock).toContain("deleteSelectedUnitOrAnnotation();");
+    expect(deleteHandlerBlock).toContain("if (!selectedStickerId())");
+    expect(deleteHandlerBlock).toContain("dependencies.deleteSelectedUnitOrAnnotation();");
   });
 
   it("keeps rdev and the low-level hook on independent Escape edge trackers", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
 
     expect(rustSource).toContain("static ESCAPE_KEY_DOWN: AtomicBool");
     expect(rustSource).toContain("static RDEV_ESCAPE_KEY_DOWN: AtomicBool");

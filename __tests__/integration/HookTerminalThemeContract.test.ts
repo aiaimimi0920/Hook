@@ -3,10 +3,18 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
+const readAppCss = () => [
+    "theme-foundation.css",
+    "terminal-primitives.css",
+    "feature-surfaces.css",
+    "unit-workspace.css",
+    "settings-dialog.css",
+    "parameter-controls.css",
+].map((name) => readSource(`src/styles/${name}`)).join("\n");
 
 describe("hook terminal theme contract", () => {
     it("defines canonical Neuro colors once and maps Hook semantics through aliases", () => {
-        const css = readSource("src/app.css");
+        const css = readAppCss();
 
         expect(css).toContain("--neuro-signal-yellow: #d9ff38;");
         expect(css).toContain("--neuro-signal-green: #22c55e;");
@@ -49,7 +57,10 @@ describe("hook terminal theme contract", () => {
     it("removes rounded shell styling and glow-heavy blue-purple accents from tab and shift+1 surfaces", () => {
         const actionsBar = readSource("src/components/UnitActionsMenu.tsx");
         const addNodeMenu = readSource("src/components/UnitAddNodeMenu.tsx");
-        const paramsPanel = readSource("src/components/UnitParamsPanel.tsx");
+        const paramsPanel = [
+            readSource("src/components/UnitParamsPanel.tsx"),
+            readSource("src/components/UnitParamsExpandedSettings.tsx"),
+        ].join("\n");
 
         expect(actionsBar).not.toContain("bg-blue-500");
         expect(actionsBar).not.toContain("shadow-[0_0_10px");
@@ -61,7 +72,12 @@ describe("hook terminal theme contract", () => {
     });
 
     it("replaces cyan-selected editing chrome with signal-yellow terminal classes", () => {
-        const topStrip = readSource("src/components/StickerTopStrip.tsx");
+        const topStrip = [
+            readSource("src/components/StickerTopStrip.tsx"),
+            readSource("src/components/StickerTopStripCreateTools.tsx"),
+            readSource("src/components/StickerTopStripEditActions.tsx"),
+            readSource("src/components/StickerTopStripSurfaceView.tsx"),
+        ].join("\n");
         const propertyBar = readSource("src/components/StickerTopStripPropertyBar.tsx");
         const propertyBarFields = readSource("src/components/stickerTopStripPropertyBarFields.tsx");
 
@@ -86,19 +102,26 @@ describe("hook terminal theme contract", () => {
     });
 
     it("keeps shared shells and high-frequency overlays on semantic surface classes", () => {
-        const css = readSource("src/app.css");
-        const unitView = readSource("src/components/UnitView.tsx");
-        const paramsPanel = readSource("src/components/UnitParamsPanel.tsx");
+        const themeCss = readSource("src/styles/theme-foundation.css");
+        const terminalCss = readSource("src/styles/terminal-primitives.css");
+        const featureCss = readSource("src/styles/feature-surfaces.css");
+        const unitOverlays = readSource("src/components/UnitVisualOverlays.tsx");
+        const paramsPanel = readSource("src/components/UnitParamsScrollRegion.tsx");
         const colorPicker = readSource("src/components/ColorPicker.tsx");
         const addNodeMenu = readSource("src/components/UnitAddNodeMenu.tsx");
-        const topStrip = readSource("src/components/StickerTopStrip.tsx");
+        const topStrip = [
+            readSource("src/components/StickerTopStrip.tsx"),
+            readSource("src/components/StickerTopStripCreateTools.tsx"),
+            readSource("src/components/StickerTopStripEditActions.tsx"),
+            readSource("src/components/StickerTopStripSurfaceView.tsx"),
+        ].join("\n");
 
-        expect(css).toContain("--theme-backdrop-blur: 0px;");
-        expect(css).toContain("backdrop-filter: none;");
-        expect(css).toContain(".hook-art-error-overlay");
-        expect(css).toContain(".hook-param-group-header");
-        expect(unitView).toContain("hook-enhancement-notice");
-        expect(unitView).not.toContain("bg-slate-950/90");
+        expect(themeCss).toContain("--theme-backdrop-blur: 0px;");
+        expect(terminalCss).toContain("backdrop-filter: none;");
+        expect(featureCss).toContain(".hook-art-error-overlay");
+        expect(featureCss).toContain(".hook-param-group-header");
+        expect(unitOverlays).toContain("hook-enhancement-notice");
+        expect(unitOverlays).not.toContain("bg-slate-950/90");
         expect(paramsPanel).toContain("hook-param-group-header");
         expect(colorPicker).toContain("hook-color-picker__footer");
         expect(colorPicker).not.toContain("bg-slate-900");

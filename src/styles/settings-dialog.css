@@ -1,0 +1,201 @@
+/* Settings and fatal-render overlays remain above every desktop surface. */
+.hook-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--theme-overlay);
+  pointer-events: auto;
+}
+
+.hook-settings-dialog {
+  width: min(760px, calc(100vw - 48px));
+  max-height: min(820px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-panel-raised);
+  color: var(--theme-text);
+}
+
+.hook-settings-header,
+.hook-settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.hook-settings-header {
+  border-bottom: 1px solid var(--theme-line);
+}
+
+.hook-settings-header h2 {
+  margin: 2px 0 4px;
+  color: var(--theme-signal-text);
+  font: 600 20px/1.2 system-ui, sans-serif;
+}
+
+.hook-settings-header p,
+.hook-settings-field-copy,
+.hook-settings-policy {
+  color: var(--theme-text-muted);
+  font: 12px/1.5 system-ui, sans-serif;
+}
+
+.hook-settings-kicker {
+  color: var(--theme-text-muted);
+  font: 10px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: 0.16em;
+}
+
+.hook-settings-close {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  font-size: 22px;
+}
+
+.hook-settings-content {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  overflow: auto;
+  user-select: text;
+}
+
+.hook-settings-field {
+  display: grid;
+  gap: 6px;
+}
+
+.hook-settings-field--compact {
+  grid-template-columns: 1fr 100px;
+  align-items: center;
+}
+
+.hook-settings-field--compact .hook-settings-field-copy {
+  grid-column: 1;
+}
+
+.hook-settings-field--compact .hook-settings-number-input {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.hook-settings-field-title {
+  color: var(--theme-text);
+  font: 600 12px/1.35 system-ui, sans-serif;
+}
+
+.hook-settings-pattern-input,
+.hook-settings-number-input {
+  box-sizing: border-box;
+  min-height: 36px;
+  padding: 8px 10px;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.hook-settings-preview,
+.hook-settings-error,
+.hook-settings-save-error {
+  font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.hook-settings-preview {
+  color: var(--theme-text-muted);
+}
+
+.hook-settings-preview code,
+.hook-settings-placeholder-grid code,
+.hook-settings-policy code,
+.hook-settings-field-copy code {
+  color: var(--theme-signal-text);
+}
+
+.hook-settings-error,
+.hook-settings-save-error {
+  color: var(--theme-danger-text);
+}
+
+.hook-settings-save-error {
+  border-left: 2px solid var(--theme-danger);
+  padding: 8px 10px;
+  background: var(--theme-danger-soft);
+}
+
+.hook-settings-placeholder-panel,
+.hook-settings-policy {
+  border: 1px solid var(--theme-line);
+  padding: 12px;
+  background: color-mix(in srgb, var(--theme-text) 2.5%, transparent);
+}
+
+.hook-settings-placeholder-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.hook-settings-placeholder-grid code {
+  border: 1px solid color-mix(in srgb, var(--theme-signal) 22%, transparent);
+  padding: 3px 6px;
+  background: color-mix(in srgb, var(--theme-signal) 6%, transparent);
+  font-size: 11px;
+}
+
+.hook-settings-footer {
+  border-top: 1px solid var(--theme-line);
+}
+
+.hook-settings-footer button {
+  min-height: 34px;
+  padding: 0 14px;
+}
+
+.hook-settings-footer button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.hook-settings-footer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.hook-render-error {
+  position: fixed;
+  z-index: 2147483647;
+  inset: 0;
+  overflow: auto;
+  padding: 16px;
+  background: color-mix(in srgb, var(--theme-danger) 22%, var(--neuro-bg));
+  color: var(--theme-text);
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.hook-render-error__actions {
+  margin-top: 12px;
+}
+
+.hook-render-error__retry {
+  min-height: 34px;
+  border: 1px solid var(--theme-danger);
+  border-radius: var(--radius-md);
+  padding: 4px 12px;
+  background: var(--theme-danger);
+  color: var(--theme-text);
+  cursor: pointer;
+}
+
+.hook-render-error__retry:hover {
+  border-color: var(--theme-danger-text);
+  background: color-mix(in srgb, var(--theme-danger) 84%, var(--theme-text));
+}

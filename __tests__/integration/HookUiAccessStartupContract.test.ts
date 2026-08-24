@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 
 const hookRoot = process.cwd();
 const buildRsPath = resolve(hookRoot, "src-tauri/build.rs");
-const libRsPath = resolve(hookRoot, "src-tauri/src/lib.rs");
 const tauriConfigPath = resolve(hookRoot, "src-tauri/tauri.conf.json");
 
 const buildRsSource = readFileSync(buildRsPath, "utf8");
-const libRsSource = readFileSync(libRsPath, "utf8");
+const libRsSource = readHookLibRustSources();
 const tauriConfigSource = readFileSync(tauriConfigPath, "utf8");
 
 describe("Hook UIAccess startup contract", () => {

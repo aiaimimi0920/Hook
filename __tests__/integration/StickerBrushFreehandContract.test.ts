@@ -15,14 +15,15 @@ const sourceBetween = (source: string, start: string, end: string) => {
 
 describe("sticker brush freehand contract", () => {
   it("keeps the paint brush as true freehand input instead of snapping points to the shape step grid", () => {
-    const annotationLayerSource = readSource("src/components/StickerAnnotationLayer.tsx");
+    const pointerDownSource = readSource("src/components/stickerAnnotationPointerDownController.ts");
+    const pointerCommitSource = readSource("src/components/stickerAnnotationPointerCommitController.ts");
     const draftLineMoveBlock = sourceBetween(
-      annotationLayerSource,
-      "if (draftLine()) {",
+      pointerCommitSource,
+      "if (options.draftLine()) {",
       "const onPointerUp = async () =>",
     );
     const createLineDraftBlock = sourceBetween(
-      annotationLayerSource,
+      pointerDownSource,
       'activeTool === "line"',
       "const handleStickerPointerDown = async",
     );

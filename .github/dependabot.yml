@@ -1,0 +1,60 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directories:
+      - "/src-tauri"
+      - "/src-tauri/crates/drag"
+      - "/src-tauri/crates/scap-direct3d"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "02:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 4
+    cooldown:
+      default-days: 7
+      semver-major-days: 21
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      cargo-cross-directory:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+        group-by: dependency-name
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "02:30"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 3
+    cooldown:
+      default-days: 7
+      semver-major-days: 21
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      frontend-runtime-routine:
+        applies-to: version-updates
+        dependency-type: production
+        patterns: ["*"]
+        update-types: [minor, patch]
+      frontend-tooling-routine:
+        applies-to: version-updates
+        dependency-type: development
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 2
+    cooldown:
+      default-days: 7

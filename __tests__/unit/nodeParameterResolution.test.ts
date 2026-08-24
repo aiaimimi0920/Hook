@@ -152,4 +152,77 @@ describe("effective Art node parameter resolution", () => {
 
         expect(params.gamma).toBe(0.75);
     });
+
+    it("treats prototype-named parameters as own data without reading or mutating prototypes", () => {
+        const capability: ArtCapability = {
+            ...colorTransferCapability,
+            id: "prototype-keys",
+            params: [
+                { id: "__proto__", label: "Prototype", widget: "text", default: "safe-prototype" },
+                { id: "constructor", label: "Constructor", widget: "text", default: "safe-constructor" },
+            ],
+        };
+        const defaultParams = resolveEffectiveNodeParams({
+            units: [art("prototype-defaults", capability.id, {})],
+            links: [],
+            unitId: "prototype-defaults",
+            capabilities: [capability],
+        });
+
+        expect(Object.getPrototypeOf(defaultParams)).toBe(Object.prototype);
+        expect(Object.prototype.hasOwnProperty.call(defaultParams, "__proto__")).toBe(true);
+        expect(defaultParams["__proto__"]).toBe("safe-prototype");
+        expect(defaultParams["constructor"]).toBe("safe-constructor");
+
+        const manualParams = JSON.parse(
+            '{"__proto__":{"polluted":true},"constructor":"manual-constructor"}',
+        ) as Record<string, unknown>;
+        const resolvedManualParams = resolveEffectiveNodeParams({
+            units: [art("prototype-manual", capability.id, manualParams)],
+            links: [],
+            unitId: "prototype-manual",
+            capabilities: [capability],
+        });
+
+        expect(Object.getPrototypeOf(resolvedManualParams)).toBe(Object.prototype);
+        expect(resolvedManualParams["__proto__"]).toEqual({ polluted: true });
+        expect(resolvedManualParams["constructor"]).toBe("manual-constructor");
+        expect((Object.prototype as Record<string, unknown>)["polluted"]).toBeUndefined();
+    });
+
+    it("filters capability-declared internal control parameters from defaults, manual values, and links", () => {
+        const capability: ArtCapability = {
+            ...colorTransferCapability,
+            id: "internal-controls",
+            params: [
+                { id: "visible", label: "Visible", widget: "text", default: "safe-visible" },
+                { id: "__ui_resize", label: "Resize", widget: "text", default: "default-resize" },
+                { id: "force_update", label: "Force", widget: "text", default: "default-force" },
+                { id: "__exec_manualTrigger", label: "Trigger", widget: "text", default: "default-trigger" },
+            ],
+        };
+        const units: Unit[] = [
+            art("control-source", "control-source", {}, {
+                outputs: { output: "linked-control" },
+            } as Unit["data"]),
+            art("control-target", capability.id, {
+                force_update: "manual-force",
+                __exec_manualTrigger: "manual-trigger",
+            }),
+        ];
+        const links: Link[] = [{
+            id: "control-link",
+            fromUnitId: "control-source",
+            fromPortId: "output",
+            toUnitId: "control-target",
+            toPortId: "__ui_resize",
+        }];
+
+        expect(resolveEffectiveNodeParams({
+            units,
+            links,
+            unitId: "control-target",
+            capabilities: [capability],
+        })).toEqual({ visible: "safe-visible" });
+    });
 });

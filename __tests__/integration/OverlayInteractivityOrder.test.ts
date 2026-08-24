@@ -7,7 +7,7 @@ const readSource = (relativePath: string) =>
 
 describe("Hook overlay interactivity recovery", () => {
   it("restores click-through without hiding and re-showing the overlay window before refreshing hit-test rects after capture success", () => {
-    const source = readSource("src/hooks/useSelection.ts");
+    const source = readSource("src/hooks/captureUnitController.ts");
 
     const hideToTrayIndex = source.indexOf("await api.hideToTray()");
     const showOverlayIndex = source.indexOf("await api.showOverlayHost(true);");
@@ -22,9 +22,9 @@ describe("Hook overlay interactivity recovery", () => {
   });
 
   it("does not force the overlay back into click-through after backend rect refresh finishes a successful capture", () => {
-    const source = readSource("src/hooks/useSelection.ts");
+    const source = readSource("src/hooks/captureUnitController.ts");
     const successStart = source.indexOf("const addCaptureUnit = async");
-    const successEnd = source.indexOf("const sampleAutoLongCaptureFrame", successStart);
+    const successEnd = source.length;
     const successBlock = source.slice(successStart, successEnd);
 
     const updateRectsIndex = successBlock.indexOf("await syncService.updateBackendRects();");
@@ -40,9 +40,9 @@ describe("Hook overlay interactivity recovery", () => {
   });
 
   it("selects the newly captured sticker immediately after adding it to the graph store", () => {
-    const source = readSource("src/hooks/useSelection.ts");
+    const source = readSource("src/hooks/captureUnitController.ts");
     const successStart = source.indexOf("const addCaptureUnit = async");
-    const successEnd = source.indexOf("const sampleAutoLongCaptureFrame", successStart);
+    const successEnd = source.length;
     const successBlock = source.slice(successStart, successEnd);
 
     const addUnitIndex = successBlock.indexOf("graphStore.actions.addUnit(newUnit);");

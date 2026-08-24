@@ -178,4 +178,16 @@ describe("sticker effect export rasterization", () => {
         expect(calls).toContainEqual(["globalCompositeOperation", "destination-in"]);
         expect(calls.some(([name]) => name === "strokeRect")).toBe(false);
     });
+
+    it("rejects a non-finite effect canvas before browser allocation", async () => {
+        installCanvas();
+        const unit = makeEffectUnit("mosaic");
+        const effect = unit.data.annotationState?.elements[0];
+        if (effect?.type !== "mosaic") throw new Error("Expected mosaic fixture");
+        effect.w = Number.POSITIVE_INFINITY;
+
+        await expect(renderStickerTransparentAnnotationLayer(unit, [effect.id])).rejects.toThrow(
+            "Invalid canvas dimension: effect width",
+        );
+    });
 });

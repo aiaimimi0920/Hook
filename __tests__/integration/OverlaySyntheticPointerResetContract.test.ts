@@ -15,40 +15,36 @@ const sourceBetween = (source: string, start: string, end: string) => {
 
 describe("overlay synthetic pointer reset contract", () => {
   it("resets synthetic overlay state at safe ownership boundaries without erasing a pending Tauri synthetic click", () => {
-    const appSource = readSource("src/app.tsx");
-    // The synthetic engine (reset + dispatch logic) now lives in its own module;
-    // app.tsx keeps the capture-begin and global-mouse-up call sites that reset it.
-    const overlaySource = readSource("src/services/overlaySyntheticEvents.ts");
-    const resetBlock = sourceBetween(
-      overlaySource,
-      "const resetOverlaySyntheticPointerState = () => {",
-      "const dispatchSyntheticOverlayMouseEvent = (",
-    );
+    const nativeActionSource = readSource("src/services/appNativeActionController.ts");
+    const canvasInteractionSource = readSource("src/services/appCanvasInteractions.ts");
+    const facadeSource = readSource("src/services/overlaySyntheticEvents.ts");
+    const stateSource = readSource("src/services/overlaySyntheticState.ts");
+    const dispatchSource = readSource("src/services/overlaySyntheticDispatch.ts");
     const beginCaptureBlock = sourceBetween(
-      appSource,
+      nativeActionSource,
       "const beginCaptureSelection = async (mode: CaptureSelectionMode) => {",
-      "// Initialization",
+      "const handleNativeEscape =",
     );
     const globalMouseUpBlock = sourceBetween(
-      appSource,
-      "const handleGlobalMouseUp = (e: MouseEvent) => {",
-      "const handleGlobalMouseDown = (e: MouseEvent) => {",
+      canvasInteractionSource,
+      "const handleGlobalMouseUp = (event: MouseEvent) => {",
+      "const handleGlobalMouseDown = (event: MouseEvent) => {",
     );
     const dispatchBlock = sourceBetween(
-      overlaySource,
+      dispatchSource,
       "const dispatchSyntheticOverlayMouseEvent = (",
-      "const relayOverlaySyntheticPointerMove = (event: MouseEvent) => {",
+      "const relayOverlaySyntheticPointerMove = (event: MouseEvent): void => {",
     );
 
-    expect(resetBlock).toContain("overlaySyntheticPointerTarget = null;");
-    expect(resetBlock).toContain("overlaySyntheticPointerActive = false;");
-    expect(resetBlock).toContain("overlaySyntheticPrimaryButtonDown = false;");
-    expect(resetBlock).toContain("overlaySyntheticMoveRelayActive = false;");
+    expect(stateSource).toContain("state.pointerTarget = null;");
+    expect(stateSource).toContain("state.pointerActive = false;");
+    expect(stateSource).toContain("state.primaryButtonDown = false;");
+    expect(stateSource).toContain("state.moveRelayActive = false;");
     expect(beginCaptureBlock).toContain("overlaySynthetic.reset();");
-    expect(globalMouseUpBlock).toContain("shouldResetOverlaySyntheticOnGlobalMouseUp(tauriRuntime, e.isTrusted)");
+    expect(globalMouseUpBlock).toContain("shouldResetOverlaySyntheticOnGlobalMouseUp(tauriRuntime, event.isTrusted)");
     expect(globalMouseUpBlock).toContain("overlaySynthetic.reset();");
-    expect(overlaySource).toContain("return !tauriRuntime || isTrusted;");
+    expect(facadeSource).toContain("return !tauriRuntime || isTrusted;");
     expect(dispatchBlock).toContain("if (type === \"mousedown\") {");
-    expect(dispatchBlock).toContain("resetOverlaySyntheticPointerState();");
+    expect(dispatchBlock).toContain("resetOverlaySyntheticState(state);");
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -15,7 +16,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 
 describe("overlay move non-blocking contract", () => {
   it("never consumes native mousemove in the overlay path, so hover and drag do not yank the cursor back while down/up still stay backend-controlled", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const hookProcBlock = sourceBetween(
       rustSource,
       "unsafe extern \"system\" fn capture_mouse_hook_proc",

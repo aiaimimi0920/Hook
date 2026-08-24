@@ -6,7 +6,7 @@ const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), 
 
 describe("sticker delete recycle contract", () => {
     it("routes keyboard and escape sticker deletion through recycle-bin snapshot capture before removal", () => {
-        const source = readSource("src/app.tsx");
+        const source = readSource("src/services/appStickerEditingController.ts");
 
         expect(source).toContain("deleteSelectedUnitOrAnnotation");
         expect(source).toContain("graphStore.setRecycleBin");

@@ -6,7 +6,7 @@ const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), 
 
 describe("enhancement unavailable notice contract", () => {
     const unitActionsSource = readSource("src/hooks/useUnitActions.ts");
-    const unitViewSource = readSource("src/components/UnitView.tsx");
+    const unitOverlaysSource = readSource("src/components/UnitVisualOverlays.tsx");
     const uiStoreSource = readSource("src/store/uiStore.ts");
 
     it("does not use native alert for missing OCR or translation enhancements because Hook click-through blocks it", () => {
@@ -20,9 +20,9 @@ describe("enhancement unavailable notice contract", () => {
         expect(uiStoreSource).toContain("showEnhancementNotice");
         expect(uiStoreSource).toContain("dismissEnhancementNotice");
 
-        expect(unitViewSource).toContain("enhancementNotices");
-        expect(unitViewSource).toContain("enhancement-notice");
-        expect(unitViewSource).toContain("uiActions.dismissEnhancementNotice(props.unit.id)");
-        expect(unitViewSource).toContain("event.stopPropagation()");
+        expect(unitOverlaysSource).toContain("enhancementNotices");
+        expect(unitOverlaysSource).toContain("enhancement-notice");
+        expect(unitOverlaysSource).toContain("uiActions.dismissEnhancementNotice(props.unit.id)");
+        expect(unitOverlaysSource).toContain("event.stopPropagation()");
     });
 });

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 
 const readSource = (relativePath: string) =>
     readFileSync(resolve(process.cwd(), relativePath), "utf8");
@@ -16,15 +17,15 @@ const sourceBetween = (source: string, start: string, end: string) => {
 
 describe("Art Surface native interaction contract", () => {
     it("keeps Surface Art on the synthetic sticker-body route used for dragging and iframe relay", () => {
-        const syncSource = readSource("src/services/syncService.ts");
-        const rustSource = readSource("src-tauri/src/lib.rs");
+        const syncSource = readSource("src/services/syncService/backendRects.ts");
+        const rustSource = readHookLibRustSources();
         const syntheticClassification = sourceBetween(
             rustSource,
             "fn is_sticker_body_synthetic_rect",
             "fn should_overlay_window_ignore_cursor_events",
         );
 
-        expect(syncSource).toContain('name: u.data.minified ? "MINI" : "FULL"');
+        expect(syncSource).toContain('name: unit.data.minified ? "MINI" : "FULL"');
         expect(syncSource).not.toContain("ART_SURFACE_INTERACTIVE");
         expect(syntheticClassification).toContain('rect.name == "MINI" || rect.name == "FULL"');
     });
@@ -33,7 +34,8 @@ describe("Art Surface native interaction contract", () => {
         const unitViewSource = readSource("src/components/UnitView.tsx");
         const bootstrapSource = readSource("public/javascript-surface-bootstrap.js");
         const javascriptSurfaceSource = readSource("src/components/JavaScriptSurface.tsx");
-        const overlaySyntheticSource = readSource("src/services/overlaySyntheticEvents.ts");
+        const overlayDispatchSource = readSource("src/services/overlaySyntheticDispatch.ts");
+        const overlayTargetsSource = readSource("src/services/overlaySyntheticTargets.ts");
         const stickerAnnotationSource = readSource("src/components/StickerAnnotationLayer.tsx");
 
         expect(unitViewSource).toContain("return api.focusOverlayWindow();");
@@ -47,10 +49,10 @@ describe("Art Surface native interaction contract", () => {
         expect(bootstrapSource).toContain("const isHostReservedShortcut = event.code === \"KeyE\"");
         expect(bootstrapSource).toContain('type: "host-drag-move"');
         expect(bootstrapSource).toContain('type: "host-drag-end"');
-        expect(overlaySyntheticSource).toContain('if (type === "mousedown") frame.focus();');
+        expect(overlayDispatchSource).toContain('if (type === "mousedown") frame.focus();');
         expect(javascriptSurfaceSource).toContain("data-javascript-surface-interactive=");
-        expect(overlaySyntheticSource).toContain('frame.dataset.javascriptSurfaceInteractive === "false"');
-        expect(overlaySyntheticSource).toContain('data-sticker-surface-pass-through');
+        expect(overlayDispatchSource).toContain('frame.dataset.javascriptSurfaceInteractive === "false"');
+        expect(overlayTargetsSource).toContain('data-sticker-surface-pass-through');
         expect(stickerAnnotationSource).toContain('data-sticker-surface-pass-through={usesExistingNodeInteractions() ? "true" : "false"}');
     });
 
@@ -78,15 +80,16 @@ describe("Art Surface native interaction contract", () => {
     });
 
     it("keeps Surface controls hit-testable before Ctrl+E while edit annotations opt back into pointer input", () => {
-        const unitViewSource = readSource("src/components/UnitView.tsx");
+        const surfaceContentSource = readSource("src/components/UnitSurfaceContent.tsx");
+        const visualOverlaysSource = readSource("src/components/UnitVisualOverlays.tsx");
         const stickerAnnotationSource = readSource("src/components/StickerAnnotationLayer.tsx");
         const annotationViewport = sourceBetween(
-            unitViewSource,
+            visualOverlaysSource,
             'class="sticker-annotation-layer-viewport absolute"',
             "<StickerAnnotationLayer",
         );
 
-        expect(unitViewSource).toContain("interactive={!isMinified()}");
+        expect(surfaceContentSource).toContain("interactive={!props.isMinified}");
         expect(annotationViewport).toContain('"pointer-events": "none"');
         expect(stickerAnnotationSource).toContain(
             '"pointer-events": interactionEnabled() ? "auto" : "none"',

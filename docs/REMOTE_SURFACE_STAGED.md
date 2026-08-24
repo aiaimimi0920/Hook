@@ -15,6 +15,13 @@ Hook's default Cargo feature set includes `remote-surface`. It provides:
 - the long-poll `GET /v1/surfaces/stream` client;
 - strict Surface stream protocol and reset handling.
 
+On Windows, the Ed25519 private key is encrypted at rest for the current user
+with DPAPI. A valid legacy schema-1 plaintext identity is migrated atomically to
+protected schema 2 on first read. Older Hook builds cannot read schema 2; a
+rollback to a pre-migration build can therefore require deleting the identity
+and pairing the device again. Non-Windows compatibility builds retain the
+schema-1 storage format and never claim DPAPI protection.
+
 `cargo ... --no-default-features` builds the loopback-only compatibility variant. That variant
 rejects remote Loom manifests and contains no pairing or remote poll runtime.
 

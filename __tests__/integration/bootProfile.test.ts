@@ -1,7 +1,6 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { defaultBootProfile, normalizeBootProfile } from "../../src/services/bootProfile";
 
 describe("Hook boot profile", () => {
@@ -17,7 +16,7 @@ describe("Hook boot profile", () => {
   });
 
   it("keeps the Rust direct-exe boot profile standalone unless HOOK_ENABLE_LOOM_HOOK explicitly enables it", () => {
-    const rustSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "lib.rs"), "utf8");
+    const rustSource = readHookLibRustSources();
 
     expect(rustSource).toContain('read_env_bool("HOOK_ENABLE_LOOM_HOOK", false)');
   });

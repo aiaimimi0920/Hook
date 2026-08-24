@@ -7,10 +7,10 @@ const readSource = (relativePath: string) =>
 
 describe("sticker edit mode switching contract", () => {
   it("exits the previous sticker edit mode before dragging a different unit", () => {
-    const appSource = readSource("src/app.tsx");
-    const startDragIndex = appSource.indexOf("startDrag(e, id");
-    const switchGuardIndex = appSource.indexOf("activeEditTarget !== id");
-    const hideToolbarIndex = appSource.indexOf("uiActions.hideStickerToolbar();", switchGuardIndex);
+    const interactionSource = readSource("src/services/appCanvasInteractions.ts");
+    const startDragIndex = interactionSource.indexOf("startDrag(event, id");
+    const switchGuardIndex = interactionSource.indexOf("activeEditTarget !== id");
+    const hideToolbarIndex = interactionSource.indexOf("uiActions.hideStickerToolbar();", switchGuardIndex);
 
     expect(switchGuardIndex).toBeGreaterThan(0);
     expect(hideToolbarIndex).toBeGreaterThan(switchGuardIndex);

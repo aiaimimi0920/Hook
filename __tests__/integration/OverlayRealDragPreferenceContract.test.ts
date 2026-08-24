@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -15,7 +16,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 
 describe("overlay real drag preference contract", () => {
   it("keeps ordinary sticker drags on the synthetic overlay relay so the native full-screen window can stay click-through even while stickers are interactive", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const hookProcBlock = sourceBetween(
       rustSource,
       "unsafe extern \"system\" fn capture_mouse_hook_proc",

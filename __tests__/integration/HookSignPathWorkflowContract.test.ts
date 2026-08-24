@@ -23,9 +23,9 @@ describe("Hook SignPath workflow contract", () => {
   });
 
   it("submits a GitHub artifact through the official SignPath action without repository PFX secrets", () => {
-    expect(workflow).toContain("uses: actions/upload-artifact@v7");
+    expect(workflow).toContain("uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a");
     expect(workflow).toContain("id: upload-unsigned-artifact");
-    expect(workflow).toContain("uses: signpath/github-action-submit-signing-request@v2");
+    expect(workflow).toContain("uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627");
     expect(workflow).toContain(
       "github-artifact-id: ${{ steps.upload-unsigned-artifact.outputs.artifact-id }}",
     );
@@ -41,7 +41,7 @@ describe("Hook SignPath workflow contract", () => {
   it("signs the exact reviewed candidate and publishes only the returned signed package", () => {
     expect(workflow).toContain("candidate_run_id:");
     expect(workflow).toContain("reviewed_sha256:");
-    expect(workflow).toContain("uses: actions/download-artifact@v7");
+    expect(workflow).toContain("uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131");
     expect(workflow).toContain("assert-reviewed-signing-candidate.ps1");
     expect(workflow).toContain("gh release download");
     expect(workflow).not.toContain("-AllowUnsignedUiAccessBuild");

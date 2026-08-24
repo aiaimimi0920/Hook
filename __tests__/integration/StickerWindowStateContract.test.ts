@@ -16,7 +16,8 @@ describe("Hook sticker window-state contract", () => {
         expect(actionsSource).toContain("graphStore.actions.updateStickerWindowState(");
         expect(actionsSource).not.toContain("graphStore.actions.updateUnitData(id, { \n              minified: true");
         expect(actionsSource).not.toContain("graphStore.actions.updateUnit(id, {\n              x: newX");
-        expect(unitViewSource).toContain('import { graphStore } from "../store/graphStore";');
+        expect(unitViewSource).toContain("createUnitImageModel");
+        expect(unitViewSource).not.toContain("graphStore.actions.updateUnit(");
         expect(unitViewSource).toContain("const liveUnit = () => props.unit;");
         expect(unitViewSource).toContain("const unit = liveUnit();");
         expect(unitViewSource).toContain("width: `${unit.w}px`");

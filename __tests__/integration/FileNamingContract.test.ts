@@ -2,12 +2,14 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+
 const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
 const rustNaming = readSource("src-tauri/src/file_naming.rs");
-const rustEntry = readSource("src-tauri/src/lib.rs");
+const rustEntry = readHookLibRustSources();
 const dragService = readSource("src/services/unitDragExport.ts");
-const unitView = readSource("src/components/UnitView.tsx");
+const unitNativeDrag = readSource("src/components/unitNativeStickerDragController.ts");
 const clipboard = readSource("src/hooks/useClipboard.ts");
 
 describe("Hook unified file naming contract", () => {
@@ -35,8 +37,8 @@ describe("Hook unified file naming contract", () => {
         expect(dragService).toContain("buildUnitFileNamingContext");
         expect(dragService).toContain("fileNamingContext");
         expect(dragService).not.toContain("/[^a-z0-9]/g");
-        expect(unitView).toContain("exportPlan.fileNamingContext");
-        expect(unitView).toContain("appSettings.fileNaming.dragExportPattern");
+        expect(unitNativeDrag).toContain("exportPlan.fileNamingContext");
+        expect(unitNativeDrag).toContain("appSettings.fileNaming.dragExportPattern");
         expect(clipboard).toContain("buildUnitFileNamingContext(unit)");
     });
 });

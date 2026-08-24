@@ -1,24 +1,25 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 
 describe("capture overlay stability", () => {
   it("uses the final mouse-up coordinate before ending a capture so fast drags are not mistaken for zero-size screenshots", () => {
     const selectionPath = path.resolve(process.cwd(), "src/hooks/useSelection.ts");
-    const appPath = path.resolve(process.cwd(), "src/app.tsx");
+    const pointerListenerPath = path.resolve(process.cwd(), "src/services/appPointerListeners.ts");
 
     const selectionSource = fs.readFileSync(selectionPath, "utf8");
-    const appSource = fs.readFileSync(appPath, "utf8");
+    const pointerListenerSource = fs.readFileSync(pointerListenerPath, "utf8");
 
     expect(selectionSource).toContain('const handleSelectionEnd = async (event?: Pick<MouseEvent, "clientX" | "clientY" | "shiftKey" | "ctrlKey">) => {');
     expect(selectionSource).toContain("if (event && isSelecting() && startPos()) {");
     expect(selectionSource).toContain("handleSelectionMove(event);");
 
-    const captureUpStart = appSource.indexOf('const unlistenCaptureUp = await listen<NativeCaptureMousePayload>("capture/global_mouse_up"');
+    const captureUpStart = pointerListenerSource.indexOf('"capture/global_mouse_up"');
     expect(captureUpStart).toBeGreaterThanOrEqual(0);
-    const captureUpEnd = appSource.indexOf("const unlistenOverlayMouseDown", captureUpStart);
+    const captureUpEnd = pointerListenerSource.indexOf('"overlay/global_mouse_down"', captureUpStart);
     expect(captureUpEnd).toBeGreaterThan(captureUpStart);
-    const captureUpBlock = appSource.slice(captureUpStart, captureUpEnd);
+    const captureUpBlock = pointerListenerSource.slice(captureUpStart, captureUpEnd);
     expect(captureUpBlock).toContain("handleSelectionMove(captureEvent);");
     expect(captureUpBlock).toContain("handleSelectionEnd(captureEvent);");
     expect(captureUpBlock.indexOf("handleSelectionMove(captureEvent);")).toBeLessThan(
@@ -27,15 +28,16 @@ describe("capture overlay stability", () => {
   });
 
   it("never lets an out-of-order precise-selection response replace the live pointer rectangle", () => {
-    const selectionPath = path.resolve(process.cwd(), "src/hooks/useSelection.ts");
-    const selectionSource = fs.readFileSync(selectionPath, "utf8");
+    const preciseSelectionPath = path.resolve(process.cwd(), "src/hooks/preciseSelectionController.ts");
+    const preciseSelectionSource = fs.readFileSync(preciseSelectionPath, "utf8");
 
-    expect(selectionSource).toContain("const PRECISE_SELECTION_DEBOUNCE_MS = 80;");
-    expect(selectionSource).toContain("let preciseRequestGeneration = 0;");
-    expect(selectionSource).toContain("requestGeneration !== preciseRequestGeneration");
-    expect(selectionSource).toContain("!captureRectsMatch(selectionRect(), sourceRect)");
-    expect(selectionSource).toContain("captureRectsMatch(preciseRectSource, currentSelectionRect)");
-    expect(selectionSource).toContain("const rect = currentPreciseRect &&");
+    expect(preciseSelectionSource).toContain("const PRECISE_SELECTION_DEBOUNCE_MS = 80;");
+    expect(preciseSelectionSource).toContain("let preciseRequestGeneration = 0;");
+    expect(preciseSelectionSource).toContain("requestGeneration !== preciseRequestGeneration");
+    expect(preciseSelectionSource).toContain("!dependencies.isCaptureSessionCurrent(sessionGeneration)");
+    expect(preciseSelectionSource).toContain("!captureRectsMatch(selectionRect(), sourceRect)");
+    expect(preciseSelectionSource).toContain("captureRectsMatch(preciseRectSource, currentSelectionRect)");
+    expect(preciseSelectionSource).toContain("return currentPreciseRect &&");
   });
 
   it("keeps synchronous screen capture work off the hot IPC path and bounds region capture hangs", () => {
@@ -55,14 +57,13 @@ describe("capture overlay stability", () => {
     const selectionPath = path.resolve(process.cwd(), "src/hooks/useSelection.ts");
     const appPath = path.resolve(process.cwd(), "src/app.tsx");
     const uiStorePath = path.resolve(process.cwd(), "src/store/uiStore.ts");
-    const apiPath = path.resolve(process.cwd(), "src/services/api.ts");
-    const libRsPath = path.resolve(process.cwd(), "src-tauri/src/lib.rs");
+    const overlayWindowApiPath = path.resolve(process.cwd(), "src/services/apiOverlayWindow.ts");
 
     const selectionSource = fs.readFileSync(selectionPath, "utf8");
     const appSource = fs.readFileSync(appPath, "utf8");
     const uiStoreSource = fs.readFileSync(uiStorePath, "utf8");
-    const apiSource = fs.readFileSync(apiPath, "utf8");
-    const libRsSource = fs.readFileSync(libRsPath, "utf8");
+    const overlayWindowApiSource = fs.readFileSync(overlayWindowApiPath, "utf8");
+    const libRsSource = readHookLibRustSources();
 
     expect(selectionSource).not.toContain("await api.hideToTray()");
     expect(selectionSource).not.toContain("setIsCaptureSnapshotting(");
@@ -70,7 +71,7 @@ describe("capture overlay stability", () => {
 
     expect(uiStoreSource).not.toContain("isCaptureSnapshotting");
     expect(appSource).not.toContain("!isCaptureSnapshotting()");
-    expect(apiSource).toContain("setOverlayClickThrough");
+    expect(overlayWindowApiSource).toContain("setOverlayClickThrough");
     expect(selectionSource).not.toContain("setIsCaptureSnapshotting(");
     expect(selectionSource).not.toContain("setOverlayCaptureExclusion(true);\n                const response = await api.captureRegion");
     expect(libRsSource).toContain("set_content_protected(false)");

@@ -8,8 +8,8 @@ const readSource = (relativePath: string) =>
 describe("StringControl text-field interactivity contract", () => {
     it("keeps native text interactivity hooks on the inline query input", () => {
         const controlSource = readSource("src/components/params/controls/StringControl.tsx");
-        const cssSource = readSource("src/app.css");
-        const apiSource = readSource("src/services/api.ts");
+        const cssSource = readSource("src/styles/terminal-primitives.css");
+        const overlayWindowApiSource = readSource("src/services/apiOverlayWindow.ts");
         const panelSource = readSource("src/components/UnitParamsPanel.tsx");
 
         expect(controlSource).toContain("const focusEditableTarget = (");
@@ -17,7 +17,7 @@ describe("StringControl text-field interactivity contract", () => {
         expect(controlSource).toContain("onMouseDown={focusEditableTarget}");
         expect(controlSource).toContain('from "../../../services/api"');
         expect(controlSource).toContain("void api.focusOverlayWindow()");
-        expect(apiSource).toContain("focusOverlayWindow");
+        expect(overlayWindowApiSource).toContain("focusOverlayWindow");
         expect(panelSource).toContain("void api.focusOverlayWindow();");
         expect(panelSource).toContain(
             '<textarea class="hook-terminal-input hook-scrollbar w-full h-[150px]',

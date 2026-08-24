@@ -17,11 +17,13 @@ describe("shader and large-image performance contract", () => {
 
   it("keeps preview PNG encoding single-flight with a latest-only pending export", () => {
     const previewSource = readSource("src/components/ShaderPreview.tsx");
+    const renderSource = readSource("src/components/shaderPreviewRenderController.ts");
 
-    expect(previewSource).toContain("let renderExportInFlight = false;");
-    expect(previewSource).toContain("let pendingRenderExport: RenderExportRequest | null = null;");
-    expect(previewSource).toContain("if (renderExportInFlight)");
-    expect(previewSource).toContain("pendingRenderExport = request;");
+    expect(previewSource).toContain("createShaderPreviewRenderController");
+    expect(renderSource).toContain("let renderExportInFlight = false;");
+    expect(renderSource).toContain("let pendingRenderExport: RenderExportRequest | null = null;");
+    expect(renderSource).toContain("if (renderExportInFlight)");
+    expect(renderSource).toContain("pendingRenderExport = request;");
   });
 
   it("reclaims renderer caches when units are deleted or a workspace is replaced", () => {

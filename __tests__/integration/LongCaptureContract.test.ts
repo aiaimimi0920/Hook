@@ -1,34 +1,42 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { readLongCaptureRustSources } from "../helpers/longCaptureRustSources";
 
 const appSource = readFileSync(resolve(process.cwd(), "src/app.tsx"), "utf8");
+const commandSource = readFileSync(resolve(process.cwd(), "src/services/appCommandListeners.ts"), "utf8");
+const nativeActionSource = readFileSync(resolve(process.cwd(), "src/services/appNativeActionController.ts"), "utf8");
 const selectionSource = readFileSync(resolve(process.cwd(), "src/hooks/useSelection.ts"), "utf8");
-const apiSource = readFileSync(resolve(process.cwd(), "src/services/api.ts"), "utf8");
+const autoLongCaptureSource = readFileSync(resolve(process.cwd(), "src/hooks/autoLongCaptureController.ts"), "utf8");
+const captureUnitSource = readFileSync(resolve(process.cwd(), "src/hooks/captureUnitController.ts"), "utf8");
+const captureApiSource = readFileSync(resolve(process.cwd(), "src/services/apiCapture.ts"), "utf8");
 const captureStateSource = readFileSync(resolve(process.cwd(), "src/services/captureState.ts"), "utf8");
-const rustSource = readFileSync(resolve(process.cwd(), "src-tauri/src/lib.rs"), "utf8");
-const longCaptureSource = readFileSync(resolve(process.cwd(), "src-tauri/src/long_capture.rs"), "utf8");
+const rustSource = readHookLibRustSources();
+const longCaptureSource = readLongCaptureRustSources();
 
 describe("Hook long capture contract", () => {
     it("wires a dedicated long-capture selection mode through frontend and Tauri entrypoints", () => {
-        expect(appSource).toContain('listen("trigger-long-capture"');
-        expect(appSource).toContain('beginCaptureSelection("long-vertical")');
-        expect(appSource).toContain("setCaptureMode(captureStart.captureMode)");
+        expect(appSource).toContain("registerAppCommandListeners");
+        expect(commandSource).toContain('listen("trigger-long-capture"');
+        expect(commandSource).toContain('beginCaptureSelection("long-vertical")');
+        expect(nativeActionSource).toContain("setCaptureMode(captureStart.captureMode)");
 
         expect(captureStateSource).toContain('mode === "long-vertical"');
         expect(selectionSource).toContain("isLongCaptureMode(activeCaptureMode)");
         expect(selectionSource).toContain("startAutoLongCaptureSession");
-        expect(selectionSource).toContain("api.analyzeLongCapturePair");
-        expect(selectionSource).toContain("api.stitchLongCaptureFrames");
-        expect(selectionSource).not.toContain("api.captureVerticalLongRegion(");
-        expect(selectionSource).toContain('await api.setOverlayClickThrough(true)');
-        expect(selectionSource).toContain("...createCaptureMeta(mode, rect, scrollAxis)");
+        expect(autoLongCaptureSource).toContain("api.analyzeLongCapturePair");
+        expect(autoLongCaptureSource).toContain("api.stitchLongCaptureFrames");
+        expect(autoLongCaptureSource).not.toContain("api.captureVerticalLongRegion(");
+        expect(autoLongCaptureSource).toContain('await api.setOverlayClickThrough(true)');
+        expect(captureUnitSource).toContain("...createCaptureMeta(mode, rect, scrollAxis)");
         expect(captureStateSource).toContain('kind: isLongCaptureMode(mode) ? "long" : "region"');
 
-        expect(apiSource).toContain("analyzeLongCapturePair");
-        expect(apiSource).toContain('"analyze_long_capture_pair"');
-        expect(apiSource).toContain("stitchLongCaptureFrames");
-        expect(apiSource).toContain('"stitch_long_capture_frames"');
+        expect(captureApiSource).toContain("analyzeLongCapturePair");
+        expect(captureApiSource).toContain('"analyze_long_capture_pair"');
+        expect(captureApiSource).toContain("stitchLongCaptureFrames");
+        expect(captureApiSource).toContain('"stitch_long_capture_frames"');
+        expect(captureApiSource).not.toContain("console.log(");
 
         expect(rustSource).toContain("fn trigger_long_capture_mode");
         expect(rustSource).toContain('"trigger-long-capture-finish"');
@@ -52,12 +60,12 @@ describe("Hook long capture contract", () => {
     });
 
     it("guards automatic long-capture sampling against stale async session writes", () => {
-        expect(selectionSource).toContain("autoLongCaptureSessionId");
-        expect(selectionSource).toContain("autoLongCaptureFinishing");
-        expect(selectionSource).toContain("isAutoLongCaptureSessionCurrent");
-        expect(selectionSource).toContain("sampleAutoLongCaptureFrame(sessionId");
-        expect(selectionSource).toContain("scheduleAutoLongCaptureSample(sessionId");
-        expect(selectionSource).toContain("const framesSnapshot = [...autoLongCaptureFrames]");
-        expect(selectionSource).not.toMatch(/if \(autoLongCaptureFrames\.length === 0\)\s*{\s*await sampleAutoLongCaptureFrame\(\);/);
+        expect(autoLongCaptureSource).toContain("let sessionId = 0;");
+        expect(autoLongCaptureSource).toContain("let finishing = false;");
+        expect(autoLongCaptureSource).toContain("const isCurrent = (candidateSessionId: number)");
+        expect(autoLongCaptureSource).toContain("sampleAutoLongCaptureFrame(candidateSessionId)");
+        expect(autoLongCaptureSource).toContain("scheduleSample(candidateSessionId)");
+        expect(autoLongCaptureSource).toContain("const framesSnapshot = [...frames]");
+        expect(autoLongCaptureSource).not.toMatch(/if \(frames\.length === 0\)\s*{\s*await sampleAutoLongCaptureFrame\(\);/);
     });
 });

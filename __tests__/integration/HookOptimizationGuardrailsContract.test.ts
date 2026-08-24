@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const fileDropSource = readFileSync(resolve(process.cwd(), "src/hooks/useFileDrop.ts"), "utf8");
-const apiSource = readFileSync(resolve(process.cwd(), "src/services/api.ts"), "utf8");
-const rustSource = readFileSync(resolve(process.cwd(), "src-tauri/src/lib.rs"), "utf8");
+const imageResourceApiSource = readFileSync(resolve(process.cwd(), "src/services/apiImageResource.ts"), "utf8");
+const rustSource = readHookLibRustSources();
 const cargoToml = readFileSync(resolve(process.cwd(), "src-tauri/Cargo.toml"), "utf8");
 const buildSource = readFileSync(resolve(process.cwd(), "build-hook-release.bat"), "utf8");
 const packageSource = readFileSync(resolve(process.cwd(), "package-hook-release.ps1"), "utf8");
@@ -21,7 +22,7 @@ describe("Hook optimization guardrails", () => {
         expect(fileDropSource).toContain('".jpeg"');
         expect(fileDropSource).toContain('".webp"');
         expect(fileDropSource).toContain('".bmp"');
-        expect(apiSource).toContain("readImageFromPath");
+        expect(imageResourceApiSource).toContain("readImageFromPath");
         expect(rustSource).toContain("fn read_image_from_path");
         expect(cargoToml).toContain('image = "0.25.9"');
     });

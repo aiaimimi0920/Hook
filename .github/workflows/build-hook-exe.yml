@@ -15,24 +15,25 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Validate product versions before build setup
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-release-version.ps1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "22"
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: dtolnay/rust-toolchain@a5f673d0ba8626c3977bb416a1612774bc82181b # 1.95.0
         with:
+          toolchain: 1.95.0
           components: rustfmt
 
       - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: src-tauri
         env:
@@ -40,6 +41,20 @@ jobs:
 
       - name: Install npm dependencies
         run: npm ci --no-audit --no-fund
+
+      - name: Test effective-code-line checker
+        run: npm run test:effective-lines
+
+      - name: Enforce effective-code-line migration ratchet
+        run: npm run check:effective-lines
+
+      - name: Upload effective-code-line report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: hook-effective-code-lines
+          path: artifacts/effective-code-lines.json
+          if-no-files-found: warn
 
       - name: Audit open-source dependency metadata
         run: npm run audit:licenses
@@ -69,7 +84,7 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-hook-exe.ps1 -OutputDir "release\Hook\portable" -Force
 
       - name: Upload portable Hook EXE artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: hook-portable-windows-x64
           path: release/Hook/portable/hook.exe
@@ -81,22 +96,24 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Validate product versions
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-release-version.ps1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "22"
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: dtolnay/rust-toolchain@a5f673d0ba8626c3977bb416a1612774bc82181b # 1.95.0
+        with:
+          toolchain: 1.95.0
 
       - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: src-tauri
         env:

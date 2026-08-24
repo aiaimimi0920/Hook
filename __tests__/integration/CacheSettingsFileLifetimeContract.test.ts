@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 
 const readSource = (relativePath: string) =>
     readFileSync(resolve(process.cwd(), relativePath), "utf8");
@@ -24,7 +25,7 @@ describe("cache, settings, and internal file lifetime contract", () => {
     });
 
     it("serves file naming settings from managed state instead of loading them per export", () => {
-        const rust = readSource("src-tauri/src/lib.rs");
+        const rust = readHookLibRustSources();
         const start = rust.indexOf("fn current_file_naming_settings");
         const end = rust.indexOf("fn image_dimensions_from_bytes", start);
         const block = rust.slice(start, end);
@@ -37,7 +38,7 @@ describe("cache, settings, and internal file lifetime contract", () => {
 
     it("uses create-new allocation for corrupt backups and internal capture files", () => {
         const settings = readSource("src-tauri/src/app_settings.rs");
-        const rust = readSource("src-tauri/src/lib.rs");
+        const rust = readHookLibRustSources();
 
         expect(settings).toContain("create_new(true)");
         expect(settings).not.toContain("if !candidate.exists()");

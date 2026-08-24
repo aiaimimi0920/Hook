@@ -6,7 +6,7 @@ const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), 
 
 describe("capture prompt contrast contract", () => {
     it("defines shared high-contrast capture prompt classes for screenshot flow overlays", () => {
-        const css = readSource("src/app.css");
+        const css = readSource("src/styles/feature-surfaces.css");
 
         expect(css).toContain(".hook-capture-chip");
         expect(css).toContain(".hook-capture-chip__tag");

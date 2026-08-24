@@ -13,7 +13,7 @@ describe("Hook release workflow contract", () => {
   );
   const buildScriptPath = resolve(
     process.cwd(),
-    "scripts/build-local-hook-exe.ps1",
+    "scripts/build-release.ps1",
   );
   const installerPackageScriptPath = resolve(
     process.cwd(),
@@ -32,22 +32,29 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource).toContain("tag:");
     expect(workflowSource).toContain("Release tag to publish manually");
     expect(workflowSource).toContain("contents: write");
-    expect(workflowSource).toContain("uses: actions/checkout@v5");
+    expect(workflowSource).toContain("uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09");
     expect(workflowSource).toContain("fetch-depth: 0");
     expect(workflowSource).toContain(
       "ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}",
     );
-    expect(workflowSource).toContain("uses: actions/setup-node@v6");
+    expect(workflowSource).toContain("uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38");
     // Toolchain is pinned to an exact version (not the floating @stable) so
     // release builds stay reproducible.
-    expect(workflowSource).toContain("uses: dtolnay/rust-toolchain@1.95.0");
+    expect(workflowSource).toContain("uses: dtolnay/rust-toolchain@a5f673d0ba8626c3977bb416a1612774bc82181b");
+    expect(workflowSource).toContain("toolchain: 1.95.0");
     expect(workflowSource).toContain("components: rustfmt");
-    expect(workflowSource).toContain("run: npm run typecheck");
+    expect(workflowSource).toContain("npm run test:effective-lines");
+    expect(workflowSource).toContain("npm run check:effective-lines");
+    expect(workflowSource).toContain("npm run lint && npm run typecheck");
     expect(workflowSource).toContain("run: npm test");
     expect(workflowSource).toContain("run: cargo fmt --check --manifest-path src-tauri/Cargo.toml");
     expect(workflowSource).toContain("run-rust-tests-ci.ps1");
     expect(workflowSource).toContain("-RequireReachableFromBranch \"origin/main\"");
     expect(workflowSource).toContain("-RequireCleanSource");
+    expect(workflowSource).toContain("uses: ./.github/workflows/dependency-security.yml");
+    expect(workflowSource).toContain("needs: dependency-security");
+    expect(workflowSource).toContain("id-token: write");
+    expect(workflowSource).toContain("attestations: write");
     expect(workflowSource.indexOf("Verify release provenance and product versions")).toBeLessThan(
       workflowSource.indexOf("Setup Node.js"),
     );
@@ -62,16 +69,19 @@ describe("Hook release workflow contract", () => {
     const buildScriptSource = readFileSync(buildScriptPath, "utf8");
     const installerPackageScriptSource = readFileSync(installerPackageScriptPath, "utf8");
 
-    expect(workflowSource).toContain("package-release-zip.ps1");
+    expect(workflowSource).toContain("build-release.ps1");
     expect(workflowSource).toContain("Resolve release tag");
-    expect(workflowSource).toContain("uses: softprops/action-gh-release@v3");
-    expect(workflowSource.indexOf("run: npm run typecheck")).toBeLessThan(
-      workflowSource.indexOf("Build portable Hook EXE"),
+    expect(workflowSource).toContain("uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228");
+    expect(workflowSource.indexOf("npm run lint && npm run typecheck")).toBeLessThan(
+      workflowSource.indexOf("Build formal Hook release"),
+    );
+    expect(workflowSource.indexOf("npm run check:effective-lines")).toBeLessThan(
+      workflowSource.indexOf("Build formal Hook release"),
     );
     expect(workflowSource).toContain("body_path: docs/GITHUB_RELEASE_BODY.md");
     expect(workflowSource).toContain("generate_release_notes: false");
     expect(workflowSource).toContain("files:");
-    expect(workflowSource).toContain("release/Hook/hook-windows-x64-${{ env.HOOK_TAG }}.zip");
+    expect(workflowSource).toContain("release/Hook/${{ env.HOOK_TAG }}/packages/hook-windows-x64-${{ env.HOOK_TAG }}.zip");
     expect(workflowSource).toContain("hook-uiaccess-signing-candidate-${{ env.HOOK_TAG }}.json");
     expect(workflowSource).toContain("Build reviewed UIAccess signing candidate");
     expect(workflowSource).toContain("Upload reviewed signing candidate");
@@ -79,7 +89,10 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource).not.toContain("release/Hook/signing-candidate/hook.exe\n");
     expect(workflowSource).not.toContain("HOOK_WINDOWS_UIACCESS_PFX_BASE64");
     expect(workflowSource).not.toContain("HOOK_WINDOWS_UIACCESS_PFX_PASSWORD");
-    expect(workflowSource).toContain("overwrite_files: true");
+    expect(workflowSource).toContain("draft: true");
+    expect(workflowSource).toContain("Verify assets and publish draft release");
+    expect(workflowSource).toContain("Remove failed draft release");
+    expect(workflowSource).not.toContain("overwrite_files: true");
     expect(workflowSource).toContain("fail_on_unmatched_files: true");
     expect(workflowSource).not.toContain("gh release create");
     expect(workflowSource).not.toContain("gh release upload");
@@ -92,7 +105,9 @@ describe("Hook release workflow contract", () => {
     expect(packageScriptSource).toContain("third-party-licenses");
     expect(packageScriptSource).toContain("build-provenance.json");
     expect(buildScriptSource).toContain("RequireCleanSource");
-    expect(buildScriptSource).toContain("build-provenance.json");
+    expect(buildScriptSource).toContain("New-HookSbom.ps1");
+    expect(buildScriptSource).toContain("checksums.sha256");
+    expect(buildScriptSource).toContain("sourceGitDirty");
     expect(packageScriptSource).toContain("Compress-Archive");
     expect(packageScriptSource).not.toContain("start-hook.bat");
     expect(packageScriptSource).not.toContain("start-hook.vbs");

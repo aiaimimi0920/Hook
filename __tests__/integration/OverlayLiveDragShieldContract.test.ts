@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -15,7 +16,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 
 describe("overlay live drag shield contract", () => {
   it("promotes the native shield to full-screen while an overlay drag is active, so fast sticker drags and edit-tool drags cannot leak hover to the app underneath", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const dragSource = readSource("src/hooks/useDraggable.ts");
     const hookProcBlock = sourceBetween(
       rustSource,

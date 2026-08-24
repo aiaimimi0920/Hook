@@ -2,13 +2,17 @@
  * ShaderPreview - WebGL canvas component for Shader Art real-time preview.
  */
 
-import { Component, createEffect, createMemo, createSignal, onCleanup, Show, untrack } from "solid-js";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { Component, createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js";
 import { api, isTauriRuntimeAvailable } from "../services/api";
 import { isLikelyLocalFilePath } from "../services/imageSource";
 import { shaderCache } from "../services/shaderCache";
+import {
+    isShaderImageSizeWithinBudget,
+    resolveShaderBrowserImageUrl,
+} from "../services/shaderImagePolicy";
 import { ShaderRenderer, type ShaderSuccessResponse } from "./ShaderRenderer";
 import { computeContainFitPlacement } from "../services/stickerEditing";
+import { createShaderPreviewRenderController } from "./shaderPreviewRenderController";
 
 interface Props {
     unitId: string;
@@ -27,12 +31,6 @@ interface Props {
     resolveUnitImage?: (unitId: string) => string | undefined;
 }
 
-interface RenderExportRequest {
-    renderer: ShaderRenderer;
-    generation: number;
-    seq: number;
-}
-
 export const ShaderPreview: Component<Props> = (props) => {
     let canvasRef: HTMLCanvasElement | undefined;
     let renderer: ShaderRenderer | null = null;
@@ -42,18 +40,12 @@ export const ShaderPreview: Component<Props> = (props) => {
     let disposed = false;
     let rendererRequestSeq = 0;
     let inputImageRequestSeq = 0;
-    let renderExportSeq = 0;
     let lastShaderContextKey = "";
     let lastInputSrc = "";
-    let lastRenderedDataUrl = "";
     let lastReactiveResetKey = "";
     let lastFallbackRecoveryAttemptSrc = "";
+    let fallbackRecoveryRequestSeq = 0;
     let contextualPrefetchRetryTimer: number | null = null;
-    let renderExportTimer: number | null = null;
-    let renderFrameId: number | null = null;
-    let pendingFrameRender: { renderer: ShaderRenderer; generation: number } | null = null;
-    let pendingRenderExport: RenderExportRequest | null = null;
-    let renderExportInFlight = false;
     let contextualPrefetchRetryAttempts = 0;
     let paramsNeedFullReapply = true;
     const parameterTextureRequestSeq = new Map<string, number>();
@@ -68,21 +60,6 @@ export const ShaderPreview: Component<Props> = (props) => {
             window.clearTimeout(contextualPrefetchRetryTimer);
         }
         contextualPrefetchRetryTimer = null;
-    };
-
-    const clearRenderExportTimer = () => {
-        if (renderExportTimer !== null && typeof window !== "undefined") {
-            window.clearTimeout(renderExportTimer);
-        }
-        renderExportTimer = null;
-    };
-
-    const clearScheduledRender = () => {
-        if (renderFrameId !== null && typeof window !== "undefined") {
-            window.cancelAnimationFrame(renderFrameId);
-        }
-        renderFrameId = null;
-        pendingFrameRender = null;
     };
 
     const shaderHasIncompleteSupportTextures = (shader: ShaderSuccessResponse | null | undefined) => {
@@ -104,21 +81,24 @@ export const ShaderPreview: Component<Props> = (props) => {
         }, delayMs);
     };
 
-    const toBrowserImageUrl = (src: string) => {
-        if (src.startsWith("data:") || src.startsWith("http") || !isTauriRuntimeAvailable()) {
-            return src;
-        }
-        return convertFileSrc(src);
-    };
+    const isCurrentRenderer = (target: ShaderRenderer, generation: number) =>
+        !disposed && renderer === target && rendererGeneration === generation;
+
+    const renderController = createShaderPreviewRenderController({
+        isCurrentRenderer,
+        onRendered: () => props.onRendered,
+        onPresented: () => {
+            clearContextualPrefetchRetry();
+            contextualPrefetchRetryAttempts = 0;
+            setHasRenderedThisMount(true);
+        },
+    });
 
     const disposeRenderer = () => {
         rendererRequestSeq++;
         rendererGeneration++;
         inputImageRequestSeq++;
-        renderExportSeq++;
-        clearRenderExportTimer();
-        pendingRenderExport = null;
-        clearScheduledRender();
+        renderController.invalidate();
         parameterTextureRequestSeq.clear();
         paramsNeedFullReapply = true;
         prevParamsRef.current = {};
@@ -139,9 +119,6 @@ export const ShaderPreview: Component<Props> = (props) => {
             }
         }
     };
-
-    const isCurrentRenderer = (target: ShaderRenderer, generation: number) =>
-        !disposed && renderer === target && rendererGeneration === generation;
 
     const loadInputImage = (
         src: string,
@@ -166,12 +143,10 @@ export const ShaderPreview: Component<Props> = (props) => {
             }
             const width = img.naturalWidth || img.width;
             const height = img.naturalHeight || img.height;
-            if (width > 0 && height > 0) {
-                setInputImageSize({ width, height });
-                props.onIntrinsicSizeChange?.({ w: width, h: height });
-            }
-            targetRenderer.loadTexture("input", img);
-            renderRenderer(targetRenderer, generation);
+            if (targetRenderer.loadTexture("input", img) === false) return;
+            setInputImageSize({ width, height });
+            props.onIntrinsicSizeChange?.({ w: width, h: height });
+            renderController.renderRenderer(targetRenderer, generation);
         };
         img.onerror = () => {
             if (!isCurrentRenderer(targetRenderer, generation) || requestSeq !== inputImageRequestSeq) {
@@ -179,7 +154,12 @@ export const ShaderPreview: Component<Props> = (props) => {
             }
             console.warn("[ShaderPreview] Failed to load input image for shader preview");
         };
-        img.src = toBrowserImageUrl(src);
+        const imageUrl = resolveShaderBrowserImageUrl(src);
+        if (!imageUrl) {
+            console.warn("[ShaderPreview] Rejected unsafe input image source");
+            return;
+        }
+        img.src = imageUrl;
     };
 
     const applyCurrentParamsToRenderer = (
@@ -238,13 +218,14 @@ export const ShaderPreview: Component<Props> = (props) => {
                     ) {
                         return;
                     }
-                    targetRenderer.loadTexture(key, img);
-                    renderRenderer(targetRenderer, generation);
+                    if (targetRenderer.loadTexture(key, img) === false) return;
+                    renderController.renderRenderer(targetRenderer, generation);
                 };
                 img.onerror = () => {
                     // Non-image string params are ignored.
                 };
-                img.src = toBrowserImageUrl(src);
+                const imageUrl = resolveShaderBrowserImageUrl(src);
+                if (imageUrl) img.src = imageUrl;
             } else if (typeof value === "string") {
                 targetRenderer.removeTexture(key);
             }
@@ -252,9 +233,9 @@ export const ShaderPreview: Component<Props> = (props) => {
 
         if (shouldRender) {
             if (force) {
-                renderRenderer(targetRenderer, generation);
+                renderController.renderRenderer(targetRenderer, generation);
             } else {
-                scheduleRendererRender(targetRenderer, generation);
+                renderController.scheduleRendererRender(targetRenderer, generation);
             }
         }
     };
@@ -282,7 +263,7 @@ export const ShaderPreview: Component<Props> = (props) => {
         const generation = rendererGeneration;
         nextRenderer.setTextureLoadHandler(() => {
             if (isCurrentRenderer(nextRenderer, generation)) {
-                renderRenderer(nextRenderer, generation);
+                renderController.renderRenderer(nextRenderer, generation);
             }
         });
         loadInputImage(inputSrc, nextRenderer, generation);
@@ -328,7 +309,7 @@ export const ShaderPreview: Component<Props> = (props) => {
                 disposeRenderer();
                 lastShaderContextKey = "";
                 lastInputSrc = "";
-                lastRenderedDataUrl = "";
+                renderController.resetPublishedDataUrl();
                 scheduleContextualPrefetchRetry();
                 return;
             }
@@ -337,7 +318,7 @@ export const ShaderPreview: Component<Props> = (props) => {
             disposeRenderer();
             lastShaderContextKey = shaderContextKey;
             lastInputSrc = "";
-            lastRenderedDataUrl = "";
+            renderController.resetPublishedDataUrl();
         } else if (!shaderCache.hasShaderCode(artId)) {
             if (!isTauriRuntimeAvailable()) return;
             const shader = await shaderCache.prefetchShader(artId);
@@ -369,9 +350,8 @@ export const ShaderPreview: Component<Props> = (props) => {
 
     onCleanup(() => {
         disposed = true;
+        fallbackRecoveryRequestSeq++;
         clearContextualPrefetchRetry();
-        clearRenderExportTimer();
-        clearScheduledRender();
         disposeRenderer();
     });
 
@@ -411,6 +391,7 @@ export const ShaderPreview: Component<Props> = (props) => {
     createEffect(() => {
         const fallbackPreviewSrc = props.fallbackPreviewSrc;
         void fallbackPreviewSrc;
+        fallbackRecoveryRequestSeq++;
         setFallbackPreviewSrcOverride(undefined);
         lastFallbackRecoveryAttemptSrc = "";
         if (!hasRenderedThisMount()) {
@@ -421,6 +402,10 @@ export const ShaderPreview: Component<Props> = (props) => {
     const effectiveFallbackPreviewSrc = createMemo(
         () => fallbackPreviewSrcOverride() || props.fallbackPreviewSrc,
     );
+    const effectiveFallbackPreviewUrl = createMemo(() => {
+        const src = effectiveFallbackPreviewSrc();
+        return src ? resolveShaderBrowserImageUrl(src) : undefined;
+    });
 
     createEffect(() => {
         void props.params;
@@ -429,141 +414,12 @@ export const ShaderPreview: Component<Props> = (props) => {
         applyCurrentParamsToRenderer(targetRenderer, rendererGeneration, false);
     });
 
-    const finishRenderedExport = () => {
-        renderExportInFlight = false;
-        const pending = pendingRenderExport;
-        pendingRenderExport = null;
-        if (pending) {
-            untrack(() => startRenderedExport(pending));
-        }
-    };
-
-    const startRenderedExport = (request: RenderExportRequest) => {
-        const { renderer: targetRenderer, generation, seq } = request;
-        if (
-            !props.onRendered
-            || seq !== renderExportSeq
-            || !isCurrentRenderer(targetRenderer, generation)
-        ) {
-            return;
-        }
-        if (renderExportInFlight) {
-            pendingRenderExport = request;
-            return;
-        }
-
-        renderExportInFlight = true;
-        let completed = false;
-        const complete = () => {
-            if (completed) return;
-            completed = true;
-            finishRenderedExport();
-        };
-
-        const canvas = targetRenderer.getCanvas();
-        // Interactive rendering uses the default non-preserved WebGL buffer for
-        // maximum throughput. Repaint once at export time so toBlob captures a
-        // complete frame without slowing every slider update.
-        try {
-            targetRenderer.render();
-            canvas.toBlob((blob) => {
-                if (
-                    !blob
-                    || seq !== renderExportSeq
-                    || !isCurrentRenderer(targetRenderer, generation)
-                ) {
-                    complete();
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    try {
-                        if (
-                            seq !== renderExportSeq
-                            || !isCurrentRenderer(targetRenderer, generation)
-                            || typeof reader.result !== "string"
-                        ) {
-                            return;
-                        }
-
-                        const dataUrl = reader.result;
-                        if (dataUrl !== lastRenderedDataUrl) {
-                            lastRenderedDataUrl = dataUrl;
-                            props.onRendered?.(dataUrl);
-                        }
-                    } finally {
-                        complete();
-                    }
-                };
-                reader.onerror = complete;
-                reader.onabort = complete;
-                try {
-                    reader.readAsDataURL(blob);
-                } catch {
-                    complete();
-                }
-            }, "image/png");
-        } catch {
-            complete();
-        }
-    };
-
-    const scheduleRenderedExport = (targetRenderer: ShaderRenderer, generation: number) => {
-        if (!props.onRendered || typeof window === "undefined") return;
-        clearRenderExportTimer();
-        const seq = ++renderExportSeq;
-        renderExportTimer = window.setTimeout(() => {
-            renderExportTimer = null;
-            untrack(() => startRenderedExport({ renderer: targetRenderer, generation, seq }));
-        }, 120);
-    };
-
-    const scheduleRendererRender = (targetRenderer: ShaderRenderer, generation: number) => {
-        if (!isCurrentRenderer(targetRenderer, generation)) return;
-        pendingFrameRender = { renderer: targetRenderer, generation };
-        if (renderFrameId !== null) return;
-        if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
-            const pending = pendingFrameRender;
-            pendingFrameRender = null;
-            if (pending) {
-                renderRenderer(pending.renderer, pending.generation);
-            }
-            return;
-        }
-
-        renderFrameId = window.requestAnimationFrame(() => {
-            renderFrameId = null;
-            const pending = pendingFrameRender;
-            pendingFrameRender = null;
-            if (pending) {
-                renderRenderer(pending.renderer, pending.generation);
-            }
-        });
-    };
-
-    const renderRenderer = (targetRenderer: ShaderRenderer, generation: number) => {
-        if (!isCurrentRenderer(targetRenderer, generation) || !targetRenderer.isReady()) return;
-
-        const canPresentOutput =
-            typeof (targetRenderer as ShaderRenderer & { canPresentOutput?: () => boolean }).canPresentOutput === "function"
-                ? (targetRenderer as ShaderRenderer & { canPresentOutput: () => boolean }).canPresentOutput()
-                : targetRenderer.isReady();
-        if (!canPresentOutput) return;
-
-        targetRenderer.render();
-        clearContextualPrefetchRetry();
-        contextualPrefetchRetryAttempts = 0;
-        setHasRenderedThisMount(true);
-        scheduleRenderedExport(targetRenderer, generation);
-    };
-
     return (
         <>
-            <Show when={effectiveFallbackPreviewSrc() && (!hasRenderedThisMount() || !!props.holdFallbackPreview)}>
+            <Show when={effectiveFallbackPreviewUrl() && (!hasRenderedThisMount() || !!props.holdFallbackPreview)}>
                 <img
                     data-shader-fallback-preview="true"
-                    src={toBrowserImageUrl(effectiveFallbackPreviewSrc()!)}
+                    src={effectiveFallbackPreviewUrl()!}
                     alt=""
                     draggable={false}
                     onLoad={(event) => {
@@ -571,7 +427,12 @@ export const ShaderPreview: Component<Props> = (props) => {
                         if (!(image instanceof HTMLImageElement)) return;
                         const width = image.naturalWidth || image.width;
                         const height = image.naturalHeight || image.height;
-                        if (width <= 0 || height <= 0) return;
+                        if (!isShaderImageSizeWithinBudget(width, height)) {
+                            image.removeAttribute("src");
+                            setFallbackPreviewSize(null);
+                            console.warn("[ShaderPreview] Rejected fallback preview outside the shader image budget");
+                            return;
+                        }
                         setFallbackPreviewSize({ width, height });
                         props.onIntrinsicSizeChange?.({ w: width, h: height });
                     }}
@@ -584,14 +445,24 @@ export const ShaderPreview: Component<Props> = (props) => {
                             return;
                         }
                         lastFallbackRecoveryAttemptSrc = originalSrc;
+                        const requestSeq = ++fallbackRecoveryRequestSeq;
                         try {
                             const recovered = await api.readImageFromPath(originalSrc);
-                            if (!recovered || !recovered.startsWith("data:")) {
+                            if (
+                                disposed
+                                || requestSeq !== fallbackRecoveryRequestSeq
+                                || props.fallbackPreviewSrc !== originalSrc
+                                || fallbackPreviewSrcOverride()
+                                || !recovered
+                                || !recovered.startsWith("data:image/")
+                            ) {
                                 return;
                             }
                             setFallbackPreviewSrcOverride(recovered);
                         } catch (error) {
-                            console.warn("[ShaderPreview] Failed to recover file-backed fallback preview", error);
+                            if (!disposed && requestSeq === fallbackRecoveryRequestSeq) {
+                                console.warn("[ShaderPreview] Failed to recover file-backed fallback preview", error);
+                            }
                         }
                     }}
                     style={{

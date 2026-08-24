@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -16,34 +17,39 @@ const sourceBetween = (source: string, start: string, end: string) => {
 describe("sticker edit synthetic move relay contract", () => {
   it("keeps a JS target-relay fallback even when native overlay drag move replay is enabled, so synthetic drag streams can still stay attached to the original sticker tool target", () => {
     const appSource = readSource("src/app.tsx");
-    const rustSource = readSource("src-tauri/src/lib.rs");
-    // The synthetic move-relay engine now lives in its own module; app.tsx keeps
-    // the global-mouse-move wiring that gates and invokes the relay.
-    const overlaySource = readSource("src/services/overlaySyntheticEvents.ts");
+    const pointerListenerSource = readSource("src/services/appPointerListeners.ts");
+    const canvasInteractionSource = readSource("src/services/appCanvasInteractions.ts");
+    const rustSource = readHookLibRustSources();
+    const dispatchSource = readSource("src/services/overlaySyntheticDispatch.ts");
+    const stateSource = readSource("src/services/overlaySyntheticState.ts");
     const globalMoveBlock = sourceBetween(
-      appSource,
-      "const handleGlobalMouseMove = (e: MouseEvent) => {",
-      "const handleGlobalMouseUp = (e: MouseEvent) => {",
+      canvasInteractionSource,
+      "const handleGlobalMouseMove = (event: MouseEvent) => {",
+      "const handleGlobalMouseUp = (event: MouseEvent) => {",
     );
 
     expect(rustSource).toContain("OverlayMove {");
     expect(rustSource).toContain("native_drag_preflight: bool");
-    expect(appSource).toContain('"overlay/global_mouse_move"');
-    expect(overlaySource).toContain("let overlaySyntheticMoveRelayActive = false;");
-    expect(overlaySource).toContain("const relayOverlaySyntheticPointerMove = (event: MouseEvent) => {");
-    expect(overlaySource).toContain("overlaySyntheticPointerActive");
-    expect(overlaySource).toContain("overlaySyntheticPrimaryButtonDown");
-    expect(overlaySource).toContain("overlaySyntheticPointerTarget");
-    expect(overlaySource).toContain("new PointerEvent");
-    expect(overlaySource).toContain('new MouseEvent("mousemove"');
+    expect(appSource).toContain("registerAppPointerListeners");
+    expect(pointerListenerSource).toContain('"overlay/global_mouse_move"');
+    expect(stateSource).toContain("moveRelayActive: false");
+    expect(dispatchSource).toContain("const relayOverlaySyntheticPointerMove = (event: MouseEvent): void => {");
+    expect(dispatchSource).toContain("state.pointerActive");
+    expect(dispatchSource).toContain("state.primaryButtonDown");
+    expect(dispatchSource).toContain("state.pointerTarget");
+    expect(dispatchSource).toContain("new PointerEvent");
+    expect(dispatchSource).toContain('new MouseEvent("mousemove"');
+    expect(dispatchSource).toContain("state.moveRelayActive = true;");
+    expect(dispatchSource).toContain("state.moveRelayActive = false;");
     expect(globalMoveBlock).not.toContain("if (overlaySyntheticMoveRelayActive) return;");
     expect(globalMoveBlock).toContain("if (!overlaySynthetic.moveRelayActive && !draggingStickerId()) {");
-    expect(globalMoveBlock).toContain("overlaySynthetic.relayPointerMove(e);");
-    expect(globalMoveBlock).toContain("handleDragMove(e);");
+    expect(globalMoveBlock).toContain("overlaySynthetic.relayPointerMove(event);");
+    expect(globalMoveBlock).toContain("handleDragMove(event);");
   });
 
   it("skips per-frame top-strip backend rect sync while the edited sticker itself is being whole-dragged, so Ctrl+E mode does not add toolbar-follow lag that normal sticker drag does not have", () => {
     const topStripSource = readSource("src/components/StickerTopStrip.tsx");
+    const topStripSyncSource = readSource("src/services/stickerTopStripSync.ts");
     const syncEffectBlock = sourceBetween(
       topStripSource,
       "createEffect(() => {\n        if (typeof window === \"undefined\" || !stripRef) return;\n\n        layout();",
@@ -54,6 +60,8 @@ describe("sticker edit synthetic move relay contract", () => {
     expect(topStripSource).toContain("const draggingThisSticker = createMemo(() => draggingStickerId() === props.unitId);");
     expect(syncEffectBlock).toContain("if (draggingThisSticker()) return;");
     expect(syncEffectBlock).toContain("addOrUpdateRect(buildStripInteractiveRect(stripRef, currentUnitId));");
-    expect(syncEffectBlock).toContain("void syncService.updateBackendRects();");
+    expect(syncEffectBlock).toContain("syncTopStripBackendRects();");
+    expect(topStripSyncSource).toContain("syncService.updateBackendRects()");
+    expect(topStripSyncSource).toContain("void promise.catch");
   });
 });

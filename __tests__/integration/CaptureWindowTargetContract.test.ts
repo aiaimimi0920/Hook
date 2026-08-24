@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -8,7 +9,7 @@ const readSource = (relativePath: string) =>
 describe("capture window target contract", () => {
   it("enumerates only visible external desktop windows in native Z order", () => {
     const rustSource = readSource("src-tauri/src/capture_windows.rs");
-    const libSource = readSource("src-tauri/src/lib.rs");
+    const libSource = readHookLibRustSources();
 
     expect(rustSource).toContain("EnumWindows");
     expect(rustSource).toContain("GetCurrentProcessId");
@@ -26,15 +27,16 @@ describe("capture window target contract", () => {
   });
 
   it("loads targets before capture input activation and updates hover without requiring a pressed button", () => {
-    const appSource = readSource("src/app.tsx");
+    const nativeActionSource = readSource("src/services/appNativeActionController.ts");
+    const pointerListenerSource = readSource("src/services/appPointerListeners.ts");
     const selectionSource = readSource("src/hooks/useSelection.ts");
 
-    const prepareIndex = appSource.indexOf("await prepareCaptureWindowTargets(initialCapturePoint);");
-    const captureInputIndex = appSource.indexOf("await api.setCaptureInputActive(true);", prepareIndex);
+    const prepareIndex = nativeActionSource.indexOf("await dependencies.prepareCaptureWindowTargets(initialCapturePoint);");
+    const captureInputIndex = nativeActionSource.indexOf("await api.setCaptureInputActive(true);", prepareIndex);
     expect(prepareIndex).toBeGreaterThan(-1);
-    expect(appSource).toContain("api.getCaptureCursorPosition()");
+    expect(nativeActionSource).toContain("api.getCaptureCursorPosition()");
     expect(captureInputIndex).toBeGreaterThan(prepareIndex);
-    expect(appSource).toContain("if (!isSelecting()) return;");
+    expect(pointerListenerSource).toContain("if (!isSelecting()) return;");
     expect(selectionSource).toContain("findCaptureWindowTargetAtPoint");
     expect(selectionSource).toContain("updateCaptureWindowHover(e.clientX, e.clientY)");
     expect(selectionSource).toContain("captureWindowTargetLoadGeneration");

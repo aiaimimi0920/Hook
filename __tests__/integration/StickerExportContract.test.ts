@@ -3,9 +3,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const clipboardSource = readFileSync(resolve(process.cwd(), "src/hooks/useClipboard.ts"), "utf8");
-const appSource = readFileSync(resolve(process.cwd(), "src/app.tsx"), "utf8");
-const apiSource = readFileSync(resolve(process.cwd(), "src/services/api.ts"), "utf8");
-const exportSource = readFileSync(resolve(process.cwd(), "src/services/stickerExport.ts"), "utf8");
+const shortcutControllerSource = readFileSync(
+    resolve(process.cwd(), "src/hooks/useAppShortcutController.ts"),
+    "utf8",
+);
+const imageResourceApiSource = readFileSync(resolve(process.cwd(), "src/services/apiImageResource.ts"), "utf8");
+const exportFacadeSource = readFileSync(resolve(process.cwd(), "src/services/stickerExport.ts"), "utf8");
+const annotationDrawingSource = readFileSync(resolve(process.cwd(), "src/services/stickerAnnotationDrawing.ts"), "utf8");
 const effectSource = readFileSync(resolve(process.cwd(), "src/services/stickerEffects.ts"), "utf8");
 const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStripPropertyBar.tsx"), "utf8");
 const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarSections.tsx");
@@ -15,20 +19,20 @@ const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSour
 
 describe("Hook sticker export contract", () => {
     it("routes copy/save of stickers through a composed export image instead of raw src bytes", () => {
-        expect(exportSource).toContain("renderStickerComposite");
+        expect(exportFacadeSource).toContain("renderStickerComposite");
         expect(clipboardSource).toContain("await renderStickerComposite(unit)");
         expect(clipboardSource).toContain("api.copyStickerImageToSmartClipboard(");
         expect(clipboardSource).toContain("api.saveStickerImageAs(");
-        expect(appSource).toContain("onSave: handleSave");
-        expect(apiSource).toContain("saveStickerImage");
-        expect(apiSource).toContain('"save_sticker_image"');
+        expect(shortcutControllerSource).toContain("onSave: dependencies.handleSave");
+        expect(imageResourceApiSource).toContain("saveStickerImage");
+        expect(imageResourceApiSource).toContain('"save_sticker_image"');
         expect(propertyBarRenderSource).toContain('title="重置裁剪"');
         expect(effectSource).toContain("computeEffectSourceProjection");
         expect(effectSource).toContain("renderMosaicToCanvas");
         // Mosaic export paints a non-repeating grid of blue-gray cells (colored by
         // absolute position) that never samples the image, matching the live
         // overlay; blur still renders blurred source pixels.
-        expect(exportSource).toContain("paintMosaicGrid");
-        expect(exportSource).toContain("renderBlurToCanvas");
+        expect(annotationDrawingSource).toContain("paintMosaicGrid");
+        expect(annotationDrawingSource).toContain("renderBlurToCanvas");
     });
 });

@@ -4,23 +4,26 @@ import { describe, expect, it } from "vitest";
 
 describe("Art scalar output contract", () => {
   it("persists scalar delivery values into unit output ports for downstream parameter links", () => {
-    const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
+    const deliveryHandlerSource = readFileSync(
+      resolve(process.cwd(), "src", "services", "appArtDeliveryHandler.ts"),
+      "utf8",
+    );
     const unitTypeSource = readFileSync(resolve(process.cwd(), "src", "types", "unit.ts"), "utf8");
     const protocolSource = readFileSync(resolve(process.cwd(), "src", "services", "protocol.ts"), "utf8");
     const syncSource = readFileSync(resolve(process.cwd(), "src", "services", "syncService.ts"), "utf8");
     // The session-load mapping (sticker.outputs -> unit output ports) was
     // extracted from syncService.ts into its own module.
     const mappingSource = readFileSync(resolve(process.cwd(), "src", "services", "sessionStickerMapping.ts"), "utf8");
-    // The scalar value-output extraction was moved out of app.tsx into a pure
-    // helper module; app.tsx keeps the switch case and the updateUnitData wiring.
+    // Pure extraction stays separate from the delivery handler that owns the
+    // protocol switch and final graph write.
     const deliveryOutputsSource = readFileSync(resolve(process.cwd(), "src", "services", "artDeliveryOutputs.ts"), "utf8");
 
     expect(protocolSource).toContain("'shared_memory' | 'base64' | 'file_path' | 'value'");
     expect(protocolSource).toContain("outputs?: Record<string, unknown>");
     expect(unitTypeSource).toContain("outputs?: Record<string, unknown>");
-    expect(appSource).toContain('case "value":');
+    expect(deliveryHandlerSource).toContain('case "value":');
     expect(deliveryOutputsSource).toContain("output: delivery.value ?? delivery.data");
-    expect(appSource).toContain("outputs: nextOutputs");
+    expect(deliveryHandlerSource).toContain("outputs: nextOutputs");
     expect(syncSource).toContain("outputs: u.data?.outputs || null");
     expect(mappingSource).toContain("outputs: sticker.outputs || undefined");
   });

@@ -10,6 +10,10 @@ const readSource = (relativePath: string) => {
 const annotationLayerSource = readSource("src/components/StickerAnnotationLayer.tsx");
 const annotationModelSource = readSource("src/components/stickerAnnotationModel.ts");
 const effectOverlaySource = readSource("src/components/StickerEffectOverlay.tsx");
+const annotationItemSource = readSource("src/components/StickerAnnotationItem.tsx");
+const annotationLifecycleSource = readSource(
+    "src/components/stickerAnnotationLifecycleController.ts",
+);
 
 describe("Hook sticker annotation layer split contract", () => {
     it("keeps draft annotation model helpers outside the interactive layer component", () => {
@@ -29,6 +33,15 @@ describe("Hook sticker annotation layer split contract", () => {
         expect(effectOverlaySource).toContain("BLUR_EFFECT_OVERLAY_FILL");
         expect(annotationLayerSource).not.toContain("const MosaicEffectOverlay");
         expect(annotationLayerSource).not.toContain("const renderEffectOverlay =");
-        expect(annotationLayerSource).toContain("renderStickerEffectOverlay({");
+        expect(annotationLayerSource).toContain("<StickerAnnotationElements");
+        expect(annotationItemSource).toContain("renderStickerEffectOverlay({");
+    });
+
+    it("keeps window listeners and controller disposal outside the visual layer", () => {
+        expect(annotationLayerSource).toContain("createStickerAnnotationLifecycleController({");
+        expect(annotationLifecycleSource).toContain('window.addEventListener("keydown"');
+        expect(annotationLifecycleSource).toContain("options.disposePointerRuntime()");
+        expect(annotationLifecycleSource).toContain("options.disposeWheelController()");
+        expect(annotationLayerSource).not.toContain('window.addEventListener("keydown"');
     });
 });

@@ -32,18 +32,21 @@ describe("sticker drag move performance contract", () => {
 
   it("skips unrelated global mouse position churn while a sticker drag is active", () => {
     const appSource = readSource("src/app.tsx");
+    const pointerListenerSource = readSource("src/services/appPointerListeners.ts");
+    const canvasInteractionSource = readSource("src/services/appCanvasInteractions.ts");
     const handleGlobalMouseMoveBlock = sourceBetween(
-      appSource,
-      "const handleGlobalMouseMove = (e: MouseEvent) => {",
-      "const handleGlobalMouseUp = (e: MouseEvent) => {",
+      canvasInteractionSource,
+      "const handleGlobalMouseMove = (event: MouseEvent) => {",
+      "const handleGlobalMouseUp = (event: MouseEvent) => {",
     );
 
     expect(handleGlobalMouseMoveBlock).toContain("if (!draggingStickerId()) {");
-    expect(handleGlobalMouseMoveBlock).toContain("setMousePos({ x: e.clientX, y: e.clientY });");
+    expect(handleGlobalMouseMoveBlock).toContain("setMousePos({ x: event.clientX, y: event.clientY });");
     expect(handleGlobalMouseMoveBlock).toContain(
-      "if (tauriRuntime && draggingStickerId() && e.isTrusted) return;",
+      "if (tauriRuntime && draggingStickerId() && event.isTrusted) return;",
     );
-    expect(appSource).toContain("handleDragMove(toOverlayDragMouseEvent(event.payload));");
+    expect(appSource).toContain("registerAppPointerListeners");
+    expect(pointerListenerSource).toContain("handleDragMove(toOverlayDragMouseEvent(event.payload));");
   });
 
   it("moves drag followers through an imperative compositor fast path without a Solid position update", () => {
@@ -79,7 +82,7 @@ describe("sticker drag move performance contract", () => {
     const styleBlock = sourceBetween(
       unitViewSource,
       "const style = () => {",
-      "const getOpacity = () =>",
+      "createEffect(syncStickerGpuWarmRegistration);",
     );
 
     expect(dragSource).toContain("applyDragVisualFastPath(nextPositions);");
@@ -188,15 +191,17 @@ describe("sticker drag move performance contract", () => {
 
   it("batches drag-start selection and toolbar state updates into one reactive flush", () => {
     const appSource = readSource("src/app.tsx");
+    const canvasInteractionSource = readSource("src/services/appCanvasInteractions.ts");
     const mouseDownBlock = sourceBetween(
-      appSource,
-      "const onStartDragUnit = (e: MouseEvent, id: string) => {",
+      canvasInteractionSource,
+      "const onStartDragUnit = (event: MouseEvent, id: string) => {",
       "const resolveUnitImage = (id: string): string | undefined =>",
     );
     const uiStoreSource = readSource("src/store/uiStore.ts");
 
     expect(mouseDownBlock).toContain("batch(() => {");
-    expect(mouseDownBlock).toContain("startDrag(e, id");
+    expect(mouseDownBlock).toContain("startDrag(event, id");
+    expect(appSource).toContain("createAppCanvasInteractions");
     expect(uiStoreSource).toContain("showStickerToolbar: (unitId: string) => {");
     expect(uiStoreSource).toContain("hideStickerToolbar: () => {");
     expect(uiStoreSource).toContain("selectionActions = {");

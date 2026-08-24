@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "checkerVersion": 1,
+  "baselineSourceCommit": "6fca3eae224a6856c829900beb94917826392d07",
+  "baselineSourceTree": "e11235e2b9a7341c2d536f1f04dbeda9560b782b",
+  "thresholds": {
+    "target": 150,
+    "acceptable": 500,
+    "soft": 700,
+    "hard": 1500
+  },
+  "sourceExtensions": [
+    ".rs",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".css",
+    ".scss",
+    ".html",
+    ".htm",
+    ".ps1",
+    ".py",
+    ".cmd",
+    ".bat"
+  ],
+  "excludedDirectories": [
+    { "name": ".git", "reason": "Git metadata is not product source." },
+    { "name": ".memsearch", "reason": "Local search index state is generated." },
+    { "name": ".playwright-cli", "reason": "Local browser automation state is generated." },
+    { "name": "node_modules", "reason": "Installed JavaScript dependencies are immutable inputs." },
+    { "name": "target", "reason": "Cargo build output is generated." },
+    { "name": "dist", "reason": "Bundled frontend output is generated." },
+    { "name": "release", "reason": "Published artifacts are generated from reviewed source." },
+    { "name": "output", "reason": "Runtime and packaging output is generated." },
+    { "name": ".output", "reason": "Frontend build output is generated." },
+    { "name": ".vinxi", "reason": "Frontend tool cache is generated." },
+    { "name": "artifacts", "reason": "Test and benchmark evidence is generated." },
+    { "name": "coverage", "reason": "Coverage output is generated." },
+    { "name": ".runtime", "reason": "Local runtime state is generated." },
+    { "name": ".tmp", "reason": "Temporary files are generated." }
+  ],
+  "excludedDirectoryPrefixes": [
+    { "prefix": "target-", "reason": "Alternate Cargo target directories are generated." },
+    { "prefix": "target_", "reason": "Alternate Cargo target directories are generated." }
+  ],
+  "excludedPaths": [
+    { "path": "graphify-out", "reason": "The repository knowledge graph is generated from source." },
+    { "path": "public/javascript-surface-bootstrap.js", "reason": "Deterministically generated from the scanned scripts/javascript-surface-bootstrap fragments and verified byte-for-byte before build." },
+    { "path": "scripts/tests/fixtures/effective-code-lines", "reason": "Lexer fixture text is test data, not repository source." }
+  ]
+}

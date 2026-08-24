@@ -4,6 +4,7 @@ import {
     resolveNativeDragDropPhysicalPointFromOverlay,
     resolveNativeDragDropPhysicalPointFromPointer,
     resolveExistingUnitDragFilePath,
+    resolveUnitDragFileUrl,
     resolveUnitDragExportPlan,
 } from "../../src/services/unitDragExport";
 import type { Unit } from "../../src/types/unit";
@@ -213,5 +214,17 @@ describe("unit drag export planning", () => {
             x: 2348,
             y: 1294,
         });
+    });
+
+    it("encodes Windows file paths as unambiguous file URLs", () => {
+        expect(resolveUnitDragFileUrl("C:\\temp\\what #1?.png"))
+            .toBe("file:///C:/temp/what%20%231%3F.png");
+        expect(resolveUnitDragFileUrl("\\\\server\\share\\中文 %.png"))
+            .toBe("file://server/share/%E4%B8%AD%E6%96%87%20%25.png");
+    });
+
+    it("rejects file paths that could inject a second URI-list line", () => {
+        expect(resolveUnitDragFileUrl("C:\\temp\\safe.png\r\nfile:///unsafe"))
+            .toBeNull();
     });
 });

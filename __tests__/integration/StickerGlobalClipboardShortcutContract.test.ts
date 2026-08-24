@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -16,7 +17,8 @@ const sourceBetween = (source: string, start: string, end: string) => {
 describe("sticker global clipboard shortcut contract", () => {
   it("captures Ctrl+C/Ctrl+V from the low-level keyboard hook when the overlay is intentionally unfocused", () => {
     const appSource = readSource("src/app.tsx");
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const commandSource = readSource("src/services/appCommandListeners.ts");
+    const rustSource = readHookLibRustSources();
 
     const keyMatcherBlock = sourceBetween(
       rustSource,
@@ -34,9 +36,9 @@ describe("sticker global clipboard shortcut contract", () => {
       "#[cfg(not(target_os = \"windows\"))]\nfn install_overlay_keyboard_hook_thread",
     );
     const tauriListenBlock = sourceBetween(
-      appSource,
-      'const unlistenOpenImage = await listen("trigger-open-image"',
-      'const unlistenVoiceHotkey = await listen<VoiceHotkeyPayload>',
+      commandSource,
+      'listen("trigger-open-image"',
+      'listen<VoiceHotkeyPayload>',
     );
 
     expect(keyMatcherBlock).toContain('shortcut_config::action_matches("copy_unit"');
@@ -52,12 +54,13 @@ describe("sticker global clipboard shortcut contract", () => {
     expect(tauriListenBlock).toContain("if (!selectedStickerId()) return;");
     expect(tauriListenBlock).toContain("void handleCopy();");
     expect(tauriListenBlock).toContain("void handlePaste();");
+    expect(appSource).toContain("registerAppCommandListeners");
   });
 
   it("captures Hook-owned sticker shortcuts with a low-level keyboard hook so they do not leak to the app underneath", () => {
     const appSource = readSource("src/app.tsx");
-    const apiSource = readSource("src/services/api.ts");
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const overlayWindowApiSource = readSource("src/services/apiOverlayWindow.ts");
+    const rustSource = readHookLibRustSources();
 
     const keyboardHookProc = sourceBetween(
       rustSource,
@@ -87,7 +90,7 @@ describe("sticker global clipboard shortcut contract", () => {
     const appKeyboardCaptureEffect = sourceBetween(
       appSource,
       "createEffect(() => {",
-      "// Shortcuts",
+      "useAppShortcutController({",
     );
     const rdevEscapeDeleteBlock = sourceBetween(
       rustSource,
@@ -124,8 +127,8 @@ describe("sticker global clipboard shortcut contract", () => {
     expect(keyboardHookThread).not.toContain("window.set_focus()");
     expect(setupBlock).toContain("install_overlay_keyboard_hook_thread(window.clone());");
 
-    expect(apiSource).toContain("setOverlayKeyboardCaptureActive");
-    expect(apiSource).toContain('"set_overlay_keyboard_capture_active"');
+    expect(overlayWindowApiSource).toContain("setOverlayKeyboardCaptureActive");
+    expect(overlayWindowApiSource).toContain('"set_overlay_keyboard_capture_active"');
     expect(appKeyboardCaptureEffect).toContain("api.setOverlayKeyboardCaptureActive");
     expect(appKeyboardCaptureEffect).toContain("Boolean(selectedStickerId())");
     expect(appKeyboardCaptureEffect).toContain("!isSelecting()");
@@ -133,7 +136,7 @@ describe("sticker global clipboard shortcut contract", () => {
   });
 
   it("fails open for Alt input owned by another foreground process", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const passthroughHelper = sourceBetween(
       rustSource,
       "fn should_passthrough_foreign_alt_input",

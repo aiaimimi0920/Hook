@@ -2,12 +2,11 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const readSource = (relativePath: string) =>
-  readFileSync(resolve(process.cwd(), relativePath), "utf8");
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 
 describe("runtime logging does not block screenshot interaction", () => {
   it("queues runtime log lines instead of opening and writing the log file on the caller thread", () => {
-    const source = readSource("src-tauri/src/lib.rs");
+    const source = readHookLibRustSources();
     const appendStart = source.indexOf("pub(crate) fn append_runtime_log_line");
     const appendEnd = source.indexOf("fn unix_timestamp_millis", appendStart);
     const appendBlock = source.slice(appendStart, appendEnd);
@@ -32,7 +31,7 @@ describe("runtime logging does not block screenshot interaction", () => {
   });
 
   it("falls back to a local per-user log directory even when hook.exe is launched directly", () => {
-    const source = readSource("src-tauri/src/lib.rs");
+    const source = readHookLibRustSources();
 
     expect(source).toContain('std::env::var("LOCALAPPDATA")');
     expect(source).toContain('.join("Hook")');

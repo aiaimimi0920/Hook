@@ -9,6 +9,10 @@
  */
 
 import { logger } from "../services/logger";
+import {
+    MAX_SHADER_TEXTURE_DIMENSION,
+    isShaderImageSizeWithinBudget,
+} from "../services/shaderImagePolicy";
 
 /**
  * Generic shader uniforms interface
@@ -99,13 +103,28 @@ export class ShaderRenderer {
         // Create fullscreen quad VAO
         const positions = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
         this.vao = gl.createVertexArray();
+        if (!this.vao) {
+            console.error("Failed to allocate shader vertex array");
+            this.releaseResources();
+            return false;
+        }
         gl.bindVertexArray(this.vao);
 
         this.vertexBuffer = gl.createBuffer();
+        if (!this.vertexBuffer) {
+            console.error("Failed to allocate shader vertex buffer");
+            this.releaseResources();
+            return false;
+        }
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
 
         const posLoc = gl.getAttribLocation(this.program, 'a_position');
+        if (posLoc < 0) {
+            console.error("Shader is missing the required a_position attribute");
+            this.releaseResources();
+            return false;
+        }
         gl.enableVertexAttribArray(posLoc);
         gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 
@@ -183,32 +202,73 @@ export class ShaderRenderer {
      * Load a texture input by name (e.g., 'input', 'reference')
      * The texture will be bound to uniform 'u_<name>'
      */
-    loadTexture(name: string, image: HTMLImageElement | HTMLCanvasElement | ImageBitmap): void {
-        if (this.disposed) return;
+    loadTexture(name: string, image: HTMLImageElement | HTMLCanvasElement | ImageBitmap): boolean {
+        if (this.disposed) return false;
 
         const gl = this.gl;
+        const reportedLimit = typeof gl.getParameter === "function"
+            ? Number(gl.getParameter(gl.MAX_TEXTURE_SIZE))
+            : MAX_SHADER_TEXTURE_DIMENSION;
+        const maxDimension = Number.isFinite(reportedLimit) && reportedLimit > 0
+            ? Math.min(MAX_SHADER_TEXTURE_DIMENSION, reportedLimit)
+            : MAX_SHADER_TEXTURE_DIMENSION;
+        if (!isShaderImageSizeWithinBudget(image.width, image.height, maxDimension)) {
+            console.warn(`[ShaderRenderer] Rejected oversized texture '${name}' (${image.width}x${image.height})`);
+            this.discardTexture(name);
+            return false;
+        }
 
-        // Get or create texture
-        let texture = this.textures.get(name);
-        if (!texture) {
-            texture = gl.createTexture()!;
-            this.textures.set(name, texture);
-
-            // Assign texture unit
-            if (!this.textureUnits.has(name)) {
-                const usedUnits = new Set(this.textureUnits.values());
-                let textureUnit = 0;
-                while (usedUnits.has(textureUnit)) textureUnit += 1;
-                this.textureUnits.set(name, textureUnit);
+        let textureUnit = this.textureUnits.get(name);
+        if (textureUnit === undefined) {
+            const reportedUnitLimit = typeof gl.getParameter === "function"
+                && typeof gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS === "number"
+                ? Number(gl.getParameter(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS))
+                : 16;
+            const maxTextureUnits = Number.isFinite(reportedUnitLimit) && reportedUnitLimit > 0
+                ? Math.floor(reportedUnitLimit)
+                : 16;
+            const usedUnits = new Set(this.textureUnits.values());
+            textureUnit = 0;
+            while (usedUnits.has(textureUnit)) textureUnit += 1;
+            if (textureUnit >= maxTextureUnits) {
+                console.warn(`[ShaderRenderer] Rejected texture '${name}': texture unit limit reached`);
+                this.discardTexture(name);
+                return false;
             }
         }
 
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        // Get or create texture only after a sampler unit is available.
+        let texture = this.textures.get(name);
+        if (!texture) {
+            const createdTexture = gl.createTexture();
+            if (!createdTexture) {
+                console.error(`[ShaderRenderer] Failed to allocate texture '${name}'`);
+                return false;
+            }
+            texture = createdTexture;
+            this.textures.set(name, texture);
+        }
+        this.textureUnits.set(name, textureUnit);
+
+        try {
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        } catch (error) {
+            console.error(`[ShaderRenderer] Failed to upload texture '${name}'`, error);
+            this.discardTexture(name);
+            return false;
+        }
+        const noError = typeof gl.NO_ERROR === "number" ? gl.NO_ERROR : 0;
+        const uploadError = typeof gl.getError === "function" ? gl.getError() : noError;
+        if (uploadError !== noError) {
+            console.error(`[ShaderRenderer] WebGL rejected texture '${name}' with error ${uploadError}`);
+            this.discardTexture(name);
+            return false;
+        }
 
         // Update canvas size to match primary input
         if (name === 'input' && (this.canvasWidth !== image.width || this.canvasHeight !== image.height)) {
@@ -218,6 +278,7 @@ export class ShaderRenderer {
             this.canvasHeight = image.height;
             gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
         }
+        return true;
     }
 
     /**
@@ -238,7 +299,7 @@ export class ShaderRenderer {
             ) {
                 return;
             }
-            this.loadTexture(name, img);
+            if (!this.loadTexture(name, img)) return;
             logger.debug(`[ShaderRenderer] Loaded texture '${name}' from response`);
             if (this.textureLoadHandler) {
                 this.textureLoadHandler();
@@ -262,12 +323,16 @@ export class ShaderRenderer {
     removeTexture(name: string): void {
         if (this.disposed || name === 'input' || this.requiredTextureNames.has(name)) return;
 
+        this.discardTexture(name);
+        this.requiredTextureNames.delete(name);
+    }
+
+    private discardTexture(name: string): void {
         const texture = this.textures.get(name);
         if (texture) {
             this.gl.deleteTexture(texture);
             this.textures.delete(name);
         }
-        this.requiredTextureNames.delete(name);
         this.textureUnits.delete(name);
         this.textureLoadGenerations.delete(name);
         this.uniformLocations.delete(`u_${name}`);

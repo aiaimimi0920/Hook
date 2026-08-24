@@ -235,4 +235,16 @@ describe("sticker composite export base-image placement", () => {
         };
         expect(resolveDirectStickerExportImageSrc(input)).toBeUndefined();
     });
+
+    it("rejects non-finite sticker dimensions before decoding or allocating an export canvas", async () => {
+        const createElement = vi.fn();
+        vi.stubGlobal("document", { createElement });
+        const unit = makeUnit();
+        unit.w = Number.NaN;
+
+        await expect(renderStickerCompositeWithAnnotations(unit, [], {
+            baseImageSrcOverride: "data:image/png;base64,BASE",
+        })).rejects.toThrow("Invalid canvas dimension: sticker width");
+        expect(createElement).not.toHaveBeenCalled();
+    });
 });

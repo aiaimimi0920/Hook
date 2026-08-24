@@ -6,6 +6,10 @@ const annotationLayerSource = readFileSync(
     resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"),
     "utf8",
 );
+const pointerCommitSource = readFileSync(
+    resolve(process.cwd(), "src/components/stickerAnnotationPointerCommitController.ts"),
+    "utf8",
+);
 const annotationModelSource = readFileSync(resolve(process.cwd(), "src/components/stickerAnnotationModel.ts"), "utf8");
 
 describe("Hook sticker shape bounds contract", () => {
@@ -13,10 +17,12 @@ describe("Hook sticker shape bounds contract", () => {
         expect(annotationModelSource).toContain('export const isBoundedBoxMode = (mode: DraftShape["mode"]) =>');
         expect(annotationModelSource).toContain('mode === "shape-rect"');
         expect(annotationModelSource).toContain('mode === "shape-ellipse"');
-        expect(annotationLayerSource).toContain("isBoundedBoxMode(prev.mode)");
+        expect(pointerCommitSource).toContain("isBoundedBoxMode(prev.mode)");
         expect(annotationLayerSource).toContain("isBoundedBoxMode(draft.mode)");
         expect(annotationLayerSource).toContain("const resolveDraftShapeRect = (draft: DraftShape) =>");
-        expect(annotationLayerSource).toContain("const rect = resolveDraftShapeRect(shape);");
+        expect(pointerCommitSource).toContain(
+            "const rect = sanitizeStickerRect(options.resolveDraftShapeRect(shape));",
+        );
         expect(annotationLayerSource).toContain("return resolveDraftShapeRect(draft);");
     });
 });

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const clipboardSource = readFileSync(resolve(process.cwd(), "src/hooks/useClipboard.ts"), "utf8");
-const apiSource = readFileSync(resolve(process.cwd(), "src/services/api.ts"), "utf8");
-const rustSource = readFileSync(resolve(process.cwd(), "src-tauri/src/lib.rs"), "utf8");
+const imageResourceApiSource = readFileSync(resolve(process.cwd(), "src/services/apiImageResource.ts"), "utf8");
+const sessionHistoryApiSource = readFileSync(resolve(process.cwd(), "src/services/apiSessionHistory.ts"), "utf8");
+const rustSource = readHookLibRustSources();
 const cargoToml = readFileSync(resolve(process.cwd(), "src-tauri/Cargo.toml"), "utf8");
 
 describe("Hook Ctrl+S sticker save-as contract", () => {
@@ -15,12 +17,12 @@ describe("Hook Ctrl+S sticker save-as contract", () => {
         expect(clipboardSource).toContain("buildUnitFileNamingContext(unit)");
         expect(clipboardSource).not.toContain("api.saveStickerImage(exportBase64)");
 
-        expect(apiSource).toContain("saveStickerImageAs");
-        expect(apiSource).toContain("save_sticker_image_as");
-        expect(apiSource).toContain("dialogCenterX");
-        expect(apiSource).toContain("dialogCenterY");
-        expect(apiSource).toContain("saveSession");
-        expect(apiSource).toContain("save_session");
+        expect(imageResourceApiSource).toContain("saveStickerImageAs");
+        expect(imageResourceApiSource).toContain("save_sticker_image_as");
+        expect(imageResourceApiSource).toContain("dialogCenterX");
+        expect(imageResourceApiSource).toContain("dialogCenterY");
+        expect(sessionHistoryApiSource).toContain("saveSession");
+        expect(sessionHistoryApiSource).toContain("save_session");
 
         expect(rustSource).toContain("fn save_sticker_image_as(");
         expect(rustSource).toContain("dialog_center_x: f64");

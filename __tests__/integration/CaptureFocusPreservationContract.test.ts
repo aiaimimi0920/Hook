@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const rustSource = readFileSync(resolve(process.cwd(), "src-tauri/src/lib.rs"), "utf8");
+const rustSource = readHookLibRustSources();
 const selectionSource = readFileSync(resolve(process.cwd(), "src/hooks/useSelection.ts"), "utf8");
+const captureUnitSource = readFileSync(resolve(process.cwd(), "src/hooks/captureUnitController.ts"), "utf8");
 const canvasSelectionSource = readFileSync(resolve(process.cwd(), "src/components/CanvasSelection.tsx"), "utf8");
 const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitView.tsx"), "utf8");
 
@@ -48,13 +50,13 @@ describe("capture focus preservation contract", () => {
     });
 
     it("hands foreground focus to Hook only after a capture was successfully added and selected", () => {
-        const addCaptureStart = selectionSource.indexOf("const addCaptureUnit = async");
-        const addCaptureEnd = selectionSource.indexOf("const describeLongCaptureAnalysis", addCaptureStart);
+        const addCaptureStart = captureUnitSource.indexOf("const addCaptureUnit = async");
+        const addCaptureEnd = captureUnitSource.length;
 
         expect(addCaptureStart).toBeGreaterThan(-1);
         expect(addCaptureEnd).toBeGreaterThan(addCaptureStart);
 
-        const addCaptureBlock = selectionSource.slice(addCaptureStart, addCaptureEnd);
+        const addCaptureBlock = captureUnitSource.slice(addCaptureStart, addCaptureEnd);
         const addUnitIndex = addCaptureBlock.indexOf("graphStore.actions.addUnit(newUnit);");
         const selectIndex = addCaptureBlock.indexOf("selectionActions.set([newUnit.id]);");
         const focusIndex = addCaptureBlock.indexOf("await api.focusOverlayWindow();");

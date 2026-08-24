@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 
 describe("Hook startup experience contract", () => {
   it("does not shell out to PowerShell during installed font startup loading", () => {
-    const libSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "lib.rs"), "utf8");
+    const libSource = readHookLibRustSources();
     const fontStart = libSource.indexOf('unsafe extern "system" fn collect_installed_font_family_callback');
     const fontEnd = libSource.indexOf("fn set_overlay_no_activate_flag", fontStart);
 
@@ -23,14 +24,17 @@ describe("Hook startup experience contract", () => {
   });
 
   it("does not re-show overlay or canvas after startup session restore", () => {
-    const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
-    const restoreIndex = appSource.indexOf("await syncService.restoreSession(bootProfile || undefined);");
-    const autoStartIndex = appSource.indexOf("if (bootProfile?.autoStartCapture)");
+    const startupSource = readFileSync(
+      resolve(process.cwd(), "src", "services", "appStartupLifecycle.ts"),
+      "utf8",
+    );
+    const restoreIndex = startupSource.indexOf("await syncService.restoreSession(bootProfile || undefined);");
+    const autoStartIndex = startupSource.indexOf("if (bootProfile?.autoStartCapture)");
 
     expect(restoreIndex).toBeGreaterThanOrEqual(0);
     expect(autoStartIndex).toBeGreaterThan(restoreIndex);
 
-    const startupTail = appSource.slice(restoreIndex, autoStartIndex);
+    const startupTail = startupSource.slice(restoreIndex, autoStartIndex);
     expect(startupTail).not.toContain("await api.showCanvasWindow();");
     expect(startupTail).not.toContain("await api.showOverlayHost(true);");
   });
@@ -46,23 +50,29 @@ describe("Hook startup experience contract", () => {
   });
 
   it("reloads art capabilities after session restore when restored art nodes would otherwise boot without their catalog", () => {
-    const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
-    const restoreIndex = appSource.indexOf("await syncService.restoreSession(bootProfile || undefined, preloadedSession);");
-    const historyIndex = appSource.indexOf("const rawHistory = await api.loadHistory();");
+    const startupSource = readFileSync(
+      resolve(process.cwd(), "src", "services", "appStartupLifecycle.ts"),
+      "utf8",
+    );
+    const restoreIndex = startupSource.indexOf("await syncService.restoreSession(bootProfile || undefined, preloadedSession);");
+    const historyIndex = startupSource.indexOf("const rawHistory = await api.loadHistory();");
 
     expect(restoreIndex).toBeGreaterThanOrEqual(0);
     expect(historyIndex).toBeGreaterThan(restoreIndex);
 
-    const restoreTail = appSource.slice(restoreIndex, historyIndex);
+    const restoreTail = startupSource.slice(restoreIndex, historyIndex);
     expect(restoreTail).toContain("restoredSessionNeedsCapabilityRefresh");
     expect(restoreTail).toContain("await refreshCapabilities();");
   });
 
   it("preflights persisted session art capabilities before the first restore so restored art nodes do not boot twice on startup", () => {
-    const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
-    const preflightLoadIndex = appSource.indexOf("const preloadedSessionData = await api.loadSession();");
-    const preflightCheckIndex = appSource.indexOf("sessionSnapshotNeedsCapabilityRefresh", preflightLoadIndex);
-    const restoreIndex = appSource.indexOf("await syncService.restoreSession(bootProfile || undefined, preloadedSession);");
+    const startupSource = readFileSync(
+      resolve(process.cwd(), "src", "services", "appStartupLifecycle.ts"),
+      "utf8",
+    );
+    const preflightLoadIndex = startupSource.indexOf("const preloadedSessionData = await api.loadSession();");
+    const preflightCheckIndex = startupSource.indexOf("sessionSnapshotNeedsCapabilityRefresh", preflightLoadIndex);
+    const restoreIndex = startupSource.indexOf("await syncService.restoreSession(bootProfile || undefined, preloadedSession);");
 
     expect(preflightLoadIndex).toBeGreaterThanOrEqual(0);
     expect(preflightCheckIndex).toBeGreaterThan(preflightLoadIndex);
@@ -70,14 +80,17 @@ describe("Hook startup experience contract", () => {
   });
 
   it("re-applies the persisted session after restored-art capability refresh so art nodes rebuild from the real catalog", () => {
-    const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
-    const restoreIndex = appSource.indexOf("await syncService.restoreSession(bootProfile || undefined, preloadedSession);");
-    const historyIndex = appSource.indexOf("const rawHistory = await api.loadHistory();");
+    const startupSource = readFileSync(
+      resolve(process.cwd(), "src", "services", "appStartupLifecycle.ts"),
+      "utf8",
+    );
+    const restoreIndex = startupSource.indexOf("await syncService.restoreSession(bootProfile || undefined, preloadedSession);");
+    const historyIndex = startupSource.indexOf("const rawHistory = await api.loadHistory();");
 
     expect(restoreIndex).toBeGreaterThanOrEqual(0);
     expect(historyIndex).toBeGreaterThan(restoreIndex);
 
-    const restoreTail = appSource.slice(restoreIndex, historyIndex);
+    const restoreTail = startupSource.slice(restoreIndex, historyIndex);
     const firstRestoreCall = "await syncService.restoreSession(bootProfile || undefined, preloadedSession);";
     const secondRestoreCall = "await syncService.restoreSession(bootProfile || undefined);";
     const firstRestore = restoreTail.indexOf(firstRestoreCall);
@@ -89,12 +102,15 @@ describe("Hook startup experience contract", () => {
   });
 
   it("logs native frontend readiness only after startup restore and listener initialization", () => {
-    const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
-    const autoStartIndex = appSource.indexOf("if (bootProfile?.autoStartCapture)");
-    const triggerIndex = appSource.indexOf("await api.triggerCaptureMode();", autoStartIndex);
-    const browserPreviewIndex = appSource.indexOf("if (!tauriRuntimeAvailable)", triggerIndex);
-    const browserPreviewReturnIndex = appSource.indexOf("return;", browserPreviewIndex);
-    const initializedMarkerIndex = appSource.indexOf('"frontend-initialized"');
+    const startupSource = readFileSync(
+      resolve(process.cwd(), "src", "services", "appStartupLifecycle.ts"),
+      "utf8",
+    );
+    const autoStartIndex = startupSource.indexOf("if (bootProfile?.autoStartCapture)");
+    const triggerIndex = startupSource.indexOf("await api.triggerCaptureMode();", autoStartIndex);
+    const browserPreviewIndex = startupSource.indexOf("if (!dependencies.tauriRuntime)", triggerIndex);
+    const browserPreviewReturnIndex = startupSource.indexOf("return;", browserPreviewIndex);
+    const initializedMarkerIndex = startupSource.indexOf('"frontend-initialized"');
 
     expect(autoStartIndex).toBeGreaterThanOrEqual(0);
     expect(triggerIndex).toBeGreaterThan(autoStartIndex);
@@ -102,7 +118,7 @@ describe("Hook startup experience contract", () => {
     expect(browserPreviewReturnIndex).toBeGreaterThan(browserPreviewIndex);
     expect(initializedMarkerIndex).toBeGreaterThan(browserPreviewReturnIndex);
 
-    const initializedCall = appSource.slice(initializedMarkerIndex - 80, initializedMarkerIndex + 240);
+    const initializedCall = startupSource.slice(initializedMarkerIndex - 80, initializedMarkerIndex + 240);
     expect(initializedCall).toContain("await api.debugLogEvent(");
     expect(initializedCall).toContain(
       "capabilities=${graphStore.capabilities.length} units=${graphStore.units.length}",

@@ -1,7 +1,8 @@
 import { api, type SessionData } from "./api";
 import { graphStore } from "../store/graphStore";
 import { Unit, Link, WorkflowAssetArchiveHints } from "../types/unit";
-import { extraRects } from "./uiRegistry";
+import { requestBackendRectSync } from "./syncService/backendRects";
+import { SyncScheduler } from "./syncService/scheduler";
 import { loomHook } from "./client";
 import { WORKFLOW_ID } from "../constants";
 import type { BootProfile } from "./bootProfile";
@@ -61,64 +62,12 @@ const ensureWorkflowArchiveHint = (
     return hints.workflows[workflowId];
 };
 
-class SyncScheduler {
-    private debounceTimer: number | null = null;
-    private isSyncing = false;
-    private retryCount = 0;
-    private hasPendingSync = false;
-    private readonly MAX_RETRIES = 5;
-    private readonly DEBOUNCE_MS = 50;
-
-    constructor(private doSync: () => Promise<void>) {}
-
-    public schedule() {
-        if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
-        this.hasPendingSync = true;
-
-        this.debounceTimer = window.setTimeout(() => {
-            this.trigger();
-        }, this.DEBOUNCE_MS);
-    }
-
-    private async trigger() {
-        if (this.isSyncing) return;
-
-        this.isSyncing = true;
-        this.hasPendingSync = false;
-
-        try {
-            await this.doSync();
-            this.retryCount = 0; // Reset on success
-        } catch (e) {
-            console.error("Sync cycle failed", e);
-            if (this.retryCount < this.MAX_RETRIES) {
-                this.retryCount++;
-                const delay = Math.min(1000 * Math.pow(2, this.retryCount), 10000); // Exponential backoff cap at 10s
-                console.log(`Retrying sync in ${delay}ms (Attempt ${this.retryCount}/${this.MAX_RETRIES})`);
-                setTimeout(() => {
-                    this.hasPendingSync = true;
-                    this.trigger();
-                }, delay);
-            } else {
-                console.error("Max sync retries reached. Giving up until next trigger.");
-            }
-        } finally {
-            this.isSyncing = false;
-            if (this.hasPendingSync) {
-                // Changes arrived during the sync. Re-run through the debounce
-                // window instead of an immediate re-entrant trigger(), so
-                // sustained writes (e.g. a live erase patching per frame) cannot
-                // spin full sync + saveSession cycles back-to-back with no gap.
-                this.schedule();
-            }
-        }
-    }
-}
 
 const executeSyncCycle = async () => {
     const syncEpoch = getSyncImageCacheEpoch();
     const currentUnits = graphStore.units;
     const currentLinks = graphStore.links;
+    const unitById = new Map(currentUnits.map((unit) => [unit.id, unit]));
     const unitParams = graphStore.unitParams;
     const persistableUnitParams = Object.fromEntries(
         currentUnits.map((unit) => [
@@ -230,14 +179,13 @@ const executeSyncCycle = async () => {
     };
 
     // 1. Build Graph Adjacency
-    const adj: Record<string, string[]> = {};
-    currentUnits.forEach(u => adj[u.id] = []);
-    currentLinks.forEach(l => {
-        if (!adj[l.fromUnitId]) adj[l.fromUnitId] = [];
-        if (!adj[l.toUnitId]) adj[l.toUnitId] = [];
-
-        if (!adj[l.fromUnitId].includes(l.toUnitId)) adj[l.fromUnitId].push(l.toUnitId);
-        if (!adj[l.toUnitId].includes(l.fromUnitId)) adj[l.toUnitId].push(l.fromUnitId);
+    const adjacency = new Map<string, Set<string>>();
+    currentUnits.forEach((unit) => adjacency.set(unit.id, new Set()));
+    currentLinks.forEach((link) => {
+        if (!adjacency.has(link.fromUnitId)) adjacency.set(link.fromUnitId, new Set());
+        if (!adjacency.has(link.toUnitId)) adjacency.set(link.toUnitId, new Set());
+        adjacency.get(link.fromUnitId)?.add(link.toUnitId);
+        adjacency.get(link.toUnitId)?.add(link.fromUnitId);
     });
 
     const visited = new Set<string>();
@@ -250,13 +198,14 @@ const executeSyncCycle = async () => {
         // Start BFS for Component
         const componentUnits: Unit[] = [];
         const queue = [unit.id];
+        let queueIndex = 0;
         visited.add(unit.id);
 
         const workflowCounts: Record<string, number> = {};
 
-        while (queue.length > 0) {
-            const currId = queue.shift()!;
-            const currUnit = currentUnits.find(u => u.id === currId);
+        while (queueIndex < queue.length) {
+            const currId = queue[queueIndex++];
+            const currUnit = unitById.get(currId);
             if (!currUnit) continue;
 
             componentUnits.push(currUnit);
@@ -266,7 +215,7 @@ const executeSyncCycle = async () => {
                 workflowCounts[wid] = (workflowCounts[wid] || 0) + 1;
             }
 
-            for (const neighbor of adj[currId] || []) {
+            for (const neighbor of adjacency.get(currId) ?? []) {
                 if (!visited.has(neighbor)) {
                     visited.add(neighbor);
                     queue.push(neighbor);
@@ -323,8 +272,8 @@ const executeSyncCycle = async () => {
                 .filter(l => componentIds.has(l.fromUnitId) && componentIds.has(l.toUnitId))
                 .map(l => ({
                     id: l.id,
-                    source: currentUnits.find(u => u.id === l.fromUnitId)?.data?.originNodeId || l.fromUnitId,
-                    target: currentUnits.find(u => u.id === l.toUnitId)?.data?.originNodeId || l.toUnitId,
+                    source: unitById.get(l.fromUnitId)?.data?.originNodeId || l.fromUnitId,
+                    target: unitById.get(l.toUnitId)?.data?.originNodeId || l.toUnitId,
                     sourceHandle: l.fromPortId || "output",
                     targetHandle: l.toPortId || "input"
                 }));
@@ -343,8 +292,9 @@ const executeSyncCycle = async () => {
             // Optimistic update of origin info for nodes that were just adopted
             const neededUpdates = componentUnits.filter(u => u.data?.originWorkflowId !== dominantWfId);
             if (neededUpdates.length > 0) {
+                 const neededUpdateIds = new Set(neededUpdates.map((unit) => unit.id));
                  graphStore.setUnits(prev => prev.map(u => {
-                     if (neededUpdates.some(nu => nu.id === u.id)) {
+                     if (neededUpdateIds.has(u.id)) {
                          return {
                              ...u,
                              data: {
@@ -477,52 +427,6 @@ const executeSyncCycle = async () => {
 
 const scheduler = new SyncScheduler(executeSyncCycle);
 
-let backendRectSyncRequested = false;
-let backendRectSyncPromise: Promise<void> | null = null;
-
-const syncLatestBackendRects = async () => {
-    const dpr = window.devicePixelRatio || 1;
-    const rects = graphStore.units.map(u => ({
-        id: u.id,
-        x: Math.round(u.x * dpr),
-        y: Math.round(u.y * dpr),
-        width: Math.round(u.w * dpr),
-        height: Math.round(u.h * dpr),
-        name: u.data.minified ? "MINI" : "FULL"
-    }));
-
-    extraRects().forEach(r => {
-        rects.push({
-            id: r.name,
-            x: Math.round(r.x * dpr),
-            y: Math.round(r.y * dpr),
-            width: Math.round(r.width * dpr),
-            height: Math.round(r.height * dpr),
-            name: r.name
-        });
-    });
-
-    try {
-        await api.updatePinRects(rects);
-    } catch (e) {
-        console.error("Failed to update backend rects:", e);
-    }
-};
-
-const requestBackendRectSync = () => {
-    backendRectSyncRequested = true;
-    if (!backendRectSyncPromise) {
-        backendRectSyncPromise = (async () => {
-            while (backendRectSyncRequested) {
-                backendRectSyncRequested = false;
-                await syncLatestBackendRects();
-            }
-        })().finally(() => {
-            backendRectSyncPromise = null;
-        });
-    }
-    return backendRectSyncPromise;
-};
 
 export const syncService = {
     updateBackendRects: requestBackendRectSync,
@@ -566,13 +470,18 @@ export const syncService = {
                  graphStore.actions.replaceUnits(loadedUnits);
                  graphStore.setLinks(loadedLinks);
                  graphStore.actions.reconcileStickerEditPropagation();
-                 graphStore.setStickerGroups((sessionData.groups || []) as StickerGroup[]);
-                 graphStore.setRecycleBin((sessionData.recycleBin || []) as any);
-                 graphStore.setReferenceLibrary((sessionData.referenceLibrary || []) as any);
+                 graphStore.setStickerGroups((sessionData.groups || []).map((group) => ({
+                     id: group.id,
+                     name: group.name,
+                     hidden: group.hidden ?? false,
+                     locked: group.locked ?? false,
+                 })));
+                 graphStore.setRecycleBin(sessionData.recycleBin || []);
+                 graphStore.setReferenceLibrary(sessionData.referenceLibrary || []);
 
                  // Populate Params Map
-                 const paramsMap: any = {};
-                 const execConfigMap: any = {};
+                 const paramsMap: Record<string, Unit["params"]> = {};
+                 const execConfigMap: Record<string, Unit["data"]["executionConfig"]> = {};
                  loadedUnits.forEach((u) => paramsMap[u.id] = u.params || {});
                  loadedUnits.forEach((u) => {
                      execConfigMap[u.id] = u.data?.executionConfig;
@@ -582,7 +491,7 @@ export const syncService = {
 
                  // Update Backend Geometry after state restore. Startup visibility is
                  // already owned by Rust setup, so do not re-show overlay/canvas here.
-                 syncService.updateBackendRects();
+                 void syncService.updateBackendRects();
                  if (bootProfile?.initialUiMode === "overlay" && loadedUnits.length > 0) {
                      await api.setMouseMonitorActive(true);
                      await syncService.updateBackendRects();

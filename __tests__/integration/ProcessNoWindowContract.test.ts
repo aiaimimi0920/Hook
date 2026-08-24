@@ -1,10 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 
 describe("Hook Windows child process contract", () => {
   it("keeps Hook-owned helper subprocesses hidden on Windows", () => {
-    const libSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "lib.rs"), "utf8");
+    const libSource = readHookLibRustSources();
 
     expect(libSource).toContain('std::process::Command::new("powershell.exe")');
     expect(libSource).toContain("const CREATE_NO_WINDOW: u32 = 0x0800_0000;");

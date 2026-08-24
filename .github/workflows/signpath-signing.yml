@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout tagged source
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ inputs.tag }}
           fetch-depth: 0
@@ -74,7 +74,7 @@ jobs:
           }
 
       - name: Download reviewed candidate from release workflow
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: hook-uiaccess-signing-candidate-${{ inputs.tag }}
           path: release/Hook/reviewed-candidate
@@ -113,7 +113,7 @@ jobs:
 
       - name: Upload unsigned payload to GitHub Actions
         id: upload-unsigned-artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: hook-uiaccess-reviewed-${{ inputs.tag }}-${{ inputs.candidate_run_id }}
           path: release/Hook/reviewed-candidate/hook.exe
@@ -122,7 +122,7 @@ jobs:
 
       - name: Submit SignPath signing request
         id: submit-signing-request
-        uses: signpath/github-action-submit-signing-request@v2
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -144,14 +144,14 @@ jobs:
             -Force
 
       - name: Upload signed installer workflow artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: hook-uiaccess-signed-${{ inputs.tag }}
           path: release/Hook/hook-windows-uiaccess-installer-${{ inputs.tag }}.zip
           if-no-files-found: error
 
       - name: Publish signed installer on the existing GitHub release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           tag_name: ${{ inputs.tag }}
           files: release/Hook/hook-windows-uiaccess-installer-${{ inputs.tag }}.zip

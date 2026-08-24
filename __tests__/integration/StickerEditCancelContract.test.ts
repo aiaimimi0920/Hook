@@ -3,9 +3,16 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const shortcutsSource = readFileSync(resolve(process.cwd(), "src/services/shortcuts.ts"), "utf8");
-const appSource = readFileSync(resolve(process.cwd(), "src/app.tsx"), "utf8");
+const appShortcutSource = readFileSync(
+    resolve(process.cwd(), "src/hooks/useAppShortcutController.ts"),
+    "utf8",
+);
 const captureStateSource = readFileSync(resolve(process.cwd(), "src/services/captureState.ts"), "utf8");
 const layerSource = readFileSync(resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"), "utf8");
+const lifecycleSource = readFileSync(
+    resolve(process.cwd(), "src/components/stickerAnnotationLifecycleController.ts"),
+    "utf8",
+);
 const uiStoreSource = readFileSync(resolve(process.cwd(), "src/store/uiStore.ts"), "utf8");
 
 describe("Hook sticker edit cancel contract", () => {
@@ -13,15 +20,16 @@ describe("Hook sticker edit cancel contract", () => {
         expect(shortcutsSource).toContain("cancel-sticker-edit");
         expect(shortcutsSource).toContain("context: 'sticker-editing'");
 
-        expect(appSource).toContain("resolveShortcutContext");
+        expect(appShortcutSource).toContain("resolveShortcutContext");
         expect(captureStateSource).toContain("return \"sticker-editing\"");
-        expect(appSource).toContain("onCancelStickerEdit");
+        expect(appShortcutSource).toContain("onCancelStickerEdit");
 
         expect(uiStoreSource).toContain("stickerEditCancelToken");
         expect(uiStoreSource).toContain("requestStickerEditCancel");
 
-        expect(layerSource).toContain("stickerEditCancelToken");
-        expect(layerSource).toContain("setDraftShape(null)");
-        expect(layerSource).toContain("setDraftLine(null)");
+        expect(layerSource).toContain("createStickerAnnotationLifecycleController");
+        expect(lifecycleSource).toContain("stickerEditCancelToken");
+        expect(lifecycleSource).toContain("options.setDraftShape(null)");
+        expect(lifecycleSource).toContain("options.setDraftLine(null)");
     });
 });

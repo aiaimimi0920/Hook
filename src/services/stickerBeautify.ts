@@ -58,9 +58,9 @@ export const computeBeautifyLayout = (
     innerHeight: number,
     padding: number,
 ): BeautifyLayout => {
-    const safePadding = Math.max(0, Math.round(padding));
-    const safeInnerWidth = Math.max(1, Math.round(innerWidth));
-    const safeInnerHeight = Math.max(1, Math.round(innerHeight));
+    const safePadding = Number.isFinite(padding) ? Math.max(0, Math.round(padding)) : 0;
+    const safeInnerWidth = Number.isFinite(innerWidth) ? Math.max(1, Math.round(innerWidth)) : 1;
+    const safeInnerHeight = Number.isFinite(innerHeight) ? Math.max(1, Math.round(innerHeight)) : 1;
     return {
         outerWidth: safeInnerWidth + safePadding * 2,
         outerHeight: safeInnerHeight + safePadding * 2,

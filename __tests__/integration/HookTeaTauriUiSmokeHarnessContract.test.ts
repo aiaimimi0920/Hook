@@ -4,7 +4,15 @@ import { resolve } from "node:path";
 
 const harnessPath = resolve(process.cwd(), "scripts", "smoke-hook-tea-tauri-ui-real.ps1");
 const harnessExists = existsSync(harnessPath);
-const harnessSource = harnessExists ? readFileSync(harnessPath, "utf8") : "";
+const harnessOwnerPaths = [
+  "command-readiness.ps1",
+  "process-artifact.ps1",
+  "process-cleanup.ps1",
+  "write-tauri-ui-probe.ps1",
+].map((fileName) => resolve(process.cwd(), "scripts", "smoke-hook-tea-tauri-ui-real", fileName));
+const harnessSource = harnessExists
+  ? [harnessPath, ...harnessOwnerPaths].map((filePath) => readFileSync(filePath, "utf8")).join("\n")
+  : "";
 
 describe("Hook Tea native Tauri UI real smoke harness contract", () => {
   it("exists as an isolated root-level operator script with collision-resistant artifacts", () => {

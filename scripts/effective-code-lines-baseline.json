@@ -1,0 +1,263 @@
+{
+  "schemaVersion": 1,
+  "checkerVersion": 1,
+  "sourceCommit": "6fca3eae224a6856c829900beb94917826392d07",
+  "sourceTree": "e11235e2b9a7341c2d536f1f04dbeda9560b782b",
+  "checkerSha256": "db2381257ae56028c33e653f2b7b5d41256fd6eae631d14babee251b415ebbcc",
+  "lexerSha256": "2a722a339f88e854e70240b1b52564c86b65f172f39d978de7dc075ed50a91fe",
+  "policySha256": "9540c98424365429908f1c21687fd4b92c51e68432d2d473fa0a2b935c32c2d8",
+  "files": [
+    {
+      "path": "__tests__/integration/api.browser.test.ts",
+      "effectiveLines": 565,
+      "physicalLines": 636,
+      "sourceSha256": "6b9d78387a9946714b5f4f351cf521aa26295d374d6fad6e67728e598260ecaa"
+    },
+    {
+      "path": "__tests__/unit/graphImageResolution.test.ts",
+      "effectiveLines": 925,
+      "physicalLines": 971,
+      "sourceSha256": "f4a963ec04c381a0ba5ed62b3a7550908c9f094f02ce768302421c42c787078c"
+    },
+    {
+      "path": "__tests__/unit/overlaySyntheticEvents.test.ts",
+      "effectiveLines": 577,
+      "physicalLines": 677,
+      "sourceSha256": "dcf65d5ae843e96e43ce2477afa1ab93c66bd75159d1626ea2cfa589431b3eb8"
+    },
+    {
+      "path": "__tests__/unit/ShaderPreviewRuntime.test.tsx",
+      "effectiveLines": 1134,
+      "physicalLines": 1345,
+      "sourceSha256": "091ab146ed8e3bde861eabdbb6dbe3d4d643d3a32f114f112ac3ee7b6b7af403"
+    },
+    {
+      "path": "__tests__/unit/stickerEditTransforms.test.ts",
+      "effectiveLines": 589,
+      "physicalLines": 629,
+      "sourceSha256": "cc2187917d017a8869092b83c66df7b3840aaa4e6a11cba7027986957c4722c6"
+    },
+    {
+      "path": "public/javascript-surface-bootstrap.js",
+      "effectiveLines": 666,
+      "physicalLines": 692,
+      "sourceSha256": "f841c394245a124e0b09d524c63481993e7fdfa419aca195f59f7aa65e52676d"
+    },
+    {
+      "path": "scripts/capture-homepage-assets.ps1",
+      "effectiveLines": 578,
+      "physicalLines": 696,
+      "sourceSha256": "a1ce36638fa2d23742a00099b06d3e51636dae01139e4da1bcbeb6da0e9b6a65"
+    },
+    {
+      "path": "scripts/Invoke-HookNativeCandidateAcceptance.ps1",
+      "effectiveLines": 917,
+      "physicalLines": 987,
+      "sourceSha256": "88a673312b5316ec4914f15602b13627fa95357fb85b18eb45ea984c700c108a"
+    },
+    {
+      "path": "scripts/run-javascript-surface-browser-smoke.mjs",
+      "effectiveLines": 578,
+      "physicalLines": 603,
+      "sourceSha256": "9be380d2ab7f2a969f910515804e140e034337e6a5c613e6be9aaf50c6a175ff"
+    },
+    {
+      "path": "scripts/smoke-hook-tea-tauri-ui-real.ps1",
+      "effectiveLines": 1046,
+      "physicalLines": 1181,
+      "sourceSha256": "7235745009b193d6ac7a535313f18bae140452d3e5f787361352c9a379886f70"
+    },
+    {
+      "path": "scripts/smoke-hook-tea-ui-real.ps1",
+      "effectiveLines": 786,
+      "physicalLines": 885,
+      "sourceSha256": "cec2be3e14397d0bb5598c42cc69e06f16f7b68750ff719bca4ca12f01d51273"
+    },
+    {
+      "path": "src-tauri/crates/scap-direct3d/src/lib.rs",
+      "effectiveLines": 610,
+      "physicalLines": 702,
+      "sourceSha256": "f066f90344b542a5bc4a4e5ad48ad20a8fe0186f97ef1893c5cc7c91d0bb4105"
+    },
+    {
+      "path": "src-tauri/crates/scap-targets/src/platform/win.rs",
+      "effectiveLines": 1106,
+      "physicalLines": 1341,
+      "sourceSha256": "dafe9dcc1fd9870edda06eb2ce078b440b9901451a53c0cda15b207a00853148"
+    },
+    {
+      "path": "src-tauri/src/device_session.rs",
+      "effectiveLines": 647,
+      "physicalLines": 711,
+      "sourceSha256": "721640a66fd710526cb573cb8bb98882061c1326b26713dbd62af2abc7e156d3"
+    },
+    {
+      "path": "src-tauri/src/file_naming.rs",
+      "effectiveLines": 564,
+      "physicalLines": 609,
+      "sourceSha256": "e78fcd31c971310499760c33bf1d568d42a180be9f9e20a2be00bd3871549b64"
+    },
+    {
+      "path": "src-tauri/src/lib.rs",
+      "effectiveLines": 11882,
+      "physicalLines": 13089,
+      "sourceSha256": "f114fbde6ce227f8372bacced090f258098ac2079011d419db9697b743f988ee"
+    },
+    {
+      "path": "src-tauri/src/long_capture.rs",
+      "effectiveLines": 5611,
+      "physicalLines": 6143,
+      "sourceSha256": "c020c0d0b16ecef289dee4df83e38297093e791e61161fe393fd407c45d55621"
+    },
+    {
+      "path": "src-tauri/src/loom_connector.rs",
+      "effectiveLines": 571,
+      "physicalLines": 629,
+      "sourceSha256": "59ba6be8956c392ddb7202a9f31470c84cb45715d12c79f5dbff75088dd1cfeb"
+    },
+    {
+      "path": "src-tauri/src/loom_hook.rs",
+      "effectiveLines": 3442,
+      "physicalLines": 3672,
+      "sourceSha256": "80d8cafba1405122f5a4883a68c1443343d5f4c8b432cc60a406b5f160e07e15"
+    },
+    {
+      "path": "src-tauri/src/screenshot.rs",
+      "effectiveLines": 2044,
+      "physicalLines": 2336,
+      "sourceSha256": "b14ce8533cc28b908e5fad6b465c8750e84b63495843f43330b1f2093821fb55"
+    },
+    {
+      "path": "src-tauri/src/voice/audio.rs",
+      "effectiveLines": 612,
+      "physicalLines": 673,
+      "sourceSha256": "5e4d3386fab2fe48c84d81c901f5168aec13327ca0102f40eed0e6f43ce5ecf7"
+    },
+    {
+      "path": "src-tauri/src/voice/insert.rs",
+      "effectiveLines": 540,
+      "physicalLines": 625,
+      "sourceSha256": "ff91e327eb481639192e10547997173f266f115edfa0fda4108d0a4247a5d4d7"
+    },
+    {
+      "path": "src-tauri/tests/loom_connector_contract.rs",
+      "effectiveLines": 761,
+      "physicalLines": 824,
+      "sourceSha256": "b2e962bfc5ca34efee6431a58923d4307db086ee4511ad122a20910db6672230"
+    },
+    {
+      "path": "src-tauri/tests/talk_connector_contract.rs",
+      "effectiveLines": 583,
+      "physicalLines": 638,
+      "sourceSha256": "f912aca9dff34f2b376875afbd441b0ba429b5d7460678763effdb6b280af80b"
+    },
+    {
+      "path": "src/app.css",
+      "effectiveLines": 968,
+      "physicalLines": 1190,
+      "sourceSha256": "ea005c0e55119b5777a92ffcca038bee59030d4bd192b7b9cc8c8bbb9bda9f10"
+    },
+    {
+      "path": "src/app.tsx",
+      "effectiveLines": 2121,
+      "physicalLines": 2398,
+      "sourceSha256": "be2785d4cdba0f19c418aba4c3494f114999b6b9451c1857b887e1d9c654e75b"
+    },
+    {
+      "path": "src/components/ColorPicker.tsx",
+      "effectiveLines": 573,
+      "physicalLines": 660,
+      "sourceSha256": "3d5a2a97727e35e0e3071f09de9174edd36392e04594922ea091fba928a78a04"
+    },
+    {
+      "path": "src/components/JavaScriptSurface.tsx",
+      "effectiveLines": 838,
+      "physicalLines": 902,
+      "sourceSha256": "581bc7c2e67adef8f81581f2593d73977a1ed24a08d721603a31d621a416bb54"
+    },
+    {
+      "path": "src/components/ShaderPreview.tsx",
+      "effectiveLines": 568,
+      "physicalLines": 624,
+      "sourceSha256": "c730f0d5a397c897d0e68fca1b674a02e8680cfb7c262fcc360c5c6de942f730"
+    },
+    {
+      "path": "src/components/StickerAnnotationLayer.tsx",
+      "effectiveLines": 2538,
+      "physicalLines": 2732,
+      "sourceSha256": "d5eb570c7cb3ff3328b7870148369c94052241f4d56e59b7e6dc14bf8aa0c123"
+    },
+    {
+      "path": "src/components/StickerTopStrip.tsx",
+      "effectiveLines": 1011,
+      "physicalLines": 1073,
+      "sourceSha256": "5565f55aec5e673b644377a83a1f5a5c5b19eb7dafd32e39a1c4041c28a4b5b5"
+    },
+    {
+      "path": "src/components/StickerTopStripPropertyBar.tsx",
+      "effectiveLines": 853,
+      "physicalLines": 920,
+      "sourceSha256": "1d4d9bc831d19863dbf4dca9876244f7e1b5fdbf83f5cda40324629491ef0fb3"
+    },
+    {
+      "path": "src/components/UnitParamsPanel.tsx",
+      "effectiveLines": 1014,
+      "physicalLines": 1138,
+      "sourceSha256": "790544ae749bd9cc19cb3c36b6f20619d417b1ecdfc2353f83fe525409731b14"
+    },
+    {
+      "path": "src/components/UnitView.tsx",
+      "effectiveLines": 1518,
+      "physicalLines": 1671,
+      "sourceSha256": "a32fc33c7b55df03c9f6726c48bc76b39aea2ca69f785dcd93c3414adee47fa3"
+    },
+    {
+      "path": "src/hooks/useSelection.ts",
+      "effectiveLines": 1065,
+      "physicalLines": 1187,
+      "sourceSha256": "689762aea3a2d1906ea38cf5a17c06060c711ba2f117b1a0bd54bd0e5cb836f6"
+    },
+    {
+      "path": "src/services/api.ts",
+      "effectiveLines": 1191,
+      "physicalLines": 1326,
+      "sourceSha256": "2bcca6bf8ddbd7e68764b655b2e1c43b5312c2dde5bbc54fa7abb1f5cb9c5223"
+    },
+    {
+      "path": "src/services/graphImageResolution.ts",
+      "effectiveLines": 510,
+      "physicalLines": 606,
+      "sourceSha256": "d24c4233270a9f7c6f4c612d3e8f16923672c8f8246b15f60123fddf6389efd6"
+    },
+    {
+      "path": "src/services/overlaySyntheticEvents.ts",
+      "effectiveLines": 540,
+      "physicalLines": 632,
+      "sourceSha256": "0c4aced056d365c70e4202bdbc29121702c79c04dc64426f3a6f74c8cdce3542"
+    },
+    {
+      "path": "src/services/stickerEditing.ts",
+      "effectiveLines": 625,
+      "physicalLines": 700,
+      "sourceSha256": "5a7787385ffb295795dddaf861ebeac8de7a5d3b52289d9a995d27d1f3f70cab"
+    },
+    {
+      "path": "src/services/stickerExport.ts",
+      "effectiveLines": 690,
+      "physicalLines": 795,
+      "sourceSha256": "769fb668abd29fc1fd39fdf2881dc3833a67b595ff2ae2e20e4400148d9cba3b"
+    },
+    {
+      "path": "src/services/stickerGeometry.ts",
+      "effectiveLines": 1128,
+      "physicalLines": 1256,
+      "sourceSha256": "17e569cad17affe89461e5d7d8f9b2985453e37f76f7ee4dc218a4aa9f307e6e"
+    },
+    {
+      "path": "src/services/syncService.ts",
+      "effectiveLines": 518,
+      "physicalLines": 599,
+      "sourceSha256": "ae2be37072db4c14436e6b3db62afe5a7f007e0a84bacf15621e09ba7b8c7588"
+    }
+  ]
+}

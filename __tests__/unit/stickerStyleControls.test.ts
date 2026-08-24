@@ -8,6 +8,7 @@ import {
     adjustTextSize,
     buildSerialAnnotationMetrics,
     createDefaultStickerColorState,
+    createDefaultStickerToolProfiles,
     createDefaultStickerToolSettings,
     normalizeStickerPaletteColor,
     removeStickerPaletteColor,
@@ -51,6 +52,16 @@ describe("sticker style controls", () => {
         expect(palette).toContain("#ef4444");
     });
 
+    it("returns isolated palette and profile defaults for every editing session", () => {
+        const firstColors = createDefaultStickerColorState();
+        const firstProfiles = createDefaultStickerToolProfiles();
+        firstColors.palette.push("#123456");
+        firstProfiles["shape-rect"]!.strokeWidth = 99;
+
+        expect(createDefaultStickerColorState().palette).not.toContain("#123456");
+        expect(createDefaultStickerToolProfiles()["shape-rect"]!.strokeWidth).toBe(3);
+    });
+
     it("normalizes user-added palette colors and allows deleting any palette color", () => {
         expect(normalizeStickerPaletteColor("ff0000")).toBe("#ff0000");
         expect(normalizeStickerPaletteColor("#0AF")).toBe("#00aaff");
@@ -90,6 +101,16 @@ describe("sticker style controls", () => {
             radius: 96,
             fontSize: 110,
             borderWidth: 14,
+        });
+        expect(buildSerialAnnotationMetrics(Number.NaN)).toEqual({
+            radius: 14,
+            fontSize: 16,
+            borderWidth: 2,
+        });
+        expect(buildSerialAnnotationMetrics(Number.POSITIVE_INFINITY)).toEqual({
+            radius: 14,
+            fontSize: 16,
+            borderWidth: 2,
         });
     });
 

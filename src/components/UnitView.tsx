@@ -1,9 +1,6 @@
-import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
-import { Portal } from "solid-js/web";
-import { graphStore } from "../store/graphStore";
+import { Component, Show, Suspense, createEffect, createSignal, lazy, onCleanup } from "solid-js";
 import {
   activeStickerEditTargetId,
-  enhancementNotices,
   isCleanView,
   isSelecting,
   longCaptureSession,
@@ -11,52 +8,16 @@ import {
   selectedStickerAnnotationId,
   selectedStickerAnnotationIds,
   stickerToolSettings,
-  uiActions,
 } from "../store/uiStore";
 import { Unit, Link, NodeExecutionConfig } from "../types/unit";
 import { ArtCapability } from "../services/protocol";
-import { addOrUpdateRect, removeRect, updatePortOffset } from "../services/uiRegistry";
-import {
-  computeCroppedStickerImageViewport,
-  computeMinifiedStickerAnnotationViewport,
-  computeMinifiedStickerViewport,
-  computeStickerWheelResizeFrame,
-} from "../services/stickerEditing";
-import { ShaderPreview } from "./ShaderPreview";
-import { DeclarativeSurface } from "./DeclarativeSurface";
-import { JavaScriptSurface } from "./JavaScriptSurface";
-import { UnitParamsPanel } from "./UnitParamsPanel";
+import { computeStickerWheelResizeFrame } from "../services/stickerEditing";
 import { UnitAddNodeMenu } from "./UnitAddNodeMenu";
 import { UnitPorts } from "./UnitPorts";
-import { StickerAnnotationLayer } from "./StickerAnnotationLayer";
-import { StickerTopStrip } from "./StickerTopStrip";
-import { DISABLED_PREFIX } from "../constants";
 import { isStickerSurfaceDoubleClickTarget } from "../services/stickerDoubleClick";
-import {
-  isUnitFormalImagePending,
-  resolveConnectedUnitImageForPort,
-  resolveEffectiveNodeParams
-} from "../services/graphImageResolution";
-import { normalizeImageSourceForDisplay } from "../services/imageSource";
-import { api, isTauriRuntimeAvailable } from "../services/api";
+import { api } from "../services/api";
 import { stickerContextMenuController } from "../services/stickerContextMenuController";
 import { ShortcutManager } from "../services/shortcuts";
-import {
-  renderStickerComposite,
-  resolveStickerCompositeBaseImageSrc,
-} from "../services/stickerExport";
-import {
-  shaderInputPortName,
-  shaderReferenceInputPortName,
-  supportsSurface,
-  supportsShaderPreview,
-} from "../services/artCapabilities";
-import {
-  resolveNativeDragDropPhysicalPointFromOverlay,
-  resolveNativeDragDropPhysicalPointFromPointer,
-  resolveNativeDragPreviewPointFromOverlay,
-  resolveUnitDragExportPlan,
-} from "../services/unitDragExport";
 import {
   enterStickerGpuWarmHover,
   leaveStickerGpuWarmHover,
@@ -65,30 +26,28 @@ import {
   unregisterStickerGpuWarmElement,
   updateStickerGpuWarmEstimate,
 } from "../services/stickerGpuWarmPool";
-import { resolveStickerContentFrame } from "../services/stickerEditPropagation";
-import { getCurrentAppSettings } from "../services/appSettings";
-import { buildUnitFileNamingContext, renderFileNamingStem } from "../services/fileNaming";
 import {
   registerDragFollowerElement,
   unregisterDragFollowerElement,
 } from "../services/dragFollowerRegistry";
-import {
-    bakedSyncPreviewCacheRevision,
-    resolveCachedBakedSyncPreview,
-} from "../services/syncImageCache";
-import { surfaceStore } from "../store/surfaceStore";
-import { surfaceResourceStore } from "../store/surfaceResourceStore";
-import { loomHook } from "../services/client";
-import { surfaceAttachmentRequests } from "../services/surfaceAttachmentRequests";
 import { blurActiveEditableOutside } from "../services/editableFocus";
-import {
-  applySurfaceViewToSnapshot,
-  clearSurfaceViewCrop,
-  computeSurfaceViewResetFrame,
-  computeSurfaceViewWindowPresentation,
-  normalizeSurfaceViews,
-  resolveSurfaceView,
-} from "../services/artSurfaceViews";
+import { UnitNativeStickerDragPreview } from "./UnitNativeStickerDragPreview";
+import { createUnitNativeStickerDragController } from "./unitNativeStickerDragController";
+import { UnitStickerImageContent } from "./UnitStickerImageContent";
+import { UnitSurfaceContent } from "./UnitSurfaceContent";
+import { UnitSelectionBorder, UnitVisualOverlays } from "./UnitVisualOverlays";
+import { createUnitPortRegistryController } from "./unitPortRegistryController";
+import { createUnitImageModel } from "./unitImageModel";
+import { createUnitSurfaceController } from "./unitSurfaceController";
+
+// Editing panels are not needed for the normal canvas path. Their component
+// lifetimes were already conditional, so lazy loading preserves mount semantics.
+const StickerTopStrip = lazy(() => import("./StickerTopStrip").then((module) => ({
+  default: module.StickerTopStrip,
+})));
+const UnitParamsPanel = lazy(() => import("./UnitParamsPanel").then((module) => ({
+  default: module.UnitParamsPanel,
+})));
 
 interface Props {
   unit: Unit;
@@ -122,39 +81,12 @@ interface Props {
 
 export const UnitView: Component<Props> = (props) => {
   let unitContainerRef: HTMLDivElement | undefined;
+  const [unitElement, setUnitElement] = createSignal<HTMLDivElement>();
   let gpuWarmRegistration: { unitId: string; element: HTMLDivElement } | null = null;
   let dragFollowerRegistration: { unitId: string; element: HTMLDivElement } | null = null;
-  let nativeStickerDragStart:
-      | {
-            x: number;
-            y: number;
-            pointerId?: number;
-            started: boolean;
-        }
-      | null = null;
-  let nativeStickerDragInFlight = false;
-  const [nativeStickerExportPreview, setNativeStickerExportPreview] = createSignal<{
-      x: number;
-      y: number;
-      src: string;
-      width: number;
-      height: number;
-  } | null>(null);
-  const [baseImageIntrinsicSize, setBaseImageIntrinsicSize] = createSignal<{ w: number; h: number } | null>(null);
-  const [shaderImageIntrinsicSize, setShaderImageIntrinsicSize] = createSignal<{ w: number; h: number } | null>(null);
   let pendingWheelDeltaY = 0;
   let pendingWheelPointer: { x: number; y: number } | null = null;
   let wheelResizeFrame: number | null = null;
-  type NativeDragPreflightOverlayPayload = {
-      x?: number;
-      y?: number;
-      globalX?: number;
-      globalY?: number;
-      scaleFactor?: number;
-      physicalOriginX?: number;
-      physicalOriginY?: number;
-      shiftKey?: boolean;
-  };
   const isArt = () => props.unit.type === 'art';
   const liveUnit = () => props.unit;
   const syncStickerGpuWarmRegistration = () => {
@@ -241,136 +173,13 @@ export const UnitView: Component<Props> = (props) => {
       props.onDoubleTap(event);
   };
   const showSelectionBorder = () => true;
-  const isShaderArt = () => isArt() && supportsShaderPreview(props.capability);
-  const surfaceState = () => isArt() ? surfaceStore.byUnit[props.unit.id] : undefined;
-  const hasDeclarativeSurface = () => !!surfaceState();
-  const surfaceManifest = () => props.capability?.metadata?.capabilities?.surface;
-  const surfaceViews = createMemo(() => normalizeSurfaceViews(surfaceManifest()));
-  const selectedSurfaceView = createMemo(() => resolveSurfaceView(
-      surfaceManifest(),
-      liveUnit().data.surfaceViewId ?? surfaceState()?.snapshot.viewId,
-  ));
-  const effectiveSurfaceSnapshot = () => {
-      const snapshot = surfaceState()?.snapshot;
-      return snapshot ? applySurfaceViewToSnapshot(snapshot, selectedSurfaceView()) : undefined;
-  };
-  const surfacePresentation = createMemo(() => {
-      const unit = liveUnit();
-      return computeSurfaceViewWindowPresentation(unit, selectedSurfaceView(), {
-          minified: unit.data.minified,
-          savedRect: unit.data.savedRect,
-          cropOffset: unit.data.cropOffset,
-          imageEditState: unit.data.imageEditState,
-      });
+  const surface = createUnitSurfaceController({
+      unit: liveUnit,
+      capability: () => props.capability,
+      params: () => props.params,
+      resolveUnitImage: () => props.resolveUnitImage,
+      onResize: (nextFrame) => props.onResize(nextFrame),
   });
-  const selectSurfaceView = (viewId: string) => {
-      const view = surfaceViews().find((candidate) => candidate.id === viewId);
-      if (!view || liveUnit().data.surfaceViewId === view.id) return;
-      const currentUnit = liveUnit();
-      graphStore.actions.updateUnitData(currentUnit.id, {
-          surfaceViewId: view.id,
-          imageEditState: clearSurfaceViewCrop(currentUnit.data.imageEditState),
-          minified: false,
-          savedRect: undefined,
-          cropOffset: undefined,
-      });
-      props.onResize(computeSurfaceViewResetFrame(currentUnit, view));
-  };
-  createEffect(() => {
-      const view = selectedSurfaceView();
-      if (!view || liveUnit().data.surfaceViewId === view.id) return;
-      const currentUnit = liveUnit();
-      graphStore.actions.updateUnitData(currentUnit.id, { surfaceViewId: view.id });
-  });
-  createEffect(() => {
-      const unitId = props.unit.id;
-      const leases = surfaceState()?.snapshot.resourceLeases ?? [];
-      for (const lease of leases) {
-          if (
-              lease.transport.kind !== "loom_resource" &&
-              lease.transport.kind !== "shared_memory"
-          ) continue;
-          const resourceId = lease.resource.resourceId;
-          if (!surfaceResourceStore.actions.begin(resourceId)) continue;
-          void loomHook.fetchSurfaceResource(lease).catch((error) => {
-              surfaceResourceStore.actions.fail(resourceId);
-              graphStore.actions.updateUnitData(unitId, {
-                  nodeStatus: "error",
-                  errorMessage: error instanceof Error
-                      ? error.message
-                      : "Surface resource fetch failed",
-              });
-          });
-      }
-  });
-  createEffect(() => {
-      const artId = props.unit.artId;
-      const unitId = props.unit.id;
-      if (
-          !artId ||
-          !supportsSurface(props.capability) ||
-          hasDeclarativeSurface() ||
-          !surfaceAttachmentRequests.begin(unitId)
-      ) {
-          return;
-      }
-      void loomHook.attachSurface(artId, unitId).catch((error) => {
-          surfaceAttachmentRequests.fail(unitId);
-          graphStore.actions.updateUnitData(unitId, {
-              nodeStatus: "error",
-              errorMessage: error instanceof Error ? error.message : "Surface attach failed",
-          });
-      });
-  });
-  const effectiveParams = () =>
-      isArt()
-          ? resolveEffectiveNodeParams({
-                units: graphStore.units,
-                links: graphStore.links,
-                capabilities: graphStore.capabilities,
-                unitId: props.unit.id,
-                manualParams: props.params,
-            })
-          : props.params;
-  const getArtId = () => props.unit.artId;
-  const getArtErrorMessage = () => liveUnit().data.errorMessage || "Art execution failed";
-  const getConnectedImageForPort = (portName: string) =>
-      resolveConnectedUnitImageForPort({
-          units: graphStore.units,
-          links: graphStore.links,
-          capabilities: graphStore.capabilities,
-          unitId: props.unit.id,
-          portId: portName,
-      });
-  const getShaderInputSrc = () => {
-      const configuredPort = shaderInputPortName(props.capability);
-      return (configuredPort ? getConnectedImageForPort(configuredPort) : undefined) ||
-          getConnectedImageForPort("input") ||
-          getConnectedImageForPort("input_image") ||
-          getConnectedImageForPort("image") ||
-          liveUnit().data.src ||
-          "";
-  };
-  const getShaderReferenceSrc = () => {
-      const configuredPort = shaderReferenceInputPortName(props.capability);
-      if (configuredPort) {
-          const configured = getConnectedImageForPort(configuredPort);
-          if (configured) return configured;
-      }
-      const connected = getConnectedImageForPort("reference");
-      if (connected) return connected;
-
-      const reference = props.params.reference;
-      if (typeof reference !== "string" || reference.length === 0) return undefined;
-      return props.resolveUnitImage?.(reference) || reference;
-  };
-  const shouldHoldRestoredShaderPreview = () =>
-      !!liveUnit().data.restoredPreviewLocked &&
-      !!(liveUnit().data.previewSrc || liveUnit().data.src);
-  const isContextualShader = () =>
-      !!shaderReferenceInputPortName(props.capability) ||
-      !!props.capability?.params?.some((param) => param.widget === "image_link" || param.id === "reference") ||
-      !!props.capability?.inputs?.some((input) => input.name === "reference");
 
   const style = () => {
     const unit = liveUnit();
@@ -396,44 +205,6 @@ export const UnitView: Component<Props> = (props) => {
   createEffect(syncStickerGpuWarmRegistration);
   createEffect(syncDragFollowerRegistration);
 
-  const getOpacity = () => isMinified()
-      ? (liveUnit().data.opacityMini ?? 0.9)
-      : (liveUnit().data.opacityNormal ?? 1);
-  const getImageEditState = () => liveUnit().data.imageEditState;
-  const getCornerRadius = () => getImageEditState()?.cornerRadius ?? 0;
-  const getImageBorderWidth = () => getImageEditState()?.borderWidth ?? 0;
-  const getImageBorderColor = () => getImageEditState()?.borderColor ?? "transparent";
-  const getImageContentFrame = () => {
-      const unit = liveUnit();
-      return isMinified()
-          ? { x: 0, y: 0, w: unit.w, h: unit.h }
-          : resolveStickerContentFrame(unit);
-  };
-  const getCroppedImageViewport = () =>
-      computeCroppedStickerImageViewport(
-          getImageContentFrame(),
-          getImageEditState(),
-      );
-  const getTransform = () => {
-      const scaleX = getImageEditState()?.flippedX ? -1 : 1;
-      const scaleY = getImageEditState()?.flippedY ? -1 : 1;
-      return `scale(${scaleX}, ${scaleY})`;
-  };
-  const getMinifiedViewport = () =>
-      computeMinifiedStickerViewport(
-          { w: liveUnit().w, h: liveUnit().h },
-          liveUnit().data.savedRect,
-          liveUnit().data.cropOffset,
-          getImageEditState(),
-          shaderImageIntrinsicSize() || baseImageIntrinsicSize() || undefined,
-      );
-  const getMinifiedAnnotationViewport = () =>
-      computeMinifiedStickerAnnotationViewport(
-          { w: liveUnit().w, h: liveUnit().h },
-          liveUnit().data.savedRect,
-          liveUnit().data.cropOffset,
-      );
-
   // === PORT LOGIC ===
   // Derive ports from capability if available, or default
   const getInputs = () => {
@@ -456,361 +227,32 @@ export const UnitView: Component<Props> = (props) => {
       return [{ name: "output_image", label: "Image", type: "image" }];
   };
 
-  // Helper to determine Source Image (Screen vs Manual Override)
-  // Priority:
-  // 1. Input Connection (Upstream) -> Use Data Src (as result)
-  // 2. Manual File -> Use Params
-  // 3. Screenshot (Default) -> Use Data Src
-  const displaySrc = () => {
-      let resolvedSrc: string | undefined;
-      // Check for Manual Override in Image Units
-      if (!isArt()) {
-          // Check if Image Input is explicitly disabled
-          const isImageDisabled = props.unit.params["image"] === DISABLED_PREFIX;
-
-          if (!isImageDisabled) {
-              // If Input Connected, ignore Manual override (Input Priority)
-              // We check if "image" input is connected
-              const imageInput = getInputs().find(i => i.name === 'image');
-              if (imageInput && props.connectedLinks) {
-                   // Find link targeting this input port
-                   const link = props.connectedLinks.find(l => l.toPortId === imageInput.name);
-                   if (link && props.resolveUnitImage) {
-                       const src = props.resolveUnitImage(link.fromUnitId);
-                       if (src) {
-                           resolvedSrc = src;
-                       }
-                   }
-              }
-
-              // If NOT connected, check Manual
-              const path = props.params.image_path;
-              if (path && path.startsWith("data:")) {
-                  resolvedSrc = path;
-              }
-          }
-      }
-      if (!resolvedSrc) {
-          resolvedSrc = liveUnit().data.previewSrc || liveUnit().data.src || "";
-      }
-      return normalizeImageSourceForDisplay(resolvedSrc) || "";
-  };
-  const baseImageSrc = () =>
-      liveUnit().data.rasterizedAnnotationLayerSrc
-          ? normalizeImageSourceForDisplay(liveUnit().data.src || displaySrc()) || ""
-          : displaySrc();
-  const minifiedBakedPreviewSrc = createMemo(() => {
-      // The bitmap is produced asynchronously by workflow sync. Subscribe to the
-      // cache revision so a minified sticker can switch from the live fallback to
-      // the baked preview as soon as that render finishes.
-      bakedSyncPreviewCacheRevision();
-      const unit = liveUnit();
-      if (unit.type !== "sticker" || !unit.data.minified) return undefined;
-      const displaySrcOverride = resolveStickerCompositeBaseImageSrc({
-          unit,
-          units: graphStore.units,
-          links: graphStore.links,
-          capabilities: graphStore.capabilities,
-      });
-      const cached = resolveCachedBakedSyncPreview(unit, displaySrcOverride ?? null);
-      return cached ? normalizeImageSourceForDisplay(cached) || undefined : undefined;
+  const image = createUnitImageModel({
+      unit: liveUnit,
+      params: () => props.params,
+      connectedLinks: () => props.connectedLinks,
+      resolveUnitImage: () => props.resolveUnitImage,
+      inputs: getInputs,
+      isShaderArt: surface.isShaderArt,
+      artId: surface.artId,
+      shaderInputSrc: surface.shaderInputSrc,
+      shaderReferenceSrc: surface.shaderReferenceSrc,
   });
-  const shaderViewportSourceKey = () =>
-      isShaderArt()
-          ? `${getArtId() || ""}|${getShaderInputSrc()}|${getShaderReferenceSrc() || ""}`
-          : "";
-  let lastShaderViewportSourceKey = "";
-  createEffect(() => {
-      void baseImageSrc();
-      setBaseImageIntrinsicSize(null);
+
+  const nativeStickerDrag = createUnitNativeStickerDragController({
+      unit: liveUnit,
+      capabilityLabel: () => props.capability?.label,
+      displaySrc: image.baseImageSrc,
+      element: unitElement,
   });
-  createEffect(() => {
-      const nextShaderViewportSourceKey = shaderViewportSourceKey();
-      if (nextShaderViewportSourceKey === lastShaderViewportSourceKey) {
-          return;
-      }
-      lastShaderViewportSourceKey = nextShaderViewportSourceKey;
-      if (!nextShaderViewportSourceKey) {
-          setShaderImageIntrinsicSize(null);
-          return;
-      }
-      setShaderImageIntrinsicSize(null);
-  });
-  const handleBaseImageLoad = (event: Event) => {
-      const image = event.currentTarget;
-      if (!(image instanceof HTMLImageElement)) return;
-      const naturalWidth = image.naturalWidth || image.width;
-      const naturalHeight = image.naturalHeight || image.height;
-      if (naturalWidth <= 0 || naturalHeight <= 0) return;
-      setBaseImageIntrinsicSize({ w: naturalWidth, h: naturalHeight });
-  };
-  const fileBackedFallbacksInFlight = new Set<string>();
-  const handleFileBackedImageLoadError = async () => {
-      const unit = liveUnit();
-      const filePath = unit.data.filePath;
-      if (!filePath || unit.data.previewSrc?.startsWith("data:")) {
-          return;
-      }
-      if (fileBackedFallbacksInFlight.has(unit.id)) {
-          return;
-      }
-
-      fileBackedFallbacksInFlight.add(unit.id);
-      try {
-          const fallbackSrc = await api.readImageFromPath(filePath);
-          graphStore.actions.updateUnitData(props.unit.id, {
-              previewSrc: fallbackSrc,
-          });
-      } catch (error) {
-          console.warn("[UnitView] Failed to load file-backed image fallback", error);
-      } finally {
-          fileBackedFallbacksInFlight.delete(unit.id);
-      }
-  };
-
-  const detachPendingNativeDragListeners = () => {
-      if (typeof window === "undefined") return;
-      window.removeEventListener("pointermove", handlePendingNativeDragPointerMove, true);
-      window.removeEventListener("mousemove", handlePendingNativeDragPointerMove, true);
-      window.removeEventListener("pointerup", handlePendingNativeDragEnd, true);
-      window.removeEventListener("mouseup", handlePendingNativeDragEnd, true);
-      window.removeEventListener("pointercancel", handlePendingNativeDragEnd, true);
-      window.removeEventListener("hook:overlay-native-drag-preflight-move", handlePendingNativeDragOverlayMove as EventListener, true);
-      window.removeEventListener("hook:overlay-native-drag-preflight-up", handlePendingNativeDragOverlayEnd as EventListener, true);
-  };
-
-  const clearPendingNativeStickerDrag = () => {
-      nativeStickerDragStart = null;
-      setNativeStickerExportPreview(null);
-      void api.setNativeStickerDragPreflight(false);
-      detachPendingNativeDragListeners();
-  };
-
-  const overlayPayloadClientPoint = (detail: NativeDragPreflightOverlayPayload | undefined) => {
-      return resolveNativeDragPreviewPointFromOverlay(detail);
-  };
-
-  const pointTargetsThisUnit = (x: number, y: number) => {
-      if (!unitContainerRef) return false;
-      const target = document.elementFromPoint(x, y);
-      if (target instanceof Element) {
-          const unitRoot = target.closest(".unit-container");
-          if (unitRoot) {
-              return unitRoot === unitContainerRef;
-          }
-      }
-      const rect = unitContainerRef.getBoundingClientRect();
-      return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
-  };
-
-  const attachPendingNativeDragListeners = () => {
-      if (typeof window === "undefined") return;
-      detachPendingNativeDragListeners();
-      window.addEventListener("pointermove", handlePendingNativeDragPointerMove, true);
-      window.addEventListener("mousemove", handlePendingNativeDragPointerMove, true);
-      window.addEventListener("pointerup", handlePendingNativeDragEnd, true);
-      window.addEventListener("mouseup", handlePendingNativeDragEnd, true);
-      window.addEventListener("pointercancel", handlePendingNativeDragEnd, true);
-      window.addEventListener("hook:overlay-native-drag-preflight-move", handlePendingNativeDragOverlayMove as EventListener, true);
-      window.addEventListener("hook:overlay-native-drag-preflight-up", handlePendingNativeDragOverlayEnd as EventListener, true);
-  };
-
-  const resolveCurrentUnitDragExportPlan = () => {
-      const unit = liveUnit();
-      return resolveUnitDragExportPlan({
-          unit,
-          capabilityLabel: props.capability?.label,
-          displaySrc: baseImageSrc(),
-          formalImagePending: isUnitFormalImagePending({
-              unitId: unit.id,
-              units: graphStore.units,
-              links: graphStore.links,
-              capabilities: graphStore.capabilities,
-          }),
-      });
-  };
-
-  const beginPendingHookStickerExportDrag = (x: number, y: number, pointerId?: number) => {
-      const exportPlan = resolveCurrentUnitDragExportPlan();
-      if (!exportPlan || nativeStickerDragInFlight) return;
-      void api.debugLogEvent(
-          "sticker-export-drag-capture",
-          `unit=${props.unit.id} x=${x} y=${y} pathFirst=${exportPlan.kind === "path"} exportKind=${exportPlan.kind}`,
-      );
-      nativeStickerDragStart = { x, y, pointerId, started: false };
-      setNativeStickerExportPreview(null);
-      void api.setNativeStickerDragPreflight(true);
-      attachPendingNativeDragListeners();
-  };
-
-  const beginHookStickerExportDrag = async (globalX: number, globalY: number) => {
-      if (nativeStickerDragInFlight) return;
-
-      nativeStickerDragInFlight = true;
-      try {
-          const unit = liveUnit();
-          const exportPlan = resolveCurrentUnitDragExportPlan();
-          if (!exportPlan) {
-              return;
-          }
-          void api.debugLogEvent(
-              "sticker-export-drag-request",
-              `unit=${props.unit.id} x=${globalX} y=${globalY} pathFirst=${exportPlan.kind === "path"} exportKind=${exportPlan.kind} hasFilePath=${!!unit.data.filePath} hasDragOutFilePath=${!!unit.data.dragOutFilePath}`,
-          );
-          let path: string;
-          switch (exportPlan.kind) {
-              case "path":
-                  path = await api.saveStickerDragExportFromPath(
-                      exportPlan.path,
-                      exportPlan.fileNamingContext,
-                      globalX,
-                      globalY,
-                  );
-                  break;
-              case "data-url":
-                  path = await api.saveStickerDragExport(
-                      exportPlan.dataUrl,
-                      exportPlan.fileNamingContext,
-                      globalX,
-                      globalY,
-                  );
-                  break;
-              case "rendered-composite": {
-                  const exportBase64 = await renderStickerComposite(unit);
-                  path = await api.saveStickerDragExport(
-                      exportBase64,
-                      exportPlan.fileNamingContext,
-                      globalX,
-                      globalY,
-                  );
-                  break;
-              }
-          }
-          if (exportPlan.cacheSavedPath) {
-              graphStore.actions.updateUnitData(props.unit.id, {
-                  dragOutFilePath: path,
-              });
-          }
-          void api.debugLogEvent("sticker-export-drag-saved", `unit=${props.unit.id} path=${path}`);
-      } catch (error) {
-          console.error("Hook sticker export drag failed", error);
-          void api.debugLogEvent(
-              "sticker-export-drag-failed",
-              `unit=${props.unit.id} error=${error instanceof Error ? error.message : String(error)}`,
-          );
-      } finally {
-          nativeStickerDragInFlight = false;
-      }
-  };
-
-  const updateHookStickerExportDragPreview = (x: number, y: number) => {
-      const start = nativeStickerDragStart;
-      if (!start || nativeStickerDragInFlight) return;
-      if (!start.started && Math.hypot(x - start.x, y - start.y) < 6) {
-          return;
-      }
-
-      if (!start.started) {
-          start.started = true;
-          void api.debugLogEvent("sticker-export-drag-started", `unit=${props.unit.id} x=${x} y=${y}`);
-      }
-
-      const maxPreviewSize = 140;
-      const scale = Math.min(1, maxPreviewSize / Math.max(props.unit.w, props.unit.h, 1));
-      setNativeStickerExportPreview({
-          x,
-          y,
-          src: baseImageSrc(),
-          width: Math.max(24, props.unit.w * scale),
-          height: Math.max(24, props.unit.h * scale),
-      });
-  };
-
-  const handlePendingNativeDragPointerMove = (event: PointerEvent | MouseEvent) => {
-      const start = nativeStickerDragStart;
-      if (!start || nativeStickerDragInFlight) return;
-      if ("pointerId" in event && start.pointerId !== undefined && event.pointerId !== start.pointerId) return;
-      event.preventDefault();
-      event.stopPropagation();
-      updateHookStickerExportDragPreview(event.clientX, event.clientY);
-  };
-
-  const handlePendingNativeDragOverlayMove = (event: Event) => {
-      const start = nativeStickerDragStart;
-      if (!start || nativeStickerDragInFlight) return;
-      const detail = (event as CustomEvent<NativeDragPreflightOverlayPayload>).detail;
-      const point = overlayPayloadClientPoint(detail);
-      if (!point) return;
-      updateHookStickerExportDragPreview(point.x, point.y);
-  };
-
-  const handlePendingNativeDragEnd = (event?: PointerEvent | MouseEvent) => {
-      if (
-          event &&
-          nativeStickerDragStart &&
-          "pointerId" in event &&
-          nativeStickerDragStart.pointerId !== undefined &&
-          event.pointerId !== nativeStickerDragStart.pointerId
-      ) {
-          return;
-      }
-      const point = event
-          ? resolveNativeDragDropPhysicalPointFromPointer(
-                {
-                    clientX: event.clientX,
-                    clientY: event.clientY,
-                    screenX: event.screenX,
-                    screenY: event.screenY,
-                },
-                window.devicePixelRatio || 1,
-            )
-          : null;
-      const shouldExport = !!nativeStickerDragStart?.started && !!point;
-      clearPendingNativeStickerDrag();
-      if (shouldExport && point) {
-          void beginHookStickerExportDrag(point.x, point.y);
-      }
-  };
-
-  const handlePendingNativeDragOverlayDown = (event: Event) => {
-      if (!isTauriRuntimeAvailable()) return;
-      const detail = (event as CustomEvent<NativeDragPreflightOverlayPayload>).detail;
-      if (!detail?.shiftKey) return;
-      const point = overlayPayloadClientPoint(detail);
-      if (!point || !pointTargetsThisUnit(point.x, point.y)) return;
-      if (!resolveCurrentUnitDragExportPlan()) return;
-      beginPendingHookStickerExportDrag(point.x, point.y);
-  };
-
-  const handlePendingNativeDragOverlayEnd = (event?: Event) => {
-      const detail = (event as CustomEvent<NativeDragPreflightOverlayPayload> | undefined)?.detail;
-      const point = resolveNativeDragDropPhysicalPointFromOverlay(detail);
-      const shouldExport = !!nativeStickerDragStart?.started && !!point;
-      clearPendingNativeStickerDrag();
-      if (shouldExport && point) {
-          void beginHookStickerExportDrag(point.x, point.y);
-      }
-  };
-
-  const handleNativeStickerPointerDownCapture = (event: PointerEvent) => {
-      if (!isTauriRuntimeAvailable() || !event.shiftKey) return;
-      if (!resolveCurrentUnitDragExportPlan()) return;
-      event.preventDefault();
-      event.stopPropagation();
-      beginPendingHookStickerExportDrag(event.clientX, event.clientY, event.pointerId);
-  };
-
-  createEffect(() => {
-      unitContainerRef?.addEventListener("pointerdown", handleNativeStickerPointerDownCapture, true);
-      window.addEventListener("hook:overlay-native-drag-preflight-down", handlePendingNativeDragOverlayDown as EventListener, true);
-      onCleanup(() => {
-          unitContainerRef?.removeEventListener("pointerdown", handleNativeStickerPointerDownCapture, true);
-          window.removeEventListener("hook:overlay-native-drag-preflight-down", handlePendingNativeDragOverlayDown as EventListener, true);
-      });
+  createUnitPortRegistryController({
+      unit: liveUnit,
+      inputs: getInputs,
+      outputs: getOutputs,
+      element: unitElement,
   });
 
   onCleanup(() => {
-      detachPendingNativeDragListeners();
       const registration = gpuWarmRegistration;
       if (registration) {
           unregisterStickerGpuWarmElement(registration.unitId, registration.element);
@@ -827,130 +269,6 @@ export const UnitView: Component<Props> = (props) => {
       }
   });
 
-  const getRenderedImageFrame = () => {
-      const ocr = props.unit.data.ocrResult;
-      if (!ocr?.width || !ocr?.height) {
-          return null;
-      }
-
-      if (isMinified()) {
-          return {
-              left: 0,
-              top: 0,
-              width: props.unit.w,
-              height: props.unit.h,
-              scaleX: props.unit.w / ocr.width,
-              scaleY: props.unit.h / ocr.height,
-          };
-      }
-
-      const scale = Math.min(props.unit.w / ocr.width, props.unit.h / ocr.height);
-      const width = ocr.width * scale;
-      const height = ocr.height * scale;
-
-      return {
-          left: (props.unit.w - width) / 2,
-          top: (props.unit.h - height) / 2,
-          width,
-          height,
-          scaleX: scale,
-          scaleY: scale,
-      };
-  };
-
-  const getOcrBlockBounds = (block: { boxPoints: { x: number; y: number }[] }) => {
-      const xs = block.boxPoints.map((point) => point.x);
-      const ys = block.boxPoints.map((point) => point.y);
-      return {
-          minX: Math.min(...xs),
-          maxX: Math.max(...xs),
-          minY: Math.min(...ys),
-          maxY: Math.max(...ys),
-      };
-  };
-
-  // NEW: Helper to register Panel Port Offsets for stable linking
-  const registerPanelPort = (el: HTMLElement, portName: string) => {
-      const update = () => {
-          if (!el.isConnected) return; // Cleanup check
-          const unit = el.closest('.unit-container');
-          if (!unit) return;
-
-          const rPort = el.getBoundingClientRect();
-          const rUnit = unit.getBoundingClientRect();
-
-          // Calculate Center Relative to Unit Top-Left
-          const relX = (rPort.left + rPort.width/2) - rUnit.left;
-          const relY = (rPort.top + rPort.height/2) - rUnit.top;
-
-          // Check for NaN or crazy values
-          if (isNaN(relX) || isNaN(relY)) return;
-
-          updatePortOffset(props.unit.id, portName, {x: relX, y: relY});
-      };
-
-      // Run immediately and after short delay (for layout settlement)
-      update();
-      requestAnimationFrame(update);
-      setTimeout(update, 50); // Fallback for delayed rendering
-  };
-
-
-  // Register active panels for click-through prevention (One-Stop Solution)
-
-    // FIX: Re-calculate Panel Port Offsets when Unit Resizes (Fit Frame / Drag)
-    createEffect(() => {
-        // Dependencies
-        // We need to wait for DOM Reflow, similar to registerPanelPort logic
-        if (unitContainerRef) {
-            requestAnimationFrame(() => {
-                const ports = unitContainerRef?.querySelectorAll('[data-panel-port="true"]');
-                ports?.forEach((el) => {
-                    const name = el.getAttribute('data-port-name');
-                    if (name) registerPanelPort(el as HTMLElement, name);
-                });
-            });
-        }
-    });
-
-  createEffect(() => {
-       const u = props.unit;
-
-       // INPUT PORTS (Left strip for hit testing)
-       const inputCount = getInputs().length;
-       if (inputCount > 0) {
-            getInputs().forEach((p, i) => {
-                const portY = u.y + 24 + (i * (36));
-                addOrUpdateRect({
-                    id: `port-in-${u.id}-${i}`,
-                    x: u.x - 18,
-                    y: portY,
-                    width: 18,
-                    height: 24,
-                    name: `PORT_IN_${p.name}`
-                });
-            });
-       }
-
-       // OUTPUT PORTS (Right strip)
-       getOutputs().forEach((p, i) => {
-            const portY = u.y + 24 + (i * (36));
-            addOrUpdateRect({
-                id: `port-out-${u.id}-${i}`,
-                x: u.x + u.w,
-                y: portY,
-                width: 18,
-                height: 24,
-                name: `PORT_OUT_${p.name}`
-            });
-       });
-
-       onCleanup(() => {
-           getInputs().forEach((_, i) => removeRect(`port-in-${u.id}-${i}`));
-           getOutputs().forEach((_, i) => removeRect(`port-out-${u.id}-${i}`));
-       });
-  });
-
   return (
     <div
       class={`unit-container ${props.isSelected ? "selected" : ""} ${isArt() ? "art-node" : "sticker-node"} ${isMinified() ? "minified" : ""}`}
@@ -958,6 +276,7 @@ export const UnitView: Component<Props> = (props) => {
 
       ref={(element) => {
         unitContainerRef = element;
+        setUnitElement(element);
         syncStickerGpuWarmRegistration();
         syncDragFollowerRegistration();
       }}
@@ -1008,39 +327,7 @@ export const UnitView: Component<Props> = (props) => {
         }
       }}
     >
-        <Show when={nativeStickerExportPreview()}>
-            {(preview) => (
-                <Portal>
-                    <div
-                        class="hook-sticker-export-drag-preview"
-                        style={{
-                            position: "fixed",
-                            left: `${preview().x + 18}px`,
-                            top: `${preview().y + 18}px`,
-                            width: `${preview().width}px`,
-                            height: `${preview().height}px`,
-                            "z-index": "2147483647",
-                            "pointer-events": "none",
-                            opacity: "0.86",
-                            border: "1px solid rgba(219, 255, 0, 0.85)",
-                            background: "rgba(0, 0, 0, 0.25)",
-                            "box-shadow": "0 4px 16px rgba(0, 0, 0, 0.35)",
-                        }}
-                    >
-                        <img
-                            src={preview().src}
-                            draggable={false}
-                            style={{
-                                width: "100%",
-                                height: "100%",
-                                "object-fit": "contain",
-                                display: "block",
-                            }}
-                        />
-                    </div>
-                </Portal>
-            )}
-        </Show>
+        <UnitNativeStickerDragPreview preview={nativeStickerDrag.preview()} />
         <UnitPorts
             unit={props.unit}
             capability={props.capability}
@@ -1070,568 +357,88 @@ export const UnitView: Component<Props> = (props) => {
             width: "100%", height: `${props.unit.h}px`,
             "overflow": "hidden", // CRITICAL: Clipping for Windowing
             "position": "relative",
-            "border-radius": `${getCornerRadius()}px`,
+            "border-radius": `${image.cornerRadius()}px`,
             "border": "none",
             "box-sizing": "border-box",
             "background": "transparent",
-            "opacity": getOpacity(),
+            "opacity": image.opacity(),
             "z-index": "1" // Ensure it covers the tucked-under ports
         }}>
-            <Show when={surfaceState()} keyed>
-                {(surface) => (
-                    <div
-                        class="art-surface-presentation"
-                        style={(() => {
-                            const presentation = surfacePresentation();
-                            if (!presentation) {
-                                return {
-                                    position: "absolute" as const,
-                                    inset: "0",
-                                    width: "100%",
-                                    height: "100%",
-                                };
-                            }
-                            return {
-                                position: "absolute" as const,
-                                left: `${presentation.left}px`,
-                                top: `${presentation.top}px`,
-                                width: `${presentation.logicalWidth}px`,
-                                height: `${presentation.logicalHeight}px`,
-                                transform: `scale(${presentation.scale})`,
-                                "transform-origin": "top left",
-                            };
-                        })()}
-                    >
-                    <Show
-                        when={(surface.snapshot.runtime ?? "declarative") === "javascript"}
-                        fallback={(
-                            <DeclarativeSurface
-                                unitId={props.unit.id}
-                                snapshot={effectiveSurfaceSnapshot() ?? surface.snapshot}
-                                generation={surface.generation}
-                                interactive={!isMinified()}
-                                onActivate={activateUnit}
-                                resolveResource={surfaceResourceStore.actions.resolve}
-                                onEvent={(event) => {
-                                    const unitId = props.unit.id;
-                                    void loomHook.dispatchSurfaceEvent(event).catch((error) => {
-                                        graphStore.actions.updateUnitData(unitId, {
-                                            nodeStatus: "error",
-                                            errorMessage: error instanceof Error
-                                                ? error.message
-                                                : "Surface event dispatch failed",
-                                        });
-                                    });
-                                }}
-                            />
-                        )}
-                    >
-                            <JavaScriptSurface
-                            unitId={props.unit.id}
-                            snapshot={effectiveSurfaceSnapshot() ?? surface.snapshot}
-                            generation={surface.generation}
-                            lifecycle={surface.lifecycle}
-                            interactive={!isMinified()}
-                            displayScale={surfacePresentation().scale}
-                            resolveResource={surfaceResourceStore.actions.resolve}
-                            onActivate={activateUnit}
-                            onDragStart={(event) => {
-                                blurActiveEditableOutside(unitContainerRef, props.unit.id);
-                                if (allowContainerMouseDown()) {
-                                    props.onMouseDown(event);
-                                }
-                            }}
-                            onEvent={(event) => {
-                                const unitId = props.unit.id;
-                                void loomHook.dispatchSurfaceEvent(event).catch((error) => {
-                                    graphStore.actions.updateUnitData(unitId, {
-                                        nodeStatus: "error",
-                                        errorMessage: error instanceof Error
-                                            ? error.message
-                                            : "Surface event dispatch failed",
-                                    });
-                                });
-                            }}
-                        />
-                    </Show>
-                    </div>
-                )}
-            </Show>
-
-            {/* SHADER ART: Use ShaderPreview for real-time rendering */}
-            <Show when={!hasDeclarativeSurface() && isShaderArt() && getArtId()}>
-                {/* Wrapper for Crop/Minify Logic - Mimics img tag behavior */}
-                <div style={(() => {
-                    if (isMinified()) {
-                         const viewport = getMinifiedViewport();
-                         return {
-                             "position": "absolute",
-                             "width": `${viewport.width}px`,
-                             "height": `${viewport.height}px`,
-                             "left": `-${viewport.offsetX}px`,
-                             "top": `-${viewport.offsetY}px`,
-                             "pointer-events": "auto"
-                         };
-                    }
-                    return {
-                        "position": "absolute",
-                        "left": "0",
-                        "top": "0",
-                        "width": "100%",
-                        "height": "100%",
-                        "pointer-events": "auto",
-                    };
-                })()}>
-                    <ShaderPreview
-                        unitId={props.unit.id}
-                        artId={getArtId()!}
-                        params={effectiveParams()}
-                        holdFallbackPreview={shouldHoldRestoredShaderPreview()}
-                        fallbackPreviewSrc={liveUnit().data.previewSrc || liveUnit().data.src}
-                        inputImageSrc={getShaderInputSrc()}
-                        referenceImageSrc={getShaderReferenceSrc()}
-                        requiresReference={isContextualShader()}
-                        width={isMinified() ? getMinifiedViewport().width : props.unit.w}
-                        height={isMinified() ? getMinifiedViewport().height : props.unit.h}
-                        opacity={1}
-                        onIntrinsicSizeChange={(size) => setShaderImageIntrinsicSize(size)}
-                        resolveUnitImage={props.resolveUnitImage}
-                        onRendered={(dataUrl) => props.onRendered(props.unit.id, dataUrl)}
-                    />
-                </div>
-            </Show>
-
-            {/* A minified sticker is a read-only crop. When the sync cache has a
-                current composite, display that single bitmap instead of asking
-                WebView2 to relayout and repaint every editable SVG annotation. */}
-            <Show when={!hasDeclarativeSurface() && minifiedBakedPreviewSrc()} keyed>
-                {(src) => {
-                    const viewport = getMinifiedAnnotationViewport();
-                    return (
-                        <div
-                            class="sticker-minified-baked-preview-viewport absolute"
-                            style={{
-                                width: `${viewport.width}px`,
-                                height: `${viewport.height}px`,
-                                left: "0",
-                                top: "0",
-                                transform: `translate3d(${-viewport.offsetX}px, ${-viewport.offsetY}px, 0)`,
-                                "pointer-events": "none",
-                                "z-index": 10,
-                                contain: "layout paint style",
-                            }}
-                        >
-                            <img
-                                class="sticker-minified-baked-preview pointer-events-none absolute inset-0"
-                                data-sticker-minified-baked-preview="true"
-                                src={src}
-                                draggable={false}
-                                style={{
-                                    width: "100%",
-                                    height: "100%",
-                                    "object-fit": "fill",
-                                    "max-width": "100%",
-                                    "max-height": "100%",
-                                }}
-                            />
-                        </div>
-                    );
-                }}
-            </Show>
-
-            {/* Standard Image Layer (hidden for Shader Arts) */}
-            <Show when={!hasDeclarativeSurface() && !isShaderArt()}>
-            <div
-                class="sticker-image-content-frame"
-                style={(() => {
-                    const contentFrame = getImageContentFrame();
-                    return {
-                        display: minifiedBakedPreviewSrc() ? "none" : "block",
-                        position: "absolute",
-                        left: `${contentFrame.x}px`,
-                        top: `${contentFrame.y}px`,
-                        width: `${contentFrame.w}px`,
-                        height: `${contentFrame.h}px`,
-                        overflow: "hidden",
-                        "pointer-events": "auto",
-                    };
-                })()}
-            >
-              <img
-                class="sticker-img"
-                data-sticker-base-image="true"
-                // Drag-Out to Save (HTML5 Drag)
-                draggable={!isTauriRuntimeAvailable()}
-                onDragStart={(e) => {
-                    if (isTauriRuntimeAvailable()) {
-                        e.preventDefault();
-                        return;
-                    }
-
-                    // Only standard drag if Shift is held (Now: Shift = Drag Out)
-                    if (!e.shiftKey) {
-                        e.preventDefault();
-                        return;
-                    }
-
-                    e.dataTransfer!.effectAllowed = "all"; // Allow Copy, Move, Link (Fixes Alt key forbidden cursor?)
-                    e.dataTransfer!.clearData(); // CRITICAL: Clear browser default (which causes 'download' name)
-
-                    // Construct DownloadURL
-                    // Mime:FileName:Url
-
-                    const appSettings = getCurrentAppSettings();
-                    const namingContext = buildUnitFileNamingContext(
-                        props.unit,
-                        props.capability?.label,
-                    );
-                    const filename = `${renderFileNamingStem(
-                        appSettings.fileNaming.dragExportPattern,
-                        namingContext,
-                        appSettings.fileNaming,
-                    )}.png`;
-
-                    const exportPlan = resolveCurrentUnitDragExportPlan();
-                    const src = exportPlan?.kind === "data-url"
-                        ? exportPlan.dataUrl
-                        : props.unit.type === "art"
-                          ? ""
-                          : props.unit.data.previewSrc || props.unit.data.src || "";
-                    const dragOutFilePath = exportPlan?.kind === "path"
-                        ? exportPlan.path
-                        : undefined;
-
-                    if (dragOutFilePath) {
-                         const normalizedFilePath = dragOutFilePath.replace(/\\/g, "/").startsWith("/")
-                             ? dragOutFilePath.replace(/\\/g, "/")
-                             : `/${dragOutFilePath.replace(/\\/g, "/")}`;
-                         const fileUrl = encodeURI(`file://${normalizedFilePath}`);
-                         const dlUrl = `image/png:${filename}:${fileUrl}`;
-
-                         e.dataTransfer!.setData("DownloadURL", dlUrl);
-                         e.dataTransfer!.setData("text/uri-list", fileUrl);
-                         e.dataTransfer!.setData("text/plain", dragOutFilePath);
-                         return;
-                    }
-
-                    if (src.startsWith("data:")) {
-                         const mime = src.split(";")[0].split(":")[1] || "image/png";
-
-                         // Convert Base64 to Blob URL to bypass data transfer size limits
-                         try {
-                             const byteString = atob(src.split(',')[1]);
-                             const ab = new ArrayBuffer(byteString.length);
-                             const ia = new Uint8Array(ab);
-                             for (let i = 0; i < byteString.length; i++) {
-                                 ia[i] = byteString.charCodeAt(i);
-                             }
-                             const blob = new Blob([ab], { type: mime });
-                             const blobUrl = URL.createObjectURL(blob);
-
-                             const dlUrl = `${mime}:${filename}:${blobUrl}`;
-                             e.dataTransfer!.setData("DownloadURL", dlUrl);
-                         } catch (err) {
-                             console.error("Failed to create blob for drag:", err);
-                             // Fallback to original data URI
-                             const dlUrl = `${mime}:${filename}:${src}`;
-                             e.dataTransfer!.setData("DownloadURL", dlUrl);
-                         }
-
-                         // Re-add text/uri-list for wide compatibility
-                         e.dataTransfer!.setData("text/uri-list", src);
-
-                         return;
-                    }
-                }}
-                src={baseImageSrc()}
-                onLoad={handleBaseImageLoad}
-                onError={handleFileBackedImageLoadError}
-                style={(() => {
-                    if (isMinified()) {
-                        // MINIFIED: Crop View
-                        const viewport = getMinifiedViewport();
-                        return {
-                            "position": "absolute",
-                            "width": `${viewport.width}px`,
-                            "height": `${viewport.height}px`,
-                            // CRITICAL: Force original size to ensure CROP not SCALE
-                            "min-width": `${viewport.width}px`,
-                            "min-height": `${viewport.height}px`,
-                            "max-width": "none",
-                            "max-height": "none",
-
-                            "left": `${-viewport.offsetX}px`,
-                            "top": `${-viewport.offsetY}px`,
-
-                            "pointer-events": "auto",
-                            "object-fit": "fill", // Use fill to force exact dimensions designated above
-                            "transform": getTransform()
-                        };
-                    }
-                    const croppedViewport = getCroppedImageViewport();
-                    if (croppedViewport) {
-                        return {
-                            "position": "absolute",
-                            "width": `${croppedViewport.width}px`,
-                            "height": `${croppedViewport.height}px`,
-                            "left": `-${croppedViewport.offsetX}px`,
-                            "top": `-${croppedViewport.offsetY}px`,
-                            "min-width": `${croppedViewport.width}px`,
-                            "min-height": `${croppedViewport.height}px`,
-                            "max-width": "none",
-                            "max-height": "none",
-                            "pointer-events": "auto",
-                            "object-fit": "fill",
-                            "transform": getTransform()
-                        };
-                    }
-                    return {
-                        "width": "100%",
-                        "height": "100%",
-                        "object-fit": "contain",
-                        "max-width": "100%",
-                        "max-height": "100%",
-                        "pointer-events": "auto",
-                        "transform": getTransform()
-                    };
-                })()}
-              />
-            </div>
-            </Show>
-
-            <Show when={!isShaderArt() && liveUnit().data.rasterizedAnnotationLayerSrc}>
-                {(layerSrc) => (
-                    <div
-                        class="sticker-rasterized-annotation-layer-viewport absolute"
-                        style={(() => {
-                            const viewport = isMinified()
-                                ? getMinifiedAnnotationViewport()
-                                : {
-                                      width: props.unit.w,
-                                      height: props.unit.h,
-                                      offsetX: 0,
-                                      offsetY: 0,
-                                  };
-                            return {
-                                display: minifiedBakedPreviewSrc() ? "none" : "block",
-                                width: `${viewport.width}px`,
-                                height: `${viewport.height}px`,
-                                left: `${-viewport.offsetX}px`,
-                                top: `${-viewport.offsetY}px`,
-                                "pointer-events": "none",
-                                "z-index": 11,
-                            };
-                        })()}
-                    >
-                        <img
-                            class="sticker-rasterized-annotation-layer pointer-events-none absolute inset-0"
-                            src={layerSrc()}
-                            draggable={false}
-                            style={{
-                                width: "100%",
-                                height: "100%",
-                                "object-fit": "fill",
-                                "max-width": "100%",
-                                "max-height": "100%",
-                            }}
-                        />
-                    </div>
-                )}
-            </Show>
-
-            <Show when={getImageBorderWidth() > 0}>
-                <div
-                    class="pointer-events-none absolute inset-0 z-[12] box-border"
-                    style={{
-                        display: minifiedBakedPreviewSrc() ? "none" : "block",
-                        border: `${getImageBorderWidth()}px solid ${getImageBorderColor()}`,
-                        "border-radius": `${getCornerRadius()}px`,
-                    }}
-                />
-            </Show>
-
-            <Show when={isArt() && liveUnit().data.nodeStatus === "error"}>
-                <div
-                    class="hook-art-error-overlay pointer-events-none absolute inset-0 flex items-center justify-center px-3 text-center"
-                    style={{
-                        "z-index": 30,
-                    }}
-                >
-                    <div style={{ "max-height": "70%", overflow: "hidden" }}>
-                        <div class="hook-art-error-overlay__title text-xs font-semibold">
-                            执行失败
-                        </div>
-                        <div class="mt-1 text-[11px] leading-snug break-words">
-                            {getArtErrorMessage()}
-                        </div>
-                    </div>
-                </div>
-            </Show>
-
-            <Show when={!isMinified() && props.unit.data.ocrResult?.textBlocks?.length}>
-                <div
-                    class="absolute inset-0 pointer-events-none"
-                    style={{
-                        "z-index": 15,
-                    }}
-                >
-                    <For each={props.unit.data.ocrResult?.textBlocks || []}>{(block) => {
-                        const frame = getRenderedImageFrame();
-                        if (!frame) {
-                            return null;
-                        }
-
-                        const bounds = getOcrBlockBounds(block);
-                        const label = props.unit.data.showTranslated && block.translatedText
-                            ? block.translatedText
-                            : block.text;
-
-                        return (
-                            <div
-                                class="absolute rounded-sm border border-white/40 shadow-[0_2px_10px_rgba(0,0,0,0.35)]"
-                                style={{
-                                    left: `${frame.left + bounds.minX * frame.scaleX}px`,
-                                    top: `${frame.top + bounds.minY * frame.scaleY}px`,
-                                    width: `${Math.max((bounds.maxX - bounds.minX) * frame.scaleX, 18)}px`,
-                                    height: `${Math.max((bounds.maxY - bounds.minY) * frame.scaleY, 18)}px`,
-                                    color: block.colorHex,
-                                    "background-color": `${block.bgColorHex}40`,
-                                }}
-                            >
-                                <div
-                                    class="absolute left-0 top-0 max-w-full truncate px-1 py-[1px] text-[10px] font-medium leading-tight"
-                                    style={{
-                                        color: block.colorHex,
-                                        "background-color": `${block.bgColorHex}cc`,
-                                    }}
-                                    title={label}
-                                >
-                                    {label}
-                                </div>
-                            </div>
-                        );
-                    }}</For>
-                </div>
-            </Show>
-
-            <Show when={enhancementNotices[props.unit.id]}>
-                {(notice) => (
-                    <div
-                        class="enhancement-notice hook-enhancement-notice absolute left-2 right-2 top-2 p-3 text-left"
-                        style={{ "z-index": 40, "pointer-events": "auto" }}
-                        onMouseDown={(event) => {
-                            event.stopPropagation();
-                        }}
-                        onMouseUp={(event) => {
-                            event.stopPropagation();
-                        }}
-                        onClick={(event) => {
-                            event.stopPropagation();
-                        }}
-                        onDblClick={(event) => {
-                            event.stopPropagation();
-                        }}
-                    >
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0">
-                                <div class="hook-enhancement-notice__title text-[11px] font-semibold">
-                                    {notice().title}
-                                </div>
-                                <div class="hook-enhancement-notice__copy mt-1 text-[10px] leading-snug">
-                                    {notice().message}
-                                </div>
-                            </div>
-                            <button
-                                class="hook-terminal-btn shrink-0 px-2 py-1 text-[10px]"
-                                onMouseDown={(event) => {
-                                    event.stopPropagation();
-                                }}
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    uiActions.dismissEnhancementNotice(props.unit.id);
-                                }}
-                            >
-                                知道了
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </Show>
-
-            {/* Minified Border Overlay (Dashed, Rectangle) */}
-            <Show when={isMinified()}>
-                <div class="mini-overlay" style={{
-                    "position": "absolute", "top":0, "left":0, "right":0, "bottom":0,
-                    "border": (isCleanView()) ? "none" : (props.isSelected
-                        ? "1px dashed #ffffff"
-                        : "1px dashed #808080"),
-                    "pointer-events": "none",
-                    "z-index": 20
-                }} />
-            </Show>
-
-            <Show when={props.unit.type === "sticker" || props.unit.type === "art"}>
-                <div
-                    class="sticker-annotation-layer-viewport absolute"
-                    style={(() => {
-                        const viewport = isMinified()
-                            ? getMinifiedAnnotationViewport()
-                            : {
-                                  width: props.unit.w,
-                                  height: props.unit.h,
-                                  offsetX: 0,
-                                  offsetY: 0,
-                              };
-                        return {
-                            display: minifiedBakedPreviewSrc() ? "none" : "block",
-                            width: `${viewport.width}px`,
-                            height: `${viewport.height}px`,
-                            left: `${-viewport.offsetX}px`,
-                            top: `${-viewport.offsetY}px`,
-                            // This wrapper only supplies crop geometry. The
-                            // annotation root opts back into pointer input while
-                            // editing; otherwise the live Surface stays hittable.
-                            "pointer-events": "none",
-                        };
-                    })()}
-                >
-                    <StickerAnnotationLayer
-                        unitId={props.unit.id}
-                        width={isMinified() ? getMinifiedAnnotationViewport().width : props.unit.w}
-                        height={isMinified() ? getMinifiedAnnotationViewport().height : props.unit.h}
-                        imageSrc={displaySrc()}
-                    />
-                </div>
-            </Show>
+            <UnitSurfaceContent
+                unit={props.unit}
+                unitElement={unitElement()}
+                surface={surface.surfaceState()}
+                effectiveSurfaceSnapshot={surface.effectiveSurfaceSnapshot()}
+                surfacePresentation={surface.surfacePresentation()}
+                isMinified={isMinified()}
+                isShaderArt={surface.isShaderArt()}
+                artId={surface.artId()}
+                minifiedViewport={image.minifiedViewport()}
+                effectiveParams={surface.effectiveParams()}
+                holdFallbackPreview={surface.holdRestoredShaderPreview()}
+                inputImageSrc={surface.shaderInputSrc()}
+                referenceImageSrc={surface.shaderReferenceSrc()}
+                requiresReference={surface.requiresReference()}
+                resolveUnitImage={props.resolveUnitImage}
+                allowContainerMouseDown={allowContainerMouseDown()}
+                onActivate={activateUnit}
+                onMouseDown={props.onMouseDown}
+                onIntrinsicSizeChange={image.setShaderImageIntrinsicSize}
+                onRendered={(dataUrl) => props.onRendered(props.unit.id, dataUrl)}
+            />
+            <UnitStickerImageContent
+                unit={props.unit}
+                hasDeclarativeSurface={surface.hasDeclarativeSurface()}
+                isShaderArt={surface.isShaderArt()}
+                isMinified={isMinified()}
+                minifiedBakedPreviewSrc={image.minifiedBakedPreviewSrc()}
+                minifiedAnnotationViewport={image.minifiedAnnotationViewport()}
+                imageContentFrame={image.imageContentFrame()}
+                minifiedViewport={image.minifiedViewport()}
+                croppedImageViewport={image.croppedImageViewport()}
+                transform={image.transform()}
+                baseImageSrc={image.baseImageSrc()}
+                browserDragEnabled={nativeStickerDrag.browserDragEnabled()}
+                onBrowserDragStart={nativeStickerDrag.handleBrowserImageDragStart}
+                onBaseImageLoad={image.handleBaseImageLoad}
+                onImageError={image.handleFileBackedImageLoadError}
+                imageBorderWidth={image.imageBorderWidth()}
+                imageBorderColor={image.imageBorderColor()}
+                cornerRadius={image.cornerRadius()}
+            />
+            <UnitVisualOverlays
+                unit={props.unit}
+                isArt={isArt()}
+                isMinified={isMinified()}
+                isSelected={props.isSelected}
+                isCleanView={isCleanView()}
+                minifiedBakedPreviewSrc={image.minifiedBakedPreviewSrc()}
+                minifiedAnnotationViewport={image.minifiedAnnotationViewport()}
+                displaySrc={image.displaySrc()}
+                artErrorMessage={surface.artErrorMessage()}
+            />
 
         </div>
 
         <Show when={!isMinified() && !isCleanView()}>
             <Show when={props.isSelected && activeStickerEditTargetId() === props.unit.id}>
-                <StickerTopStrip
-                    unitId={props.unit.id}
-                    x={props.unit.x}
-                    y={props.unit.y}
-                    stickerWidth={props.unit.w}
-                    stickerHeight={props.unit.h}
-                    supportsBitmapTools={props.unit.type === "sticker"}
-                    isArt={props.unit.type === "art"}
-                    surfaceViews={surfaceViews()}
-                    selectedSurfaceViewId={selectedSurfaceView()?.id}
-                    onSurfaceViewChange={selectSurfaceView}
-                />
+                <Suspense>
+                    <StickerTopStrip
+                        unitId={props.unit.id}
+                        x={props.unit.x}
+                        y={props.unit.y}
+                        stickerWidth={props.unit.w}
+                        stickerHeight={props.unit.h}
+                        supportsBitmapTools={props.unit.type === "sticker"}
+                        isArt={props.unit.type === "art"}
+                        surfaceViews={surface.surfaceViews()}
+                        selectedSurfaceViewId={surface.selectedSurfaceView()?.id}
+                        onSurfaceViewChange={surface.selectSurfaceView}
+                    />
+                </Suspense>
             </Show>
             <Show when={showSelectionBorder()}>
-                <div
-                    class="selection-border"
-                    style={{
-                        inset: props.isSelected ? "-2px" : "-1px",
-                        border: props.isSelected
-                            ? "2px solid white"
-                            : `1px solid rgba(255,255,255,${Math.max(0.2, getOpacity())})`,
-                        "pointer-events": "none",
-                    }}
-                />
+                <UnitSelectionBorder isSelected={props.isSelected} opacity={image.opacity()} />
             </Show>
         </Show>
 
@@ -1639,21 +446,23 @@ export const UnitView: Component<Props> = (props) => {
 
         {/* Unit Params Panel (Handling Inputs, Outputs, Params, Header) */}
         <Show when={props.showParams}>
-             <UnitParamsPanel
-                 unit={props.unit}
-                 params={props.params}
-                 execConfig={props.execConfig}
-                 capability={props.capability}
-                 connectedLinks={props.connectedLinks}
-                 resolveUnitImage={props.resolveUnitImage}
-                 availableArts={props.availableArts}
-                 onParamChange={props.onParamChange}
-                 onLinkStart={props.onLinkStart}
-                 onLinkDrop={props.onLinkDrop}
-                 onLinkHover={props.onLinkHover}
-                 onLinkMove={props.onLinkMove}
-                 onAddNode={props.onAddNode}
-             />
+             <Suspense>
+                 <UnitParamsPanel
+                     unit={props.unit}
+                     params={props.params}
+                     execConfig={props.execConfig}
+                     capability={props.capability}
+                     connectedLinks={props.connectedLinks}
+                     resolveUnitImage={props.resolveUnitImage}
+                     availableArts={props.availableArts}
+                     onParamChange={props.onParamChange}
+                     onLinkStart={props.onLinkStart}
+                     onLinkDrop={props.onLinkDrop}
+                     onLinkHover={props.onLinkHover}
+                     onLinkMove={props.onLinkMove}
+                     onAddNode={props.onAddNode}
+                 />
+             </Suspense>
         </Show>
 
         {/* Unit Add Node Menu (Center Overlay) */}

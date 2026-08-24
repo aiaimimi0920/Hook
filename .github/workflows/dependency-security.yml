@@ -1,0 +1,43 @@
+name: Dependency Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "30 18 * * 0"
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      checkout-ref:
+        description: Exact branch, tag, or commit to scan
+        required: false
+        type: string
+
+concurrency:
+  group: dependency-security-${{ github.event.pull_request.number || inputs.checkout-ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  osv:
+    name: Scan committed dependency locks
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@0c58c542420dfd23fcac08dd9c8ca3cca9c36f1a
+    with:
+      ref: ${{ inputs.checkout-ref || github.ref }}
+      scan-args: |-
+        --config=./security/osv-scanner.toml
+        --lockfile=./package-lock.json
+        --lockfile=./src-tauri/Cargo.lock
+        --lockfile=./src-tauri/crates/drag/Cargo.lock
+        --lockfile=./src-tauri/crates/scap-direct3d/Cargo.lock
+      upload-sarif: true
+      fail-on-vuln: true
+    permissions:
+      actions: read
+      contents: read
+      security-events: write

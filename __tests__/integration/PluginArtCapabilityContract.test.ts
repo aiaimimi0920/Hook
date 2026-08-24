@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { readLoomHookRustSources } from "../helpers/loomHookRustSources";
 
 const source = (relativePath: string) => readFileSync(resolve(process.cwd(), relativePath), "utf8");
 
@@ -17,7 +18,11 @@ describe("plugin Art capability boundary", () => {
     ];
     const productionFiles = [
       "src/app.tsx",
+      "src/components/UnitParamsCandidateResults.tsx",
+      "src/components/UnitParamsExpandedSettings.tsx",
       "src/components/UnitParamsPanel.tsx",
+      "src/components/UnitParamsPortRows.tsx",
+      "src/components/UnitParamsScrollRegion.tsx",
       "src/components/UnitView.tsx",
       "src/hooks/useNodeParameters.ts",
       "src/services/protocol.ts",
@@ -33,29 +38,29 @@ describe("plugin Art capability boundary", () => {
   });
 
   it("renders candidate results through generic capability/result contracts", () => {
-    const panel = source("src/components/UnitParamsPanel.tsx");
+    const candidateResults = source("src/components/UnitParamsCandidateResults.tsx");
     const protocol = source("src/services/protocol.ts");
 
-    expect(panel).not.toContain("imageSearch");
-    expect(panel).not.toContain("搜索结果");
-    expect(panel).toContain("候选");
+    expect(candidateResults).not.toContain("imageSearch");
+    expect(candidateResults).not.toContain("搜索结果");
+    expect(candidateResults).toContain("候选");
     expect(protocol).toContain("ArtResultCandidate");
     expect(protocol).toContain("candidates?: ArtResultCandidateMetadata");
   });
 
   it("activates shader behavior from capability metadata instead of a concrete execution enum", () => {
-    const unitView = source("src/components/UnitView.tsx");
+    const surfaceController = source("src/components/unitSurfaceController.ts");
     const parameters = source("src/hooks/useNodeParameters.ts");
     const protocol = source("src/services/protocol.ts");
 
-    expect(unitView).toContain("supportsShaderPreview");
+    expect(surfaceController).toContain("supportsShaderPreview");
     expect(parameters).toContain("supportsShaderPreview");
     expect(parameters).not.toContain("artCapability?.execution_type === 'shader'");
     expect(protocol).toContain("capabilities?: ArtCapabilityMetadata");
   });
 
   it("delegates every enabled package Art to Loom instead of maintaining an execution whitelist", () => {
-    const backend = source("src-tauri/src/loom_hook.rs");
+    const backend = readLoomHookRustSources();
     const tauriEntry = source("src-tauri/src/lib.rs");
 
     expect(backend).toContain('"method": "loom.hook.art.execute"');
@@ -70,7 +75,7 @@ describe("plugin Art capability boundary", () => {
   });
 
   it("uses a bounded response timeout longer than Loom's framework process budget", () => {
-    const backend = source("src-tauri/src/loom_hook.rs");
+    const backend = readLoomHookRustSources();
 
     expect(backend).toContain("Duration::from_secs(150)");
     expect(backend).not.toContain("ARTLOOM_WS_RESPONSE_GRACE_SECS");

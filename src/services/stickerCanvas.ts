@@ -28,6 +28,15 @@ export const applyLineDash = (
     context.setLineDash(getDashSegments(dashPattern, width));
 };
 
+/** Normalizes a canvas dimension while rejecting values that browsers coerce to zero. */
+export const resolveFiniteCanvasDimension = (value: number, label: string) => {
+    const rounded = Math.round(value);
+    if (!Number.isFinite(rounded)) {
+        throw new Error(`Invalid canvas dimension: ${label}`);
+    }
+    return Math.max(1, rounded);
+};
+
 /**
  * Draw a stroked path through the given points on a canvas context.
  * Handles single-point paths as circles, multi-point paths as polylines.

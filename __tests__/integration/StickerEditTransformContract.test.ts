@@ -12,13 +12,15 @@ describe("sticker edit transform contract", () => {
     const unitViewSource = readSource("src/components/UnitView.tsx");
     const canvasUnitsSource = readSource("src/components/CanvasUnits.tsx");
     const propertyBarSource = readSource("src/components/StickerTopStripPropertyBar.tsx");
+    const propertyBarCropSource = readSource("src/components/stickerTopStripPropertyBarCropController.ts");
     const nodeParametersSource = readSource("src/hooks/useNodeParameters.ts");
 
     expect(graphStoreSource).toContain("scaleStickerEditDataForFrame");
     expect(graphStoreSource).toContain("resizeStickerFrame");
     expect(unitViewSource).toContain("props.onResize(computeStickerWheelResizeFrame(");
     expect(canvasUnitsSource).toContain("graphStore.actions.resizeStickerFrame(u.id");
-    expect(propertyBarSource).toContain("graphStore.actions.resizeStickerFrame(props.unitId");
+    expect(propertyBarSource).toContain("createPropertyBarCropController");
+    expect(propertyBarCropSource).toMatch(/graphStore\.actions\.resizeStickerFrame\(\s*options\.unitId\(\)/);
     expect(nodeParametersSource).toContain("graphStore.actions.resizeStickerFrame(unitId");
   });
 
@@ -52,10 +54,11 @@ describe("sticker edit transform contract", () => {
 
   it("applies sticker opacity at the visual layer so annotations fade with the image", () => {
     const unitViewSource = readSource("src/components/UnitView.tsx");
+    const surfaceContentSource = readSource("src/components/UnitSurfaceContent.tsx");
 
     expect(unitViewSource).toContain('class="sticker-visual"');
-    expect(unitViewSource).toContain('"opacity": getOpacity()');
-    expect(unitViewSource).toContain("opacity={1}");
+    expect(unitViewSource).toContain('"opacity": image.opacity()');
+    expect(surfaceContentSource).toContain("opacity={1}");
     expect(unitViewSource).not.toContain('"opacity": getImageOpacity()');
   });
 });

@@ -104,6 +104,10 @@ unless release behavior or embedded assets changed.
 - Never commit a PFX, private key, signing token, or private provider identifier.
 - Every signed installer request must use the hosted reviewed workflow and fail
   closed when approval or configuration is missing.
+- Run the exact-lock inventory and OSV gate described in
+  [`docs/DEPENDENCY_SECURITY.md`](docs/DEPENDENCY_SECURITY.md) before release.
+- Formal release evidence and draft-first publication follow
+  [`docs/release-provenance.md`](docs/release-provenance.md).
 
 ## 8. Documentation discipline
 

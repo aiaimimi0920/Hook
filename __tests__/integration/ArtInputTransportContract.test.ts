@@ -1,13 +1,9 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-
-const readSource = (relativePath: string) =>
-  readFileSync(resolve(process.cwd(), relativePath), "utf8");
+import { readLoomHookRustSources } from "../helpers/loomHookRustSources";
 
 describe("Art input transport contract", () => {
   it("uses negotiated shared memory for large local inputs while retaining inline-resource fallback", () => {
-    const bridge = readSource("src-tauri/src/loom_hook.rs");
+    const bridge = readLoomHookRustSources();
 
     expect(bridge).toContain("SHARED_MEMORY_ART_INPUT_MIN_BYTES");
     expect(bridge).toContain("fn prepare_hook_input(");
@@ -21,7 +17,7 @@ describe("Art input transport contract", () => {
   });
 
   it("binds the transport choice to the negotiated local session", () => {
-    const bridge = readSource("src-tauri/src/loom_hook.rs");
+    const bridge = readLoomHookRustSources();
 
     expect(bridge).toContain("negotiated_transport: TransportMode");
     expect(bridge).toContain("current.negotiated_transport = response.transport.clone()");

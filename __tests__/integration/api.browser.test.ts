@@ -1,79 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-type MessageHandler = (event: { data: string }) => void;
-
-class MockWebSocket {
-  static readonly CONNECTING = 0;
-  static readonly OPEN = 1;
-  static readonly CLOSING = 2;
-  static readonly CLOSED = 3;
-  static instances: MockWebSocket[] = [];
-
-  readonly url: string;
-  readonly sent: string[] = [];
-  readyState = MockWebSocket.CONNECTING;
-  onopen: (() => void) | null = null;
-  onmessage: MessageHandler | null = null;
-  onclose: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-
-  constructor(url: string) {
-    this.url = url;
-    MockWebSocket.instances.push(this);
-  }
-
-  open() {
-    this.readyState = MockWebSocket.OPEN;
-    this.onopen?.();
-  }
-
-  send(payload: string) {
-    this.sent.push(payload);
-  }
-
-  emitMessage(payload: unknown) {
-    this.onmessage?.({ data: JSON.stringify(payload) });
-  }
-
-  close() {
-    this.readyState = MockWebSocket.CLOSED;
-    this.onclose?.();
-  }
-}
-
-const createLocalStorageMock = () => {
-  const store = new Map<string, string>();
-  return {
-    getItem: vi.fn((key: string) => store.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => {
-      store.set(key, value);
-    }),
-    removeItem: vi.fn((key: string) => {
-      store.delete(key);
-    }),
-    clear: vi.fn(() => {
-      store.clear();
-    }),
-    setRaw: (key: string, value: string) => {
-      store.set(key, value);
-    },
-    dump: () => Object.fromEntries(store.entries()),
-  };
-};
-
-const installBrowserGlobals = (localStorageMock = createLocalStorageMock()) => {
-  const target = new EventTarget();
-  vi.stubGlobal('WebSocket', MockWebSocket as unknown as typeof WebSocket);
-  vi.stubGlobal('window', {
-    setTimeout,
-    clearTimeout,
-    localStorage: localStorageMock,
-    addEventListener: target.addEventListener.bind(target),
-    removeEventListener: target.removeEventListener.bind(target),
-    dispatchEvent: target.dispatchEvent.bind(target),
-  });
-  return localStorageMock;
-};
+import { installBrowserGlobals, MockWebSocket } from '../helpers/browserApiTestHarness';
 
 describe('Hook api browser mode', () => {
   beforeEach(() => {
@@ -127,6 +53,21 @@ describe('Hook api browser mode', () => {
     });
 
     await expect(pending).resolves.toBeUndefined();
+  });
+
+  it('request sockets close immediately when Loom sends malformed JSON', async () => {
+    installBrowserGlobals();
+    const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout');
+    const { api } = await import('../../src/services/api');
+
+    const pending = api.performOcr('data:image/png;base64,abc123');
+    const socket = MockWebSocket.instances.at(-1)!;
+    socket.open();
+    socket.emitRawMessage('{');
+
+    await expect(pending).rejects.toBeInstanceOf(SyntaxError);
+    expect(clearTimeoutSpy).toHaveBeenCalledOnce();
+    expect(socket.readyState).toBe(MockWebSocket.CLOSED);
   });
 
   it('browser Art execution emits the formal terminal delivery', async () => {
@@ -417,6 +358,7 @@ describe('Hook api browser mode', () => {
     socket.onerror?.();
 
     await expect(pending).resolves.toBeUndefined();
+    expect(socket.readyState).toBe(MockWebSocket.CLOSED);
 
     expect(ready).toHaveBeenCalledOnce();
     expect((ready.mock.calls[0][0] as CustomEvent).detail).toMatchObject({
@@ -463,174 +405,38 @@ describe('Hook api browser mode', () => {
     expect(socket!.readyState).toBe(MockWebSocket.CLOSED);
   });
 
-  it('saveSession compacts oversized browser preview payloads after quota failure', async () => {
-    const localStorageMock = createLocalStorageMock();
-    const quotaError = new Error('Quota exceeded');
-    localStorageMock.setItem
-      .mockImplementationOnce(() => {
-        throw quotaError;
-      })
-      .mockImplementation((key: string, value: string) => {
-        localStorageMock.setRaw(key, value);
-      });
-
-    installBrowserGlobals(localStorageMock);
-    const { api } = await import('../../src/services/api');
-
-    const hugeDataUrl = `data:image/png;base64,${'A'.repeat(10000)}`;
-    await api.saveSession(
-      [
-        {
-          id: 'u-1',
-          src: hugeDataUrl,
-          previewSrc: hugeDataUrl,
-        },
-      ],
-      []
-    );
-
-    expect(localStorageMock.setItem).toHaveBeenCalledTimes(2);
-    const compactPayload = JSON.parse(localStorageMock.setItem.mock.calls[1][1]);
-    expect(compactPayload.stickers[0].src).toBeNull();
-    expect(compactPayload.stickers[0].previewSrc).toBeNull();
-  });
-
-  it('saveSession compares and advances the browser document revision', async () => {
-    const localStorageMock = installBrowserGlobals();
-    const { api } = await import('../../src/services/api');
-
-    await expect(api.saveSession([], [], [], [], [], { workflows: {} }, 0)).resolves.toEqual({
-      documentRevision: 1,
-    });
-    await expect(api.saveSession([], [], [], [], [], { workflows: {} }, 0)).rejects.toThrow(
-      'SESSION_REVISION_CONFLICT expected 0, current 1',
-    );
-
-    const stored = JSON.parse(Object.values(localStorageMock.dump())[0]);
-    expect(stored).toMatchObject({ documentSchemaVersion: 1, documentRevision: 1 });
-  });
-
-  it('loadSession rejects a future browser document schema without overwriting it', async () => {
-    const localStorageMock = createLocalStorageMock();
-    const future = JSON.stringify({
-      documentSchemaVersion: 2,
-      documentRevision: 7,
-      stickers: [],
-      links: [],
-    });
-    localStorageMock.setRaw('hook_browser_preview_session', future);
-    installBrowserGlobals(localStorageMock);
-    const { api } = await import('../../src/services/api');
-
-    await expect(api.loadSession()).rejects.toThrow('SESSION_SCHEMA_UNSUPPORTED');
-    expect(Object.values(localStorageMock.dump())).toContain(future);
-  });
-
-  it('prefetchShader returns unsupported fallback in browser preview mode', async () => {
+  it('browser push socket refreshes subscriptions when listener methods change', async () => {
     installBrowserGlobals();
-    const { api } = await import('../../src/services/api');
+    const { listenBrowserLoomHookMethod } = await import('../../src/services/api');
+    const workflowHandler = vi.fn();
+    const artHandler = vi.fn();
 
-    await expect(
-      api.prefetchShader({
-        artId: 'shader-1',
-        inputPath: null,
-        referencePath: null,
-      })
-    ).resolves.toMatchObject({
-      type: 'unsupported',
-      success: false,
-    });
-  });
+    const unlistenWorkflow = listenBrowserLoomHookMethod(
+      'loom.hook.workflow.instantiated',
+      workflowHandler,
+    );
+    const socket = MockWebSocket.instances.at(-1)!;
+    socket.open();
 
-  it('performOcr delegates to the Loom Hook websocket request path', async () => {
-    installBrowserGlobals();
-    const { api } = await import('../../src/services/api');
-
-    const pending = api.performOcr('data:image/png;base64,abc123');
-
-    const socket = MockWebSocket.instances.at(-1);
-    expect(socket).toBeTruthy();
-
-    socket!.open();
-    const ocrRequest = JSON.parse(socket!.sent[0]);
-    expect(ocrRequest).toMatchObject({
-      method: 'loom.hook.ocr.execute',
-      params: { imageBase64: 'data:image/png;base64,abc123' },
-    });
-
-    socket!.emitMessage({
-      protocolVersion: 'loom.hook.v1',
-      requestId: ocrRequest.params.requestId,
-      status: 'succeeded',
-      data: {
-        fullText: 'hello',
-        textBlocks: [],
+    const unlistenArt = listenBrowserLoomHookMethod('loom.hook.art.progress', artHandler);
+    expect(JSON.parse(socket.sent.at(-1)!)).toMatchObject({
+      method: 'loom.hook.subscribe',
+      params: {
+        events: ['loom.hook.workflow.instantiated', 'loom.hook.art.progress'],
       },
     });
 
-    await expect(pending).resolves.toMatchObject({
-      fullText: 'hello',
-      textBlocks: [],
-    });
-  });
-
-  it('translateText delegates to the Loom Hook websocket request path', async () => {
-    installBrowserGlobals();
-    const { api } = await import('../../src/services/api');
-
-    const pending = api.translateText('hello', 'zh');
-
-    const socket = MockWebSocket.instances.at(-1);
-    expect(socket).toBeTruthy();
-
-    socket!.open();
-    const translationRequest = JSON.parse(socket!.sent[0]);
-    expect(translationRequest).toMatchObject({
-      method: 'loom.hook.translation.execute',
-      params: { text: 'hello', targetLanguage: 'zh' },
-    });
-
-    socket!.emitMessage({
+    socket.emitMessage({
       protocolVersion: 'loom.hook.v1',
-      requestId: translationRequest.params.requestId,
-      status: 'succeeded',
-      data: {
-        translatedText: '你好',
-      },
+      method: 'loom.hook.art.progress',
+      params: { requestId: 'art:req-1', progress: 0.5 },
     });
+    expect(artHandler).toHaveBeenCalledWith({ requestId: 'art:req-1', progress: 0.5 });
 
-    await expect(pending).resolves.toBe('你好');
+    unlistenWorkflow();
+    expect(socket.readyState).toBe(MockWebSocket.OPEN);
+    unlistenArt();
+    expect(socket.readyState).toBe(MockWebSocket.CLOSED);
   });
 
-  it('createTeaTicket is Tauri-only and rejects in browser preview mode', async () => {
-    installBrowserGlobals();
-    const { api } = await import('../../src/services/api');
-
-    await expect(
-      api.createTeaTicket({
-        source: 'hook-browser-preview',
-        text: 'Create a Tea ticket from Hook',
-        context: {
-          active_window: 'Browser Preview',
-          selection_text: 'selected text',
-          ocr_text: null,
-          screenshot_ref: null,
-          cwd: 'C:\\repo',
-          app: 'hook',
-        },
-        attachments: [],
-      }),
-    ).rejects.toThrow('Tea ticket creation requires the Tauri desktop runtime');
-  });
-
-  it('invokeLoomBrainPlan is Tauri-only and rejects in browser preview mode', async () => {
-    installBrowserGlobals();
-    const { api } = await import('../../src/services/api');
-
-    await expect(
-      api.invokeLoomBrainPlan({
-        goal: 'Plan from browser preview',
-      }),
-    ).rejects.toThrow('Loom brain planning requires the Tauri desktop runtime');
-  });
 });

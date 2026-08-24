@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 const hookRoot = process.cwd();
 const buildWorkflowPath = resolve(hookRoot, ".github/workflows/build-hook-exe.yml");
 const releaseWorkflowPath = resolve(hookRoot, ".github/workflows/release-hook-tag.yml");
+const formalBuildScriptPath = resolve(hookRoot, "scripts/build-release.ps1");
 const installerPackageScriptPath = resolve(
   hookRoot,
   "scripts/package-uiaccess-installer-zip.ps1",
@@ -16,6 +17,7 @@ const readmeZhPath = resolve(hookRoot, "README.zh-CN.md");
 
 const buildWorkflowSource = readFileSync(buildWorkflowPath, "utf8");
 const releaseWorkflowSource = readFileSync(releaseWorkflowPath, "utf8");
+const formalBuildScriptSource = readFileSync(formalBuildScriptPath, "utf8");
 const installerPackageScriptExists = existsSync(installerPackageScriptPath);
 const installerPackageScriptSource = installerPackageScriptExists
   ? readFileSync(installerPackageScriptPath, "utf8")
@@ -42,7 +44,8 @@ describe("Hook dual distribution contract", () => {
 
   it("publishes only the portable tag-release asset in the current phase while keeping the future installer asset contract out of the active release workflow", () => {
     expect(releaseWorkflowSource).toContain("hook-windows-x64-${{ env.HOOK_TAG }}.zip");
-    expect(releaseWorkflowSource).toContain("package-release-zip.ps1");
+    expect(releaseWorkflowSource).toContain("build-release.ps1");
+    expect(formalBuildScriptSource).toContain("package-release-zip.ps1");
     expect(releaseWorkflowSource).not.toContain("hook-windows-uiaccess-installer-${{ env.HOOK_TAG }}.zip");
     expect(releaseWorkflowSource).not.toContain("package-uiaccess-installer-zip.ps1");
     expect(releaseWorkflowSource).not.toContain("HOOK_WINDOWS_UIACCESS_PFX_BASE64");

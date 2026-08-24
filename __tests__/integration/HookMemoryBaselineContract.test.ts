@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -7,17 +8,21 @@ const propertyBarSource = readFileSync(
     resolve(process.cwd(), "src/components/StickerTopStripPropertyBar.tsx"),
     "utf8",
 );
+const installedFontLoaderSource = readFileSync(
+    resolve(process.cwd(), "src/services/installedStickerFontLoader.ts"),
+    "utf8",
+);
 const unitParamsPanelSource = readFileSync(
     resolve(process.cwd(), "src/components/UnitParamsPanel.tsx"),
     "utf8",
 );
-const rustSource = readFileSync(resolve(process.cwd(), "src-tauri/src/lib.rs"), "utf8");
+const rustSource = readHookLibRustSources();
 
 describe("Hook memory baseline contract", () => {
     it("does not eagerly enumerate installed fonts during startup and instead keeps font loading on demand", () => {
         expect(appSource).not.toContain("loadInstalledFontsInBackground();");
         expect(propertyBarSource).toContain("loadInstalledFontsOnDemand");
-        expect(propertyBarSource).toContain("api.getInstalledFonts()");
+        expect(installedFontLoaderSource).toContain("api.getInstalledFonts()");
     });
 
     it("eagerly installs global overlay hooks during app setup because global shortcuts are fixed baseline behavior", () => {

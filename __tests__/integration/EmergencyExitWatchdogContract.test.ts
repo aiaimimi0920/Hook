@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 
 const root = process.cwd();
 const watchdog = readFileSync(
@@ -8,7 +9,7 @@ const watchdog = readFileSync(
     "utf8",
 );
 const main = readFileSync(resolve(root, "src-tauri/src/main.rs"), "utf8");
-const lib = readFileSync(resolve(root, "src-tauri/src/lib.rs"), "utf8");
+const lib = readHookLibRustSources();
 
 describe("Hook emergency exit watchdog contract", () => {
     it("runs outside the Tauri event loop and terminates the parent on physical triple Escape", () => {

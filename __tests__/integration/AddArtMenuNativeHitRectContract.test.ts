@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 
 const readSource = (relativePath: string) =>
   fs.readFileSync(path.resolve(process.cwd(), relativePath), "utf8");
@@ -29,7 +30,7 @@ describe("Add Art native hit rectangle contract", () => {
   });
 
   it("keeps low-level hit testing global while converting shield regions back to window-local coordinates", () => {
-    const source = readSource("src-tauri/src/lib.rs");
+    const source = readHookLibRustSources();
     const updateBlock = sourceBetween(source, "fn update_pin_rects(", "#[tauri::command]\nfn set_mouse_monitor_active");
     const shieldBlock = sourceBetween(
       source,
@@ -46,12 +47,12 @@ describe("Add Art native hit rectangle contract", () => {
   });
 
   it("forwards native overlay mouseup through a stable window event before DOM synthesis", () => {
-    const appSource = readSource("src/app.tsx");
+    const pointerListenerSource = readSource("src/services/appPointerListeners.ts");
     const menuSource = readSource("src/components/UnitAddNodeMenu.tsx");
     const mouseUpBlock = sourceBetween(
-      appSource,
-      'const unlistenOverlayMouseUp = await listen<OverlaySyntheticMousePayload>(',
-      'const unlistenOverlayMouseWheel = await listen<OverlaySyntheticMousePayload>(',
+      pointerListenerSource,
+      'listen<OverlaySyntheticMousePayload>(\n        "overlay/global_mouse_up",',
+      'listen<OverlaySyntheticMousePayload>(\n        "overlay/global_mouse_wheel",',
     );
 
     const stableEventIndex = mouseUpBlock.indexOf("OVERLAY_GLOBAL_MOUSE_UP_EVENT");

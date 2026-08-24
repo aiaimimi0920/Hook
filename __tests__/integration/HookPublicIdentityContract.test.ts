@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 
 const tauriConfig = JSON.parse(
     readFileSync(resolve(process.cwd(), "src-tauri/tauri.conf.json"), "utf8"),
 );
-const rustSource = readFileSync(resolve(process.cwd(), "src-tauri/src/lib.rs"), "utf8");
+const rustSource = readHookLibRustSources();
 const readmeSource = readFileSync(resolve(process.cwd(), "README.md"), "utf8");
 const architectureSource = readFileSync(
     resolve(process.cwd(), "TECHNICAL_ARCHITECTURE.md"),

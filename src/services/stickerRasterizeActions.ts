@@ -13,6 +13,10 @@ import {
     type StickerRasterizeScope,
 } from "./stickerRasterize";
 import { syncService } from "./syncService";
+import {
+    createStickerAsyncEditGuard,
+    isStickerAsyncEditGuardCurrent,
+} from "./stickerAsyncEditGuard";
 
 export const rasterizeStickerAnnotationsForUnit = async (params: {
     unitId: string;
@@ -30,8 +34,11 @@ export const rasterizeStickerAnnotationsForUnit = async (params: {
     );
     if (annotationIds.length === 0) return false;
 
+    let committed = false;
     try {
         const currentUnit = params.currentUnit;
+        const requestGuard = createStickerAsyncEditGuard(currentUnit);
+        const historySnapshot = captureStickerEditSnapshot(currentUnit, { includeImageData: true });
         const baseLayerSrc = await renderStickerBaseLayer(currentUnit);
         const rasterizedAnnotationLayerSrc = await renderStickerTransparentAnnotationLayer(
             currentUnit,
@@ -42,9 +49,12 @@ export const rasterizeStickerAnnotationsForUnit = async (params: {
             rasterizedAnnotationLayerSrc,
             { w: currentUnit.w, h: currentUnit.h },
         );
+        const latestUnit = graphStore.units.find((unit) => unit.id === params.unitId);
+        if (!isStickerAsyncEditGuardCurrent(requestGuard, latestUnit)) return false;
+
         uiActions.pushStickerHistory(
             params.unitId,
-            captureStickerEditSnapshot(currentUnit, { includeImageData: true }),
+            historySnapshot,
         );
         graphStore.actions.updateUnitData(
             params.unitId,
@@ -58,10 +68,13 @@ export const rasterizeStickerAnnotationsForUnit = async (params: {
                 annotationIds,
             ),
         );
+        committed = true;
         await syncService.performWorkflowSync();
         return true;
     } catch (error) {
         console.error("Rasterize sticker annotations failed", error);
-        return false;
+        // A backend sync failure does not roll back the already-applied local
+        // mutation. Report the local commit so callers clear stale selection.
+        return committed;
     }
 };

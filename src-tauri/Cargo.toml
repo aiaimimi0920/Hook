@@ -1,6 +1,6 @@
 [package]
 name = "hook"
-version = "0.1.7"
+version = "0.1.8"
 description = "Windows-first Tauri desktop capture, sticker editing, and visual workflow workspace."
 authors = ["yamiyu"]
 edition = "2021"
@@ -44,7 +44,8 @@ toml = "0.8"
 thiserror = "1"
 hound = "3"
 async-trait = "0.1"
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls", "stream"] }
+futures-util = "0.3"
 image = "0.25.9"
 half = "2.7"
 png = "0.18"
@@ -111,6 +112,7 @@ windows = { version = "0.60.0", features = [
     "Win32_Storage_Xps",
     "Win32_System_Memory",
     "Win32_Security",
+    "Win32_Security_Cryptography",
     "Win32_UI_Shell",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Controls_Dialogs",

@@ -14,7 +14,8 @@ describe("Hook sticker color copy contract", () => {
         // single color-editing surface after the legacy popover was removed.
         expect(colorPickerSource).toContain("复制HEX");
         expect(colorPickerSource).toContain("复制RGB");
-        expect(colorPickerSource).toContain("navigator.clipboard.writeText");
+        expect(colorPickerSource).toContain("const clipboard = navigator.clipboard");
+        expect(colorPickerSource).toContain("clipboard.writeText(text)");
         expect(colorPickerSource).toContain("rgba(");
     });
 });

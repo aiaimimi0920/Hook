@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -16,7 +17,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 describe("input lifecycle hardening contract", () => {
   it("invalidates stale delayed capture work before it can clean up a newer session", () => {
     const selectionSource = readSource("src/hooks/useSelection.ts");
-    const appSource = readSource("src/app.tsx");
+    const nativeActionSource = readSource("src/services/appNativeActionController.ts");
     const selectionEndBlock = sourceBetween(
       selectionSource,
       "const handleSelectionEnd = async",
@@ -34,12 +35,12 @@ describe("input lifecycle hardening contract", () => {
     expect(selectionEndBlock).toContain(
       "if (!isLongCapture && isCaptureSessionCurrent(sessionGeneration))",
     );
-    expect(appSource).toContain("beginCaptureSessionLifecycle();");
-    expect(appSource).toContain("invalidateCaptureSessionLifecycle();");
+    expect(nativeActionSource).toContain("dependencies.beginCaptureSessionLifecycle();");
+    expect(nativeActionSource).toContain("dependencies.invalidateCaptureSessionLifecycle();");
   });
 
   it("uses a bounded ordered mouse queue that coalesces moves while reserving capacity for edges", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const queueImplementation = sourceBetween(
       rustSource,
       "struct CaptureMouseEventQueue {",
@@ -79,7 +80,7 @@ describe("input lifecycle hardening contract", () => {
   });
 
   it("accepts only paired native capture button edges and never synthesizes release from polling", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const hookBlock = sourceBetween(
       rustSource,
       'unsafe extern "system" fn capture_mouse_hook_proc',
@@ -102,7 +103,7 @@ describe("input lifecycle hardening contract", () => {
   });
 
   it("suppresses sub-35ms Up/Down bounce and coalesces move streams without fixed sleeps", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const eventWorker = sourceBetween(
       rustSource,
       'name("hook-capture-mouse-events"',
@@ -131,7 +132,7 @@ describe("input lifecycle hardening contract", () => {
   });
 
   it("does not enqueue duplicate input-shield moves while the low-level hook owns the pointer session", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const inputShield = sourceBetween(
       rustSource,
       "fn route_overlay_input_shield_mouse_message(",
@@ -148,7 +149,7 @@ describe("input lifecycle hardening contract", () => {
   });
 
   it("queries foreground ownership only when Alt is actually pressed", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const mouseHook = sourceBetween(
       rustSource,
       'unsafe extern "system" fn capture_mouse_hook_proc',
@@ -186,7 +187,7 @@ describe("input lifecycle hardening contract", () => {
   });
 
   it("counts triple Escape before every focus, cursor, and native-dialog gate", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const keyboardHook = sourceBetween(
       rustSource,
       'unsafe extern "system" fn overlay_keyboard_hook_proc',
@@ -212,7 +213,7 @@ describe("input lifecycle hardening contract", () => {
   });
 
   it("restores the system cursor on startup, normal exit, panic, and emergency exit", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const setupBlock = sourceBetween(
       rustSource,
       "let single_instance_guard =",
@@ -238,12 +239,12 @@ describe("input lifecycle hardening contract", () => {
   });
 
   it("deduplicates the same bubbling mouse event across root and window handlers", () => {
-    const appSource = readSource("src/app.tsx");
+    const canvasInteractionSource = readSource("src/services/appCanvasInteractions.ts");
 
-    expect(appSource).toContain("const handledGlobalMouseMoveEvents = new WeakSet<Event>();");
-    expect(appSource).toContain("const handledGlobalMouseUpEvents = new WeakSet<Event>();");
-    expect(appSource).toContain("if (handledGlobalMouseMoveEvents.has(e)) return;");
-    expect(appSource).toContain("if (handledGlobalMouseUpEvents.has(e)) return;");
-    expect(appSource).toContain("handleDragMove(e);\n      handleDragEnd();");
+    expect(canvasInteractionSource).toContain("const handledGlobalMouseMoveEvents = new WeakSet<Event>();");
+    expect(canvasInteractionSource).toContain("const handledGlobalMouseUpEvents = new WeakSet<Event>();");
+    expect(canvasInteractionSource).toContain("if (handledGlobalMouseMoveEvents.has(event)) return;");
+    expect(canvasInteractionSource).toContain("if (handledGlobalMouseUpEvents.has(event)) return;");
+    expect(canvasInteractionSource).toContain("handleDragMove(event);\n        handleDragEnd();");
   });
 });

@@ -29,7 +29,8 @@ describe("ColorPicker external-value sync contract", () => {
         expect(source).toContain("const handleAlphaPick = (event: MouseEvent) => {");
         expect(source).toContain("let alphaDragging = false;");
         expect(source).toContain("if (alphaDragging) handleAlphaPick(event);");
-        expect(source).toContain('alphaSliderRef.addEventListener("mousedown", (event) => {');
+        expect(source).toContain('alphaSlider?.addEventListener("mousedown", onAlphaMouseDown);');
+        expect(source).toContain('alphaSlider?.removeEventListener("mousedown", onAlphaMouseDown);');
         expect(source).toContain("data-alpha-slider");
         expect(source).not.toContain('type="range"');
     });

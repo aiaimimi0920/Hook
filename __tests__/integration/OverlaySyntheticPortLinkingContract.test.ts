@@ -16,12 +16,11 @@ const sourceBetween = (source: string, start: string, end: string) => {
 describe("overlay synthetic port linking contract", () => {
   it("resolves live hit targets during an active port-link drag so mouseup can land on the target input port instead of the original output port", () => {
     const appSource = readSource("src/app.tsx");
-    // Synthetic engine extracted into its own module; app.tsx injects linkingState.
-    const overlaySource = readSource("src/services/overlaySyntheticEvents.ts");
+    const dispatchSource = readSource("src/services/overlaySyntheticDispatch.ts");
     const dispatchBlock = sourceBetween(
-      overlaySource,
+      dispatchSource,
       "const dispatchSyntheticOverlayMouseEvent = (",
-      "const relayOverlaySyntheticPointerMove = (event: MouseEvent) =>",
+      "const relayOverlaySyntheticPointerMove = (event: MouseEvent): void =>",
     );
 
     expect(appSource).toContain("linkingState");
@@ -29,10 +28,10 @@ describe("overlay synthetic port linking contract", () => {
     expect(dispatchBlock).toContain("deps.isLinking()");
     expect(dispatchBlock).toContain('type === "mouseup"');
     expect(dispatchBlock).toContain('type === "mousemove"');
-    expect(dispatchBlock).toContain("target = resolveTarget(true);");
+    expect(dispatchBlock).toContain("target = targets.resolveTarget(clientX, clientY, true, appMain);");
 
     const liveTargetIndex = dispatchBlock.indexOf("if (shouldResolveLiveOverlayTarget)");
-    const stickyTargetIndex = dispatchBlock.indexOf("overlaySyntheticPointerTarget", liveTargetIndex);
+    const stickyTargetIndex = dispatchBlock.indexOf("state.pointerTarget", liveTargetIndex);
     expect(liveTargetIndex).toBeGreaterThanOrEqual(0);
     expect(stickyTargetIndex).toBeGreaterThan(liveTargetIndex);
   });

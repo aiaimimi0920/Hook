@@ -132,6 +132,31 @@ export const resolveNativeDragDropPhysicalPointFromPointer = (
     };
 };
 
+/** Converts a local path into a file URL without allowing URI-list line injection. */
+export const resolveUnitDragFileUrl = (filePath: string): string | null => {
+    const hasControlCharacter = Array.from(filePath).some((character) => {
+        const code = character.charCodeAt(0);
+        return code <= 0x1f || code === 0x7f;
+    });
+    if (!filePath || hasControlCharacter) return null;
+    const normalized = filePath.replace(/\\/g, "/");
+    if (normalized.startsWith("//")) {
+        const [host, ...segments] = normalized.slice(2).split("/");
+        if (!host) return null;
+        const encodedPath = segments.map((segment) => encodeURIComponent(segment)).join("/");
+        return `file://${encodeURIComponent(host)}/${encodedPath}`;
+    }
+
+    const rootedPath = normalized.startsWith("/") ? normalized : `/${normalized}`;
+    const encodedPath = rootedPath
+        .split("/")
+        .map((segment, index) => index === 1 && /^[A-Za-z]:$/.test(segment)
+            ? segment
+            : encodeURIComponent(segment))
+        .join("/");
+    return `file://${encodedPath}`;
+};
+
 export const resolveExistingUnitDragFilePath = (unit: Unit): string | undefined => {
     if (isNonEmptyString(unit.data.dragOutFilePath)) {
         return unit.data.dragOutFilePath;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -15,7 +16,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 
 describe("overlay synthetic hover relay contract", () => {
   it("keeps the overlay click-through during sticker hover/click and relies on synthetic mouse relay instead of flipping the native window interactive", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
 
     const hookProcBlock = sourceBetween(
       rustSource,
@@ -38,12 +39,12 @@ describe("overlay synthetic hover relay contract", () => {
       "rdev::EventType::MouseMove { x, y }",
       "_ => {}",
     );
-    // Synthetic engine extracted from app.tsx into its own service module.
-    const overlaySource = readSource("src/services/overlaySyntheticEvents.ts");
+    const dispatchSource = readSource("src/services/overlaySyntheticDispatch.ts");
+    const hoverSource = readSource("src/services/overlaySyntheticHover.ts");
     const dispatchBlock = sourceBetween(
-      overlaySource,
+      dispatchSource,
       "const dispatchSyntheticOverlayMouseEvent = (",
-      "const relayOverlaySyntheticPointerMove = (event: MouseEvent) => {",
+      "const relayOverlaySyntheticPointerMove = (event: MouseEvent): void => {",
     );
 
     expect(moveBlock).toContain("|| overlay_drag_active");
@@ -58,8 +59,8 @@ describe("overlay synthetic hover relay contract", () => {
     expect(rustSource).toContain("OVERLAY_CLICK_THROUGH_ACTIVE.store(click_through, Ordering::SeqCst);");
     expect(rdevMouseMoveBlock).toContain("window.set_ignore_cursor_events(should_ignore)");
 
-    expect(dispatchBlock).toContain("\"mouseenter\"");
-    expect(dispatchBlock).toContain("\"mouseleave\"");
+    expect(hoverSource).toContain("\"mouseenter\"");
+    expect(hoverSource).toContain("\"mouseleave\"");
     expect(dispatchBlock).toContain("\"click\"");
     expect(dispatchBlock).toContain("\"contextmenu\"");
   });

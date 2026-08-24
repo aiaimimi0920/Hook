@@ -6,7 +6,11 @@ const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/St
 const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarSections.tsx");
 const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
 const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(propertyBarSectionsPath, "utf8") : "";
-const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
+const propertyBarCropSource = readFileSync(
+    resolve(process.cwd(), "src/components/stickerTopStripPropertyBarCropController.ts"),
+    "utf8",
+);
+const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}\n${propertyBarCropSource}`;
 
 describe("Hook sticker scale contract", () => {
     it("exposes canvas size as a deferred crop property from the top strip property bar", () => {

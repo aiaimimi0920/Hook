@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -15,7 +16,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 
 describe("overlay input shield window contract", () => {
   it("uses a native no-activate shield window with a rect-union region to block pointer passthrough under stickers without turning the WebView overlay itself interactive", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const updateRectsBlock = sourceBetween(
       rustSource,
       "fn update_pin_rects(",
@@ -42,7 +43,7 @@ describe("overlay input shield window contract", () => {
   });
 
   it("classifies sticker chrome, panels, menus, and ports as synthetic video-safe rects", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
 
     expect(rustSource).toContain("fn is_sticker_body_synthetic_rect");
     expect(rustSource).toContain("fn is_overlay_ui_synthetic_rect");
@@ -61,7 +62,7 @@ describe("overlay input shield window contract", () => {
   });
 
   it("keeps sticker chrome and popup UI inside the native synthetic shield instead of cutting holes that make the WebView receive real hover", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const shieldBlock = sourceBetween(
       rustSource,
       "fn sync_overlay_input_shield_region(",
@@ -75,7 +76,7 @@ describe("overlay input shield window contract", () => {
   });
 
   it("routes synthetic mouse and wheel events while the cursor is inside overlay UI rects such as font dropdowns and context menus", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const routeBlock = sourceBetween(
       rustSource,
       "fn should_route_overlay_mouse_events(",
@@ -87,7 +88,7 @@ describe("overlay input shield window contract", () => {
   });
 
   it("uses the native input shield wndproc as a fallback when Task Manager or another elevated foreground window prevents low-level hook routing", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const createShieldBlock = sourceBetween(
       rustSource,
       "fn ensure_overlay_input_shield_window(",
@@ -123,7 +124,7 @@ describe("overlay input shield window contract", () => {
   });
 
   it("keeps the overlay and native input shield at the front of the topmost z-order while stickers are interactive, so Task Manager focus cannot leave stickers unclickable behind it", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const setupBlock = sourceBetween(
       rustSource,
       "fn setup_overlay_window(",
@@ -153,7 +154,7 @@ describe("overlay input shield window contract", () => {
   });
 
   it("yields mouse input when an external fullscreen window is actually above the visual overlay without interrupting an active drag or capture", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const routeBlock = sourceBetween(
       rustSource,
       "fn should_route_overlay_mouse_events(",
@@ -229,7 +230,7 @@ describe("overlay input shield window contract", () => {
   });
 
   it("retries deferred native hwnd-dependent overlay setup when a uiAccess launch reaches app setup before the WebView exposes its HWND", () => {
-    const rustSource = readSource("src-tauri/src/lib.rs");
+    const rustSource = readHookLibRustSources();
     const setupBlock = sourceBetween(
       rustSource,
       "fn setup_overlay_window(",

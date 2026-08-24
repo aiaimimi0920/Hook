@@ -21,6 +21,13 @@ That means:
 - if users hit Windows foreground/elevation interaction limits, the current
   workaround is to launch the portable build as **administrator**.
 
+Portable-first describes the executable distribution choice, not a reduced
+supply-chain standard. Formal releases also publish checksums, CycloneDX/SPDX
+SBOMs, build provenance, and a machine-verifiable manifest. The exact-tag
+dependency gate, clean-source build, runtime smoke, GitHub attestations, and
+draft verification are documented in [`release-provenance.md`](release-provenance.md)
+and [`DEPENDENCY_SECURITY.md`](DEPENDENCY_SECURITY.md).
+
 ## Why the repository still keeps installer/UIAccess prep
 
 Hook still keeps all future signed-installer engineering preparation in-repo,

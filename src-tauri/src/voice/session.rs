@@ -1,4 +1,6 @@
-use crate::voice::audio::{capture_audio, AudioArtifact, AudioCaptureRequest, WavSettings};
+use crate::voice::audio::{
+    capture_audio, validate_session_id, AudioArtifact, AudioCaptureRequest, WavSettings,
+};
 use crate::voice::client::{
     FrontContext, HttpTextProcessor, HttpTranscriber, MockTranscriber, NoopTextProcessor,
     TextProcessor, Transcriber,
@@ -73,6 +75,7 @@ pub async fn run_voice_once(
         .session_id
         .clone()
         .unwrap_or_else(|| Uuid::new_v4().to_string());
+    validate_session_id(&session_id)?;
     let mut session = VoiceSession::new(session_id);
     let trigger_events = apply_configured_trigger_sequence(config, &mut session)?;
 

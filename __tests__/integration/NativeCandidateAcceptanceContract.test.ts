@@ -4,10 +4,12 @@ import { describe, expect, it } from "vitest";
 
 describe("Hook native candidate acceptance contract", () => {
   it("approves the isolated pending Hook device before the real Surface probe", () => {
-    const script = readFileSync(
+    const scriptPaths = [
       resolve(process.cwd(), "scripts", "Invoke-HookNativeCandidateAcceptance.ps1"),
-      "utf8",
-    );
+      resolve(process.cwd(), "scripts", "native-candidate-acceptance", "summary-process-wait.ps1"),
+      resolve(process.cwd(), "scripts", "native-candidate-acceptance", "probe-lifecycle.ps1"),
+    ];
+    const script = scriptPaths.map((filePath) => readFileSync(filePath, "utf8")).join("\n");
     const instantiate = script.indexOf("$instantiated = Invoke-JsonPost");
     const approval = script.indexOf("$pairing = Wait-AndApprovePendingHookDevice", instantiate);
     const surfaceProbe = script.indexOf("$surfaceProbe = Invoke-NativeProbe", approval);

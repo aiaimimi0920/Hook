@@ -119,7 +119,10 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 审核元数据，不是安装包。
 
 详见 [`UIACCESS_DISTRIBUTION.md`](UIACCESS_DISTRIBUTION.md) 和
-[`docs/RELEASE_STRATEGY.md`](docs/RELEASE_STRATEGY.md)。
+[`docs/RELEASE_STRATEGY.md`](docs/RELEASE_STRATEGY.md)。正式发布的干净源码构建、
+校验和、SBOM、证明与草稿核验流程见
+[`docs/release-provenance.md`](docs/release-provenance.md)，依赖清单与漏洞响应规则见
+[`docs/DEPENDENCY_SECURITY.md`](docs/DEPENDENCY_SECURITY.md)。
 
 ## 代码签名状态
 

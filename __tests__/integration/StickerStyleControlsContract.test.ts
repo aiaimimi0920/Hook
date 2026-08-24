@@ -9,11 +9,34 @@ const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(prope
 const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
 const propertyBarSectionSource = propertyBarSectionsExists ? propertyBarSectionsSource : propertyBarSource;
 const fieldsSource = readFileSync(resolve(process.cwd(), "src/components/stickerTopStripPropertyBarFields.tsx"), "utf8");
+const propertyBarCropSource = readFileSync(
+    resolve(process.cwd(), "src/components/stickerTopStripPropertyBarCropController.ts"),
+    "utf8",
+);
 const annotationLayerSource = readFileSync(resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"), "utf8");
+const annotationStyleSource = readFileSync(resolve(process.cwd(), "src/components/stickerAnnotationStyle.ts"), "utf8");
+const annotationPointerCommitSource = readFileSync(
+    resolve(process.cwd(), "src/components/stickerAnnotationPointerCommitController.ts"),
+    "utf8",
+);
+const annotationPointerDownSource = readFileSync(
+    resolve(process.cwd(), "src/components/stickerAnnotationPointerDownController.ts"),
+    "utf8",
+);
+const annotationViewModelSource = readFileSync(
+    resolve(process.cwd(), "src/components/stickerAnnotationViewModel.tsx"),
+    "utf8",
+);
+const annotationDraftSource = readFileSync(
+    resolve(process.cwd(), "src/components/StickerAnnotationDraftOverlays.tsx"),
+    "utf8",
+);
 const annotationModelSource = readFileSync(resolve(process.cwd(), "src/components/stickerAnnotationModel.ts"), "utf8");
 const uiStoreSource = readFileSync(resolve(process.cwd(), "src/store/uiStore.ts"), "utf8");
-const stickerEditingSource = readFileSync(resolve(process.cwd(), "src/services/stickerEditing.ts"), "utf8");
-const exportSource = readFileSync(resolve(process.cwd(), "src/services/stickerExport.ts"), "utf8");
+const stickerEditingFacadeSource = readFileSync(resolve(process.cwd(), "src/services/stickerEditing.ts"), "utf8");
+const stickerEditingDefaultsSource = readFileSync(resolve(process.cwd(), "src/services/stickerEditingDefaults.ts"), "utf8");
+const stickerStyleValuesSource = readFileSync(resolve(process.cwd(), "src/services/stickerStyleValues.ts"), "utf8");
+const exportSource = readFileSync(resolve(process.cwd(), "src/services/stickerAnnotationDrawing.ts"), "utf8");
 const typeSource = readFileSync(resolve(process.cwd(), "src/types/stickerEditing.ts"), "utf8");
 
 const sourceBetween = (source: string, start: string, end: string) => {
@@ -48,18 +71,19 @@ describe("Hook sticker style controls contract", () => {
         expect(typeSource).toContain("polygonStrokeColor");
         expect(typeSource).toContain("lineStrokeColor");
 
-        expect(stickerEditingSource).toContain("rectStrokeColor");
-        expect(stickerEditingSource).toContain("rectFillColor");
-        expect(stickerEditingSource).toContain("lineStrokeColor");
-        expect(stickerEditingSource).toContain("shapeCornerRadius");
+        expect(stickerEditingDefaultsSource).toContain("rectStrokeColor");
+        expect(stickerEditingDefaultsSource).toContain("rectFillColor");
+        expect(stickerEditingDefaultsSource).toContain("lineStrokeColor");
+        expect(stickerEditingDefaultsSource).toContain("shapeCornerRadius");
         expect(uiStoreSource).toContain("addStickerPaletteColor");
         expect(uiStoreSource).toContain("removeStickerPaletteColor");
         expect(uiStoreSource).toContain("patchStickerToolSettings");
 
-        expect(annotationLayerSource).toContain("getShapeStrokeColorForMode");
-        expect(annotationLayerSource).toContain("getShapeFillColorForMode");
-        expect(annotationLayerSource).toContain("shapeCornerRadius");
-        expect(annotationLayerSource).toContain("buildRoundedPolygonPath");
+        expect(annotationStyleSource).toContain("getShapeStrokeColorForMode");
+        expect(annotationStyleSource).toContain("getShapeFillColorForMode");
+        expect(annotationStyleSource).toContain("shapeCornerRadius");
+        expect(annotationPointerCommitSource).toContain("getShapeStrokeColorForMode");
+        expect(annotationDraftSource).toContain("buildRoundedPolygonPath");
         expect(annotationModelSource).toContain("isTransparentStickerColor");
         expect(annotationLayerSource).not.toContain("shapeFilled");
         expect(exportSource).toContain("traceRoundedPolygonPath");
@@ -160,10 +184,11 @@ describe("Hook sticker style controls contract", () => {
         expect(typeSource).toContain("serialForegroundColor: string");
         expect(typeSource).toContain("serialFillColor: string");
         expect(typeSource).toContain("serialRadius: number");
-        expect(stickerEditingSource).toContain("serialForegroundColor: \"#ef4444\"");
-        expect(stickerEditingSource).toContain("serialFillColor: \"#000000\"");
-        expect(stickerEditingSource).toContain("serialRadius: 14");
-        expect(stickerEditingSource).toContain("buildSerialAnnotationMetrics");
+        expect(stickerEditingDefaultsSource).toContain("serialForegroundColor: \"#ef4444\"");
+        expect(stickerEditingDefaultsSource).toContain("serialFillColor: \"#000000\"");
+        expect(stickerEditingDefaultsSource).toContain("serialRadius: 14");
+        expect(stickerEditingFacadeSource).toContain("buildSerialAnnotationMetrics");
+        expect(stickerStyleValuesSource).toContain("export const buildSerialAnnotationMetrics");
 
         expect(propertyBarRenderSource).toContain("const renderSerialFields = () => (");
         expect(propertyBarSource).toContain("<Show when={isSerialTool()}>{renderSerialFields()}</Show>");
@@ -180,13 +205,19 @@ describe("Hook sticker style controls contract", () => {
         expect(serialSource).toContain('settingKey="serialRadius"');
         expect(serialSource).not.toContain("renderTextControls()");
 
-        expect(annotationLayerSource).toContain("buildSerialAnnotationMetrics(stickerToolSettings.serialRadius)");
-        expect(annotationLayerSource).toContain("color: stickerToolSettings.serialForegroundColor");
-        expect(annotationLayerSource).toContain("fill: stickerToolSettings.serialFillColor");
-        expect(annotationLayerSource).toContain("cornerRadius: serialMetrics.radius");
-        expect(annotationLayerSource).toContain("const serialMetrics = createMemo(() => buildSerialAnnotationMetrics(text().style.cornerRadius ?? 14))");
-        expect(annotationLayerSource).toContain('dominant-baseline={text().type === "serial" ? "central" : undefined}');
-        expect(annotationLayerSource).toContain("y={text().type === \"serial\" ? text().y - serialFontSize() / 2 : text().y}");
+        expect(annotationPointerDownSource).toContain("buildSerialAnnotationMetrics(");
+        expect(annotationPointerDownSource).toContain(
+            "sanitizeSerialRadius(stickerToolSettings.serialRadius)",
+        );
+        expect(annotationPointerDownSource).toContain("color: stickerToolSettings.serialForegroundColor");
+        expect(annotationPointerDownSource).toContain("fill: stickerToolSettings.serialFillColor");
+        expect(annotationPointerDownSource).toContain("cornerRadius: serialMetrics.radius");
+        expect(annotationViewModelSource).toContain("buildSerialAnnotationMetrics(");
+        expect(annotationViewModelSource).toContain(
+            "sanitizeSerialRadius(text().style.cornerRadius ?? 14)",
+        );
+        expect(annotationViewModelSource).toContain('dominant-baseline={text().type === "serial" ? "central" : undefined}');
+        expect(annotationViewModelSource).toContain("y={text().type === \"serial\" ? text().y - serialFontSize() / 2 : text().y}");
         expect(exportSource).toContain("const serialMetrics = buildSerialAnnotationMetrics(text.style.cornerRadius ?? 14)");
         expect(exportSource).toContain('context.textBaseline = annotation.type === "serial" ? "middle" : "alphabetic";');
         expect(exportSource).toContain("isTransparentStickerColor(text.style.fill)");
@@ -203,7 +234,9 @@ describe("Hook sticker style controls contract", () => {
         expect(propertyBarRenderSource).toContain('settingKey="contentEraserSize"');
         expect(propertyBarRenderSource).toContain('settingKey="mosaicSize"');
         expect(propertyBarRenderSource).toContain('settingKey="blurStrength"');
-        expect(propertyBarSource).toContain('const [cropCornerRadiusDraft, setCropCornerRadiusDraft] = createSignal<string | null>(null);');
+        expect(propertyBarCropSource).toContain(
+            'const [cropCornerRadiusDraft, setCropCornerRadiusDraft] = createSignal<string | null>(null);',
+        );
         expect(propertyBarRenderSource).toMatch(
             /value=\{(?:options\.)?cropCornerRadiusDraft\(\) \?\? String\((?:options\.)?getEditableFrameCornerRadius\(\)\)\}/,
         );

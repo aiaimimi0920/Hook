@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { readLoomHookRustSources } from "../helpers/loomHookRustSources";
 
 const source = (relativePath: string) => readFileSync(resolve(process.cwd(), relativePath), "utf8");
 
@@ -13,7 +14,7 @@ describe("Hook MCP boundary contract", () => {
   });
 
   it("routes every package Art, including MCP Arts, through loom.hook.art.execute", () => {
-    const hookSource = source("src-tauri/src/loom_hook.rs");
+    const hookSource = readLoomHookRustSources();
     expect(hookSource).toContain('"method": "loom.hook.art.execute"');
     expect(hookSource).not.toContain('"method": "art/process"');
     expect(hookSource).not.toContain("effective_execution_type");

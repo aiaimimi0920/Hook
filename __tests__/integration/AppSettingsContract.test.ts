@@ -2,12 +2,15 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+
 const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
 const rustSettings = readSource("src-tauri/src/app_settings.rs");
-const rustEntry = readSource("src-tauri/src/lib.rs");
-const apiSource = readSource("src/services/api.ts");
+const rustEntry = readHookLibRustSources();
+const bootSettingsApiSource = readSource("src/services/apiBootSettings.ts");
 const appSource = readSource("src/app.tsx");
+const commandSource = readSource("src/services/appCommandListeners.ts");
 const dialogSource = readSource("src/components/AppSettingsDialog.tsx");
 
 describe("Hook app settings contract", () => {
@@ -28,9 +31,10 @@ describe("Hook app settings contract", () => {
         expect(rustEntry).not.toContain('MenuItem::with_id(app, "settings"');
         expect(rustEntry).toContain('"settings" => {');
         expect(rustEntry).toContain('window.emit("trigger-open-app-settings", ())');
-        expect(apiSource).toContain("loadAppSettings");
-        expect(apiSource).toContain("saveAppSettings");
-        expect(appSource).toContain('listen("trigger-open-app-settings"');
+        expect(bootSettingsApiSource).toContain("loadAppSettings");
+        expect(bootSettingsApiSource).toContain("saveAppSettings");
+        expect(appSource).toContain("registerAppCommandListeners");
+        expect(commandSource).toContain('listen("trigger-open-app-settings"');
         expect(appSource).toContain("<AppSettingsDialog");
     });
 

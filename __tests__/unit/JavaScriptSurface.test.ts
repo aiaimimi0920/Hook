@@ -13,6 +13,7 @@ import {
     resolveJavaScriptSurfaceFramePoint,
     javaScriptSurfaceBudgetFailure,
     javaScriptSurfaceResourceBudgetFailure,
+    javaScriptSurfaceUtf8ByteLength,
     parseJavaScriptSurfaceDataUrl,
     validateJavaScriptSurfaceHostDragPointer,
     validateJavaScriptSurfaceHostDragStart,
@@ -61,6 +62,7 @@ describe("JavaScript Surface sandbox contract", () => {
         expect(parseJavaScriptSurfaceDataUrl(
             "data:text/javascript;base64,Y29uc29sZS5sb2coMSk=",
         )).toBeUndefined();
+        expect(parseJavaScriptSurfaceDataUrl("data:application/javascript;base64,A")).toBeUndefined();
         expect(parseJavaScriptSurfaceDataUrl("https://example.invalid/main.js")).toBeUndefined();
     });
 
@@ -158,6 +160,8 @@ describe("JavaScript Surface sandbox contract", () => {
             ),
         );
         expect(javaScriptSurfaceResourceBudgetFailure(excessiveResources)).toContain("count budget");
+        expect(javaScriptSurfaceUtf8ByteLength("Aé中😀\ud800")).toBe(13);
+        expect(javaScriptSurfaceUtf8ByteLength("abcdefgh", 4)).toBe(5);
 
         let window = { windowStartedAt: 0, count: 0 };
         for (let index = 0; index < JAVASCRIPT_SURFACE_BUDGETS.maxEventsPerSecond; index += 1) {
@@ -463,14 +467,14 @@ describe("JavaScript Surface sandbox contract", () => {
         );
         expect(source).toContain("snapshotRevision,");
 
-        const unitView = readFileSync(
-            resolve(process.cwd(), "src/components/UnitView.tsx"),
+        const unitSurfaceContent = readFileSync(
+            resolve(process.cwd(), "src/components/UnitSurfaceContent.tsx"),
             "utf8",
         );
 
-        expect(unitView).toContain("onActivate={activateUnit}");
-        expect(unitView).toContain("onDragStart={(event) => {");
-        expect(unitView).toContain("blurActiveEditableOutside(unitContainerRef, props.unit.id)");
+        expect(unitSurfaceContent).toContain("onActivate={props.onActivate}");
+        expect(unitSurfaceContent).toContain("onDragStart={(event) => {");
+        expect(unitSurfaceContent).toContain("blurActiveEditableOutside(props.unitElement, props.unit.id)");
     });
 
     it("filters and throttles the sandbox keydown relay before it reaches the host", () => {

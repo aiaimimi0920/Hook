@@ -3,14 +3,22 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
-const apiSource = readFileSync(resolve(process.cwd(), "src", "services", "api.ts"), "utf8");
+const commandSource = readFileSync(
+  resolve(process.cwd(), "src", "services", "appCommandListeners.ts"),
+  "utf8",
+);
+const teaControllerSource = readFileSync(
+  resolve(process.cwd(), "src", "services", "appTeaTicketController.ts"),
+  "utf8",
+);
+const teaApiSource = readFileSync(resolve(process.cwd(), "src", "services", "apiTea.ts"), "utf8");
 const rustSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "lib.rs"), "utf8");
 
 describe("Hook Tea ticket desktop entry contract", () => {
   it("exposes a Tauri API wrapper for Tea ticket creation", () => {
-    expect(apiSource).toContain("createTeaTicket");
-    expect(apiSource).toContain('"create_tea_ticket"');
-    expect(apiSource).toContain("Tea ticket creation requires the Tauri desktop runtime");
+    expect(teaApiSource).toContain("createTeaTicket");
+    expect(teaApiSource).toContain('"create_tea_ticket"');
+    expect(teaApiSource).toContain("Tea ticket creation requires the Tauri desktop runtime");
   });
 
   it("does not expose canvas or Tea ticket actions in the system tray menu", () => {
@@ -23,11 +31,12 @@ describe("Hook Tea ticket desktop entry contract", () => {
   });
 
   it("listens for the tray event and submits the current Hook context to Tea", () => {
-    expect(appSource).toContain('"trigger-create-tea-ticket"');
+    expect(appSource).toContain("registerAppCommandListeners");
+    expect(commandSource).toContain('"trigger-create-tea-ticket"');
     expect(appSource).toContain("createTeaTicketFromCurrentHookState");
-    expect(appSource).toContain("api.createTeaTicket");
-    expect(appSource).toContain("graphStore.units.length");
-    expect(appSource).toContain("lastVoiceSession()?.outputText");
+    expect(teaControllerSource).toContain("api.createTeaTicket");
+    expect(teaControllerSource).toContain("graphStore.units.length");
+    expect(teaControllerSource).toContain("lastVoiceSession()?.outputText");
   });
 
   it("keeps stable non-visual automation anchors for Tea ticket smoke coverage", () => {

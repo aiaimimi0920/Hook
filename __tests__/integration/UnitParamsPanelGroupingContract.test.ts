@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 
 describe("UnitParamsPanel grouped scrolling contract", () => {
     it("keeps large art parameter panels bounded and scrolls only the parameter list", () => {
-        const source = readFileSync(resolve(process.cwd(), "src", "components", "UnitParamsPanel.tsx"), "utf8");
+        const panelSource = readFileSync(resolve(process.cwd(), "src", "components", "UnitParamsPanel.tsx"), "utf8");
+        const scrollSource = readFileSync(resolve(process.cwd(), "src", "components", "UnitParamsScrollRegion.tsx"), "utf8");
+        const source = `${panelSource}\n${scrollSource}`;
 
         expect(source).toContain("buildArtParamGroups");
         expect(source).toContain("shouldGroupArtParams");
@@ -17,12 +19,12 @@ describe("UnitParamsPanel grouped scrolling contract", () => {
     });
 
     it("uses non-collapsing group labels so every parameter control stays editable", () => {
-        const source = readFileSync(resolve(process.cwd(), "src", "components", "UnitParamsPanel.tsx"), "utf8");
+        const source = readFileSync(resolve(process.cwd(), "src", "components", "UnitParamsScrollRegion.tsx"), "utf8");
 
         expect(source).not.toContain("toggleParamGroupExpanded");
         expect(source).not.toContain("globalParamGroupExpandedRegistry");
         expect(source).not.toContain("<Show when={isParamGroupExpanded(group)}");
-        expect(source).toContain("<For each={group.params}>{(param) => renderParamControl(param)}</For>");
+        expect(source).toContain("<For each={group.params}>{(param) => props.renderParamControl(param)}</For>");
     });
 
     it("extends ArtParam with optional group metadata for future art definitions", () => {
@@ -32,7 +34,10 @@ describe("UnitParamsPanel grouped scrolling contract", () => {
     });
 
     it("defines a visible scrollbar style for the grouped parameter list", () => {
-        const cssSource = readFileSync(resolve(process.cwd(), "src", "app.css"), "utf8");
+        const cssSource = readFileSync(
+            resolve(process.cwd(), "src", "styles", "unit-workspace.css"),
+            "utf8",
+        );
 
         expect(cssSource).toContain(".param-scroll-container");
         expect(cssSource).toContain(".param-scroll-container::-webkit-scrollbar");
@@ -95,7 +100,7 @@ describe("UnitParamsPanel grouped scrolling contract", () => {
     });
 
     it("implements overlay-safe manual wheel and scrollbar dragging for long parameter panels", () => {
-        const panelSource = readFileSync(resolve(process.cwd(), "src", "components", "UnitParamsPanel.tsx"), "utf8");
+        const panelSource = readFileSync(resolve(process.cwd(), "src", "components", "UnitParamsScrollRegion.tsx"), "utf8");
 
         expect(panelSource).toContain("data-param-scrollbar-track");
         expect(panelSource).toContain("data-param-scrollbar-thumb");

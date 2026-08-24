@@ -7,7 +7,10 @@ const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTo
 const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
 const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(propertyBarSectionsPath, "utf8") : "";
 const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
-const annotationLayerSource = readFileSync(resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"), "utf8");
+const pointerCommitSource = readFileSync(
+    resolve(process.cwd(), "src/components/stickerAnnotationPointerCommitController.ts"),
+    "utf8",
+);
 const effectOverlaySource = readFileSync(resolve(process.cwd(), "src/components/StickerEffectOverlay.tsx"), "utf8");
 
 describe("Hook sticker effect controls contract", () => {
@@ -16,8 +19,8 @@ describe("Hook sticker effect controls contract", () => {
         expect(propertyBarRenderSource).toContain('settingKey="blurStrength"');
         expect(propertyBarRenderSource).toContain("MiniNumericField");
 
-        expect(annotationLayerSource).toContain("stickerToolSettings.mosaicSize");
-        expect(annotationLayerSource).toContain("stickerToolSettings.blurStrength");
+        expect(pointerCommitSource).toContain("stickerToolSettings.mosaicSize");
+        expect(pointerCommitSource).toContain("stickerToolSettings.blurStrength");
     });
 
     it("paints mosaic/blur as freehand brush strokes with a brush-size control", () => {
@@ -28,11 +31,12 @@ describe("Hook sticker effect controls contract", () => {
 
         // Effect annotations are committed from a brush draft line, storing the
         // stroke points + brush width alongside the bounding box.
-        expect(annotationLayerSource).toContain('line.mode === "mosaic" || line.mode === "blur"');
-        expect(annotationLayerSource).toContain("stickerToolSettings.effectBrushSize");
-        expect(annotationLayerSource).toContain("points: line.points");
-        expect(annotationLayerSource).toContain("brushWidth");
-        expect(annotationLayerSource).toContain("renderStickerEffectOverlay");
+        expect(pointerCommitSource).toContain('line.mode === "mosaic" || line.mode === "blur"');
+        expect(pointerCommitSource).toContain("stickerToolSettings.effectBrushSize");
+        expect(pointerCommitSource).toContain("const committedPoints = sanitizeStickerPoints(");
+        expect(pointerCommitSource).toContain("points: committedPoints");
+        expect(pointerCommitSource).toContain("brushWidth");
+        expect(effectOverlaySource).toContain("renderStickerEffectOverlay");
     });
 
     it("paints mosaic as a non-repeating cell grid and blur as a pre-blurred image, both stroked along the brush path", () => {

@@ -5,16 +5,39 @@ import { resolve } from "node:path";
 const typeSource = readFileSync(resolve(process.cwd(), "src/types/stickerEditing.ts"), "utf8");
 const uiStoreSource = readFileSync(resolve(process.cwd(), "src/store/uiStore.ts"), "utf8");
 const topStripSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStrip.tsx"), "utf8");
+const topStripEditActionsSource = readFileSync(
+    resolve(process.cwd(), "src/components/StickerTopStripEditActions.tsx"),
+    "utf8",
+);
 const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStripPropertyBar.tsx"), "utf8");
 const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarSections.tsx");
 const propertyBarSectionsSource = existsSync(propertyBarSectionsPath) ? readFileSync(propertyBarSectionsPath, "utf8") : "";
 const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
 const toolbarModelSource = readFileSync(resolve(process.cwd(), "src/components/stickerToolbarModel.ts"), "utf8");
 const annotationLayerSource = readFileSync(resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"), "utf8");
+const pointerDownSource = readFileSync(
+    resolve(process.cwd(), "src/components/stickerAnnotationPointerDownController.ts"),
+    "utf8",
+);
+const viewModelSource = readFileSync(
+    resolve(process.cwd(), "src/components/stickerAnnotationViewModel.tsx"),
+    "utf8",
+);
+const wheelControllerSource = readFileSync(
+    resolve(process.cwd(), "src/components/stickerAnnotationWheelController.ts"),
+    "utf8",
+);
+const selectionOverlaySource = readFileSync(
+    resolve(process.cwd(), "src/components/StickerAnnotationSelectionOverlay.tsx"),
+    "utf8",
+);
 const annotationModelSource = readFileSync(resolve(process.cwd(), "src/components/stickerAnnotationModel.ts"), "utf8");
 const shortcutsSource = readFileSync(resolve(process.cwd(), "src/services/shortcuts.ts"), "utf8");
 const captureStateSource = readFileSync(resolve(process.cwd(), "src/services/captureState.ts"), "utf8");
-const geometrySource = readFileSync(resolve(process.cwd(), "src/services/stickerGeometry.ts"), "utf8");
+const geometryFacadeSource = readFileSync(resolve(process.cwd(), "src/services/stickerGeometry.ts"), "utf8");
+const geometryBoundsSource = readFileSync(resolve(process.cwd(), "src/services/stickerAnnotationBounds.ts"), "utf8");
+const geometryEditSource = readFileSync(resolve(process.cwd(), "src/services/stickerAnnotationEditGeometry.ts"), "utf8");
+const geometryTransformsSource = readFileSync(resolve(process.cwd(), "src/services/stickerAnnotationTransforms.ts"), "utf8");
 const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitView.tsx"), "utf8");
 
 describe("Hook sticker transform modes contract", () => {
@@ -98,59 +121,76 @@ describe("Hook sticker transform modes contract", () => {
     });
 
     it("keeps whole-sticker slots separated between crop, eraser, history, and rasterize actions", () => {
-        expect(topStripSource).toContain('onClick={() => applyTopStripTool("content-eraser")}');
-        expect(topStripSource).toContain('onClick={() => applyTopStripTool("crop")}');
-        expect(topStripSource).toContain('onClick={() => void runHistoryAction(currentHistoryAction())}');
-        expect(topStripSource).toContain('onClick={() => void runRasterizeAction(currentRasterizeScope())}');
+        expect(topStripEditActionsSource).toContain('onClick={() => props.onCanvasTool("content-eraser")}');
+        expect(topStripEditActionsSource).toContain('onClick={() => props.onCanvasTool("crop")}');
+        expect(topStripEditActionsSource).toContain(
+            "onClick={() => props.onHistoryAction(props.currentHistoryAction)}",
+        );
+        expect(topStripEditActionsSource).toContain(
+            "onClick={() => props.onRasterize(props.currentRasterizeScope)}",
+        );
+        expect(topStripSource).toContain("onCanvasTool={applyTopStripTool}");
+        expect(topStripSource).toContain("onHistoryAction={(mode) => void runHistoryAction(mode)}");
+        expect(topStripSource).toContain("onRasterize={(scope) => void runRasterizeAction(scope)}");
     });
 
     it("routes annotation interactions by editing domain before delegating to transform, create, or sticker handlers", () => {
-        expect(annotationLayerSource).toContain("switch (stickerToolSettings.domain)");
-        expect(annotationLayerSource).toContain('case "existing"');
-        expect(annotationLayerSource).toContain('case "create"');
-        expect(annotationLayerSource).toContain('case "sticker"');
-        expect(annotationLayerSource).toContain("handleExistingPointerDown");
-        expect(annotationLayerSource).toContain("handleCreatePointerDown");
-        expect(annotationLayerSource).toContain("handleStickerPointerDown");
-        expect(annotationLayerSource).toContain('ShortcutManager.isGestureActive(event, "control_quick_rotate")');
-        expect(annotationLayerSource).toContain('ShortcutManager.isGestureActive(event, "control_quick_move")');
-        expect(annotationLayerSource).toContain("deltaY");
+        expect(pointerDownSource).toContain("switch (stickerToolSettings.domain)");
+        expect(pointerDownSource).toContain('case "existing"');
+        expect(pointerDownSource).toContain('case "create"');
+        expect(pointerDownSource).toContain('case "sticker"');
+        expect(pointerDownSource).toContain("handleExistingPointerDown");
+        expect(pointerDownSource).toContain("handleCreatePointerDown");
+        expect(pointerDownSource).toContain("handleStickerPointerDown");
+        expect(pointerDownSource).toContain('ShortcutManager.isGestureActive(event, "control_quick_rotate")');
+        expect(pointerDownSource).toContain('ShortcutManager.isGestureActive(event, "control_quick_move")');
+        expect(wheelControllerSource).toContain("deltaY");
     });
 
     it("lets blank-surface pointer down bubble back to whole-sticker dragging when select mode has no selected annotations", () => {
-        expect(annotationLayerSource).toContain("const shouldPassThroughToStickerDrag =");
-        expect(annotationLayerSource).toContain("!hit");
-        expect(annotationLayerSource).toContain('transformMode === "select"');
-        expect(annotationLayerSource).toContain("currentSelectionIds.length === 0");
-        expect(annotationLayerSource).toContain("if (shouldPassThroughToStickerDrag) {");
-        expect(annotationLayerSource).toContain("uiActions.setSelectedStickerAnnotations([]);");
-        expect(annotationLayerSource).toContain("uiActions.setSelectedStickerAnnotation(null);");
-        expect(annotationLayerSource).toContain("return;");
+        expect(pointerDownSource).toContain("const shouldPassThroughToStickerDrag =");
+        expect(pointerDownSource).toContain("!hit");
+        expect(pointerDownSource).toContain('transformMode === "select"');
+        expect(pointerDownSource).toContain("currentSelectionIds.length === 0");
+        expect(pointerDownSource).toContain("if (shouldPassThroughToStickerDrag) {");
+        expect(pointerDownSource).toContain("uiActions.setSelectedStickerAnnotations([]);");
+        expect(pointerDownSource).toContain("uiActions.setSelectedStickerAnnotation(null);");
+        expect(pointerDownSource).toContain("return;");
     });
 
     it("defines group-center and per-node-center rotate/scale helpers for multi-selection transforms", () => {
-        expect(geometrySource).toContain("getAnnotationBounds");
-        expect(geometrySource).toContain("getAnnotationCenter");
-        expect(geometrySource).toContain("getAnnotationGroupCenter");
-        expect(geometrySource).toContain("cloneStickerAnnotation");
-        expect(geometrySource).toContain("structuredClone(unwrap(annotation))");
-        expect(geometrySource).toContain("rotateAnnotationAroundCenter");
-        expect(geometrySource).toContain("scaleAnnotationAroundCenter");
-        expect(geometrySource).toContain("rotateAnnotationsAroundGroupCenter");
-        expect(geometrySource).toContain("rotateAnnotationsAroundOwnCenters");
-        expect(geometrySource).toContain("scaleAnnotationsAroundGroupCenter");
-        expect(geometrySource).toContain("scaleAnnotationsAroundOwnCenters");
-        expect(annotationLayerSource).toContain("baseAnnotations: targetAnnotations.map((annotation) => cloneStickerAnnotation(annotation))");
-        expect(annotationLayerSource).not.toContain("baseAnnotations: targetAnnotations.map((annotation) => structuredClone(annotation))");
+        expect(geometryFacadeSource).toContain("getAnnotationBounds");
+        expect(geometryFacadeSource).toContain("getAnnotationCenter");
+        expect(geometryFacadeSource).toContain("getAnnotationGroupCenter");
+        expect(geometryFacadeSource).toContain("cloneStickerAnnotation");
+        expect(geometryFacadeSource).toContain("rotateAnnotationAroundCenter");
+        expect(geometryFacadeSource).toContain("scaleAnnotationAroundCenter");
+        expect(geometryFacadeSource).toContain("rotateAnnotationsAroundGroupCenter");
+        expect(geometryFacadeSource).toContain("rotateAnnotationsAroundOwnCenters");
+        expect(geometryFacadeSource).toContain("scaleAnnotationsAroundGroupCenter");
+        expect(geometryFacadeSource).toContain("scaleAnnotationsAroundOwnCenters");
+        expect(geometryBoundsSource).toContain("export const getAnnotationBounds");
+        expect(geometryBoundsSource).toContain("export const getAnnotationCenter");
+        expect(geometryBoundsSource).toContain("export const getAnnotationGroupCenter");
+        expect(geometryEditSource).toContain("export const cloneStickerAnnotation");
+        expect(geometryEditSource).toContain("structuredClone(unwrap(annotation))");
+        expect(geometryTransformsSource).toContain("export const rotateAnnotationAroundCenter");
+        expect(geometryTransformsSource).toContain("export const scaleAnnotationAroundCenter");
+        expect(geometryTransformsSource).toContain("export const rotateAnnotationsAroundGroupCenter");
+        expect(geometryTransformsSource).toContain("export const rotateAnnotationsAroundOwnCenters");
+        expect(geometryTransformsSource).toContain("export const scaleAnnotationsAroundGroupCenter");
+        expect(geometryTransformsSource).toContain("export const scaleAnnotationsAroundOwnCenters");
+        expect(pointerDownSource).toContain("baseAnnotations: annotations.map((annotation) => cloneStickerAnnotation(annotation))");
+        expect(pointerDownSource).not.toContain("baseAnnotations: annotations.map((annotation) => structuredClone(annotation))");
     });
 
     it("renders separate move and scale gizmos so move mode keeps free dragging while scale mode exposes dedicated X/Y scale handles", () => {
-        expect(annotationLayerSource).toContain("const showMoveAxesGizmo = createMemo(() =>");
-        expect(annotationLayerSource).toContain("const showScaleGizmo = createMemo(() =>");
-        expect(annotationLayerSource).toContain("resolveMoveGizmoAxisAtPoint");
-        expect(annotationLayerSource).toContain("resolveScaleGizmoAxisAtPoint");
-        expect(annotationLayerSource).toContain("getScaleGizmoHandleRects");
-        expect(annotationLayerSource).not.toContain('transformMode === "scale" ||');
+        expect(viewModelSource).toContain("const showMoveAxesGizmo = createMemo(() =>");
+        expect(viewModelSource).toContain("const showScaleGizmo = createMemo(");
+        expect(pointerDownSource).toContain("resolveMoveGizmoAxisAtPoint");
+        expect(pointerDownSource).toContain("resolveScaleGizmoAxisAtPoint");
+        expect(viewModelSource).toContain("getScaleGizmoHandleRects");
+        expect(viewModelSource).not.toContain('transformMode === "scale" ||');
 
         expect(annotationModelSource).toContain("resolveMoveGizmoAxisAtPoint");
         expect(annotationModelSource).toContain("resolveScaleGizmoAxisAtPoint");
@@ -158,17 +198,17 @@ describe("Hook sticker transform modes contract", () => {
     });
 
     it("keeps the selected node dashed frame bound to the live preview annotation instead of a stale snapshot while dragging", () => {
-        expect(annotationLayerSource).toContain("<Show when={selectedPreviewAnnotation()} keyed>");
+        expect(selectionOverlaySource).toContain("<Show when={props.selectedAnnotation} keyed>");
         expect(annotationLayerSource).not.toContain("const value = annotation();");
     });
 
     it("shows every selected node frame plus a group outer frame for multi-selection scaling", () => {
-        expect(annotationLayerSource).toContain("const selectedPreviewAnnotations = createMemo(() =>");
-        expect(annotationLayerSource).toContain("const selectedPreviewGroupBounds = createMemo(() =>");
-        expect(annotationLayerSource).toContain("selectedPreviewAnnotations().length > 1");
-        expect(annotationLayerSource).toContain("<For each={selectedPreviewAnnotations()}>");
-        expect(annotationLayerSource).toContain('beginDirectTransform(event, selectedPreviewAnnotations(), "scale", {');
-        expect(annotationLayerSource).toContain("selectionIds: selectedAnnotationIds()");
-        expect(geometrySource).toContain("export const getAnnotationGroupBounds = (annotations: StickerAnnotation[]): AnnotationBounds =>");
+        expect(viewModelSource).toContain("const selectedPreviewAnnotations = createMemo(() =>");
+        expect(viewModelSource).toContain("const selectedPreviewGroupBounds = createMemo(() =>");
+        expect(viewModelSource).toContain("selectedPreviewAnnotations().length > 1");
+        expect(selectionOverlaySource).toContain("<For each={props.selectedAnnotations}>");
+        expect(selectionOverlaySource).toContain('props.beginDirectTransform(event, props.selectedAnnotations, "scale", {');
+        expect(selectionOverlaySource).toContain("selectionIds: props.selectedAnnotationIds");
+        expect(geometryBoundsSource).toContain("export const getAnnotationGroupBounds = (annotations: StickerAnnotation[]): AnnotationBounds =>");
     });
 });

@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderStickerComposite } from "../../src/services/stickerExport";
-import { createDefaultBeautifyState } from "../../src/services/stickerBeautify";
+import {
+    computeBeautifyLayout,
+    createDefaultBeautifyState,
+} from "../../src/services/stickerBeautify";
 import type { Unit } from "../../src/types/unit";
 
 const makeUnit = (beautifyEnabled: boolean): Unit => ({
@@ -90,5 +93,16 @@ describe("beautify export", () => {
             "data:image/png;base64,BASE",
         );
         expect(canvases).toHaveLength(0);
+    });
+
+    it("normalizes non-finite persisted layout values instead of creating a zero-sized canvas", () => {
+        expect(computeBeautifyLayout(Number.POSITIVE_INFINITY, Number.NaN, Number.NaN)).toEqual({
+            outerWidth: 1,
+            outerHeight: 1,
+            innerX: 0,
+            innerY: 0,
+            innerWidth: 1,
+            innerHeight: 1,
+        });
     });
 });

@@ -1,0 +1,144 @@
+/* --- UnitView Styles --- */
+
+.unit-container {
+    user-select: none;
+    /* transition: width 0.1s, height 0.1s, top 0.1s, left 0.1s; */ /* DISABLE ANIMATION: User prefers snapping */
+    /* touch-action: none; ? */
+}
+
+/* Specific Node Types */
+.sticker-node {
+    position: relative;
+}
+
+.art-node {
+    /* Art Nodes usually have a minimum size */
+    min-width: 200px;
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Sticker visual elements */
+.selection-border {
+    position: absolute;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 20;
+}
+
+.mini-border {
+    position: absolute;
+    inset: 0px;
+    border: 2px dashed;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 20;
+}
+.mini-border.white { border-color: white; }
+.mini-border.gray { border-color: #6b7280; }
+
+/* Legacy Panel Styles - REMOVED */
+
+.param-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.param-row label {
+    font-size: 0.75rem;
+    color: var(--theme-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.param-scroll-container {
+    scrollbar-width: none;
+    scrollbar-color: color-mix(in srgb, var(--theme-signal) 36%, transparent) var(--theme-line);
+}
+
+.param-scroll-container::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+.param-scroll-container::-webkit-scrollbar-track {
+    background: var(--theme-line);
+    border-radius: 0;
+}
+
+.param-scroll-container::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--theme-signal) 36%, transparent);
+    border-radius: 0;
+    border: 2px solid var(--theme-panel);
+}
+
+.param-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--theme-signal) 56%, transparent);
+}
+
+.hook-add-art-scroll-container {
+    scrollbar-width: none;
+}
+
+.hook-add-art-scroll-container::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+.param-slider-track {
+    background: transparent;
+    touch-action: none;
+    user-select: none;
+}
+
+.param-scrollbar-track {
+    border-radius: 999px;
+    background: var(--theme-line);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-text) 5%, transparent);
+    user-select: none;
+}
+
+.param-scrollbar-thumb {
+    border-radius: 999px;
+    background: var(--theme-signal);
+    box-shadow:
+        0 0 0 1px var(--theme-panel),
+        0 3px 10px color-mix(in srgb, var(--theme-signal) 18%, transparent);
+    cursor: ns-resize;
+}
+
+.param-row span {
+    font-size: 0.75rem;
+    color: var(--theme-text);
+    align-self: flex-end;
+}
+
+.error-msg {
+    color: var(--theme-danger-text);
+    font-size: 0.8rem;
+    text-align: center;
+    padding: 10px;
+}
+
+
+/* Missing Color Utilities */
+.text-white { color: white !important; }
+.text-white\/30 { color: rgba(255, 255, 255, 0.3) !important; }
+.text-white\/50 { color: rgba(255, 255, 255, 0.5) !important; }
+.text-white\/70 { color: rgba(255, 255, 255, 0.7) !important; }
+.text-white\/90 { color: rgba(255, 255, 255, 0.9) !important; }
+
+.text-gray-100 { color: #f3f4f6 !important; }
+.text-gray-200 { color: #e5e7eb !important; }
+.text-gray-400 { color: #9ca3af !important; }
+
+/* Group Hover Utilities */
+.group:hover .group-hover\:text-white { color: white !important; }
+.group:hover .group-hover\:text-gray-200 { color: #e5e7eb !important; }
+.unit-container[data-live-erase-preview="true"] .sticker-img,
+.unit-container[data-live-erase-preview="true"] .sticker-rasterized-annotation-layer-viewport {
+  visibility: hidden;
+}
+

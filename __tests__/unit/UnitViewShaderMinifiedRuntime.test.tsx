@@ -337,6 +337,7 @@ describe("UnitView restored minified shader viewport", () => {
 
         await Promise.resolve();
         await Promise.resolve();
+        await vi.dynamicImportSettled();
 
         const shaderPreview = host.querySelector('[data-testid="shader-preview"]');
         expect(shaderPreview).toBeInstanceOf(HTMLDivElement);

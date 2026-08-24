@@ -200,7 +200,7 @@ describe("CanvasUnits restored minified shader stability", () => {
             host,
         );
 
-        await Promise.resolve();
+        await vi.dynamicImportSettled();
         await Promise.resolve();
 
         const artContainer = host.querySelector('[data-unit-id="art-color-transfer"]') as HTMLDivElement | null;
@@ -214,7 +214,7 @@ describe("CanvasUnits restored minified shader stability", () => {
         expect(shaderWrapper?.style.top).toBe("0px");
 
         graphStore.actions.removeUnit(OUTPUT_UNIT.id);
-        await Promise.resolve();
+        await vi.dynamicImportSettled();
         await Promise.resolve();
 
         const artContainerAfterDelete = host.querySelector('[data-unit-id="art-color-transfer"]') as HTMLDivElement | null;

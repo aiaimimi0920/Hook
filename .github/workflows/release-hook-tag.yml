@@ -11,29 +11,46 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: release-hook-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
-  release-windows-exe:
-    runs-on: windows-latest
+  dependency-security:
+    name: Verify release dependency security
+    uses: ./.github/workflows/dependency-security.yml
+    with:
+      checkout-ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
 
+  release:
+    name: Build and publish Hook release
+    needs: dependency-security
+    runs-on: windows-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Checkout release ref
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Resolve release tag
         shell: powershell
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
         run: |
-          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            $tag = "${{ github.event.inputs.tag }}"
-          } else {
-            $tag = "${{ github.ref_name }}"
-          }
-
+          $ErrorActionPreference = "Stop"
+          $tag = if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") { $env:REQUESTED_TAG } else { $env:GITHUB_REF_NAME }
+          if ($tag -notmatch '^V\d+\.\d+\.\d+$') { throw "Release tag must match Vx.x.x. Received: $tag" }
           "HOOK_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Verify release provenance and product versions
@@ -41,111 +58,146 @@ jobs:
         run: |
           git fetch origin main --no-tags
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-release-version.ps1 `
-            -Tag "$env:HOOK_TAG" `
-            -RequireTagAtHead `
-            -RequireReachableFromBranch "origin/main"
+            -Tag "$env:HOOK_TAG" -RequireTagAtHead -RequireReachableFromBranch "origin/main"
+
+      - name: Check release publication state
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          HOOK_TAG: ${{ env.HOOK_TAG }}
+        with:
+          script: |
+            const publication = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/release-publication.cjs`);
+            await publication.assertReleaseAbsent({ github, owner: context.repo.owner, repo: context.repo.repo, tag: process.env.HOOK_TAG });
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "22"
-
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: dtolnay/rust-toolchain@a5f673d0ba8626c3977bb416a1612774bc82181b # 1.95.0
         with:
+          toolchain: 1.95.0
           components: rustfmt
-
       - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: src-tauri
         env:
           NODE_OPTIONS: --no-deprecation
-
       - name: Install npm dependencies
         run: npm ci --no-audit --no-fund
-
+      - name: Test release and line-policy contracts
+        shell: powershell
+        run: |
+          npm run test:effective-lines
+          npm run check:effective-lines
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\Test-DependencySecurityContract.ps1
       - name: Audit open-source dependency metadata
         run: npm run audit:licenses
-
-      - name: TypeScript typecheck
-        run: npm run typecheck
-
+      - name: TypeScript and lint gates
+        run: npm run lint && npm run typecheck && npm run typecheck:test
       - name: Run frontend tests
         run: npm test
-
       - name: Rust format check
         run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
-
       - name: Rust tests
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-rust-tests-ci.ps1
 
-      - name: Build portable Hook EXE
+      - name: Build formal Hook release
         shell: powershell
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-hook-exe.ps1 -OutputDir "release\Hook\portable" -RequireCleanSource -Force
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -VersionId "$env:HOOK_TAG" -OutputRoot .\release\Hook -RequireCleanSource
+      - name: Verify and smoke formal Hook release
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -PackageDir ".\release\Hook\$env:HOOK_TAG" -RunSmoke -RequireCleanSource
 
       - name: Build reviewed UIAccess signing candidate
         shell: powershell
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-hook-exe.ps1 `
-            -OutputDir ".\release\Hook\signing-candidate" `
-            -RequireCleanSource `
-            -UiAccess `
-            -AllowUnsignedUiAccessBuild `
-            -Force
-
+            -OutputDir ".\release\Hook\signing-candidate" -RequireCleanSource -UiAccess -AllowUnsignedUiAccessBuild -Force
       - name: Create signing candidate digest manifest
         shell: powershell
         run: |
           . .\scripts\file-hash.ps1
           $candidateDir = [System.IO.Path]::GetFullPath(".\release\Hook\signing-candidate")
           $candidateExe = Join-Path $candidateDir "hook.exe"
-          $commit = (git rev-parse HEAD).Trim()
-          $sha256 = Get-HookFileSha256 -Path $candidateExe
           $manifest = [ordered]@{
-            schemaVersion = 1
-            artifact = "hook.exe"
-            tag = $env:HOOK_TAG
-            commit = $commit
-            runId = "${{ github.run_id }}"
-            sha256 = $sha256
+            schemaVersion = 1; artifact = "hook.exe"; tag = $env:HOOK_TAG
+            commit = (git rev-parse HEAD).Trim(); runId = "${{ github.run_id }}"
+            sha256 = Get-HookFileSha256 -Path $candidateExe
           } | ConvertTo-Json
-          $utf8 = [System.Text.UTF8Encoding]::new($false)
-          [System.IO.File]::WriteAllText((Join-Path $candidateDir "manifest.json"), $manifest + "`n", $utf8)
-          [System.IO.File]::WriteAllText(
-            [System.IO.Path]::GetFullPath(".\release\Hook\hook-uiaccess-signing-candidate-$env:HOOK_TAG.json"),
-            $manifest + "`n",
-            $utf8
-          )
-
+          $publicPath = [System.IO.Path]::GetFullPath(".\release\Hook\hook-uiaccess-signing-candidate-$env:HOOK_TAG.json")
+          [System.IO.File]::WriteAllText((Join-Path $candidateDir "manifest.json"), $manifest + "`n", [Text.UTF8Encoding]::new($false))
+          [System.IO.File]::WriteAllText($publicPath, $manifest + "`n", [Text.UTF8Encoding]::new($false))
       - name: Upload reviewed signing candidate
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: hook-uiaccess-signing-candidate-${{ env.HOOK_TAG }}
           path: release/Hook/signing-candidate/*
           if-no-files-found: error
           retention-days: 30
 
-      - name: Package minimal release zip
-        shell: powershell
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release-zip.ps1 `
-            -ExePath ".\release\Hook\portable\hook.exe" `
-            -OutputDir ".\release\Hook" `
-            -Tag "$env:HOOK_TAG" `
-            -Force
-
-      - name: Publish portable GitHub release asset
-        uses: softprops/action-gh-release@v3
+      - name: Attest release build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
+          subject-path: release/Hook/${{ env.HOOK_TAG }}/packages/hook-windows-x64-${{ env.HOOK_TAG }}.zip
+      - name: Attest release SBOM
+        uses: actions/attest-sbom@bd218ad0dbcb3e146bd073d1d9c6d78e08aa8a0b # v2
+        with:
+          subject-path: release/Hook/${{ env.HOOK_TAG }}/packages/hook-windows-x64-${{ env.HOOK_TAG }}.zip
+          sbom-path: release/Hook/${{ env.HOOK_TAG }}/sbom/Hook-${{ env.HOOK_TAG }}.cdx.json
+
+      - name: Create verified draft release
+        id: draft-release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          token: ${{ github.token }}
           tag_name: ${{ env.HOOK_TAG }}
           name: ${{ env.HOOK_TAG }}
           body_path: docs/GITHUB_RELEASE_BODY.md
+          draft: true
           generate_release_notes: false
           files: |
-            release/Hook/hook-windows-x64-${{ env.HOOK_TAG }}.zip
+            release/Hook/${{ env.HOOK_TAG }}/packages/hook-windows-x64-${{ env.HOOK_TAG }}.zip
+            release/Hook/${{ env.HOOK_TAG }}/packages/hook-windows-x64-${{ env.HOOK_TAG }}.zip.sha256
+            release/Hook/${{ env.HOOK_TAG }}/sbom/Hook-${{ env.HOOK_TAG }}.cdx.json
+            release/Hook/${{ env.HOOK_TAG }}/sbom/Hook-${{ env.HOOK_TAG }}.spdx.json
+            release/Hook/${{ env.HOOK_TAG }}/provenance/build-provenance.json
+            release/Hook/${{ env.HOOK_TAG }}/manifest.json
+            release/Hook/${{ env.HOOK_TAG }}/checksums.sha256
             release/Hook/hook-uiaccess-signing-candidate-${{ env.HOOK_TAG }}.json
-          overwrite_files: true
           fail_on_unmatched_files: true
+
+      - name: Verify assets and publish draft release
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          HOOK_PACKAGE_DIRECTORY: release/Hook/${{ env.HOOK_TAG }}
+          HOOK_SIGNING_CANDIDATE: release/Hook/hook-uiaccess-signing-candidate-${{ env.HOOK_TAG }}.json
+          HOOK_RELEASE_ID: ${{ steps.draft-release.outputs.id }}
+          HOOK_TAG: ${{ env.HOOK_TAG }}
+        with:
+          script: |
+            const publication = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/release-publication.cjs`);
+            await publication.publishVerifiedDraft({
+              github, owner: context.repo.owner, repo: context.repo.repo,
+              releaseId: process.env.HOOK_RELEASE_ID, tag: process.env.HOOK_TAG,
+              packageDirectory: process.env.HOOK_PACKAGE_DIRECTORY,
+              signingCandidatePath: process.env.HOOK_SIGNING_CANDIDATE,
+            });
+
+      - name: Remove failed draft release
+        if: failure() && steps.draft-release.outputs.id != ''
+        continue-on-error: true
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          HOOK_RELEASE_ID: ${{ steps.draft-release.outputs.id }}
+          HOOK_TAG: ${{ env.HOOK_TAG }}
+        with:
+          script: |
+            const publication = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/release-publication.cjs`);
+            const deleted = await publication.deleteFailedDraft({
+              github, owner: context.repo.owner, repo: context.repo.repo,
+              releaseId: process.env.HOOK_RELEASE_ID, tag: process.env.HOOK_TAG,
+            });
+            if (!deleted) core.warning('No matching unpublished Hook draft was deleted.');

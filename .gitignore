@@ -12,6 +12,7 @@ release
 tmp-*
 tmp/
 src-tauri/target
+src-tauri/crates/*/target/
 src-tauri/target-codex-verify
 src-tauri/target-test-sync
 .vscode/
@@ -22,3 +23,4 @@ Thumbs.db
 *.rej
 *.swp
 *.swo
+/NUL
