@@ -32,7 +32,7 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource).toContain("tag:");
     expect(workflowSource).toContain("Release tag to publish manually");
     expect(workflowSource).toContain("contents: write");
-    expect(workflowSource).toContain("uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09");
+    expect(workflowSource).toContain("uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1");
     expect(workflowSource).toContain("fetch-depth: 0");
     expect(workflowSource).toContain(
       "ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}",

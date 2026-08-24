@@ -9,7 +9,7 @@ const workflowSource = readFileSync(
 
 describe("Hook build workflow CI contract", () => {
     it("uses immutable node24-compatible GitHub action revisions", () => {
-        expect(workflowSource).toContain('uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09');
+        expect(workflowSource).toContain('uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1');
         expect(workflowSource).toContain('uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38');
         expect(workflowSource).toContain('uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a');
         expect(workflowSource).toContain('uses: dtolnay/rust-toolchain@a5f673d0ba8626c3977bb416a1612774bc82181b');
