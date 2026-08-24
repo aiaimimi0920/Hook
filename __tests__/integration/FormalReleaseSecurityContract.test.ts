@@ -54,6 +54,7 @@ describe("formal release security contract", () => {
     const build = readSource("scripts/build-release.ps1");
     const verify = readSource("scripts/verify-release.ps1");
     const pathSafety = readSource("scripts/release/PathSafety.ps1");
+    const headlessSmoke = readSource("scripts/Invoke-HookHeadlessReleaseSmoke.ps1");
     const workflow = readSource(".github/workflows/release-hook-tag.yml");
 
     expect(readSource(".gitignore")).toContain("/release/");
@@ -66,6 +67,10 @@ describe("formal release security contract", () => {
     expect(verify).toContain("Get-HookArchiveEntries");
     expect(verify).toContain("Read-HookArchiveEntryText");
     expect(verify).toContain("Embedded Hook build provenance does not match packaged hook.exe");
+    expect(verify).toContain("RunHeadlessSmoke");
+    expect(headlessSmoke).toContain("--self-check");
+    expect(headlessSmoke).toContain("HOOK_SELF_CHECK_OUTPUT");
+    expect(headlessSmoke).toContain("Headless Hook self-check timed out");
     expect(verify).toContain("Hook checksum inventory is incomplete");
     expect(verify).toContain("CycloneDX SBOM contract failed");
     expect(pathSafety).toContain("IsPathRooted");
@@ -74,6 +79,16 @@ describe("formal release security contract", () => {
     expect(pathSafety).toContain("MaxUncompressedBytes");
     expect(workflow).toContain("draft: true");
     expect(workflow).toContain("publishVerifiedDraft");
+    expect(workflow).toContain("-RunHeadlessSmoke");
+    expect(workflow).toContain("hook-formal-release-smoke-");
+    expect(workflow).toContain("if: always()");
+    expect(workflow).toContain(
+      "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+    );
+    expect(workflow).toContain(
+      "path: artifacts/release-smoke/${{ env.HOOK_TAG }}-headless",
+    );
+    expect(workflow).toContain("if-no-files-found: error");
     expect(workflow).toContain("deleteFailedDraft");
     expect(workflow).toContain("actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be");
     expect(workflow).toContain("actions/attest-sbom@bd218ad0dbcb3e146bd073d1d9c6d78e08aa8a0b");

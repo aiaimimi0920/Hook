@@ -15,6 +15,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release
   -PackageDir ..\release\Hook\Vx.y.z -RunSmoke -RequireCleanSource
 ```
 
+The native gate above requires an interactive Windows desktop and WebView2 CDP;
+maintainers run it before tagging. GitHub-hosted runners instead use
+`-RunHeadlessSmoke`, which executes the packaged `hook.exe --self-check`, binds
+the result to the verified executable digest and product version, enforces a
+timeout, and uploads the smoke evidence. It is not a substitute for the local
+60-second native Tauri/WebView2 acceptance.
+
 The clean-source gate runs before the version destination is created. Formal
 manifests and provenance must record `gitDirty=false` and
 `sourceGitDirty=false`. A dirty candidate may be retained as runtime evidence,

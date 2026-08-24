@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory = $true)][string]$PackageDir,
     [switch]$RequireCleanSource,
     [switch]$RunSmoke,
+    [switch]$RunHeadlessSmoke,
     [string]$SmokeArtifactRoot = ""
 )
 
@@ -26,6 +27,10 @@ function ConvertTo-RecordMap {
         $map[$path] = $record
     }
     return $map
+}
+
+if ($RunSmoke -and $RunHeadlessSmoke) {
+    throw "Choose either native or headless Hook release smoke, not both."
 }
 
 $releaseRoot = [System.IO.Path]::GetFullPath($PackageDir)
@@ -128,11 +133,20 @@ if ($RunSmoke) {
         $SmokeArtifactRoot = Join-Path $repoRoot "artifacts\release-smoke\$versionId"
     }
     & (Join-Path $PSScriptRoot "Invoke-HookNativeCandidateAcceptance.ps1") -HookExe $portableExe -ExpectedSha256 $portableDigest.sha256 -DurationSeconds 60 -WarmupSeconds 5 -ArtifactRoot $SmokeArtifactRoot
-    if ($LASTEXITCODE -ne 0) { throw "Hook release runtime smoke failed with exit code $LASTEXITCODE." }
+}
+if ($RunHeadlessSmoke) {
+    if ([string]::IsNullOrWhiteSpace($SmokeArtifactRoot)) {
+        $SmokeArtifactRoot = Join-Path $repoRoot "artifacts\release-smoke\$versionId-headless"
+    }
+    & (Join-Path $PSScriptRoot "Invoke-HookHeadlessReleaseSmoke.ps1") `
+        -HookExe $portableExe -ExpectedSha256 $portableDigest.sha256 `
+        -ExpectedVersion $versionId.Substring(1) -ArtifactRoot $SmokeArtifactRoot
 }
 
 [ordered]@{
     schemaVersion = 1; app = "Hook"; versionId = $versionId; packageDir = $releaseRoot
     gitHead = $manifest.gitHead; files = $actualFiles.Count; publishedAssets = $actualPublished
-    portableExe = $portableExe; portableSha256 = $portableDigest.sha256; smoke = $RunSmoke.IsPresent
+    portableExe = $portableExe; portableSha256 = $portableDigest.sha256
+    smoke = ($RunSmoke.IsPresent -or $RunHeadlessSmoke.IsPresent)
+    smokeMode = if ($RunSmoke) { "native" } elseif ($RunHeadlessSmoke) { "headless-self-check" } else { "none" }
 } | ConvertTo-Json -Depth 10
