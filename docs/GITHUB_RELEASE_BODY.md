@@ -1,4 +1,4 @@
-## Hook V0.1.8
+## Hook V0.1.9
 
 This release focuses on maintainability, runtime safety, dependency security,
 and verifiable publication while preserving Hook's portable-first distribution.
@@ -61,4 +61,4 @@ provisioned and a hosted signing request receives manual approval.
 - [Code signing policy](https://github.com/aiaimimi0920/Hook/blob/main/docs/CODE_SIGNING_POLICY.md)
 - [Security policy](https://github.com/aiaimimi0920/Hook/blob/main/SECURITY.md)
 
-**Full Changelog**: [V0.1.7...V0.1.8](https://github.com/aiaimimi0920/Hook/compare/V0.1.7...V0.1.8)
+**Full Changelog**: [V0.1.8...V0.1.9](https://github.com/aiaimimi0920/Hook/compare/V0.1.8...V0.1.9)
