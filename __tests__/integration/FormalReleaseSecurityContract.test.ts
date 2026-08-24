@@ -93,7 +93,7 @@ describe("formal release security contract", () => {
     expect(workflow).toContain("if-no-files-found: error");
     expect(workflow).toContain("deleteFailedDraft");
     expect(workflow).toContain("actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be");
-    expect(workflow).toContain("actions/attest-sbom@bd218ad0dbcb3e146bd073d1d9c6d78e08aa8a0b");
+    expect(workflow).toContain("actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e");
   });
 
   it("requires the exact formal asset set and verifies remote digests", async () => {
