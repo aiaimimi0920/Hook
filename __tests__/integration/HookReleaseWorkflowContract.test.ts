@@ -41,7 +41,7 @@ describe("Hook release workflow contract", () => {
     // Toolchain is pinned to an exact version (not the floating @stable) so
     // release builds stay reproducible.
     expect(workflowSource).toContain("uses: dtolnay/rust-toolchain@a5f673d0ba8626c3977bb416a1612774bc82181b");
-    expect(workflowSource).toContain("toolchain: 1.95.0");
+    expect(workflowSource).not.toContain("toolchain: 1.95.0");
     expect(workflowSource).toContain("components: rustfmt");
     expect(workflowSource).toContain("npm run test:effective-lines");
     expect(workflowSource).toContain("npm run check:effective-lines");

@@ -56,6 +56,8 @@ describe("formal release security contract", () => {
     const pathSafety = readSource("scripts/release/PathSafety.ps1");
     const workflow = readSource(".github/workflows/release-hook-tag.yml");
 
+    expect(readSource(".gitignore")).toContain("/release/");
+
     expect(build).toContain("RequireCleanSource");
     expect(build.indexOf("Formal Hook release requires a clean")).toBeLessThan(
       build.indexOf("New-Item -ItemType Directory -Path $destination"),

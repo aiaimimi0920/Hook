@@ -5,7 +5,7 @@ dist
 .runtime
 .tmp/
 artifacts/
-release
+/release/
 .memsearch/
 .playwright-cli/
 *.log
