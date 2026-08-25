@@ -39,6 +39,6 @@ describe("Hook release version contract", () => {
       cargoLockHookVersion(cargoLock),
     ];
 
-    expect(new Set(versions)).toEqual(new Set(["0.1.10"]));
+    expect(new Set(versions)).toEqual(new Set(["0.1.11"]));
   });
 });

@@ -1,4 +1,4 @@
-## Hook V0.1.10
+## Hook V0.1.11
 
 This release focuses on maintainability, runtime safety, dependency security,
 and verifiable publication while preserving Hook's portable-first distribution.
@@ -6,6 +6,11 @@ and verifiable publication while preserving Hook's portable-first distribution.
 This maintenance release integrates the verified Dependabot updates for Tauri,
 serde, serde_json, thiserror, ESLint, eslint-plugin-solid, actions/checkout, and
 the Node.js 24-compatible SBOM attestation action.
+
+It also closes the six CodeQL findings previously reported on the default branch:
+browser-socket log injection and tainted format strings, stack-trace exposure in
+the surface smoke server, a release-contract file race, and a ReDoS-prone test
+matcher.
 
 ### Added
 
@@ -65,4 +70,4 @@ provisioned and a hosted signing request receives manual approval.
 - [Code signing policy](https://github.com/aiaimimi0920/Hook/blob/main/docs/CODE_SIGNING_POLICY.md)
 - [Security policy](https://github.com/aiaimimi0920/Hook/blob/main/SECURITY.md)
 
-**Full Changelog**: [V0.1.9...V0.1.10](https://github.com/aiaimimi0920/Hook/compare/V0.1.9...V0.1.10)
+**Full Changelog**: [V0.1.10...V0.1.11](https://github.com/aiaimimi0920/Hook/compare/V0.1.10...V0.1.11)
