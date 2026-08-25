@@ -182,8 +182,10 @@ const ensureBrowserPushSocket = () => {
             handlers.forEach((handler) => {
                 try {
                     handler(parsed.params);
-                } catch (error) {
-                    console.error(`[API] Browser push handler failed for ${method}:`, error);
+                } catch {
+                    // The event name and error text originate from the browser socket.
+                    // Do not write either value directly to the console sink.
+                    console.error("[API] Browser push handler failed");
                 }
             });
         } catch (error) {

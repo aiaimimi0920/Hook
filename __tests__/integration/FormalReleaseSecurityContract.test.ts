@@ -6,7 +6,6 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -120,11 +119,16 @@ describe("formal release security contract", () => {
         candidate,
       );
       expect(expected).toHaveLength(8);
-      const actual = expected.map((record) => ({
-        name: record.name,
-        size: statSync(record.path).size,
-        digest: `sha256:${createHash("sha256").update(readFileSync(record.path)).digest("hex")}`,
-      }));
+      const actual = expected.map((record) => {
+        // Hash the one bounded read that supplies the size so the fixture cannot
+        // change between a metadata check and the bytes used for verification.
+        const contents = readFileSync(record.path);
+        return {
+          name: record.name,
+          size: contents.byteLength,
+          digest: `sha256:${createHash("sha256").update(contents).digest("hex")}`,
+        };
+      });
       await expect(publication.compareAssets(expected, actual)).resolves.toBeUndefined();
       await expect(
         publication.compareAssets(expected, [

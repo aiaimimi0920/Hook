@@ -29,9 +29,11 @@ export const createSurfaceServer = ({ root, tauriCsp }) => http.createServer(asy
         response.setHeader("Content-Type", contentType);
         response.setHeader("Content-Length", String(body.byteLength));
         response.end(body);
-    } catch (error) {
+    } catch {
+        console.error("[javascript-surface-smoke] request failed");
         response.statusCode = 500;
-        response.end(String(error));
+        response.setHeader("Content-Type", "text/plain; charset=utf-8");
+        response.end("Internal server error");
     }
 });
 

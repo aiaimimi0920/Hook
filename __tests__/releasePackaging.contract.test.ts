@@ -51,7 +51,9 @@ describe("Hook release build scripts contract", () => {
     const workflowPath = path.join(repoRoot, ".github", "workflows", "build-hook-exe.yml");
     const workflow = fs.readFileSync(workflowPath, "utf8");
 
-    expect(workflow).toMatch(/\bon:\s*(?:\r?\n\s+.*)*push:/i);
+    const workflowLines = workflow.split(/\r?\n/);
+    expect(workflowLines.some((line) => /^on:\s*$/i.test(line))).toBe(true);
+    expect(workflowLines.some((line) => /^\s+push:\s*$/i.test(line))).toBe(true);
     expect(workflow).toMatch(/workflow_dispatch:/i);
     expect(workflow).toMatch(/windows-latest/i);
     expect(workflow).toMatch(/build-local-hook-exe\.ps1/i);

@@ -295,6 +295,8 @@ export const browserDispatchActionFallback = async (
             }
             return;
         }
-        console.warn(`[API] browser dispatch fallback failed for ${actionEnum.action}:`, error);
+        // Keep external action names and error text out of the console sink.
+        // Browser payloads are untrusted and may contain control characters.
+        console.warn("[API] browser dispatch fallback failed");
     }
 };
