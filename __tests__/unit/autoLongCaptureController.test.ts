@@ -87,6 +87,7 @@ describe("auto long capture controller", () => {
         const dependencies = {
             resetSelection: vi.fn(),
             restorePostCaptureInteractivity: vi.fn(async () => undefined),
+            clearCaptureHover: vi.fn(),
             addCaptureUnit: vi.fn(async () => undefined),
         };
         return {

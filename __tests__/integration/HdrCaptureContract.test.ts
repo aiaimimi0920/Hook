@@ -19,6 +19,9 @@ describe("HDR capture contract", () => {
     const wgcSessionSource = readSource(
       "src-tauri/src/screenshot/wgc_session.rs",
     );
+    const wgcTransientSource = readSource(
+      "src-tauri/src/screenshot/wgc_transient.rs",
+    );
     const direct3dSource = readSource(
       "src-tauri/crates/scap-direct3d/src/settings.rs",
     );
@@ -26,16 +29,16 @@ describe("HDR capture contract", () => {
     expect(direct3dSource).toContain("R16G16B16A16Float");
     expect(hdrDisplaySource).toContain("DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO");
     expect(hdrDisplaySource).toContain("DISPLAYCONFIG_DEVICE_INFO_GET_SDR_WHITE_LEVEL");
-    expect(wgcSessionSource).toContain("try_hdr_capture_transient");
-    expect(wgcSessionSource).toContain("PixelFormat::R16G16B16A16Float");
+    expect(wgcTransientSource).toContain("try_hdr_capture_transient");
+    expect(wgcTransientSource).toContain("PixelFormat::R16G16B16A16Float");
     expect(hdrAnalysisSource).toContain(
       'std::env::var("HOOK_CAPTURE_DYNAMIC_RANGE")',
     );
-    const hdrTransientStart = wgcSessionSource.indexOf("fn try_hdr_capture_transient(");
-    const hdrTransientEnd = wgcSessionSource.indexOf("fn try_fast_capture(", hdrTransientStart);
+    const hdrTransientStart = wgcTransientSource.indexOf("fn try_hdr_capture_transient(");
+    const hdrTransientEnd = wgcTransientSource.length;
     expect(hdrTransientStart).toBeGreaterThan(-1);
     expect(hdrTransientEnd).toBeGreaterThan(hdrTransientStart);
-    expect(wgcSessionSource.slice(hdrTransientStart, hdrTransientEnd)).not.toContain(
+    expect(wgcTransientSource.slice(hdrTransientStart, hdrTransientEnd)).not.toContain(
       "PERSISTENT_CAPTURER",
     );
   });
@@ -65,13 +68,15 @@ describe("HDR capture contract", () => {
   });
 
   it("rejects unusable transient WGC frames so hardware-accelerated apps reach GDI fallback", () => {
-    const wgcSessionSource = readSource(
-      "src-tauri/src/screenshot/wgc_session.rs",
+    const wgcTransientSource = readSource(
+      "src-tauri/src/screenshot/wgc_transient.rs",
     );
     const dispatchSource = readSource("src-tauri/src/screenshot/dispatch.rs");
 
-    expect(wgcSessionSource).toContain("wgc_cached_frame_is_usable(&image, None)");
-    expect(wgcSessionSource).toContain("reason=unusable_transient_frame");
+    expect(wgcTransientSource).toContain(
+      "wgc_cached_frame_is_usable(&image, crop_rect.as_ref())",
+    );
+    expect(wgcTransientSource).toContain("reason=unusable_transient_frame");
     expect(dispatchSource).toContain("falling_back_to_gdi");
   });
 

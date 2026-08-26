@@ -19,4 +19,8 @@ The portable Windows archive remains the user-facing package. Extract it and run
 `hook.exe`; provenance, SBOM, checksums, and manifest files are included alongside
 the archive.
 
+Free code signing provided by [SignPath.io](https://signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/), applies only after Hook is provisioned
+and a hosted signing request receives manual approval.
+
 **Full Changelog**: [V0.1.11...V0.2.0](https://github.com/aiaimimi0920/Hook/compare/V0.1.11...V0.2.0)
