@@ -207,8 +207,12 @@ in [`TECHNICAL_ARCHITECTURE.md`](TECHNICAL_ARCHITECTURE.md).
   - the installer is not a current public package and must not be published
     until the signing provider and protected approval environment are active.
 
-The tag workflow may also attach a provenance JSON file for the unsigned
-UIAccess signing candidate. That JSON is review metadata, not an installer.
+The tag workflow retains the unsigned UIAccess signing candidate and its digest as
+short-lived Actions review evidence; neither is shown as a public Release asset.
+
+For the public Release, ordinary users only need the portable ZIP. Users who want
+to verify a download should also fetch the matching `.zip.sha256` sidecar. GitHub's
+automatic source ZIP and tarball remain available for developers.
 
 See [`UIACCESS_DISTRIBUTION.md`](UIACCESS_DISTRIBUTION.md) and
 [`docs/RELEASE_STRATEGY.md`](docs/RELEASE_STRATEGY.md). Formal clean-source

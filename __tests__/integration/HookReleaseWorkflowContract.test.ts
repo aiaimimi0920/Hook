@@ -60,7 +60,7 @@ describe("Hook release workflow contract", () => {
     );
   });
 
-  it("publishes the portable zip and reviewed UIAccess candidate digest without publishing the unsigned exe", () => {
+  it("publishes only the portable zip and its checksum while keeping signing evidence in Actions artifacts", () => {
     expect(existsSync(packageScriptPath)).toBe(true);
     expect(existsSync(installerPackageScriptPath)).toBe(true);
 
@@ -81,8 +81,16 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource).toContain("body_path: docs/GITHUB_RELEASE_BODY.md");
     expect(workflowSource).toContain("generate_release_notes: false");
     expect(workflowSource).toContain("files:");
-    expect(workflowSource).toContain("release/Hook/${{ env.HOOK_TAG }}/packages/hook-windows-x64-${{ env.HOOK_TAG }}.zip");
-    expect(workflowSource).toContain("hook-uiaccess-signing-candidate-${{ env.HOOK_TAG }}.json");
+    const filesStart = workflowSource.indexOf("          files: |");
+    const filesEnd = workflowSource.indexOf("          fail_on_unmatched_files: true", filesStart);
+    const publicFiles = workflowSource.slice(filesStart, filesEnd);
+    expect(publicFiles).toContain("release/Hook/${{ env.HOOK_TAG }}/packages/hook-windows-x64-${{ env.HOOK_TAG }}.zip");
+    expect(publicFiles).toContain("release/Hook/${{ env.HOOK_TAG }}/packages/hook-windows-x64-${{ env.HOOK_TAG }}.zip.sha256");
+    expect(publicFiles).not.toContain("sbom/");
+    expect(publicFiles).not.toContain("provenance/");
+    expect(publicFiles).not.toContain("manifest.json");
+    expect(publicFiles).not.toContain("checksums.sha256");
+    expect(publicFiles).not.toContain("hook-uiaccess-signing-candidate-");
     expect(workflowSource).toContain("Build reviewed UIAccess signing candidate");
     expect(workflowSource).toContain("Upload reviewed signing candidate");
     expect(workflowSource).not.toContain("hook-windows-uiaccess-installer-${{ env.HOOK_TAG }}.zip");

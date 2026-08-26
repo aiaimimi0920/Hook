@@ -26,7 +26,7 @@ describe("release provenance contract", () => {
     );
   });
 
-  it("binds SignPath submission to the public reviewed digest and original workflow run", () => {
+  it("binds SignPath submission to the reviewed Actions artifact and original workflow run", () => {
     const releaseWorkflow = readSource(".github/workflows/release-hook-tag.yml");
     const signingWorkflow = readSource(".github/workflows/signpath-signing.yml");
 
@@ -35,10 +35,10 @@ describe("release provenance contract", () => {
     expect(signingWorkflow).toContain("candidate_run_id:");
     expect(signingWorkflow).toContain("reviewed_sha256:");
     expect(signingWorkflow).toContain("run-id: ${{ inputs.candidate_run_id }}");
-    expect(signingWorkflow).toContain("gh release download");
+    expect(signingWorkflow).not.toContain("gh release download");
+    expect(signingWorkflow).toContain("Reviewed candidate manifest is missing from the Actions artifact.");
     expect(signingWorkflow).toContain("assert-reviewed-signing-candidate.ps1");
     expect(releaseWorkflow).toContain("Get-HookFileSha256");
-    expect(signingWorkflow).toContain("Get-HookFileSha256");
     expect(releaseWorkflow).not.toContain("Get-FileHash");
     expect(signingWorkflow).not.toContain("Get-FileHash");
     expect(signingWorkflow.indexOf("Verify reviewed candidate digest and provenance")).toBeLessThan(

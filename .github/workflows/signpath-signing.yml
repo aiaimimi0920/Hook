@@ -12,7 +12,7 @@ on:
         required: true
         type: string
       reviewed_sha256:
-        description: Reviewed SHA-256 from the public signing-candidate manifest
+        description: Reviewed SHA-256 from the Actions signing-candidate manifest
         required: true
         type: string
 
@@ -82,30 +82,18 @@ jobs:
           run-id: ${{ inputs.candidate_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download public candidate digest manifest
-        shell: powershell
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          New-Item -ItemType Directory -Path ".\release\Hook\public-provenance" -Force | Out-Null
-          gh release download "${{ inputs.tag }}" `
-            --pattern "hook-uiaccess-signing-candidate-${{ inputs.tag }}.json" `
-            --dir ".\release\Hook\public-provenance" `
-            --clobber
-
       - name: Verify reviewed candidate digest and provenance
         shell: powershell
         run: |
           . .\scripts\file-hash.ps1
           $artifactManifest = ".\release\Hook\reviewed-candidate\manifest.json"
-          $publicManifest = ".\release\Hook\public-provenance\hook-uiaccess-signing-candidate-${{ inputs.tag }}.json"
-          if ((Get-HookFileSha256 -Path $artifactManifest) -ne (Get-HookFileSha256 -Path $publicManifest)) {
-            throw "Workflow artifact manifest differs from the public release manifest."
+          if (-not (Test-Path -LiteralPath $artifactManifest -PathType Leaf)) {
+            throw "Reviewed candidate manifest is missing from the Actions artifact."
           }
           $commit = (git rev-parse HEAD).Trim()
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-reviewed-signing-candidate.ps1 `
             -ExePath ".\release\Hook\reviewed-candidate\hook.exe" `
-            -ManifestPath $publicManifest `
+            -ManifestPath $artifactManifest `
             -ExpectedTag "${{ inputs.tag }}" `
             -ExpectedCommit $commit `
             -ExpectedRunId "${{ inputs.candidate_run_id }}" `

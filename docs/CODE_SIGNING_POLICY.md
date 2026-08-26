@@ -105,7 +105,7 @@ the following:
 2. the workflow run completed from the expected repository and tag;
 3. the artifact came from the hosted build output for that run;
 4. the release tag is reachable from the protected public `main` branch;
-5. the candidate workflow run ID, public digest manifest, reviewed SHA-256, and
+5. the candidate workflow run ID, Actions artifact digest manifest, reviewed SHA-256, and
    downloaded `hook.exe` all identify the same bytes;
 6. no unsigned replacement has been manually swapped into the installer lane;
 7. the release notes and package labels clearly distinguish **portable** from
@@ -135,12 +135,12 @@ The hosted workflow is `.github/workflows/signpath-signing.yml`:
 - SignPath organization/project/policy identifiers are GitHub Environment
   variables, not hardcoded account data;
 - the public tag workflow verifies that the tag is reachable from `origin/main`,
-  builds the unsigned UIAccess candidate once, publishes its SHA-256 manifest on
-  the public GitHub release, and retains the exact candidate as a workflow
-  artifact;
+  builds the unsigned UIAccess candidate once, records its SHA-256 manifest in the
+  protected workflow artifact, and keeps the exact candidate as short-lived review
+  evidence rather than adding it to the public GitHub release;
 - the signing workflow requires the candidate workflow run ID and reviewed
-  SHA-256, downloads that exact artifact, compares its manifest with the public
-  release manifest, and fails closed on any tag, commit, run ID, or digest drift;
+  SHA-256, downloads that exact artifact, validates its artifact manifest, and
+  fails closed on any tag, commit, run ID, or digest drift;
 - only the verified candidate is re-uploaded to the signing run and submitted
   through `signpath/github-action-submit-signing-request@v2`;
 - the workflow waits for SignPath approval and verifies the returned

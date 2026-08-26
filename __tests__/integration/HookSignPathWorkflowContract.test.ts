@@ -43,7 +43,8 @@ describe("Hook SignPath workflow contract", () => {
     expect(workflow).toContain("reviewed_sha256:");
     expect(workflow).toContain("uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131");
     expect(workflow).toContain("assert-reviewed-signing-candidate.ps1");
-    expect(workflow).toContain("gh release download");
+    expect(workflow).not.toContain("gh release download");
+    expect(workflow).toContain("Reviewed candidate manifest is missing from the Actions artifact.");
     expect(workflow).not.toContain("-AllowUnsignedUiAccessBuild");
     expect(workflow).toContain("output-artifact-directory: release/Hook/uiaccess-signed");
     expect(workflow).toContain("package-uiaccess-installer-zip.ps1");
@@ -56,7 +57,7 @@ describe("Hook SignPath workflow contract", () => {
     );
   });
 
-  it("checks release ancestry, versions, public provenance, and reviewed digest before signing", () => {
+  it("checks release ancestry, versions, artifact provenance, and reviewed digest before signing", () => {
     expect(existsSync(versionScriptPath)).toBe(true);
     expect(existsSync(candidateScriptPath)).toBe(true);
     expect(existsSync(auditScriptPath)).toBe(true);

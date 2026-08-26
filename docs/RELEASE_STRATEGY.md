@@ -11,9 +11,8 @@ That means:
 
 - the portable Windows zip is the only current user-facing software package in a
   public GitHub Release;
-- tag releases also attach
-  `hook-uiaccess-signing-candidate-Vx.x.x.json`, a provenance record for the
-  reviewed unsigned UIAccess candidate; it is metadata, not an installer;
+- tag releases keep `hook-uiaccess-signing-candidate-Vx.x.x.json` in short-lived
+  Actions review evidence; it is not a public Release asset or installer;
 - normal GitHub Actions build artifacts expose only the portable executable;
 - the repository contains a manual SignPath workflow, but it cannot publish an
   installer until SignPath and the protected GitHub Environment are provisioned;
@@ -22,8 +21,9 @@ That means:
   workaround is to launch the portable build as **administrator**.
 
 Portable-first describes the executable distribution choice, not a reduced
-supply-chain standard. Formal releases also publish checksums, CycloneDX/SPDX
-SBOMs, build provenance, and a machine-verifiable manifest. The exact-tag
+supply-chain standard. Formal builds still generate and verify checksums,
+CycloneDX/SPDX SBOMs, build provenance, and a machine-verifiable manifest, but the
+public Release exposes only the portable ZIP and its checksum sidecar. The exact-tag
 dependency gate, clean-source build, runtime smoke, GitHub attestations, and
 draft verification are documented in [`release-provenance.md`](release-provenance.md)
 and [`DEPENDENCY_SECURITY.md`](DEPENDENCY_SECURITY.md).

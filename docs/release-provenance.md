@@ -27,14 +27,17 @@ manifests and provenance must record `gitDirty=false` and
 `sourceGitDirty=false`. A dirty candidate may be retained as runtime evidence,
 but it is never a formal publication claim.
 
-## Release subjects
+## Public Release subjects and private evidence
 
-- Portable Windows ZIP and its SHA-256 sidecar.
-- CycloneDX 1.6 and SPDX 2.3 SBOMs.
-- `provenance/build-provenance.json`.
-- `manifest.json` and `checksums.sha256`.
-- The reviewed unsigned UIAccess candidate digest JSON; the unsigned candidate
-  executable remains a short-lived Actions artifact and is not published.
+The public GitHub Release intentionally contains only the portable Windows ZIP and
+its SHA-256 sidecar. GitHub also shows its automatic `Source code (zip)` and
+`Source code (tar.gz)` links for the tag.
+
+The build still generates and verifies CycloneDX/SPDX SBOMs,
+`provenance/build-provenance.json`, `manifest.json`, `checksums.sha256`, and the
+reviewed unsigned UIAccess candidate digest. These remain local or short-lived
+Actions evidence; they are not uploaded as public Release assets. The unsigned
+candidate executable is never published as a Release asset.
 
 The verifier rejects traversal/reserved paths, reparse points, oversized
 metadata and archives, duplicate ZIP entries, unexpected payload entries,

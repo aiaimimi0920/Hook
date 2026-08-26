@@ -14,11 +14,7 @@ import { describe, expect, it } from "vitest";
 
 type AssetRecord = { name: string; path: string; bytes: number };
 type PublicationModule = {
-  collectExpectedAssets: (
-    packageDirectory: string,
-    tag: string,
-    signingCandidatePath: string,
-  ) => AssetRecord[];
+  collectExpectedAssets: (packageDirectory: string, tag: string) => AssetRecord[];
   compareAssets: (
     expected: AssetRecord[],
     actual: Array<{ name: string; size: number; digest?: string }>,
@@ -95,30 +91,19 @@ describe("formal release security contract", () => {
     expect(workflow).toContain("actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e");
   });
 
-  it("requires the exact formal asset set and verifies remote digests", async () => {
+  it("requires the exact public asset set and verifies remote digests", async () => {
     const root = mkdtempSync(join(tmpdir(), "hook-release-contract-"));
     const tag = "V9.8.7";
     try {
       const releaseRoot = join(root, tag);
-      const candidate = join(root, `hook-uiaccess-signing-candidate-${tag}.json`);
       const paths = [
         join(releaseRoot, "packages", `hook-windows-x64-${tag}.zip`),
         join(releaseRoot, "packages", `hook-windows-x64-${tag}.zip.sha256`),
-        join(releaseRoot, "sbom", `Hook-${tag}.cdx.json`),
-        join(releaseRoot, "sbom", `Hook-${tag}.spdx.json`),
-        join(releaseRoot, "provenance", "build-provenance.json"),
-        join(releaseRoot, "manifest.json"),
-        join(releaseRoot, "checksums.sha256"),
-        candidate,
       ];
       paths.forEach((path, index) => writeFixture(path, `fixture-${index}`));
 
-      const expected = publication.collectExpectedAssets(
-        releaseRoot,
-        tag,
-        candidate,
-      );
-      expect(expected).toHaveLength(8);
+      const expected = publication.collectExpectedAssets(releaseRoot, tag);
+      expect(expected).toHaveLength(2);
       const actual = expected.map((record) => {
         // Hash the one bounded read that supplies the size so the fixture cannot
         // change between a metadata check and the bytes used for verification.

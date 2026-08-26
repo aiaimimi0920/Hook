@@ -115,8 +115,11 @@ powershell -NoProfile -ExecutionPolicy Bypass `
   - 仓库保留 UIAccess 安装脚本和 SignPath 准备内容；
   - 在签名服务和受保护审批环境启用前，安装版不是当前公开包。
 
-版本标签工作流还可能附带 UIAccess 未签名候选的 provenance JSON。这个 JSON 是
-审核元数据，不是安装包。
+版本标签工作流会把 UIAccess 未签名候选及其摘要保留为短期 Actions 审核证据；
+它们不会作为公开 Release 资产显示。
+
+公开 Release 中普通用户只需要下载便携版 ZIP；希望验证下载完整性的用户再下载
+对应的 `.zip.sha256` 校验文件。GitHub 自动生成的源码 ZIP 和 tarball 仍然面向开发者保留。
 
 详见 [`UIACCESS_DISTRIBUTION.md`](UIACCESS_DISTRIBUTION.md) 和
 [`docs/RELEASE_STRATEGY.md`](docs/RELEASE_STRATEGY.md)。正式发布的干净源码构建、

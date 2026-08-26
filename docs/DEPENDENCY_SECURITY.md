@@ -11,8 +11,10 @@ gate; it is not proof that unknown vulnerabilities do not exist.
 - OSV-Scanner 2.5.0 scans the exact committed lockfiles on pull requests,
   `main`, a weekly schedule, manual dispatch, and the exact release tag/ref.
 - CodeQL runs extended Rust, JavaScript/TypeScript, and Actions queries.
-- Formal releases contain CycloneDX 1.6 and SPDX 2.3 SBOMs, SHA-256 checksums,
-  a manifest, and build provenance.
+- Formal release builds generate and verify CycloneDX 1.6 and SPDX 2.3 SBOMs,
+  SHA-256 checksums, a manifest, and build provenance. The public Release keeps
+  only the portable ZIP and its checksum sidecar; the remaining evidence stays in
+  the maintainer/workflow verification boundary.
 
 ## Machine-authoritative inventory
 

@@ -15,9 +15,12 @@ capture range no longer appears to change when the result is committed.
 
 ### Package notes
 
-The portable Windows archive remains the user-facing package. Extract it and run
-`hook.exe`; provenance, SBOM, checksums, and manifest files are included alongside
-the archive.
+The public Release intentionally keeps the download surface small. Ordinary users
+should download `hook-windows-x64-V0.2.0.zip`; users who want to verify the download
+should also download its matching `.zip.sha256` file. Extract the ZIP and run
+`hook.exe`. Build provenance, SBOMs, manifests, and full checksum inventories are
+still generated and verified in the release pipeline, but remain maintainer-side
+evidence instead of public Release assets.
 
 Free code signing provided by [SignPath.io](https://signpath.io/), certificate by
 [SignPath Foundation](https://signpath.org/), applies only after Hook is provisioned

@@ -137,9 +137,9 @@ jobs:
             commit = (git rev-parse HEAD).Trim(); runId = "${{ github.run_id }}"
             sha256 = Get-HookFileSha256 -Path $candidateExe
           } | ConvertTo-Json
-          $publicPath = [System.IO.Path]::GetFullPath(".\release\Hook\hook-uiaccess-signing-candidate-$env:HOOK_TAG.json")
+          $evidencePath = [System.IO.Path]::GetFullPath(".\release\Hook\hook-uiaccess-signing-candidate-$env:HOOK_TAG.json")
           [System.IO.File]::WriteAllText((Join-Path $candidateDir "manifest.json"), $manifest + "`n", [Text.UTF8Encoding]::new($false))
-          [System.IO.File]::WriteAllText($publicPath, $manifest + "`n", [Text.UTF8Encoding]::new($false))
+          [System.IO.File]::WriteAllText($evidencePath, $manifest + "`n", [Text.UTF8Encoding]::new($false))
       - name: Upload reviewed signing candidate
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -171,19 +171,12 @@ jobs:
           files: |
             release/Hook/${{ env.HOOK_TAG }}/packages/hook-windows-x64-${{ env.HOOK_TAG }}.zip
             release/Hook/${{ env.HOOK_TAG }}/packages/hook-windows-x64-${{ env.HOOK_TAG }}.zip.sha256
-            release/Hook/${{ env.HOOK_TAG }}/sbom/Hook-${{ env.HOOK_TAG }}.cdx.json
-            release/Hook/${{ env.HOOK_TAG }}/sbom/Hook-${{ env.HOOK_TAG }}.spdx.json
-            release/Hook/${{ env.HOOK_TAG }}/provenance/build-provenance.json
-            release/Hook/${{ env.HOOK_TAG }}/manifest.json
-            release/Hook/${{ env.HOOK_TAG }}/checksums.sha256
-            release/Hook/hook-uiaccess-signing-candidate-${{ env.HOOK_TAG }}.json
           fail_on_unmatched_files: true
 
       - name: Verify assets and publish draft release
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           HOOK_PACKAGE_DIRECTORY: release/Hook/${{ env.HOOK_TAG }}
-          HOOK_SIGNING_CANDIDATE: release/Hook/hook-uiaccess-signing-candidate-${{ env.HOOK_TAG }}.json
           HOOK_RELEASE_ID: ${{ steps.draft-release.outputs.id }}
           HOOK_TAG: ${{ env.HOOK_TAG }}
         with:
@@ -193,7 +186,6 @@ jobs:
               github, owner: context.repo.owner, repo: context.repo.repo,
               releaseId: process.env.HOOK_RELEASE_ID, tag: process.env.HOOK_TAG,
               packageDirectory: process.env.HOOK_PACKAGE_DIRECTORY,
-              signingCandidatePath: process.env.HOOK_SIGNING_CANDIDATE,
             });
 
       - name: Remove failed draft release

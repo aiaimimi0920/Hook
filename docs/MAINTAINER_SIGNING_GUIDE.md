@@ -129,9 +129,9 @@ request. Do not guess or commit any of these account identifiers.
 
 After the normal tag workflow creates a portable GitHub release, manually run
 `Sign Hook UIAccess Release` for the same public tag. Supply the release
-workflow run ID and the reviewed SHA-256 from the public signing-candidate
+workflow run ID and the reviewed SHA-256 from the Actions signing-candidate
 manifest. The signing workflow downloads the exact candidate retained by that
-run, verifies its tag, commit, run ID, public manifest, and bytes, then uploads
+run, verifies its tag, commit, run ID, artifact manifest, and bytes, then uploads
 only that reviewed artifact to SignPath. It waits for approval, verifies the
 returned Authenticode signature during packaging, and attaches the signed
 installer zip to the existing release.

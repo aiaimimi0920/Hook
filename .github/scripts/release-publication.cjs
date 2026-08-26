@@ -18,19 +18,13 @@ function sha256File(filePath) {
   });
 }
 
-function collectExpectedAssets(packageDirectory, tag, signingCandidatePath) {
+function collectExpectedAssets(packageDirectory, tag) {
   assertTag(tag);
   const root = path.resolve(packageDirectory);
   const zipName = `hook-windows-x64-${tag}.zip`;
   const files = [
     path.join(root, "packages", zipName),
     path.join(root, "packages", `${zipName}.sha256`),
-    path.join(root, "sbom", `Hook-${tag}.cdx.json`),
-    path.join(root, "sbom", `Hook-${tag}.spdx.json`),
-    path.join(root, "provenance", "build-provenance.json"),
-    path.join(root, "manifest.json"),
-    path.join(root, "checksums.sha256"),
-    path.resolve(signingCandidatePath),
   ];
   const records = files.map((filePath) => {
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
@@ -74,14 +68,14 @@ async function assertReleaseAbsent({ github, owner, repo, tag }) {
   }
 }
 
-async function publishVerifiedDraft({ github, owner, repo, releaseId, tag, packageDirectory, signingCandidatePath }) {
+async function publishVerifiedDraft({ github, owner, repo, releaseId, tag, packageDirectory }) {
   assertTag(tag);
   const id = Number(releaseId);
   if (!Number.isSafeInteger(id) || id <= 0) throw new Error(`Draft release ID is invalid: ${releaseId}`);
   const { data: release } = await github.rest.repos.getRelease({ owner, repo, release_id: id });
   if (!release.draft || release.tag_name !== tag) throw new Error(`Release ${id} is not the expected Hook draft for ${tag}.`);
   const actual = await github.paginate(github.rest.repos.listReleaseAssets, { owner, repo, release_id: id, per_page: 100 });
-  await compareAssets(collectExpectedAssets(packageDirectory, tag, signingCandidatePath), actual);
+  await compareAssets(collectExpectedAssets(packageDirectory, tag), actual);
   return github.rest.repos.updateRelease({ owner, repo, release_id: id, draft: false, make_latest: "legacy" });
 }
 
