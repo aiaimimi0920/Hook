@@ -36,6 +36,11 @@ unsafe extern "system" fn capture_mouse_hook_proc(
         match message {
             WM_MOUSEMOVE => {
                 queue_capture_mouse_hook_event(CaptureMouseHookEvent::Move { x, y, modifiers });
+                // Keep the low-level move in the normal Windows chain so the
+                // physical cursor continues to move. During capture the native
+                // full-screen input shield is the hit-test owner, so forwarding
+                // this message does not expose the underlying application to
+                // hover transitions.
                 return unsafe { CallNextHookEx(None, code, wparam, lparam) };
             }
             WM_LBUTTONDOWN => {

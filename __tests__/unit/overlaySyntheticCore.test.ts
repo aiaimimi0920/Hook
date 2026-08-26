@@ -76,6 +76,32 @@ describe("overlay synthetic events: core hover and click", () => {
         expect(aTypes).toContain("mousemove");
     });
 
+    it("clears the frozen hover target before the next real move enters a control", () => {
+        h.setHit(() => h.a);
+        h.d.dispatch("mousemove", { x: 10, y: 10 });
+        h.clear();
+
+        h.d.clearHover();
+        expect(h.typesFor("A")).toEqual([
+            "pointerout",
+            "pointerleave",
+            "mouseout",
+            "mouseleave",
+        ]);
+
+        h.clear();
+        h.setHit(() => h.b);
+        h.d.dispatch("mousemove", { x: 50, y: 50 });
+        expect(h.typesFor("B")).toEqual([
+            "pointerover",
+            "pointerenter",
+            "mouseover",
+            "mouseenter",
+            "pointermove",
+            "mousemove",
+        ]);
+    });
+
     it("3. keeps pointer capture: move/up route to the mousedown target and synthesize click", () => {
         h.setHit(() => h.a);
         h.d.dispatch("mousedown", { x: 10, y: 10 });

@@ -64,6 +64,17 @@ describe("HDR capture contract", () => {
     expect(dispatchSource).not.toContain("plan.crop.top as i32");
   });
 
+  it("rejects unusable transient WGC frames so hardware-accelerated apps reach GDI fallback", () => {
+    const wgcSessionSource = readSource(
+      "src-tauri/src/screenshot/wgc_session.rs",
+    );
+    const dispatchSource = readSource("src-tauri/src/screenshot/dispatch.rs");
+
+    expect(wgcSessionSource).toContain("wgc_cached_frame_is_usable(&image, None)");
+    expect(wgcSessionSource).toContain("reason=unusable_transient_frame");
+    expect(dispatchSource).toContain("falling_back_to_gdi");
+  });
+
   it("writes real 16-bit BT.2020 PQ PNG metadata instead of relabeling SDR pixels", () => {
     const encodingSource = readSource(
       "src-tauri/src/native/long_capture_encoding.rs",

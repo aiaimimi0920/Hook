@@ -20,6 +20,7 @@ macro_rules! console_error_line {
 mod app_settings;
 mod capture;
 mod capture_coords;
+mod capture_protected_target;
 mod capture_windows;
 mod device_session;
 pub mod emergency_watchdog;

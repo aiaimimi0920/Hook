@@ -19,6 +19,7 @@ describe("capture window target contract", () => {
     expect(rustSource).toContain('"Progman"');
     expect(rustSource).toContain('"WorkerW"');
     expect(rustSource).toContain('"Shell_TrayWnd"');
+    expect(rustSource).toContain('"Tauri Window"');
     expect(rustSource).toContain("WS_EX_TOOLWINDOW");
     expect(rustSource).toContain("WS_EX_NOACTIVATE");
     expect(libSource).toContain("mod capture_windows;");
@@ -68,5 +69,101 @@ describe("capture window target contract", () => {
     expect(stateSource).toContain("maxIntervalMs = 450");
     expect(canvasSource).toContain("双击截图完整窗口");
     expect(canvasSource).toContain("拖动可自由框选");
+  });
+
+  it("uses HWND capture only for confirmed full-window clicks while region drags preserve visible stacking", () => {
+    const selectionSource = readSource("src/hooks/useSelection.ts");
+    const apiSource = readSource("src/services/apiCapture.ts");
+    const typesSource = readSource("src/services/apiTypes.ts");
+    const rustSource = readSource("src-tauri/src/capture.rs");
+    const captureWindowsSource = readSource("src-tauri/src/capture_windows.rs");
+    const dispatchSource = readSource("src-tauri/src/screenshot/dispatch.rs");
+    const screenshotSource = readSource("src-tauri/src/screenshot.rs");
+    const dwmSharedSurfaceSource = readSource("src-tauri/src/screenshot/dwm_shared_surface.rs");
+    const protectedRegionSource = readSource("src-tauri/src/screenshot/protected_region.rs");
+    const protectedTargetSource = readSource("src-tauri/src/capture_protected_target.rs");
+    const wgcPersistentSource = readSource("src-tauri/src/screenshot/wgc_persistent.rs");
+    const wgcTransientSource = readSource("src-tauri/src/screenshot/wgc_transient.rs");
+    const wgcSource = readSource("src-tauri/src/screenshot/wgc_session.rs");
+
+    expect(selectionSource).toContain("captureWindowId: captureWindowSurfaceTargetId");
+    expect(selectionSource).toContain("captureWindowSurfaceTargetId");
+    expect(selectionSource).toContain(
+      "captureWindowSurfaceTargetId = clickedCaptureWindowTarget.id;",
+    );
+    expect(selectionSource).not.toContain(
+      "captureWindowSurfaceTargetId = draggedCaptureWindowTarget.id;",
+    );
+    expect(selectionSource).not.toContain(
+      "captureWindowSurfaceTargetId = centerTarget.id;",
+    );
+    expect(apiSource).toContain("captureWindowId: options?.captureWindowId");
+    expect(typesSource).toContain("captureWindowId?: string");
+    expect(rustSource).toContain("capture_window_id: Option<String>");
+    expect(rustSource).toContain("capture_window_with_dynamic_range(");
+    expect(rustSource).toContain("target_recovered");
+    expect(rustSource).toContain("process_id_for_capture_window_id");
+    expect(captureWindowsSource).toContain("process_id == current_process_id");
+    expect(rustSource).toContain("direct_attempt_failed");
+    expect(dispatchSource).toContain("pub fn capture_window_with_dynamic_range(");
+    expect(dispatchSource).toContain("try_capture_protected_window");
+    expect(dispatchSource).toContain("CaptureBackend::DwmSharedSurface");
+    expect(dispatchSource).toContain("overlay_compensated: true");
+    expect(screenshotSource).toContain("mod dwm_shared_surface;");
+    expect(screenshotSource).toContain("pub use dwm_shared_surface::window_display_affinity;");
+    expect(screenshotSource).toContain("DwmSharedSurface");
+    expect(screenshotSource).toContain("dwm-shared-surface-sdr");
+    expect(screenshotSource).toContain("mod wgc_persistent;");
+    expect(screenshotSource).toContain("mod wgc_transient;");
+    expect(dwmSharedSurfaceSource).toContain("DwmGetDxSharedSurface");
+    expect(dwmSharedSurfaceSource).toContain("GetWindowDisplayAffinity");
+    expect(dwmSharedSurfaceSource).toContain("if affinity == 0");
+    expect(dwmSharedSurfaceSource).toContain("IsWindowVisible(hwnd)");
+    expect(dwmSharedSurfaceSource).toContain("IsIconic(hwnd)");
+    expect(dwmSharedSurfaceSource).toContain("DwmGetWindowAttribute");
+    expect(dwmSharedSurfaceSource).toContain("DwmFlush()");
+    expect(dwmSharedSurfaceSource).toContain("OpenSharedResource::<ID3D11Texture2D>");
+    expect(dwmSharedSurfaceSource).toContain("D3D11_USAGE_STAGING");
+    expect(dwmSharedSurfaceSource).toContain("capture_window dwm_shared_success");
+    expect(protectedRegionSource).toContain("capture_area_with_profile");
+    expect(protectedRegionSource).toContain("paste_protected_surface");
+    expect(protectedRegionSource).toContain("occlusion_rects_for_targets");
+    expect(protectedRegionSource).toContain("higher z-order window");
+    expect(protectedRegionSource).toContain("protected_composite_success");
+    expect(protectedRegionSource).toContain("requested_canvas_size");
+    expect(wgcPersistentSource).toContain("PERSISTENT_CAPTURER");
+    expect(wgcPersistentSource).toContain("select_wgc_timeout_fallback_frame");
+    expect(wgcTransientSource).toContain("try_hdr_capture_transient");
+    expect(wgcTransientSource).toContain("unusable_transient_frame");
+    expect(wgcSource).toContain("try_fast_capture_window");
+    expect(wgcSource).toContain("CreateForWindow(hwnd)");
+    expect(wgcSource).toContain("IsWindowVisible(hwnd)");
+    expect(wgcSource).toContain("windows_capture_settings(None)");
+    expect(wgcSource).toContain("let image = crop_rgb(&image, &crop);");
+    expect(wgcSource).toContain("wgc_frame_wait_timeout(false)");
+    expect(wgcSource).toContain("capture_window fast_fail");
+    expect(wgcSource).toContain("BringWindowToTop(hwnd)");
+    expect(wgcSource).toContain("DwmFlush()");
+    expect(rustSource).toContain("capture_window overlay_hidden");
+    expect(rustSource).toContain("capture_window overlay_restored");
+    expect(rustSource).toContain("hide_overlay_input_shield_window");
+    expect(rustSource).toContain("sync_overlay_input_shield_from_runtime_state");
+    expect(rustSource).toContain("overlapping_protected_window");
+    expect(rustSource).toContain("protected_composition_window_id");
+    expect(rustSource).not.toContain("if capture_window_id.is_none() {");
+    expect(protectedTargetSource).toContain("resolve_protected_window_from_targets");
+    expect(protectedTargetSource).toContain("occluding_windows");
+    expect(protectedTargetSource).toContain("z_order");
+    expect(rustSource).toContain("capture_region protected_target_resolved");
+    expect(rustSource).toContain("capture_region_with_protected_window");
+    expect(rustSource).toContain("compose_protected_region");
+    expect(rustSource).toContain("OVERLAY_MOUSE_HIT_MAP_ACTIVE.swap(false");
+    expect(rustSource).toContain("OVERLAY_MOUSE_HIT_MAP_ACTIVE.store(was_active");
+    const overlayHideIndex = rustSource.indexOf("capture_window overlay_hidden");
+    const workerStartIndex = rustSource.indexOf("tokio::task::spawn_blocking");
+    expect(overlayHideIndex).toBeGreaterThan(-1);
+    expect(workerStartIndex).toBeGreaterThan(-1);
+    expect(overlayHideIndex).toBeLessThan(workerStartIndex);
+    expect(wgcSource).not.toContain("Window::from_id");
   });
 });

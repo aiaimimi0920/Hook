@@ -27,7 +27,7 @@ import {
 
 let cachedUnitRects: {id: string, x: number, y: number, w: number, h: number}[] = [];
 
-export function useSelection() {
+export function useSelection(onCaptureHoverClear: () => void = () => {}) {
     let captureSessionGeneration = 0;
     let pendingCaptureTimer: number | null = null;
     let captureWindowTargets: CaptureWindowTarget[] = [];
@@ -173,6 +173,7 @@ export function useSelection() {
         resetSelection,
         restorePostCaptureInteractivity,
         addCaptureUnit,
+        clearCaptureHover: onCaptureHoverClear,
     });
 
     const handleSelectionStart = (e: Pick<MouseEvent, "clientX" | "clientY" | "shiftKey" | "ctrlKey">) => {
@@ -306,6 +307,7 @@ export function useSelection() {
         const rect = preciseSelection.resolveCurrentSelectionRect(currentSelectionRect);
         let resolvedCaptureRect = rect;
         let confirmedCaptureWindowTargetId: string | null = null;
+        let captureWindowSurfaceTargetId: string | null = null;
         preciseSelection.invalidate();
         const sessionGeneration = captureSessionGeneration;
 
@@ -364,6 +366,7 @@ export function useSelection() {
 
             lastCaptureWindowClick = null;
             confirmedCaptureWindowTargetId = clickedCaptureWindowTarget.id;
+            captureWindowSurfaceTargetId = clickedCaptureWindowTarget.id;
             resolvedCaptureRect = {
                 x: clickedCaptureWindowTarget.x,
                 y: clickedCaptureWindowTarget.y,
@@ -383,6 +386,7 @@ export function useSelection() {
                 void api.debugLogEvent("selection-end-small-stale", `generation=${sessionGeneration}`);
                 return;
             }
+            onCaptureHoverClear();
             void api.debugLogEvent(
                 "selection-end-small",
                 `w=${resolvedCaptureRect.w} h=${resolvedCaptureRect.h}`,
@@ -400,7 +404,6 @@ export function useSelection() {
         const activeCaptureMode = captureMode();
         const isLongCapture = isLongCaptureMode(activeCaptureMode);
         setIsSelecting(false);
-        await api.setCaptureInputActive(false);
         if (!isCaptureSessionCurrent(sessionGeneration)) {
             void api.debugLogEvent("selection-end-stale", `generation=${sessionGeneration}`);
             return;
@@ -463,6 +466,9 @@ export function useSelection() {
                     Math.round(resolvedCaptureRect.y),
                     Math.round(resolvedCaptureRect.w),
                     Math.round(resolvedCaptureRect.h),
+                    captureWindowSurfaceTargetId
+                        ? { captureWindowId: captureWindowSurfaceTargetId }
+                        : undefined,
                 );
                 if (!isCaptureSessionCurrent(sessionGeneration)) {
                     await api.debugLogEvent("selection-capture-response-stale", `generation=${sessionGeneration}`);
@@ -479,6 +485,7 @@ export function useSelection() {
                 console.error("Capture Failed", e);
                 await api.debugLogEvent("selection-capture-failure", e instanceof Error ? e.message : String(e));
                 if (isLongCapture && isCaptureSessionCurrent(sessionGeneration)) {
+                    onCaptureHoverClear();
                     resetSelection();
                     await api.setOverlayClickThrough(true);
                     if (graphStore.units.length > 0) {
@@ -488,6 +495,11 @@ export function useSelection() {
                 }
             } finally {
                 if (!isLongCapture && isCaptureSessionCurrent(sessionGeneration)) {
+                    // Keep the native hook swallowing moves until the bitmap
+                    // request above has settled; otherwise the release point
+                    // can trigger a new external hover before capture completes.
+                    await api.setCaptureInputActive(false);
+                    onCaptureHoverClear();
                     resetSelection();
                     await api.setOverlayClickThrough(true);
                     await api.setMouseMonitorActive(true);

@@ -146,13 +146,58 @@ must be made conservatively because event ordering is load-bearing.
 - `capture.rs` — region capture command surface and response metadata;
 - `screenshot.rs` — Windows Graphics Capture, HDR/scRGB conversion, SDR/GDI
   fallback, and display selection;
+- `screenshot/dwm_shared_surface.rs` — protected-window capture fallback. It
+  checks `GetWindowDisplayAffinity`, resolves the undocumented
+  `DwmGetDxSharedSurface` export dynamically so unsupported Windows builds fail
+  closed, opens the returned D3D11 shared texture, copies it to a CPU-readable
+  staging texture, validates dimensions/format/size, crops with display metrics
+  and DWM extended-frame bounds, and returns RGB pixels. This path is bounded
+  to a 512 MiB mapped surface and never falls back to a desktop crop when a
+  protected window cannot provide a valid surface.
+- `screenshot/protected_region.rs` — mixed region composition. It captures the
+  desktop SDR background at the requested dimensions, then overlays the generic
+  protected surface intersection at its physical offset. Windows above the
+  protected target in `EnumWindows` z-order are converted to clipped occlusion
+  rectangles, so their desktop pixels remain on top. A missing protected surface
+  is an explicit error rather than a silent desktop-only result.
+- `screenshot/wgc_session.rs` — shared D3D11 device, HWND-backed WGC capture,
+  crop geometry, and bounded failure accounting;
+- `screenshot/wgc_transient.rs` — short-lived SDR/HDR WGC sessions with bounded
+  frame waits and unusable-frame rejection;
+- `screenshot/wgc_persistent.rs` — opt-in thread-affine persistent WGC session,
+  cached-frame validation, timeout fallback, and CPU crop ownership.
 - `capture_coords.rs` — physical/global/logical coordinate normalization;
-- `capture_windows.rs` — visible window enumeration and target filtering;
+- `capture_windows.rs` — visible window enumeration, target filtering, and
+  top-to-bottom z-order ranks used by protected-region composition;
 - `long_capture.rs` — overlap analysis and incremental stitching.
 
 Ordinary region capture can return a file-backed PNG plus metadata. HDR output
 uses 16-bit BT.2020/PQ when appropriate; SDR output uses 8-bit sRGB. Long capture
 remains SDR by design.
+
+Rectangular region drags intentionally use the visible display composition rather
+than an HWND-only surface, even when the rectangle happens to fit inside one
+window. This preserves every window that overlaps the selection. HWND-backed
+capture remains reserved for an explicitly confirmed full-window double click;
+protected-window auto composition is still applied when a region drag intersects
+an affinity-protected target.
+
+The live protected-window probes are local-only ignored Rust tests. They accept
+any visible protected HWND through `HOOK_PROTECTED_WINDOW_HWND`; production code
+does not match a process name or title. A Telegram installation is only a useful
+local fixture. For example:
+
+```powershell
+$handle = (Get-Process Telegram).MainWindowHandle
+$env:HOOK_PROTECTED_WINDOW_HWND = ('{0:x}' -f $handle)
+cargo test --manifest-path src-tauri/Cargo.toml `
+  screenshot::dwm_shared_surface::tests::captures_live_protected_window_from_dwm_shared_surface `
+  --lib -- --ignored --nocapture
+```
+
+GitHub's ordinary `cargo test` invocation never enables `--ignored`, so hosted
+runners do not require Telegram. Geometry, z-order masking, and fractional-DPI
+rounding remain covered by deterministic tests that run without external apps.
 
 ### 4.3 Desktop lifecycle and input
 

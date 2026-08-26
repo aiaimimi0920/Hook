@@ -83,7 +83,7 @@ export const renderStickerCompositeWithAnnotations = async (
     options?: {
         includeRasterizedAnnotationLayer?: boolean;
         baseImageSrcOverride?: string;
-        outputMode?: "frame" | "image-content";
+        outputMode?: "frame" | "image-content" | "source-resolution";
     },
 ): Promise<string> => {
     const baseSrc =
@@ -105,6 +105,17 @@ export const renderStickerCompositeWithAnnotations = async (
         width: image.naturalWidth || image.width,
         height: image.naturalHeight || image.height,
     };
+    const preserveSourceResolution = options?.outputMode === "source-resolution";
+    const outputWidth = preserveSourceResolution
+        ? resolveFiniteCanvasDimension(sourceSize.width || renderWidth, "source width")
+        : renderWidth;
+    const outputHeight = preserveSourceResolution
+        ? resolveFiniteCanvasDimension(sourceSize.height || renderHeight, "source height")
+        : renderHeight;
+    const coordinateScale = {
+        x: outputWidth / renderWidth,
+        y: outputHeight / renderHeight,
+    };
     let baseImagePlacement = {
         left: contentFrame.x,
         top: contentFrame.y,
@@ -113,11 +124,14 @@ export const renderStickerCompositeWithAnnotations = async (
     };
 
     const canvas = document.createElement("canvas");
-    canvas.width = renderWidth;
-    canvas.height = renderHeight;
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
     const context = canvas.getContext("2d");
     if (!context) {
         throw new Error("Canvas context unavailable");
+    }
+    if (preserveSourceResolution && (coordinateScale.x !== 1 || coordinateScale.y !== 1)) {
+        context.scale(coordinateScale.x, coordinateScale.y);
     }
 
     const radius = unit.data.imageEditState?.cornerRadius ?? 0;
@@ -200,6 +214,7 @@ export const renderStickerCompositeWithAnnotations = async (
         unit,
         renderWidth,
         renderHeight,
+        coordinateScale,
     );
 
     if (radius > 0) {

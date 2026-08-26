@@ -208,4 +208,13 @@ mod tests {
             frame_has_suspicious_black_video_hole(&crop_rgb(&image, &crop)),
         );
     }
+
+    #[test]
+    fn rejects_a_black_transient_frame_before_it_reaches_the_user() {
+        let black = RgbImage::from_pixel(160, 120, image::Rgb([0, 0, 0]));
+        let visible = RgbImage::from_pixel(160, 120, image::Rgb([220, 220, 220]));
+
+        assert!(!wgc_cached_frame_is_usable(&black, None));
+        assert!(wgc_cached_frame_is_usable(&visible, None));
+    }
 }

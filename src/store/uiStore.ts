@@ -173,8 +173,10 @@ export const [globalAddNodeMenu, setGlobalAddNodeMenu] = createSignal<{
     y: 0,
 });
 
+export type EnhancementNoticeFeature = "OCR" | "Translation" | "Loom";
+
 export interface EnhancementNotice {
-    feature: "OCR" | "Translation";
+    feature: EnhancementNoticeFeature;
     title: string;
     message: string;
 }

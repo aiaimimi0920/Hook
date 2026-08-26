@@ -1,23 +1,31 @@
+use crate::capture_coords::CaptureWindowMetrics;
 use anyhow::anyhow;
 use image::RgbImage;
 use scap_direct3d::{Capturer, PixelFormat, Settings};
 use std::sync::OnceLock;
-use windows::Win32::Foundation::HMODULE;
+use windows::Graphics::Capture::GraphicsCaptureItem;
+use windows::Win32::Foundation::{HMODULE, HWND, RECT};
 use windows::Win32::Graphics::Direct3D::D3D_DRIVER_TYPE_HARDWARE;
 use windows::Win32::Graphics::Direct3D11::{
-    D3D11CreateDevice, ID3D11Device, D3D11_BOX, D3D11_SDK_VERSION,
+    D3D11CreateDevice, ID3D11Device, D3D11_BOX, D3D11_CREATE_DEVICE_BGRA_SUPPORT, D3D11_SDK_VERSION,
+};
+use windows::Win32::Graphics::Dwm::{
+    DwmFlush, DwmGetWindowAttribute, DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS,
+};
+use windows::Win32::Graphics::Gdi::{
+    RedrawWindow, UpdateWindow, RDW_ALLCHILDREN, RDW_ERASENOW, RDW_INVALIDATE, RDW_UPDATENOW,
+};
+use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemInterop;
+use windows::Win32::UI::WindowsAndMessaging::{
+    BringWindowToTop, GetWindowRect, IsIconic, IsWindowVisible, SetForegroundWindow,
+    ShowWindowAsync, SHOW_WINDOW_CMD,
 };
 
-use super::capture_pixels::{frame_to_hdr_decision, frame_to_rgb, HdrFrameDecision};
-use super::hdr_analysis::{HdrCaptureMode, HdrDisplayInfo};
-use super::wgc_frame_policy::{
-    crop_rgb, frame_has_suspicious_black_video_hole, frame_has_suspicious_black_video_hole_in_crop,
-    frame_is_mostly_black, select_wgc_timeout_fallback_frame, wgc_cached_frame_is_usable,
-    wgc_frame_wait_timeout, wgc_last_usable_fallback_max_age,
-};
+use super::capture_pixels::frame_to_rgb;
+use super::wgc_frame_policy::{crop_rgb, wgc_frame_wait_timeout};
 use super::{capture_area_verbose_logging_enabled, CaptureWorkloadProfile};
 
-fn shared_d3d_device() -> anyhow::Result<&'static ID3D11Device> {
+pub(super) fn shared_d3d_device() -> anyhow::Result<&'static ID3D11Device> {
     static DEVICE: OnceLock<Option<ID3D11Device>> = OnceLock::new();
 
     let device = DEVICE.get_or_init(|| {
@@ -27,7 +35,7 @@ fn shared_d3d_device() -> anyhow::Result<&'static ID3D11Device> {
                 None,
                 D3D_DRIVER_TYPE_HARDWARE,
                 HMODULE::default(),
-                Default::default(),
+                D3D11_CREATE_DEVICE_BGRA_SUPPORT,
                 None,
                 D3D11_SDK_VERSION,
                 Some(&mut device),
@@ -66,7 +74,7 @@ pub(super) fn wgc_note_failure() {
     }
 }
 
-fn windows_fast_path_available() -> bool {
+pub(super) fn windows_fast_path_available() -> bool {
     static AVAILABLE: OnceLock<bool> = OnceLock::new();
 
     if WGC_DISABLED.load(std::sync::atomic::Ordering::Relaxed) {
@@ -79,7 +87,10 @@ fn windows_fast_path_available() -> bool {
     })
 }
 
-fn windows_capture_settings_for(rect: Option<D3D11_BOX>, pixel_format: PixelFormat) -> Settings {
+pub(super) fn windows_capture_settings_for(
+    rect: Option<D3D11_BOX>,
+    pixel_format: PixelFormat,
+) -> Settings {
     let mut settings = Settings {
         is_cursor_capture_enabled: Some(false),
         pixel_format,
@@ -92,8 +103,234 @@ fn windows_capture_settings_for(rect: Option<D3D11_BOX>, pixel_format: PixelForm
     settings
 }
 
-fn windows_capture_settings(rect: Option<D3D11_BOX>) -> Settings {
+pub(super) fn windows_capture_settings(rect: Option<D3D11_BOX>) -> Settings {
     windows_capture_settings_for(rect, PixelFormat::B8G8R8A8Unorm)
+}
+
+pub(super) fn window_surface_crop(
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+    display_metrics: CaptureWindowMetrics,
+    bounds: RECT,
+    surface_width: u32,
+    surface_height: u32,
+) -> Option<D3D11_BOX> {
+    let scale = display_metrics
+        .scale_factor
+        .is_finite()
+        .then_some(display_metrics.scale_factor)
+        .filter(|scale| *scale > 0.0)
+        .unwrap_or(1.0);
+    let selection_left = display_metrics.physical_origin_x + x as f64 * scale;
+    let selection_top = display_metrics.physical_origin_y + y as f64 * scale;
+    let selection_right = selection_left + w as f64 * scale;
+    let selection_bottom = selection_top + h as f64 * scale;
+    // Match display_selection's physical capture contract: the selection
+    // origin is floored and its far edge is ceiled. Using round() here shifts
+    // protected surfaces by a pixel at fractional DPI scales.
+    let crop_left = (selection_left - bounds.left as f64)
+        .floor()
+        .clamp(0.0, surface_width as f64) as u32;
+    let crop_top = (selection_top - bounds.top as f64)
+        .floor()
+        .clamp(0.0, surface_height as f64) as u32;
+    let crop_right = (selection_right - bounds.left as f64)
+        .ceil()
+        .clamp(0.0, surface_width as f64) as u32;
+    let crop_bottom = (selection_bottom - bounds.top as f64)
+        .ceil()
+        .clamp(0.0, surface_height as f64) as u32;
+    (crop_right > crop_left && crop_bottom > crop_top).then_some(D3D11_BOX {
+        left: crop_left,
+        top: crop_top,
+        right: crop_right,
+        bottom: crop_bottom,
+        front: 0,
+        back: 1,
+    })
+}
+
+/// Captures a window surface directly from its HWND-backed GraphicsCaptureItem.
+///
+/// Region capture normally samples a crop from the desktop display. That is
+/// not sufficient for some hardware-accelerated windows (notably Telegram),
+/// whose surface can be omitted from the compositor frame while the window is
+/// still visible to the user. A window item asks WGC for that app surface and
+/// therefore avoids sampling the application behind it.
+pub(super) fn try_fast_capture_window(
+    capture_window_id: &str,
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+    display_metrics: CaptureWindowMetrics,
+) -> Option<RgbImage> {
+    use std::sync::mpsc::sync_channel;
+
+    let diag = capture_area_verbose_logging_enabled();
+    let fail = |reason: &str| {
+        // Keep the failure reason in the normal runtime log.  A window capture
+        // can otherwise silently fall back to a desktop crop, which is
+        // especially misleading for GPU-composited apps such as Telegram.
+        crate::append_runtime_log_line(&format!("capture_window fast_fail :: reason={reason}"));
+        if diag {
+            eprintln!("capture_window fast_fail :: reason={reason}");
+        }
+        None
+    };
+    if !scap_direct3d::is_supported().unwrap_or(false) {
+        return fail("fast_path_unavailable");
+    }
+
+    // capture_windows.rs intentionally exposes the native HWND as hexadecimal.
+    // Do not route this value through scap's filtered Window::list(): some
+    // valid GPU windows (including Telegram) are rejected by scap's generic
+    // ownership/path policy even though CreateForWindow can capture them.
+    let Some(raw_handle) = u64::from_str_radix(capture_window_id.trim_start_matches("0x"), 16).ok()
+    else {
+        return fail("invalid_window_id");
+    };
+    if raw_handle == 0 {
+        return fail("zero_window_id");
+    }
+    let hwnd = HWND(raw_handle as *mut std::ffi::c_void);
+    if unsafe { IsIconic(hwnd) }.as_bool() {
+        // Telegram may minimize its Qt top-level surface when Hook's overlay
+        // takes focus. Restore it before creating the capture item; otherwise
+        // WGC can accept the HWND but never emit a frame.
+        let _ = unsafe { ShowWindowAsync(hwnd, SHOW_WINDOW_CMD(9)) };
+    }
+    if !unsafe { IsWindowVisible(hwnd) }.as_bool() || unsafe { IsIconic(hwnd) }.as_bool() {
+        return fail("window_not_visible");
+    }
+    // A number of GPU clients (including Telegram) suspend their compositor
+    // when they are occluded and inactive. Make the target foreground for the
+    // short WGC session so the first frame is produced reliably.
+    let _ = unsafe { BringWindowToTop(hwnd) };
+    let _ = unsafe { SetForegroundWindow(hwnd) };
+    // Request a synchronous repaint as well. Telegram may have a stable
+    // visible window but no pending compositor update after Hook's overlay
+    // released focus; WGC otherwise waits forever for its first frame.
+    let _ = unsafe {
+        RedrawWindow(
+            Some(hwnd),
+            None,
+            None,
+            RDW_INVALIDATE | RDW_UPDATENOW | RDW_ERASENOW | RDW_ALLCHILDREN,
+        )
+    };
+    let _ = unsafe { UpdateWindow(hwnd) };
+    // Foreground activation and DWM composition are asynchronous. Wait for
+    // the compositor boundary before starting GraphicsCaptureItem; otherwise
+    // Telegram can leave the first-frame channel empty and report a timeout.
+    let _ = unsafe { DwmFlush() };
+    std::thread::sleep(std::time::Duration::from_millis(350));
+    let mut cloaked = 0u32;
+    let _ = unsafe {
+        DwmGetWindowAttribute(
+            hwnd,
+            DWMWA_CLOAKED,
+            (&raw mut cloaked).cast(),
+            std::mem::size_of::<u32>() as u32,
+        )
+    };
+    if cloaked != 0 {
+        return fail("window_cloaked");
+    }
+    let mut bounds = RECT::default();
+    let dwm_bounds_result = unsafe {
+        DwmGetWindowAttribute(
+            hwnd,
+            DWMWA_EXTENDED_FRAME_BOUNDS,
+            (&raw mut bounds).cast(),
+            std::mem::size_of::<RECT>() as u32,
+        )
+    };
+    if dwm_bounds_result.is_err() {
+        if unsafe { GetWindowRect(hwnd, &mut bounds) }.is_err() {
+            return fail("window_bounds_unavailable");
+        }
+    }
+    let Some(interop) =
+        windows::core::factory::<GraphicsCaptureItem, IGraphicsCaptureItemInterop>().ok()
+    else {
+        return fail("capture_item_factory_unavailable");
+    };
+    let item: GraphicsCaptureItem = match unsafe { interop.CreateForWindow(hwnd) } {
+        Ok(item) => item,
+        Err(error) => return fail(&format!("create_for_window_{error:?}")),
+    };
+    let item_size = match item.Size() {
+        Ok(size) => size,
+        Err(error) => return fail(&format!("item_size_{error:?}")),
+    };
+    let Some(item_width) = u32::try_from(item_size.Width).ok() else {
+        return fail("item_width_invalid");
+    };
+    let Some(item_height) = u32::try_from(item_size.Height).ok() else {
+        return fail("item_height_invalid");
+    };
+    let Some(crop) =
+        window_surface_crop(x, y, w, h, display_metrics, bounds, item_width, item_height)
+    else {
+        return fail("empty_window_crop");
+    };
+    let Some(device) = shared_d3d_device().ok().cloned() else {
+        return fail("d3d_device_unavailable");
+    };
+    // WGC's ContentSize can be smaller than the DWM extended frame bounds
+    // (Telegram commonly has a non-client frame/title inset).  Passing the
+    // screen-derived crop to the GPU capturer then causes scap-direct3d to
+    // discard every frame whose content size is smaller than that crop,
+    // resulting in a misleading timeout. Capture the complete window surface
+    // first and clamp the crop against the actual returned frame on the CPU.
+    let settings = windows_capture_settings(None);
+    let (tx, rx) = sync_channel(1);
+    let mut capturer = match Capturer::new(
+        item,
+        settings,
+        move |frame| {
+            let _ = tx.try_send(frame_to_rgb(&frame));
+            Ok(())
+        },
+        || Ok(()),
+        Some(device),
+    ) {
+        Ok(capturer) => capturer,
+        Err(error) => return fail(&format!("capturer_new_{error:?}")),
+    };
+
+    if let Err(error) = capturer.start() {
+        return fail(&format!("capturer_start_{error:?}"));
+    }
+    let result = rx.recv_timeout(wgc_frame_wait_timeout(false));
+    let _ = capturer.stop();
+    let image = match result {
+        Ok(Ok(image)) => image,
+        Ok(Err(error)) => return fail(&format!("frame_to_rgb_{error:?}")),
+        Err(error) => return fail(&format!("frame_timeout_{error:?}")),
+    };
+    let image = crop_rgb(&image, &crop);
+    if image.width() == 0 || image.height() == 0 {
+        return fail("empty_frame");
+    }
+    crate::append_runtime_log_line(&format!(
+        "capture_window wgc_success :: target={} width={} height={}",
+        capture_window_id,
+        image.width(),
+        image.height()
+    ));
+    if diag {
+        eprintln!(
+            "capture_window wgc_success :: target={} width={} height={}",
+            capture_window_id,
+            image.width(),
+            image.height()
+        );
+    }
+    Some(image)
 }
 
 pub(super) fn wgc_fast_path_mode() -> String {
@@ -120,7 +357,7 @@ pub(super) fn should_use_persistent_wgc(profile: CaptureWorkloadProfile) -> bool
 /// Bounds the opt-in persistent mode to one blocking worker per process. COM
 /// capture objects remain thread-affine, while other workers safely use the
 /// transient path instead of retaining another full-screen frame pool.
-fn claim_process_persistent_wgc_thread() -> bool {
+pub(super) fn claim_process_persistent_wgc_thread() -> bool {
     static OWNER: OnceLock<std::sync::Mutex<Option<std::thread::ThreadId>>> = OnceLock::new();
     let current = std::thread::current().id();
     let Ok(mut owner) = OWNER.get_or_init(|| std::sync::Mutex::new(None)).lock() else {
@@ -135,365 +372,11 @@ fn claim_process_persistent_wgc_thread() -> bool {
     }
 }
 
-/// Thread-affine WGC session. `Capturer` owns COM objects and must never be sent
-/// to another blocking worker.
-struct PersistentCapturer {
-    #[allow(dead_code)]
-    capturer: Capturer,
-    display_id: scap_targets::DisplayId,
-    latest: std::sync::Arc<std::sync::Mutex<Option<RgbImage>>>,
-    frame_seq: std::sync::Arc<std::sync::atomic::AtomicU64>,
-    last_usable: Option<(RgbImage, std::time::Instant)>,
-}
-
-thread_local! {
-    static PERSISTENT_CAPTURER: std::cell::RefCell<Option<PersistentCapturer>> =
-        const { std::cell::RefCell::new(None) };
-}
-
-fn build_persistent_capturer(display_id: &scap_targets::DisplayId) -> Option<PersistentCapturer> {
-    let diag = capture_area_verbose_logging_enabled();
-    let display = match scap_targets::Display::from_id(display_id) {
-        Some(display) => display,
-        None => {
-            if diag {
-                crate::append_runtime_log_line("capture_area fast_fail :: reason=display_from_id");
-            }
-            return None;
-        }
-    };
-    let item = match display.raw_handle().try_as_capture_item() {
-        Ok(item) => item,
-        Err(error) => {
-            if diag {
-                crate::append_runtime_log_line(&format!(
-                    "capture_area fast_fail :: reason=capture_item err={error:?}"
-                ));
-            }
-            return None;
-        }
-    };
-
-    // Persistent capture is full-screen; each caller applies its physical crop on CPU.
-    let settings = windows_capture_settings(None);
-    let device = shared_d3d_device().ok().cloned();
-    let latest: std::sync::Arc<std::sync::Mutex<Option<RgbImage>>> =
-        std::sync::Arc::new(std::sync::Mutex::new(None));
-    let frame_seq = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
-    let cb_latest = latest.clone();
-    let cb_seq = frame_seq.clone();
-    let mut capturer = match Capturer::new(
-        item,
-        settings,
-        move |frame| {
-            if let Ok(image) = frame_to_rgb(&frame) {
-                if let Ok(mut slot) = cb_latest.lock() {
-                    *slot = Some(image);
-                    cb_seq.fetch_add(1, std::sync::atomic::Ordering::Release);
-                }
-            }
-            Ok(())
-        },
-        || Ok(()),
-        device,
-    ) {
-        Ok(capturer) => capturer,
-        Err(error) => {
-            if diag {
-                crate::append_runtime_log_line(&format!(
-                    "capture_area fast_fail :: reason=capturer_new err={error:?}"
-                ));
-            }
-            return None;
-        }
-    };
-
-    if let Err(error) = capturer.start() {
-        if diag {
-            crate::append_runtime_log_line(&format!(
-                "capture_area fast_fail :: reason=capturer_start err={error:?}"
-            ));
-        }
-        return None;
-    }
-    if diag {
-        crate::append_runtime_log_line("capture_area wgc_persistent_started");
-    }
-
-    Some(PersistentCapturer {
-        capturer,
-        display_id: display_id.clone(),
-        latest,
-        frame_seq,
-        last_usable: None,
-    })
-}
-
-fn try_fast_capture_transient(
-    display_id: scap_targets::DisplayId,
-    crop_rect: Option<D3D11_BOX>,
-) -> Option<RgbImage> {
-    use std::sync::mpsc::sync_channel;
-    use std::time::Duration;
-
-    let diag = capture_area_verbose_logging_enabled();
-    if !windows_fast_path_available() {
-        if diag {
-            crate::append_runtime_log_line(
-                "capture_area fast_fail :: reason=fast_path_unavailable",
-            );
-        }
-        return None;
-    }
-
-    let start = std::time::Instant::now();
-    let display = scap_targets::Display::from_id(&display_id)?;
-    let item = display.raw_handle().try_as_capture_item().ok()?;
-    let settings = windows_capture_settings(crop_rect);
-    let device = shared_d3d_device().ok().cloned();
-    let (tx, rx) = sync_channel(1);
-    let mut capturer = Capturer::new(
-        item,
-        settings,
-        move |frame| {
-            let result = frame_to_rgb(&frame);
-            let _ = tx.try_send(result);
-            Ok(())
-        },
-        || Ok(()),
-        device,
-    )
-    .ok()?;
-
-    capturer.start().ok()?;
-    let result = rx.recv_timeout(Duration::from_millis(500));
-    let _ = capturer.stop();
-    let image = result.ok()?.ok()?;
-    if diag {
-        crate::append_runtime_log_line(&format!(
-            "capture_area fast_elapsed :: mode=transient elapsed_ms={}",
-            start.elapsed().as_millis()
-        ));
-    }
-    Some(image)
-}
-
-pub(super) fn try_hdr_capture_transient(
-    display_id: scap_targets::DisplayId,
-    crop_rect: D3D11_BOX,
-    display_info: HdrDisplayInfo,
-    mode: HdrCaptureMode,
-    overlay_gain: f32,
-) -> Option<HdrFrameDecision> {
-    use std::sync::mpsc::sync_channel;
-    use std::time::Duration;
-
-    if !windows_fast_path_available() {
-        return None;
-    }
-
-    let started_at = std::time::Instant::now();
-    let display = scap_targets::Display::from_id(&display_id)?;
-    let item = display.raw_handle().try_as_capture_item().ok()?;
-    let settings = windows_capture_settings_for(Some(crop_rect), PixelFormat::R16G16B16A16Float);
-    let device = shared_d3d_device().ok().cloned();
-    let (tx, rx) = sync_channel(1);
-    let mut capturer = Capturer::new(
-        item,
-        settings,
-        move |frame| {
-            let result = frame_to_hdr_decision(&frame, display_info, mode, overlay_gain);
-            let _ = tx.try_send(result);
-            Ok(())
-        },
-        || Ok(()),
-        device,
-    )
-    .ok()?;
-
-    capturer.start().ok()?;
-    let result = rx.recv_timeout(Duration::from_millis(800));
-    let _ = capturer.stop();
-    match result {
-        Ok(Ok(frame)) => {
-            if capture_area_verbose_logging_enabled() {
-                crate::append_runtime_log_line(&format!(
-                    "capture_area hdr_elapsed :: mode=transient elapsed_ms={}",
-                    started_at.elapsed().as_millis()
-                ));
-            }
-            Some(frame)
-        }
-        Ok(Err(error)) => {
-            crate::append_runtime_log_line(&format!("capture_area hdr_frame_failure :: {error}"));
-            None
-        }
-        Err(error) => {
-            crate::append_runtime_log_line(&format!("capture_area hdr_timeout :: {error}"));
-            None
-        }
-    }
-}
-
-pub(super) fn try_fast_capture(
-    display_id: scap_targets::DisplayId,
-    crop_rect: Option<D3D11_BOX>,
-    profile: CaptureWorkloadProfile,
-) -> Option<RgbImage> {
-    use std::time::Duration;
-
-    let diag = capture_area_verbose_logging_enabled();
-    if !windows_fast_path_available() {
-        if diag {
-            crate::append_runtime_log_line(
-                "capture_area fast_fail :: reason=fast_path_unavailable",
-            );
-        }
-        return None;
-    }
-
-    let start = std::time::Instant::now();
-    if !should_use_persistent_wgc(profile) || !claim_process_persistent_wgc_thread() {
-        return try_fast_capture_transient(display_id, crop_rect);
-    }
-
-    PERSISTENT_CAPTURER.with(|cell| {
-        let display_changed = cell
-            .borrow()
-            .as_ref()
-            .map(|capturer| capturer.display_id != display_id)
-            .unwrap_or(false);
-        if display_changed {
-            *cell.borrow_mut() = None;
-            if diag {
-                crate::append_runtime_log_line(
-                    "capture_area wgc_persistent_display_changed :: rebuilding",
-                );
-            }
-        }
-
-        if cell.borrow().is_none() {
-            let built = build_persistent_capturer(&display_id);
-            if built.is_none() {
-                return None;
-            }
-            *cell.borrow_mut() = built;
-        }
-
-        let mut guard = cell.borrow_mut();
-        let persistent = guard.as_mut()?;
-        let cached_frame = persistent
-            .latest
-            .lock()
-            .ok()
-            .and_then(|slot| slot.clone());
-        let cached_usable_frame = cached_frame
-            .as_ref()
-            .filter(|image| wgc_cached_frame_is_usable(image, crop_rect.as_ref()))
-            .cloned();
-        let last_usable_backup = persistent
-            .last_usable
-            .as_ref()
-            .filter(|(image, captured_at)| {
-                captured_at.elapsed() <= wgc_last_usable_fallback_max_age()
-                    && wgc_cached_frame_is_usable(image, crop_rect.as_ref())
-            })
-            .map(|(image, captured_at)| (image.clone(), *captured_at));
-        let usable_backup = cached_usable_frame
-            .map(|image| (image, std::time::Instant::now()))
-            .or(last_usable_backup);
-        let has_usable_cached_frame = usable_backup.is_some();
-        let mut seq_seen = persistent
-            .frame_seq
-            .load(std::sync::atomic::Ordering::Acquire);
-        let deadline = std::time::Instant::now() + wgc_frame_wait_timeout(has_usable_cached_frame);
-        let mut frames_seen = 0u32;
-        let mut black_frames = 0u32;
-        let mut chosen: Option<RgbImage> = None;
-        let mut latest_black_frame: Option<RgbImage> = None;
-
-        loop {
-            let seq_now = persistent
-                .frame_seq
-                .load(std::sync::atomic::Ordering::Acquire);
-            if seq_now != seq_seen {
-                seq_seen = seq_now;
-                if let Ok(slot) = persistent.latest.lock() {
-                    if let Some(ref image) = *slot {
-                        frames_seen += 1;
-                        let candidate_has_video_hole = crop_rect
-                            .as_ref()
-                            .map(|crop| frame_has_suspicious_black_video_hole_in_crop(image, crop))
-                            .unwrap_or_else(|| frame_has_suspicious_black_video_hole(image));
-
-                        if frame_is_mostly_black(image) || candidate_has_video_hole {
-                            black_frames += 1;
-                            latest_black_frame = Some(image.clone());
-                        } else {
-                            persistent.last_usable =
-                                Some((image.clone(), std::time::Instant::now()));
-                            chosen = Some(image.clone());
-                            break;
-                        }
-                    }
-                }
-            }
-            if std::time::Instant::now() >= deadline {
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(8));
-        }
-
-        if chosen.is_none() {
-            let backup_age_ms = usable_backup
-                .as_ref()
-                .map(|(_, captured_at)| captured_at.elapsed().as_millis());
-            chosen = select_wgc_timeout_fallback_frame(latest_black_frame, usable_backup);
-            if diag || backup_age_ms.is_some() {
-                crate::append_runtime_log_line(&format!(
-                    "capture_area wgc_timeout_fallback :: used_recent_backup={} backup_age_ms={} frames_seen={} suspicious_frames={}",
-                    backup_age_ms.is_some() && chosen.is_some(),
-                    backup_age_ms
-                        .map(|age| age.to_string())
-                        .unwrap_or_else(|| "none".to_string()),
-                    frames_seen,
-                    black_frames
-                ));
-            }
-        }
-
-        let full = match chosen {
-            Some(image) => image,
-            None => {
-                if diag {
-                    crate::append_runtime_log_line(
-                        "capture_area fast_fail :: reason=no_frame_persistent",
-                    );
-                }
-                *guard = None;
-                return None;
-            }
-        };
-        let image = match crop_rect {
-            Some(ref crop) => crop_rgb(&full, crop),
-            None => full,
-        };
-
-        if diag {
-            crate::append_runtime_log_line(&format!(
-                "capture_area fast_elapsed :: elapsed_ms={} frames_seen={frames_seen} black_frames={black_frames} out={}x{}",
-                start.elapsed().as_millis(),
-                image.width(),
-                image.height()
-            ));
-        }
-        Some(image)
-    })
-}
-
 #[cfg(test)]
 mod tests {
-    use super::claim_process_persistent_wgc_thread;
+    use super::{claim_process_persistent_wgc_thread, window_surface_crop};
+    use crate::capture_coords::CaptureWindowMetrics;
+    use windows::Win32::Foundation::RECT;
 
     #[test]
     fn persistent_wgc_is_bounded_to_one_process_thread() {
@@ -503,4 +386,35 @@ mod tests {
             .expect("persistent WGC ownership probe should not panic");
         assert!(!other_thread_claim);
     }
+
+    #[test]
+    fn window_surface_crop_matches_fractional_dpi_display_rounding() {
+        let crop = window_surface_crop(
+            0,
+            0,
+            3,
+            3,
+            CaptureWindowMetrics {
+                physical_origin_x: 0.0,
+                physical_origin_y: 0.0,
+                scale_factor: 1.5,
+                logical_width: 10.0,
+                logical_height: 10.0,
+            },
+            RECT {
+                left: 0,
+                top: 0,
+                right: 100,
+                bottom: 100,
+            },
+            100,
+            100,
+        )
+        .expect("fractional-DPI crop should be non-empty");
+
+        assert_eq!((crop.left, crop.top, crop.right, crop.bottom), (0, 0, 5, 5));
+    }
 }
+
+pub(super) use super::wgc_persistent::try_fast_capture;
+pub(super) use super::wgc_transient::{try_fast_capture_transient, try_hdr_capture_transient};

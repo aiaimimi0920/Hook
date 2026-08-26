@@ -26,6 +26,7 @@ export const captureApi = {
             w,
             h,
             compositionOverlayAlpha: options?.compositionOverlayAlpha,
+            captureWindowId: options?.captureWindowId,
         });
     },
 

@@ -289,9 +289,39 @@ export function createOverlaySyntheticDispatcher(
         }
     };
 
+    const clearSyntheticHover = (): void => {
+        const baseInit = {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            clientX: 0,
+            clientY: 0,
+            screenX: 0,
+            screenY: 0,
+            ctrlKey: false,
+            altKey: false,
+            shiftKey: false,
+            metaKey: false,
+            button: 0,
+            buttons: 0,
+        };
+        dispatchOverlaySyntheticHoverTransition(
+            state,
+            null,
+            {
+                ...baseInit,
+                pointerId: 1,
+                pointerType: "mouse",
+                isPrimary: true,
+            },
+            baseInit,
+        );
+    };
+
     return {
         dispatch: dispatchSyntheticOverlayMouseEvent,
         relayPointerMove: relayOverlaySyntheticPointerMove,
+        clearHover: clearSyntheticHover,
         reset: () => resetOverlaySyntheticState(state),
         get moveRelayActive() {
             return state.moveRelayActive;

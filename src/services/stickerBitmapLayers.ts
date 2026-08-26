@@ -183,10 +183,14 @@ export const createLiveStickerEraseSession = async (params: {
 export const composeRasterizedStickerPreview = async (
     baseLayerSrc: string,
     rasterizedAnnotationLayerSrc: string | undefined,
-    size: StickerBitmapSize,
+    size?: StickerBitmapSize,
 ) => {
-    const { canvas, context } = createCanvas(size);
     const baseImage = await loadImage(baseLayerSrc);
+    const targetSize = size || {
+        w: baseImage.naturalWidth || baseImage.width,
+        h: baseImage.naturalHeight || baseImage.height,
+    };
+    const { canvas, context } = createCanvas(targetSize);
     context.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
 
     if (rasterizedAnnotationLayerSrc) {

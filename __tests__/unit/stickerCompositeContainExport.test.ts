@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+    renderStickerBaseLayer,
     renderStickerComposite,
     renderStickerCompositeWithAnnotations,
+    renderStickerTransparentAnnotationLayer,
     resolveDirectStickerExportImageSrc,
 } from "../../src/services/stickerExport";
 import { graphStore } from "../../src/store/graphStore";
@@ -100,6 +102,93 @@ describe("sticker composite export base-image placement", () => {
         );
 
         expect(baseImageDraw?.slice(2)).toEqual([50, 0, 100, 100]);
+    });
+
+    it("keeps rasterized base and annotation layers at the source resolution", async () => {
+        const canvasSizes: Array<{ width: number; height: number }> = [];
+        const context = {
+            save: vi.fn(),
+            restore: vi.fn(),
+            scale: vi.fn(),
+            beginPath: vi.fn(),
+            closePath: vi.fn(),
+            roundRect: vi.fn(),
+            clip: vi.fn(),
+            drawImage: vi.fn(),
+            fillRect: vi.fn(),
+            strokeRect: vi.fn(),
+            fill: vi.fn(),
+            stroke: vi.fn(),
+            setLineDash: vi.fn(),
+        };
+        vi.stubGlobal("document", {
+            createElement: (tagName: string) => {
+                expect(tagName).toBe("canvas");
+                const canvas = {
+                    width: 0,
+                    height: 0,
+                    getContext: () => context,
+                    toDataURL: () => "data:image/png;base64,RASTERIZED",
+                };
+                Object.defineProperties(canvas, {
+                    width: {
+                        get: () => canvasSizes[canvasSizes.length - 1]?.width ?? 0,
+                        set: (value: number) => {
+                            const current = canvasSizes[canvasSizes.length - 1];
+                            if (current) current.width = value;
+                        },
+                    },
+                    height: {
+                        get: () => canvasSizes[canvasSizes.length - 1]?.height ?? 0,
+                        set: (value: number) => {
+                            const current = canvasSizes[canvasSizes.length - 1];
+                            if (current) current.height = value;
+                        },
+                    },
+                });
+                canvasSizes.push({ width: 0, height: 0 });
+                return canvas;
+            },
+        });
+
+        class FakeImage {
+            onload: (() => void) | null = null;
+            onerror: (() => void) | null = null;
+            width = 4000;
+            height = 3000;
+            naturalWidth = 4000;
+            naturalHeight = 3000;
+            set src(_value: string) {
+                this.onload?.();
+            }
+        }
+        vi.stubGlobal("Image", FakeImage);
+
+        const unit = makeUnit();
+        unit.w = 100;
+        unit.h = 80;
+        unit.data.annotationState = {
+            serialCounter: 1,
+            elements: [{
+                id: "resolution-annotation",
+                type: "rect",
+                zIndex: 0,
+                x: 5,
+                y: 6,
+                w: 20,
+                h: 15,
+                style: { color: "#ffffff", fill: "#000000", width: 1 },
+            }],
+        };
+
+        await renderStickerBaseLayer(unit);
+        await renderStickerTransparentAnnotationLayer(unit, ["resolution-annotation"]);
+
+        expect(canvasSizes).toEqual([
+            { width: 4000, height: 3000 },
+            { width: 4000, height: 3000 },
+        ]);
+        expect(context.scale).toHaveBeenCalledWith(40, 37.5);
     });
 
     it("exports a cropped upstream sticker inside its updated contained frame", async () => {

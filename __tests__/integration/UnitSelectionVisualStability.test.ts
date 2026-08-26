@@ -6,9 +6,11 @@ describe("unit selection visual stability", () => {
   it("uses only outward overlays for both the 1px idle frame and 2px selected frame so the content area stays pixel-exact", () => {
     const unitViewPath = path.resolve(process.cwd(), "src/components/UnitView.tsx");
     const unitOverlaysPath = path.resolve(process.cwd(), "src/components/UnitVisualOverlays.tsx");
+    const canvasSelectionPath = path.resolve(process.cwd(), "src/components/CanvasSelection.tsx");
     const appCssPath = path.resolve(process.cwd(), "src/styles/unit-workspace.css");
     const source = fs.readFileSync(unitViewPath, "utf8");
     const overlaySource = fs.readFileSync(unitOverlaysPath, "utf8");
+    const canvasSelectionSource = fs.readFileSync(canvasSelectionPath, "utf8");
     const appCss = fs.readFileSync(appCssPath, "utf8");
 
     expect(source).toContain('"border": "none"');
@@ -18,6 +20,9 @@ describe("unit selection visual stability", () => {
     expect(source).not.toContain("const hasSelectedAnnotationInActiveSticker = () =>");
     expect(overlaySource).toMatch(/inset:\s*props\.isSelected\s*\?\s*"-2px"\s*:\s*"-1px"/);
     expect(overlaySource).toMatch(/border:\s*props\.isSelected\s*\?\s*"2px solid white"\s*:\s*`1px solid rgba\(255,255,255,\$\{Math\.max\(0\.2, props\.opacity\)\}\)`/s);
+    expect(canvasSelectionSource).toContain('outline: "2px solid var(--primary)"');
+    expect(canvasSelectionSource).toContain('"outline-offset": "0px"');
+    expect(canvasSelectionSource).not.toContain('class="absolute border-2 border-primary"');
     expect(source).toMatch(/<Show when=\{!isMinified\(\) && !isCleanView\(\)\}>[\s\S]*?<UnitSelectionBorder/);
 
     expect(appCss).toContain('pointer-events: none;');

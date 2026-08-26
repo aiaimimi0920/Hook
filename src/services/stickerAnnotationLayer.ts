@@ -15,6 +15,7 @@ export const drawAnnotationsWithHighlighterLayer = (
     unit: Unit,
     layerWidth: number,
     layerHeight: number,
+    coordinateScale: { x: number; y: number } = { x: 1, y: 1 },
 ) => {
     const sorted = [...annotations].sort(
         (a, b) => annotationRenderRank(a.type) - annotationRenderRank(b.type) || a.zIndex - b.zIndex,
@@ -27,10 +28,13 @@ export const drawAnnotationsWithHighlighterLayer = (
     // overlaps never compound alpha and live/export behavior stays aligned.
     if (highlighters.length > 0 && layerWidth > 0 && layerHeight > 0) {
         const layer = document.createElement("canvas");
-        layer.width = layerWidth;
-        layer.height = layerHeight;
+        layer.width = Math.max(1, Math.round(layerWidth * coordinateScale.x));
+        layer.height = Math.max(1, Math.round(layerHeight * coordinateScale.y));
         const layerContext = layer.getContext("2d");
         if (layerContext) {
+            if (coordinateScale.x !== 1 || coordinateScale.y !== 1) {
+                layerContext.scale(coordinateScale.x, coordinateScale.y);
+            }
             for (const highlighter of highlighters) {
                 drawStrokePath(layerContext, highlighter.points, {
                     color: highlighter.style.color,
@@ -40,7 +44,15 @@ export const drawAnnotationsWithHighlighterLayer = (
             }
             context.save();
             context.globalAlpha = HIGHLIGHTER_LAYER_OPACITY;
-            context.drawImage(layer, 0, 0);
+            if (coordinateScale.x !== 1 || coordinateScale.y !== 1) {
+                // The caller may already scale the destination context to source
+                // pixels. Cancel that transform while blitting the high-resolution
+                // layer so it is not downsampled and enlarged a second time.
+                context.scale(1 / coordinateScale.x, 1 / coordinateScale.y);
+                context.drawImage(layer, 0, 0, layer.width, layer.height);
+            } else {
+                context.drawImage(layer, 0, 0, layerWidth, layerHeight);
+            }
             context.restore();
         }
     }

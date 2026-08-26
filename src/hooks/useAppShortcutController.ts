@@ -11,6 +11,7 @@ import {
     selectedStickerId,
     setIsCleanView,
     stickerToolSettings,
+    enhancementNotices,
     uiActions,
 } from "../store/uiStore";
 import { api } from "../services/api";
@@ -47,6 +48,31 @@ type AppShortcutControllerDependencies = {
 
 /** Binds product shortcut actions while leaving their domain commands injectable. */
 export function useAppShortcutController(dependencies: AppShortcutControllerDependencies): void {
+    const refreshActionsCapabilities = (unitId: string) => {
+        // Shift+1 opens Add Art immediately; report a failed Loom handshake on
+        // the selected sticker instead of leaving an unhandled rejection/toast.
+        void dependencies.refreshCapabilities()
+            .then(() => {
+                if (enhancementNotices[unitId]?.feature === "Loom") {
+                    uiActions.dismissEnhancementNotice(unitId);
+                }
+            })
+            .catch((error: unknown) => {
+                console.warn("Unable to refresh Add Art capabilities from Loom Hook", error);
+                void api.debugLogEvent(
+                    "add-art-capability-refresh-failed",
+                    `unit=${unitId} error_type=${error instanceof Error ? error.name : "NonErrorRejection"}`,
+                );
+                uiActions.closeActions(unitId);
+                uiActions.showEnhancementNotice(unitId, {
+                    feature: "Loom",
+                    title: "Add Art 暂不可用",
+                    message: "无法连接 Loom Hook。请启动 Loom 后重试。",
+                });
+                dependencies.scheduleOverlayHitTestRefresh();
+            });
+    };
+
     useShortcuts({
         contextProvider: () => resolveShortcutContext({
             hasBlockingDialog:
@@ -102,7 +128,7 @@ export function useAppShortcutController(dependencies: AppShortcutControllerDepe
                 const id = selectedStickerId();
                 if (!id) return;
                 // Refresh each time because Loom can add tools after Hook starts.
-                void dependencies.refreshCapabilities();
+                refreshActionsCapabilities(id);
                 uiActions.toggleActions(id);
                 dependencies.scheduleOverlayHitTestRefresh();
             },

@@ -96,6 +96,7 @@ export function createAppNativeActionController(
             dependencies.captureInput.ctrlReleasedSinceCaptureStart = false;
             runBackgroundTask("capture escape cleanup", (async () => {
                 await api.setCaptureInputActive(false);
+                dependencies.overlaySynthetic.clearHover();
                 dependencies.resetSelection();
                 await api.setOverlayClickThrough(true);
                 if (graphStore.units.length > 0) {

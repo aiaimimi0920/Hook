@@ -13,6 +13,7 @@ describe("enhancement unavailable notice contract", () => {
         expect(unitActionsSource).not.toContain("window.alert");
         expect(unitActionsSource).not.toContain(".alert(");
         expect(unitActionsSource).toContain("uiActions.showEnhancementNotice");
+        expect(uiStoreSource).toContain('"Loom"');
     });
 
     it("renders a unit-bound, clickable enhancement notice inside the related sticker/art node", () => {
@@ -24,5 +25,18 @@ describe("enhancement unavailable notice contract", () => {
         expect(unitOverlaysSource).toContain("enhancement-notice");
         expect(unitOverlaysSource).toContain("uiActions.dismissEnhancementNotice(props.unit.id)");
         expect(unitOverlaysSource).toContain("event.stopPropagation()");
+        expect(unitOverlaysSource).toContain("ENHANCEMENT_NOTICE_TIMEOUT_MS");
+        expect(unitOverlaysSource).toContain("window.setTimeout");
+        expect(unitOverlaysSource).toContain("role=\"button\"");
+    });
+
+    it("surfaces Shift+1 Loom handshake failures in the selected sticker", () => {
+        const shortcutSource = readSource("src/hooks/useAppShortcutController.ts");
+
+        expect(shortcutSource).toContain("refreshActionsCapabilities");
+        expect(shortcutSource).toContain("add-art-capability-refresh-failed");
+        expect(shortcutSource).toContain('feature: "Loom"');
+        expect(shortcutSource).toContain("uiActions.closeActions(unitId)");
+        expect(shortcutSource).toContain("无法连接 Loom Hook");
     });
 });

@@ -10,6 +10,12 @@ pub(crate) struct CaptureWindowTarget {
     pub w: f64,
     pub h: f64,
     pub title: Option<String>,
+    #[serde(skip_serializing)]
+    pub(crate) process_id: u32,
+    /// EnumWindows returns top-level windows in z-order (topmost first).
+    /// Keep the rank so protected-region composition can preserve occlusion.
+    #[serde(skip_serializing)]
+    pub(crate) z_order: usize,
 }
 
 #[cfg(target_os = "windows")]
@@ -32,6 +38,7 @@ mod platform {
         current_process_id: u32,
         metrics: CaptureWindowMetrics,
         targets: Vec<CaptureWindowTarget>,
+        next_z_order: usize,
     }
 
     fn window_class_name(hwnd: HWND) -> Option<String> {
@@ -63,6 +70,7 @@ mod platform {
                 | "Shell_TrayWnd"
                 | "Shell_SecondaryTrayWnd"
                 | "DV2ControlHost"
+                | "Tauri Window"
                 | "Tooltip"
                 | "ToolTips_Class32"
         )
@@ -152,6 +160,8 @@ mod platform {
 
     unsafe extern "system" fn enum_capture_windows(hwnd: HWND, lparam: LPARAM) -> BOOL {
         let context = unsafe { &mut *(lparam.0 as *mut EnumContext) };
+        let z_order = context.next_z_order;
+        context.next_z_order = context.next_z_order.saturating_add(1);
         if !is_window_candidate(hwnd, context.current_process_id) {
             return BOOL(1);
         }
@@ -161,6 +171,8 @@ mod platform {
         let Some((x, y, w, h)) = normalize_window_rect(rect, context.metrics) else {
             return BOOL(1);
         };
+        let mut process_id = 0;
+        unsafe { GetWindowThreadProcessId(hwnd, Some(&mut process_id)) };
 
         context.targets.push(CaptureWindowTarget {
             id: format!("{:x}", hwnd.0 as usize),
@@ -169,6 +181,8 @@ mod platform {
             w,
             h,
             title: window_title(hwnd),
+            process_id,
+            z_order,
         });
         BOOL(1)
     }
@@ -180,6 +194,7 @@ mod platform {
             current_process_id: unsafe { GetCurrentProcessId() },
             metrics,
             targets: Vec::new(),
+            next_z_order: 0,
         };
         let _ = unsafe {
             EnumWindows(
@@ -201,6 +216,7 @@ mod platform {
             assert!(is_ignored_shell_class("Progman"));
             assert!(is_ignored_shell_class("WorkerW"));
             assert!(is_ignored_shell_class("Shell_TrayWnd"));
+            assert!(is_ignored_shell_class("Tauri Window"));
             assert!(!is_ignored_shell_class("Chrome_WidgetWin_1"));
         }
 
@@ -313,4 +329,22 @@ pub(crate) fn list_capture_window_targets(
     _metrics: CaptureWindowMetrics,
 ) -> Vec<CaptureWindowTarget> {
     Vec::new()
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn process_id_for_capture_window_id(window_id: &str) -> Option<u32> {
+    use std::ffi::c_void;
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId;
+
+    let raw_handle = u64::from_str_radix(window_id.trim_start_matches("0x"), 16).ok()?;
+    let hwnd = HWND(raw_handle as *mut c_void);
+    let mut process_id = 0;
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut process_id)) };
+    (process_id != 0).then_some(process_id)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub(crate) fn process_id_for_capture_window_id(_window_id: &str) -> Option<u32> {
+    None
 }

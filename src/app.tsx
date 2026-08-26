@@ -152,6 +152,10 @@ export default function App() {
 
   // Hooks Integration
   const { startDrag, handleDragMove, handleDragEnd } = useDraggable();
+  // The synthetic dispatcher is created below because it needs the live
+  // linking/dragging accessors. Capture teardown receives this late-bound
+  // callback so it can clear stale overlay hover without reordering hooks.
+  let clearCaptureHover = () => {};
   const {
       handleSelectionStart,
       handleSelectionMove,
@@ -163,7 +167,7 @@ export default function App() {
       cancelAutoLongCaptureSession,
       notifyAutoLongCaptureWheel,
       prepareCaptureWindowTargets,
-  } = useSelection();
+  } = useSelection(() => clearCaptureHover());
   const { handleParamChange, handleDoubleClick, spawnConnectedNode, performOcrAction, toggleTranslationAction, propagateFromUnit } = useUnitActions();
   const { startLinking, handleLinkDrop, handleInputLinkDrag, handleLinkHover } = useLinking({
       onLinkCreated: (sourceId) => {
@@ -182,6 +186,7 @@ export default function App() {
       getDraggingStickerId: draggingStickerId,
       now: Date.now,
   });
+  clearCaptureHover = overlaySynthetic.clearHover;
   const captureInput: AppCaptureInputState = {
       nativePointerActive: false,
       ctrlReleasedSinceCaptureStart: false,

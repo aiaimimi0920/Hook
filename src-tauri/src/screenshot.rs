@@ -3,20 +3,35 @@ mod dispatch;
 #[cfg(target_os = "windows")]
 mod display_selection;
 #[cfg(target_os = "windows")]
+mod dwm_shared_surface;
+#[cfg(target_os = "windows")]
 mod gdi_fallback;
 #[cfg(target_os = "windows")]
 mod hdr_analysis;
 #[cfg(target_os = "windows")]
 mod hdr_display;
 #[cfg(target_os = "windows")]
+mod protected_region;
+#[cfg(target_os = "windows")]
 mod wgc_frame_policy;
 #[cfg(target_os = "windows")]
+mod wgc_persistent;
+#[cfg(target_os = "windows")]
 mod wgc_session;
+#[cfg(target_os = "windows")]
+mod wgc_transient;
 
 pub use capture_pixels::HdrPqImage;
 #[allow(unused_imports)]
-pub use dispatch::{capture_area, capture_area_with_profile, capture_region_with_dynamic_range};
+pub use dispatch::{
+    capture_area, capture_area_with_profile, capture_region_with_dynamic_range,
+    capture_window_with_dynamic_range,
+};
+#[cfg(target_os = "windows")]
+pub use dwm_shared_surface::window_display_affinity;
 use image::RgbImage;
+#[cfg(target_os = "windows")]
+pub(crate) use protected_region::capture_region_with_protected_window;
 
 #[cfg(test)]
 use crate::capture_coords::CaptureWindowMetrics;
@@ -56,6 +71,7 @@ pub enum CaptureWorkloadProfile {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CaptureBackend {
+    DwmSharedSurface,
     WgcHdr,
     WgcSdr,
     Gdi,
@@ -64,6 +80,7 @@ pub enum CaptureBackend {
 impl CaptureBackend {
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::DwmSharedSurface => "dwm-shared-surface-sdr",
             Self::WgcHdr => "wgc-hdr-transient",
             Self::WgcSdr => "wgc-sdr",
             Self::Gdi => "gdi-sdr",

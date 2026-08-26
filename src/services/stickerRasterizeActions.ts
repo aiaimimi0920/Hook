@@ -47,7 +47,6 @@ export const rasterizeStickerAnnotationsForUnit = async (params: {
         const previewSrc = await composeRasterizedStickerPreview(
             baseLayerSrc,
             rasterizedAnnotationLayerSrc,
-            { w: currentUnit.w, h: currentUnit.h },
         );
         const latestUnit = graphStore.units.find((unit) => unit.id === params.unitId);
         if (!isStickerAsyncEditGuardCurrent(requestGuard, latestUnit)) return false;

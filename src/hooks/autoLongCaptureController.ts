@@ -22,6 +22,7 @@ import {
 type AutoLongCaptureControllerDependencies = {
     resetSelection: () => void;
     restorePostCaptureInteractivity: () => Promise<void>;
+    clearCaptureHover: () => void;
     addCaptureUnit: (
         response: ManualLongCaptureFrame,
         rect: CaptureRect,
@@ -413,6 +414,7 @@ export function createAutoLongCaptureController(
                     error instanceof Error ? error.message : String(error),
                 );
             }
+            dependencies.clearCaptureHover();
             if (finishing || !captureRect || !captureOrigin || !options) return false;
             const currentSessionId = sessionId;
             const rect = captureRect;
@@ -485,6 +487,7 @@ export function createAutoLongCaptureController(
     const cancelAutoLongCaptureSession = async () => {
         if (finishPromise) return finishPromise;
         await api.setCaptureInputActive(false);
+        dependencies.clearCaptureHover();
         if (!captureRect) return false;
         sessionId += 1;
         stopTimer();

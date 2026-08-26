@@ -45,6 +45,8 @@ export interface OverlaySyntheticDeps {
 export interface OverlaySyntheticDispatcher {
     dispatch: (type: OverlaySyntheticEventType, payload: OverlaySyntheticMousePayload) => void;
     relayPointerMove: (event: MouseEvent) => void;
+    /** Leave the current synthetic hover target without generating a new enter. */
+    clearHover: () => void;
     reset: () => void;
     readonly moveRelayActive: boolean;
 }

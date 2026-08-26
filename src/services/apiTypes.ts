@@ -31,6 +31,12 @@ export interface CaptureResponse {
 
 export interface CaptureRegionOptions {
     compositionOverlayAlpha?: number;
+    /**
+     * Hexadecimal HWND assigned by the native capture-window target list.
+     * When present, the backend captures the window surface directly instead
+     * of sampling the desktop composition behind it.
+     */
+    captureWindowId?: string;
 }
 
 export interface OcrResult {

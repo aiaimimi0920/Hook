@@ -11,6 +11,8 @@ use super::capture_pixels::HdrFrameDecision;
 #[cfg(target_os = "windows")]
 use super::display_selection::{capture_plan, CapturePlan};
 #[cfg(target_os = "windows")]
+use super::dwm_shared_surface::try_capture_protected_window;
+#[cfg(target_os = "windows")]
 use super::gdi_fallback::{capture_area_gdi, checked_gdi_capture_rect};
 #[cfg(target_os = "windows")]
 use super::hdr_analysis::{
@@ -21,7 +23,8 @@ use super::hdr_analysis::{
 use super::hdr_display::hdr_display_info_for;
 #[cfg(target_os = "windows")]
 use super::wgc_session::{
-    try_fast_capture, try_hdr_capture_transient, wgc_note_failure, wgc_note_success,
+    try_fast_capture, try_fast_capture_window, try_hdr_capture_transient, wgc_note_failure,
+    wgc_note_success,
 };
 use super::{CaptureBackend, CaptureWorkloadProfile, DynamicCapturePixels, DynamicCaptureResult};
 
@@ -196,6 +199,51 @@ pub fn capture_region_with_dynamic_range(
             downgraded_from_hdr: false,
             overlay_compensated: false,
         })
+    }
+}
+
+/// Captures a confirmed whole-window target from the HWND-backed WGC source.
+///
+/// This deliberately stays SDR: window captures do not include Hook's black
+/// composition overlay and therefore must not run the display HDR/overlay
+/// compensation path. Callers can fall back to the normal display crop when
+/// WGC cannot create a window item.
+pub fn capture_window_with_dynamic_range(
+    capture_window_id: &str,
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+    display_metrics: CaptureWindowMetrics,
+) -> anyhow::Result<DynamicCaptureResult> {
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(image) =
+            try_capture_protected_window(capture_window_id, x, y, w, h, display_metrics)
+        {
+            return Ok(DynamicCaptureResult {
+                pixels: DynamicCapturePixels::Sdr(image),
+                backend: CaptureBackend::DwmSharedSurface,
+                downgraded_from_hdr: false,
+                overlay_compensated: true,
+            });
+        }
+        let image = try_fast_capture_window(capture_window_id, x, y, w, h, display_metrics)
+            .ok_or_else(|| anyhow::anyhow!("Window surface capture is unavailable"))?;
+        return Ok(DynamicCaptureResult {
+            pixels: DynamicCapturePixels::Sdr(image),
+            backend: CaptureBackend::WgcSdr,
+            downgraded_from_hdr: false,
+            // The source is the window itself, so there is no desktop overlay
+            // to remove from the returned pixels.
+            overlay_compensated: true,
+        });
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (capture_window_id, x, y, w, h, display_metrics);
+        Err(anyhow!("Only Windows is supported"))
     }
 }
 

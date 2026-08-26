@@ -21,12 +21,16 @@ export const CanvasSelection: Component = () => {
             </Show>
             <Show when={selectionRect()}>
                 <div
-                    class="absolute border-2 border-primary"
+                    class="absolute"
                     style={{
                         left: `${selectionRect()!.x}px`,
                         top: `${selectionRect()!.y}px`,
                         width: `${selectionRect()!.w}px`,
                         height: `${selectionRect()!.h}px`,
+                        // Keep the preview stroke outside the measured
+                        // rectangle so it matches the post-capture frame.
+                        outline: "2px solid var(--primary)",
+                        "outline-offset": "0px",
                     }}
                 >
                      <div class="hook-capture-chip absolute -top-7 left-0 px-2 py-1 font-mono text-[11px] font-semibold">
@@ -42,13 +46,14 @@ export const CanvasSelection: Component = () => {
 
                 <Show when={preciseRect()}>
                      <div
-                        class="absolute border-2 border-dashed z-[2147483647] pointer-events-none"
+                        class="absolute z-[2147483647] pointer-events-none"
                         style={{
                             left: `${preciseRect()!.x}px`,
                             top: `${preciseRect()!.y}px`,
                             width: `${preciseRect()!.w}px`,
                             height: `${preciseRect()!.h}px`,
-                            "border-color": "var(--theme-signal)",
+                            outline: "2px dashed var(--theme-signal)",
+                            "outline-offset": "0px",
                             "background-color": "color-mix(in srgb, var(--theme-signal) 30%, transparent)"
                         }}
                     />
@@ -84,13 +89,14 @@ export const CanvasSelection: Component = () => {
 
       <Show when={isBoxSelecting() && selectionRect()}>
           <div
-              class="absolute border z-[2147483646] pointer-events-none"
+              class="absolute z-[2147483646] pointer-events-none"
               style={{
                   left: `${selectionRect()!.x}px`,
                   top: `${selectionRect()!.y}px`,
                   width: `${selectionRect()!.w}px`,
                   height: `${selectionRect()!.h}px`,
-                  "border-color": "color-mix(in srgb, var(--theme-signal) 92%, transparent)",
+                  outline: "1px solid color-mix(in srgb, var(--theme-signal) 92%, transparent)",
+                  "outline-offset": "0px",
                   "background-color": "color-mix(in srgb, var(--theme-signal) 10%, transparent)",
               }}
           />

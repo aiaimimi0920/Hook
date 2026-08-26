@@ -1,4 +1,4 @@
-import { Component, For, Show } from "solid-js";
+import { Component, For, Show, createEffect, onCleanup } from "solid-js";
 import { enhancementNotices, uiActions } from "../store/uiStore";
 import type { Unit } from "../types/unit";
 import { StickerAnnotationLayer } from "./StickerAnnotationLayer";
@@ -83,8 +83,32 @@ const OCR_COLOR = /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i;
 export const resolveOcrOverlayColor = (value: unknown, fallback: string) =>
     typeof value === "string" && OCR_COLOR.test(value) ? value : fallback;
 
+const ENHANCEMENT_NOTICE_TIMEOUT_MS = 5_000;
+
 /** Renders status, OCR, notice, crop, and editable annotation overlays in z-order. */
-export const UnitVisualOverlays: Component<UnitVisualOverlaysProps> = (props) => (
+export const UnitVisualOverlays: Component<UnitVisualOverlaysProps> = (props) => {
+    let noticeDismissTimer: number | null = null;
+
+    const clearNoticeDismissTimer = () => {
+        if (noticeDismissTimer === null) return;
+        window.clearTimeout(noticeDismissTimer);
+        noticeDismissTimer = null;
+    };
+
+    createEffect(() => {
+        const unitId = props.unit.id;
+        const notice = enhancementNotices[unitId];
+        clearNoticeDismissTimer();
+        if (!notice) return;
+        noticeDismissTimer = window.setTimeout(() => {
+            noticeDismissTimer = null;
+            uiActions.dismissEnhancementNotice(unitId);
+        }, ENHANCEMENT_NOTICE_TIMEOUT_MS);
+    });
+
+    onCleanup(clearNoticeDismissTimer);
+
+    return (
     <>
         <Show when={props.isArt && props.unit.data.nodeStatus === "error"}>
             <div
@@ -142,7 +166,18 @@ export const UnitVisualOverlays: Component<UnitVisualOverlaysProps> = (props) =>
                     style={{ "z-index": 40, "pointer-events": "auto" }}
                     onMouseDown={(event) => event.stopPropagation()}
                     onMouseUp={(event) => event.stopPropagation()}
-                    onClick={(event) => event.stopPropagation()}
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        uiActions.dismissEnhancementNotice(props.unit.id);
+                    }}
+                    onKeyDown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        uiActions.dismissEnhancementNotice(props.unit.id);
+                    }}
                     onDblClick={(event) => event.stopPropagation()}
                 >
                     <div class="flex items-start justify-between gap-3">
@@ -202,7 +237,8 @@ export const UnitVisualOverlays: Component<UnitVisualOverlaysProps> = (props) =>
             </div>
         </Show>
     </>
-);
+    );
+};
 
 interface UnitSelectionBorderProps {
     isSelected: boolean;

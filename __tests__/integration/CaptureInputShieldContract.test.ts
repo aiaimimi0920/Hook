@@ -27,7 +27,7 @@ describe("capture input shield contract", () => {
     expect(rustSource).not.toContain("rdev::grab(move |event|");
   });
 
-  it("keeps physical cursor movement alive during capture while still consuming buttons and wheels", () => {
+  it("keeps physical cursor movement alive while the capture shield owns hit testing", () => {
     const rustSource = readHookLibRustSources();
     const hookProcBlock = sourceBetween(
       rustSource,
@@ -67,6 +67,7 @@ describe("capture input shield contract", () => {
     expect(hookProcBlock).toContain("WM_MOUSEWHEEL");
     expect(hookProcBlock).not.toContain("SetCursorPos");
     expect(captureMoveBranch).toContain("CaptureMouseHookEvent::Move");
+    expect(captureMoveBranch).toContain("CallNextHookEx");
     expect(captureMoveBranch).not.toContain("return LRESULT(1)");
     expect(overlayMoveBlock).toContain("CaptureMouseHookEvent::OverlayMove");
     expect(hookProcBlock).toContain("let native_drag_preflight_active =");
