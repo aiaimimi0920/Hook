@@ -1,0 +1,35 @@
+{
+  "protocol": "loom.extension.v1",
+  "apiVersion": "1.0",
+  "generation": 1,
+  "plugins": [
+    {
+      "id": "publisher.example/text-tools",
+      "version": "1.0.0",
+      "packageDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "trustStatus": "trusted",
+      "permissionGrantDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "scopeId": "scope-1"
+    }
+  ],
+  "contributions": {
+    "commands": [
+      {
+        "id": "publisher.example/text-tools.transform",
+        "pluginId": "publisher.example/text-tools",
+        "title": "Transform text",
+        "scopeId": "scope-1"
+      }
+    ],
+    "shortcuts": [],
+    "menus": [],
+    "settings": [],
+    "dataTypes": [],
+    "renderers": [],
+    "unitOverlays": [],
+    "backgroundTasks": [],
+    "resourceProviders": [],
+    "diagnostics": [],
+    "eventSubscriptions": []
+  }
+}
