@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { draggingStickerId, isSelecting, setMousePos } from "../store/uiStore";
 import { resolveCaptureCtrlModifier } from "./captureState";
 import type { AppListenerRegistry } from "./appListenerRegistry";
+import { runBackgroundTask } from "./backgroundTask";
 import {
     OVERLAY_GLOBAL_MOUSE_UP_EVENT,
     type OverlaySyntheticDispatcher,
@@ -25,7 +26,8 @@ type AppPointerListenerDependencies = {
     overlaySynthetic: OverlaySyntheticDispatcher;
     handleSelectionStart: (event: CaptureMouseEvent) => void;
     handleSelectionMove: (event: CaptureMouseEvent) => void;
-    handleSelectionEnd: (event: CaptureMouseEvent) => void;
+    handleSelectionEnd: (event: CaptureMouseEvent) => void | Promise<void>;
+    abortCaptureSelection: (reason: string) => Promise<void>;
     handleDragMove: (event: MouseEvent) => void;
 };
 
@@ -57,6 +59,7 @@ export async function registerAppPointerListeners({
     handleSelectionStart,
     handleSelectionMove,
     handleSelectionEnd,
+    abortCaptureSelection,
     handleDragMove,
 }: AppPointerListenerDependencies): Promise<void> {
     const toCaptureMouseEvent = (payload: NativeCaptureMousePayload): CaptureMouseEvent => {
@@ -98,12 +101,23 @@ export async function registerAppPointerListeners({
     await registry.register(() => listen<NativeCaptureMousePayload>(
         "capture/global_mouse_up",
         (event) => {
-            if (!isSelecting() || !captureInput.nativePointerActive) return;
+            if (!isSelecting()) return;
+            if (!captureInput.nativePointerActive) {
+                captureInput.ctrlReleasedSinceCaptureStart = false;
+                runBackgroundTask(
+                    "unpaired capture mouse-up cleanup",
+                    abortCaptureSelection("unpaired-up"),
+                );
+                return;
+            }
             captureInput.nativePointerActive = false;
             const captureEvent = toCaptureMouseEvent(event.payload);
             setMousePos({ x: captureEvent.clientX, y: captureEvent.clientY });
             handleSelectionMove(captureEvent);
-            handleSelectionEnd(captureEvent);
+            runBackgroundTask(
+                "capture selection end",
+                Promise.resolve().then(() => handleSelectionEnd(captureEvent)),
+            );
             captureInput.ctrlReleasedSinceCaptureStart = false;
         },
     ));

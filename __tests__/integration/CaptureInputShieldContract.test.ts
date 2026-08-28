@@ -97,7 +97,7 @@ describe("capture input shield contract", () => {
     expect(overlayClickThroughIndex).toBeGreaterThan(captureInputIndex);
   });
 
-  it("ends desktop capture only from the matching native down/up stream", () => {
+  it("ends paired desktop capture and fails open when the native down edge is lost", () => {
     const appSource = readSource("src/app.tsx");
     const pointerListenerSource = readSource("src/services/appPointerListeners.ts");
     const canvasInteractionSource = readSource("src/services/appCanvasInteractions.ts");
@@ -115,7 +115,8 @@ describe("capture input shield contract", () => {
     expect(appSource).toContain("const captureInput: AppCaptureInputState");
     expect(captureListeners).toContain("if (!isSelecting() || captureInput.nativePointerActive) return;");
     expect(captureListeners).toContain("captureInput.nativePointerActive = true;");
-    expect(captureListeners).toContain("if (!isSelecting() || !captureInput.nativePointerActive) return;");
+    expect(captureListeners).toContain("if (!captureInput.nativePointerActive) {");
+    expect(captureListeners).toContain('abortCaptureSelection("unpaired-up")');
     expect(captureListeners).toContain("captureInput.nativePointerActive = false;");
     expect(pointerListenerSource).toContain("shiftKey: !!payload?.shiftKey");
     expect(pointerListenerSource).toContain("resolveCaptureCtrlModifier(");

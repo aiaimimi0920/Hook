@@ -72,7 +72,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                     }
                     CaptureMouseHookEvent::Down { x, y, modifiers } => {
                         cached_metrics = capture_window_metrics(&emit_window).or(cached_metrics);
-                        emit_capture_mouse_event(
+                        if !emit_capture_mouse_event(
                             &emit_window,
                             "capture/global_mouse_down",
                             x,
@@ -80,7 +80,10 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                             modifiers,
                             false,
                             cached_metrics,
-                        );
+                        ) {
+                            append_runtime_log_line("capture_mouse_down_emit_failed_fail_open");
+                            set_capture_input_runtime_active(false);
+                        }
                     }
                     CaptureMouseHookEvent::OverlayDown {
                         x,
@@ -188,7 +191,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                             }
                             CaptureMouseUpDebounceResult::Release { deferred_event: next } => {
                                 deferred_event = next;
-                                emit_capture_mouse_event(
+                                if !emit_capture_mouse_event(
                                     &emit_window,
                                     "capture/global_mouse_up",
                                     x,
@@ -196,7 +199,10 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                                     modifiers,
                                     false,
                                     cached_metrics,
-                                );
+                                ) {
+                                    append_runtime_log_line("capture_mouse_up_emit_failed_fail_open");
+                                    set_capture_input_runtime_active(false);
+                                }
                             }
                             CaptureMouseUpDebounceResult::Disconnected => return,
                         }

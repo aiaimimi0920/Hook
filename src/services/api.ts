@@ -1,5 +1,6 @@
 // Stable public API facade. Domain clients own command routing and resource-specific fallbacks.
 import { bootSettingsApi } from "./apiBootSettings";
+import { barcodeApi } from "./apiBarcode";
 import { captureApi } from "./apiCapture";
 import { imageResourceApi } from "./apiImageResource";
 import {
@@ -15,6 +16,8 @@ import { voiceApi } from "./apiVoice";
 export { listenBrowserLoomHookMethod } from "./apiBrowserLoomTransport";
 export { isTauriRuntimeAvailable } from "./apiTransport";
 export type {
+    BarcodeResult,
+    BarcodeScanResult,
     CaptureRegionOptions,
     CaptureResponse,
     EnhancementCapabilities,
@@ -40,6 +43,7 @@ export type {
 
 export const api = {
     ...bootSettingsApi,
+    ...barcodeApi,
     ...voiceApi,
     ...loomPlanningApi,
     ...teaApi,

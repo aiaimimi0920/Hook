@@ -72,6 +72,10 @@ in a focused service or hook.
   recycle bin, reference library, parameters, and persistence-facing mutations.
 - `src/store/uiStore.ts` owns transient interaction state: selection, active edit
   target, panels, tool modes, capture UI, drag previews, and temporary notices.
+- `src/services/enhancementNoticeQueue.ts` owns notice identity and bounded FIFO
+  transformations; `UnitVisualOverlays.tsx` renders each unit's notices in a
+  right-aligned, dismissible stack so messages never leak across sticker/Art
+  boundaries.
 
 Persistent edits should pass through `graphStore.actions`. Transient high-rate
 interaction state should not be written into the persisted graph on every input
@@ -226,6 +230,18 @@ transform.
 
 Package Arts are forwarded to Loom through `loom.hook.v1`. Hook does not maintain
 per-Art command executors in the frontend or Rust host.
+
+Loom OCR blocks may carry additive `rawText` correction evidence,
+`lineGeometry`, and CTC-timestep-aligned `characterSpans`/`wordSpans`. Hook
+accepts only the named geometry sources, bounds list sizes and coordinates,
+requires span text to match the displayed non-translated row, and retains valid
+span extents as recognition evidence without replacing the detector row used for
+whole-line typography. CTC timesteps are not pixel-level glyph segmentation, so
+using their union as the presentation box can invent gaps or shrink a row.
+Estimated baselines are accepted only at a safe angle and only when the rotated
+text remains inside the screenshot frame. Missing, mismatched, or malformed
+geometry follows the axis-aligned line box path, preserving mixed-version
+Hook/Loom operation.
 
 ## 5. Capture and window targeting
 

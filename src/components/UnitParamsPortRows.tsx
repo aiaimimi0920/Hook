@@ -4,6 +4,7 @@ import { getCapabilityInputsForPorts } from "../services/artPorts";
 import { ArtCapability, ArtPortDefinition } from "../services/protocol";
 import { graphStore } from "../store/graphStore";
 import { Unit } from "../types/unit";
+import { BARCODE_OUTPUT_PORTS, hasBarcodeResults } from "../services/barcodeRecognition";
 
 export type UnitParamsPanelPort = ArtPortDefinition & { description?: string };
 
@@ -48,7 +49,10 @@ export const getUnitParamsPanelOutputs = (
     capability?: ArtCapability,
 ): UnitParamsPanelPort[] => {
     if (unit.type !== "art") {
-        return [{ name: "output_image", label: "Image", type: "image" }];
+        return [
+            { name: "output_image", label: "Image", type: "image" },
+            ...(hasBarcodeResults(unit.data.barcodeResult) ? BARCODE_OUTPUT_PORTS : []),
+        ];
     }
     return capability?.outputs || [{ name: "output_image", label: "Image", type: "image" }];
 };

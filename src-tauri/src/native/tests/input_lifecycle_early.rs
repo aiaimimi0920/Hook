@@ -5,6 +5,7 @@
         coalesce_capture_mouse_move_until_emit, coalesce_overlay_mouse_move_until_emit,
         handle_emergency_escape_transition_with, rect_covers_rect_with_tolerance,
         resolve_overlay_pointer_release, select_overlay_mouse_move_emit_interval,
+        set_capture_input_runtime_active,
         should_passthrough_foreign_alt_input, should_passthrough_foreign_alt_mouse_input,
         should_suppress_overlay_interaction_for_occlusion, wait_for_capture_mouse_up_debounce,
         wait_for_overlay_mouse_up_debounce, CaptureMouseEventEnqueueResult, CaptureMouseEventQueue,
@@ -12,8 +13,11 @@
         CaptureMouseUpDebounceResult, EmergencyEscapeTracker, ModifierSnapshot,
         OverlayMouseMoveCoalesceResult, OverlayMouseUpDebounceResult, OverlayPointerDownTransition,
         OverlayPointerReleaseResult, OverlayPointerSource, OverlayPointerUpTransition,
-        EMERGENCY_ESCAPE_WINDOW, OVERLAY_MOUSE_DRAG_MOVE_EMIT_INTERVAL,
-        OVERLAY_MOUSE_MOVE_EMIT_INTERVAL, OVERLAY_POINTER_STATE_NONE,
+        CAPTURE_MOUSE_HOOK_ACTIVE, CAPTURE_MOUSE_HOOK_BUTTON_DOWN, EMERGENCY_ESCAPE_WINDOW,
+        OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE, OVERLAY_MOUSE_DRAG_MOVE_EMIT_INTERVAL,
+        OVERLAY_MOUSE_HOOK_DRAG_ACTIVE, OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE,
+        OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE, OVERLAY_MOUSE_MOVE_EMIT_INTERVAL,
+        OVERLAY_POINTER_STATE, OVERLAY_POINTER_STATE_NONE,
     };
     use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
     use std::sync::mpsc;
@@ -52,6 +56,33 @@
         assert!(!claim_capture_button_transition(&state, true));
         assert!(claim_capture_button_transition(&state, false));
         assert!(!claim_capture_button_transition(&state, false));
+    }
+
+    #[test]
+    fn disabling_capture_input_resets_native_and_overlay_pointer_owners() {
+        CAPTURE_MOUSE_HOOK_ACTIVE.store(true, Ordering::SeqCst);
+        CAPTURE_MOUSE_HOOK_BUTTON_DOWN.store(true, Ordering::SeqCst);
+        OVERLAY_POINTER_STATE.store(
+            OverlayPointerSource::LowLevelHook.down_state(),
+            Ordering::SeqCst,
+        );
+        OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.store(true, Ordering::SeqCst);
+        OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.store(true, Ordering::SeqCst);
+        OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.store(true, Ordering::SeqCst);
+        OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.store(true, Ordering::SeqCst);
+
+        set_capture_input_runtime_active(false);
+
+        assert!(!CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst));
+        assert!(!CAPTURE_MOUSE_HOOK_BUTTON_DOWN.load(Ordering::SeqCst));
+        assert_eq!(
+            OVERLAY_POINTER_STATE.load(Ordering::SeqCst),
+            OVERLAY_POINTER_STATE_NONE
+        );
+        assert!(!OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst));
+        assert!(!OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.load(Ordering::SeqCst));
+        assert!(!OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst));
+        assert!(!OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst));
     }
 
     #[test]
@@ -467,4 +498,3 @@
             })
         ));
     }
-

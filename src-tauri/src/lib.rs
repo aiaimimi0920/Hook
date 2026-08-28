@@ -18,6 +18,7 @@ macro_rules! console_error_line {
 }
 
 mod app_settings;
+mod barcode;
 mod capture;
 mod capture_coords;
 mod capture_protected_target;
@@ -36,6 +37,7 @@ mod shortcut_config;
 mod single_instance;
 pub mod talk_connector;
 pub mod tea_client;
+mod url_actions;
 pub mod voice;
 
 #[cfg(all(test, target_os = "windows"))]
@@ -218,6 +220,8 @@ include!("native/drag_export_commands.rs");
 include!("native/native_file_drag.rs");
 
 include!("native/clipboard_commands.rs");
+
+include!("native/clipboard_text.rs");
 
 include!("native/overlay_state_commands.rs");
 

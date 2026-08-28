@@ -12,9 +12,9 @@ another application has focus.
 | Shortcut | Current behavior | Manual check |
 | --- | --- | --- |
 | `Ctrl+1` | Enter region/window capture mode. Hovering a valid visible window highlights it; double-click captures the revalidated window target. | Test empty desktop, ordinary windows, overlapping windows, secondary monitors, and cancel with `Escape`. |
-| `Ctrl+2` | Emit the OCR trigger to the frontend. | Confirm the intended OCR action runs without stealing unrelated modifier input. |
+| `Ctrl+2` | Always re-run OCR plus local QR/barcode recognition for the selected sticker and copy the complete OCR result when Loom Hook is available. Code results are persisted, shown as markers, and exposed through graph output ports. | Select a captured sticker containing text or codes, invoke twice, and confirm each invocation performs recognition and copies the complete result. Unit-bound notices appear in the owning sticker's upper-right stack. |
 | `Ctrl+3` | Enter vertical long-capture mode. | Capture a scrollable page, then cancel and retry to confirm session cleanup. |
-| `Ctrl+E` | Toggle the sticker editing toolbar. | Invoke it with a selected sticker and confirm focus moves to Hook. |
+| `Ctrl+E` | Toggle the selected sticker's editing toolbar without disabling visible OCR click targets. The toolbar's `OCR` menu currently exposes cached `复制全文`; `Alt+2` controls OCR visibility and enables click-to-copy for visible blocks. | Run `Ctrl+2`, press `Ctrl+E` once, choose `OCR` → `复制全文`, and confirm cached text is copied without another OCR request; click a visible block and confirm only that block is copied. |
 | `Ctrl+Alt+Space` | Toggle the configured Talk voice session between start and stop. | Verify both edges and confirm dictated text is inserted only after a completed session. |
 | Double `Escape` within 400 ms | Emergency exit. The main process and independent watchdog both observe distinct key presses. | Verify exit from canvas, capture, overlay, and a conflicting fullscreen application. |
 | `Ctrl+Alt+Shift+F12` | Backup emergency-exit chord handled by the watchdog. | Verify it terminates Hook and restores cursor/input state. |
@@ -41,8 +41,8 @@ cancel/delete semantics.
 | `Escape` | sticker editing | Cancel the uncommitted sticker edit draft. |
 | `Shift+1` (`Shift+!`) | selected unit | Toggle the compact Art actions menu. |
 | `Tab` | selected unit | Toggle the parameter panel. |
-| `Ctrl+E` | canvas/overlay | Toggle the sticker editing toolbar. |
-| `Alt+2` | selected unit | Toggle OCR visibility. |
+| `Ctrl+E` | canvas/overlay | Toggle the selected unit's sticker editing toolbar. Visible OCR blocks remain interactive; clicking one copies its semantic text and shows a dismissible, auto-expiring notice in that unit's upper-right corner. |
+| `Alt+2` | selected unit | Run OCR plus local QR/barcode recognition on first use, then toggle OCR visibility on later uses. A visible OCR result enters click-to-copy mode immediately; barcode markers remain available while results are present. |
 | `Alt+3` | selected unit | Toggle translation visibility. |
 | `Ctrl+4` | canvas | Toggle clean view. |
 | `Q` / `W` / `E` / `R` | selected unit or sticker editing | Select the annotation transform mode: select, move, rotate, or scale. |

@@ -9,6 +9,10 @@ const commandSource = readFileSync(resolve(process.cwd(), "src/services/appComma
 const nativeActionSource = readFileSync(resolve(process.cwd(), "src/services/appNativeActionController.ts"), "utf8");
 const selectionSource = readFileSync(resolve(process.cwd(), "src/hooks/useSelection.ts"), "utf8");
 const autoLongCaptureSource = readFileSync(resolve(process.cwd(), "src/hooks/autoLongCaptureController.ts"), "utf8");
+const autoLongCaptureActivationSource = readFileSync(
+    resolve(process.cwd(), "src/hooks/autoLongCaptureActivation.ts"),
+    "utf8",
+);
 const captureUnitSource = readFileSync(resolve(process.cwd(), "src/hooks/captureUnitController.ts"), "utf8");
 const captureApiSource = readFileSync(resolve(process.cwd(), "src/services/apiCapture.ts"), "utf8");
 const captureStateSource = readFileSync(resolve(process.cwd(), "src/services/captureState.ts"), "utf8");
@@ -28,7 +32,7 @@ describe("Hook long capture contract", () => {
         expect(autoLongCaptureSource).toContain("api.analyzeLongCapturePair");
         expect(autoLongCaptureSource).toContain("api.stitchLongCaptureFrames");
         expect(autoLongCaptureSource).not.toContain("api.captureVerticalLongRegion(");
-        expect(autoLongCaptureSource).toContain('await api.setOverlayClickThrough(true)');
+        expect(autoLongCaptureActivationSource).toContain('await api.setOverlayClickThrough(true)');
         expect(captureUnitSource).toContain("...createCaptureMeta(mode, rect, scrollAxis)");
         expect(captureStateSource).toContain('kind: isLongCaptureMode(mode) ? "long" : "region"');
 

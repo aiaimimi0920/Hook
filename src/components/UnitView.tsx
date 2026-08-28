@@ -36,6 +36,7 @@ import { createUnitNativeStickerDragController } from "./unitNativeStickerDragCo
 import { UnitStickerImageContent } from "./UnitStickerImageContent";
 import { UnitSurfaceContent } from "./UnitSurfaceContent";
 import { UnitSelectionBorder, UnitVisualOverlays } from "./UnitVisualOverlays";
+import { UnitEnhancementNotices } from "./UnitEnhancementNotices";
 import { createUnitPortRegistryController } from "./unitPortRegistryController";
 import { createUnitImageModel } from "./unitImageModel";
 import { createUnitSurfaceController } from "./unitSurfaceController";
@@ -77,6 +78,7 @@ interface Props {
   connectedPorts?: string[]; // List of connected INPUT ports
   connectedLinks?: Link[]; // NEW: Full Links for resolving upstream units
   portsLayer?: HTMLElement; // NEW: Global Layer for Z-independent ports
+  noticesLayer?: HTMLElement;
 }
 
 export const UnitView: Component<Props> = (props) => {
@@ -419,6 +421,15 @@ export const UnitView: Component<Props> = (props) => {
             />
 
         </div>
+
+        <UnitEnhancementNotices
+            unitId={props.unit.id}
+            unitX={props.unit.x}
+            unitY={props.unit.y}
+            unitWidth={props.unit.w}
+            unitHeight={props.unit.h}
+            noticesLayer={props.noticesLayer}
+        />
 
         <Show when={!isMinified() && !isCleanView()}>
             <Show when={props.isSelected && activeStickerEditTargetId() === props.unit.id}>

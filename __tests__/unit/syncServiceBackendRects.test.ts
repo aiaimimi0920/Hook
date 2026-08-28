@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { createEffect, createRoot } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { updatePinRects } = vi.hoisted(() => ({
@@ -20,6 +21,7 @@ import { addOrUpdateRect, removeRect } from "../../src/services/uiRegistry";
 describe("syncService backend hit rectangles", () => {
   afterEach(() => {
     removeRect("test-actions-menu");
+    removeRect("test-ocr-text");
     updatePinRects.mockReset();
   });
 
@@ -60,6 +62,56 @@ describe("syncService backend hit rectangles", () => {
       x: 80,
       y: 90,
       name: "ACTIONS_MENU",
+    }));
+  });
+
+  it("keeps automatic rect tracking active while a backend update is in flight", async () => {
+    let resolveFirst: (() => void) | undefined;
+    let resolveSecond: (() => void) | undefined;
+    updatePinRects
+      .mockImplementationOnce(() => new Promise<void>((resolve) => {
+        resolveFirst = resolve;
+      }))
+      .mockImplementationOnce(() => new Promise<void>((resolve) => {
+        resolveSecond = resolve;
+      }))
+      .mockResolvedValue(undefined);
+
+    const initialSync = syncService.updateBackendRects();
+    await vi.waitFor(() => expect(updatePinRects).toHaveBeenCalledTimes(1));
+
+    let dispose: () => void = () => undefined;
+    createRoot((rootDispose) => {
+      dispose = rootDispose;
+      createEffect(() => {
+        void syncService.updateBackendRects();
+      });
+    });
+    await Promise.resolve();
+
+    resolveFirst?.();
+    await vi.waitFor(() => expect(updatePinRects).toHaveBeenCalledTimes(2));
+
+    addOrUpdateRect({
+      id: "test-ocr-text",
+      x: 120,
+      y: 140,
+      width: 180,
+      height: 24,
+      name: "OCR_TEXT",
+    });
+    await Promise.resolve();
+    resolveSecond?.();
+
+    await vi.waitFor(() => expect(updatePinRects).toHaveBeenCalledTimes(3));
+    await initialSync;
+    dispose();
+
+    const latestRects = updatePinRects.mock.calls[2][0] as Array<{ x: number; y: number; name: string }>;
+    expect(latestRects).toContainEqual(expect.objectContaining({
+      x: 120,
+      y: 140,
+      name: "OCR_TEXT",
     }));
   });
 });

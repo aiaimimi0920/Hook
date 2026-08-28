@@ -18,8 +18,10 @@ import {
 } from "./stickerTopStripCatalog";
 import { StickerTopStripCreateTools } from "./StickerTopStripCreateTools";
 import { StickerTopStripEditActions } from "./StickerTopStripEditActions";
+import { StickerTopStripOcrTools } from "./StickerTopStripOcrTools";
 import { StickerTopStripSurfaceView } from "./StickerTopStripSurfaceView";
 import type { TopStripOpenMenu } from "./stickerTopStripChrome";
+import { buildStickerTopStripInteractiveRect } from "./stickerTopStripInteractiveRect";
 import {
     computeStickerTopStripLayout,
     STICKER_TOP_STRIP_HEIGHT,
@@ -29,6 +31,7 @@ import { captureStickerEditSnapshot } from "../services/stickerHistory";
 import type { StickerRasterizeScope } from "../services/stickerRasterize";
 import { rasterizeStickerAnnotationsForUnit } from "../services/stickerRasterizeActions";
 import { createSingleFlightAction } from "../services/singleFlightAction";
+import { copyCachedOcrFullText, resolveCachedOcrFullText } from "../services/ocrResultActions";
 import { syncTopStripBackendRects } from "../services/stickerTopStripSync";
 import { syncService } from "../services/syncService";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
@@ -69,31 +72,6 @@ const getViewportSize = () => {
     return {
         width: Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0, 320),
         height: Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0, 320),
-    };
-};
-
-const buildStripInteractiveRect = (root: HTMLDivElement, unitId: string) => {
-    const rootBounds = root.getBoundingClientRect();
-    let left = rootBounds.left;
-    let top = rootBounds.top;
-    let right = rootBounds.right;
-    let bottom = rootBounds.bottom;
-
-    root.querySelectorAll<HTMLElement>("button, input, select, [data-top-strip-menu='true']").forEach((element) => {
-        const bounds = element.getBoundingClientRect();
-        left = Math.min(left, bounds.left);
-        top = Math.min(top, bounds.top);
-        right = Math.max(right, bounds.right);
-        bottom = Math.max(bottom, bounds.bottom);
-    });
-
-    return {
-        id: `sticker-top-strip-${unitId}`,
-        x: left,
-        y: top,
-        width: Math.max(0, right - left),
-        height: Math.max(0, bottom - top),
-        name: "STICKER_TOP_STRIP",
     };
 };
 
@@ -439,7 +417,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
 
         const rafId = window.requestAnimationFrame(() => {
             if (!stripRef) return;
-            addOrUpdateRect(buildStripInteractiveRect(stripRef, currentUnitId));
+            addOrUpdateRect(buildStickerTopStripInteractiveRect(stripRef, currentUnitId));
             syncTopStripBackendRects();
         });
 
@@ -528,6 +506,15 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                         onSelectRasterizeScope={(scope) => {
                             setCurrentRasterizeScope(scope);
                             setOpenMenu(null);
+                        }}
+                    />
+                    <StickerTopStripOcrTools
+                        openMenu={openMenu()}
+                        canCopyFullText={!!resolveCachedOcrFullText(currentUnit())}
+                        onToggleMenu={toggleMenu}
+                        onCopyFullText={() => {
+                            setOpenMenu(null);
+                            void copyCachedOcrFullText(props.unitId);
                         }}
                     />
                     <StickerTopStripSurfaceView

@@ -25,6 +25,7 @@ export const mapUnitToSessionSticker = (unit: Unit): SessionSticker => ({
     surfaceViewId: unit.data.surfaceViewId || null,
     rasterizedAnnotationLayerSrc: unit.data.rasterizedAnnotationLayerSrc || null,
     outputs: unit.data.outputs || null,
+    barcodeResult: unit.data.barcodeResult || null,
     originWorkflowId: unit.data.originWorkflowId || null,
     originNodeId: unit.data.originNodeId || null,
     executionConfig: unit.data.executionConfig || null,

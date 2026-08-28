@@ -23,11 +23,19 @@ const surfaceViewSource = readFileSync(
     resolve(process.cwd(), "src/components/StickerTopStripSurfaceView.tsx"),
     "utf8",
 );
+const ocrToolsSource = readFileSync(
+    resolve(process.cwd(), "src/components/StickerTopStripOcrTools.tsx"),
+    "utf8",
+);
 const topStripChromeSource = readFileSync(
     resolve(process.cwd(), "src/components/stickerTopStripChrome.ts"),
     "utf8",
 );
-const topStripPresentationSource = `${createToolsSource}\n${editActionsSource}\n${surfaceViewSource}\n${topStripChromeSource}`;
+const topStripInteractiveRectSource = readFileSync(
+    resolve(process.cwd(), "src/components/stickerTopStripInteractiveRect.ts"),
+    "utf8",
+);
+const topStripPresentationSource = `${createToolsSource}\n${editActionsSource}\n${ocrToolsSource}\n${surfaceViewSource}\n${topStripChromeSource}`;
 const topStripRenderSource = `${topStripPresentationSource}\n${topStripCatalogSource}`;
 const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarSections.tsx");
 const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
@@ -76,7 +84,7 @@ describe("Hook sticker top strip contract", () => {
         expect(topStripSource).toContain("export const StickerTopStrip");
         expect(topStripSource).toContain("computeStickerTopStripLayout");
         expect(layoutSource).toContain("STICKER_TOP_STRIP_SLOT_WIDTH = 50");
-        expect(layoutSource).toContain("STICKER_TOP_STRIP_SLOT_COUNT = 10");
+        expect(layoutSource).toContain("STICKER_TOP_STRIP_SLOT_COUNT = 11");
         expect(layoutSource).toContain("STICKER_TOP_STRIP_MIN_WIDTH = STICKER_TOP_STRIP_SLOT_WIDTH * STICKER_TOP_STRIP_SLOT_COUNT");
         expect(layoutSource).toContain("STICKER_TOP_STRIP_HEIGHT = 50");
         expect(layoutSource).toContain("STICKER_TOP_STRIP_PROPERTY_BAR_HEIGHT = 40");
@@ -100,9 +108,10 @@ describe("Hook sticker top strip contract", () => {
         expect(topStripSource).toContain("removeRect");
         expect(topStripSource).toContain("syncTopStripBackendRects");
         expect(topStripSyncSource).toContain("syncService.updateBackendRects");
-        expect(topStripSource).toContain('root.querySelectorAll<HTMLElement>("button, input, select, [data-top-strip-menu=\'true\']")');
-        expect(topStripSource).toContain('`sticker-top-strip-${props.unitId}`');
-        expect(topStripSource).toContain('name: "STICKER_TOP_STRIP"');
+        expect(topStripInteractiveRectSource).toContain('root.querySelectorAll<HTMLElement>("button, input, select, [data-top-strip-menu=\'true\']")');
+        expect(topStripInteractiveRectSource).toContain('`sticker-top-strip-${unitId}`');
+        expect(topStripInteractiveRectSource).toContain('name: "STICKER_TOP_STRIP"');
+        expect(topStripSource).toContain("buildStickerTopStripInteractiveRect");
         expect(topStripSource).toContain('pointer-events-none fixed z-[1210]');
         expect(topStripSource).toContain('class="pointer-events-auto flex items-stretch"');
         expect(topStripSource).toContain('onMouseDown={(event) => event.stopPropagation()}');
@@ -144,6 +153,10 @@ describe("Hook sticker top strip contract", () => {
         expect(topStripSource).toContain("rasterizeStickerAnnotationsForUnit");
         expect(editActionsSource).toContain("props.onRasterize(props.currentRasterizeScope)");
         expect(editActionsSource).toContain('props.onToggleMenu("rasterize")');
+        expect(topStripSource).toContain("StickerTopStripOcrTools");
+        expect(ocrToolsSource).toContain('props.onToggleMenu("ocr")');
+        expect(topStripCatalogSource).toContain("复制全文");
+        expect(ocrToolsSource).toContain('data-top-strip-menu="true"');
         expect(createToolsSource).toContain("画笔");
         expect(topStripRenderSource).toContain("文本");
         expect(topStripRenderSource).toContain("序号");

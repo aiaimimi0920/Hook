@@ -22,6 +22,7 @@ import { resolveShortcutContext } from "../services/captureState";
 import { logger } from "../services/logger";
 import type { ArtCapability } from "../services/protocol";
 import { syncService } from "../services/syncService";
+import { toggleSelectedStickerToolbar } from "../services/ocrShortcutRouting";
 import { useShortcuts } from "./useShortcuts";
 
 type AppShortcutControllerDependencies = {
@@ -43,6 +44,7 @@ type AppShortcutControllerDependencies = {
     refreshCapabilities: () => Promise<void>;
     scheduleOverlayHitTestRefresh: () => void;
     spawnConnectedNode: (sourceId: string, artId: string) => string | null;
+    toggleOcrAction: (unitId: string) => Promise<void>;
     toggleTranslationAction: (unitId: string) => Promise<void>;
 };
 
@@ -53,8 +55,8 @@ export function useAppShortcutController(dependencies: AppShortcutControllerDepe
         // the selected sticker instead of leaving an unhandled rejection/toast.
         void dependencies.refreshCapabilities()
             .then(() => {
-                if (enhancementNotices[unitId]?.feature === "Loom") {
-                    uiActions.dismissEnhancementNotice(unitId);
+                if (enhancementNotices[unitId]?.some((notice) => notice.feature === "Loom")) {
+                    uiActions.dismissEnhancementNoticesByFeature(unitId, "Loom");
                 }
             })
             .catch((error: unknown) => {
@@ -123,7 +125,12 @@ export function useAppShortcutController(dependencies: AppShortcutControllerDepe
                 }
             },
             onCancelStickerEdit: () => uiActions.requestStickerEditCancel(),
-            onToggleStickerToolbar: dependencies.toggleStickerToolbarVisibility,
+            onToggleStickerToolbar: () => {
+                toggleSelectedStickerToolbar({
+                    fallback: dependencies.toggleStickerToolbarVisibility,
+                    refreshHitTest: dependencies.scheduleOverlayHitTestRefresh,
+                });
+            },
             onToggleActions: () => {
                 const id = selectedStickerId();
                 if (!id) return;
@@ -202,9 +209,26 @@ export function useAppShortcutController(dependencies: AppShortcutControllerDepe
                 );
             },
             onToggleOcr: async () => {
-                if (!selectedStickerId()) return;
-                logger.debug("Triggering OCR explicitly...");
-                await api.triggerOcrEvent();
+                const id = selectedStickerId();
+                if (!id) return;
+                logger.debug("Toggling OCR visibility...");
+                uiActions.clearOcrInteractiveUnit(id);
+                await dependencies.toggleOcrAction(id);
+
+                // Alt+2 is the public OCR entry point. Once recognition has
+                // completed (or an existing result has been shown), make the
+                // visible blocks interactive immediately; requiring a second
+                // Ctrl+E press left the native hit rectangles unregistered.
+                // Re-check selection after the await so a slow OCR request can
+                // never activate a different sticker that the user selected.
+                if (selectedStickerId() !== id) return;
+                const unit = graphStore.units.find((candidate) => candidate.id === id);
+                if (unit?.data.ocrResult && !unit.data.hideOcr) {
+                    uiActions.setOcrInteractiveUnit(id);
+                } else {
+                    uiActions.clearOcrInteractiveUnit(id);
+                }
+                dependencies.scheduleOverlayHitTestRefresh();
             },
             onToggleTranslation: async () => {
                 const id = selectedStickerId();

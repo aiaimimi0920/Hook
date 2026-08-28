@@ -98,6 +98,9 @@ describe("input lifecycle hardening contract", () => {
       "claim_capture_button_transition(&CAPTURE_MOUSE_HOOK_BUTTON_DOWN, false)",
     );
     expect(hookBlock).toContain("capture_mouse_up_ignored_unpaired");
+    expect(rustSource).toContain("capture_mouse_down_emit_failed_fail_open");
+    expect(rustSource).toContain("capture_mouse_up_emit_failed_fail_open");
+    expect(rustSource).toContain("reset_overlay_pointer_session();");
     expect(rustSource).not.toContain("hook-left-button-release-watchdog");
     expect(rustSource).not.toContain("capture_left_button_release_watchdog");
   });

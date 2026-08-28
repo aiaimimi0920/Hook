@@ -44,7 +44,16 @@
   color: var(--theme-danger-text);
 }
 
+.hook-enhancement-notice-stack {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .hook-enhancement-notice {
+  flex: 0 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: auto;
   border: 1px solid color-mix(in srgb, var(--theme-signal) 38%, var(--theme-border));
   border-left: 3px solid var(--theme-signal);
   background: var(--theme-panel);

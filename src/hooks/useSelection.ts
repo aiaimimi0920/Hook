@@ -1,5 +1,6 @@
 import { api } from "../services/api";
 import { logger } from "../services/logger";
+import { cleanupCaptureInput } from "../services/captureInputCleanup";
 
 import {
     isSelecting, setIsSelecting,
@@ -55,6 +56,18 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
         pressedCaptureWindowTarget = null;
         lastCaptureWindowClick = null;
     };
+
+    const cleanupCaptureSession = (reason: string, restoreMouseMonitor: boolean) =>
+        cleanupCaptureInput({
+            reason,
+            setCaptureInputInactive: () => api.setCaptureInputActive(false),
+            clearHover: onCaptureHoverClear,
+            resetSelection,
+            setOverlayClickThrough: () => api.setOverlayClickThrough(true),
+            restoreMouseMonitor,
+            setMouseMonitorActive: () => api.setMouseMonitorActive(true),
+            updateBackendRects: () => syncService.updateBackendRects(),
+        });
 
     const updateCaptureWindowHover = (x: number, y: number) => {
         if (!isSelecting() || captureMode() !== "region" || startPos()) return;
@@ -381,22 +394,15 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
         }
 
         if (resolvedCaptureRect.w < 5 || resolvedCaptureRect.h < 5) {
-            await api.setCaptureInputActive(false);
             if (!isCaptureSessionCurrent(sessionGeneration)) {
                 void api.debugLogEvent("selection-end-small-stale", `generation=${sessionGeneration}`);
                 return;
             }
-            onCaptureHoverClear();
             void api.debugLogEvent(
                 "selection-end-small",
                 `w=${resolvedCaptureRect.w} h=${resolvedCaptureRect.h}`,
             );
-            resetSelection();
-            await api.setOverlayClickThrough(true);
-            if (graphStore.units.length > 0) {
-                await api.setMouseMonitorActive(true);
-                await syncService.updateBackendRects();
-            }
+            await cleanupCaptureSession("small-selection", graphStore.units.length > 0);
             return;
         }
 
@@ -483,27 +489,16 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
 
             } catch (e) {
                 console.error("Capture Failed", e);
-                await api.debugLogEvent("selection-capture-failure", e instanceof Error ? e.message : String(e));
+                void api.debugLogEvent("selection-capture-failure", e instanceof Error ? e.message : String(e));
                 if (isLongCapture && isCaptureSessionCurrent(sessionGeneration)) {
-                    onCaptureHoverClear();
-                    resetSelection();
-                    await api.setOverlayClickThrough(true);
-                    if (graphStore.units.length > 0) {
-                        await api.setMouseMonitorActive(true);
-                        await syncService.updateBackendRects();
-                    }
+                    await cleanupCaptureSession("long-capture-failed", graphStore.units.length > 0);
                 }
             } finally {
                 if (!isLongCapture && isCaptureSessionCurrent(sessionGeneration)) {
                     // Keep the native hook swallowing moves until the bitmap
                     // request above has settled; otherwise the release point
                     // can trigger a new external hover before capture completes.
-                    await api.setCaptureInputActive(false);
-                    onCaptureHoverClear();
-                    resetSelection();
-                    await api.setOverlayClickThrough(true);
-                    await api.setMouseMonitorActive(true);
-                    await syncService.updateBackendRects();
+                    await cleanupCaptureSession("capture-finished", true);
                 }
             }
         }, 50);

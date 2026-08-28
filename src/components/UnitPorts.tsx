@@ -4,6 +4,7 @@ import { Portal } from "solid-js/web";
 import { Unit } from "../types/unit";
 import { ArtCapability } from "../services/protocol";
 import { logger } from "../services/logger";
+import { BARCODE_OUTPUT_PORTS, hasBarcodeResults } from "../services/barcodeRecognition";
 import {
   registerDragFollowerElement,
   unregisterDragFollowerElement,
@@ -72,7 +73,10 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
   const getOutputs = () => {
       // Stickers NOW support Output (Pass-through)
       if (!isArt()) {
-           return [{ name: "output_image", label: "Image", type: "image" }];
+           return [
+               { name: "output_image", label: "Image", type: "image" },
+               ...(hasBarcodeResults(props.unit.data.barcodeResult) ? BARCODE_OUTPUT_PORTS : []),
+           ];
       }
       if (props.capability?.outputs) return props.capability.outputs;
       // All nodes output Image by default currently

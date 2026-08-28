@@ -120,6 +120,24 @@ export const imageResourceApi = {
         ),
     copyToClipboard: (base64: string): Promise<void> =>
         safeInvoke("copy_to_clipboard", { base64Image: base64 }, () => undefined, false),
+    copyTextToClipboard: async (text: string): Promise<boolean> => {
+        if (!text.trim()) return false;
+        try {
+            await safeInvoke("copy_text_to_clipboard", { text });
+            return true;
+        } catch (nativeError) {
+            console.warn("Native text clipboard write failed; trying WebView clipboard", nativeError);
+        }
+
+        if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) return false;
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (browserError) {
+            console.warn("WebView text clipboard write failed", browserError);
+            return false;
+        }
+    },
     copyStickerImageToSmartClipboard: (base64: string, fileNamingContext?: FileNamingContext): Promise<string> =>
         safeInvoke(
             "copy_sticker_image_to_smart_clipboard",

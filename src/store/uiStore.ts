@@ -37,6 +37,7 @@ import {
 } from "../services/historyModel";
 import { api } from "../services/api";
 import { applyStickerToolSettingsPatch } from "../services/toolSettings";
+import { appendEnhancementNotice, normalizeEnhancementNotice, removeEnhancementNotice, removeEnhancementNoticesByFeature, type EnhancementNotice, type EnhancementNoticeFeature, type EnhancementNoticeInput } from "../services/enhancementNoticeQueue";
 
 // Global Selection State
 export const [selectedStickerId, setSelectedStickerId] = createSignal<string | null>(null);
@@ -173,15 +174,11 @@ export const [globalAddNodeMenu, setGlobalAddNodeMenu] = createSignal<{
     y: 0,
 });
 
-export type EnhancementNoticeFeature = "OCR" | "Translation" | "Loom";
+export const [enhancementNotices, setEnhancementNotices] = createStore<Record<string, EnhancementNotice[] | undefined>>({});
 
-export interface EnhancementNotice {
-    feature: EnhancementNoticeFeature;
-    title: string;
-    message: string;
-}
-
-export const [enhancementNotices, setEnhancementNotices] = createStore<Record<string, EnhancementNotice | undefined>>({});
+// Transient OCR interaction mode. It is deliberately not part of UnitData so
+// entering copy mode never dirties or persists the workflow document.
+export const [ocrInteractiveUnitId, setOcrInteractiveUnitId] = createSignal<string | null>(null);
 
 // Unit-Specific UI State (e.g. Panels open/close)
 // Key: Unit ID
@@ -300,11 +297,28 @@ export const uiActions = {
             }));
         });
     },
-    showEnhancementNotice: (unitId: string, notice: EnhancementNotice) => {
-        setEnhancementNotices(unitId, notice);
+    showEnhancementNotice: (unitId: string, notice: EnhancementNoticeInput | EnhancementNotice) => {
+        const nextNotice = normalizeEnhancementNotice(notice);
+        setEnhancementNotices(unitId, (current) => appendEnhancementNotice(current, nextNotice));
     },
-    dismissEnhancementNotice: (unitId: string) => {
-        setEnhancementNotices(unitId, undefined);
+    dismissEnhancementNotice: (unitId: string, noticeId?: number) => {
+        if (noticeId === undefined) {
+            setEnhancementNotices(unitId, undefined);
+            return;
+        }
+        setEnhancementNotices(unitId, (current) => removeEnhancementNotice(current, noticeId));
+    },
+    dismissEnhancementNoticesByFeature: (unitId: string, feature: EnhancementNoticeFeature) => {
+        setEnhancementNotices(unitId, (current) => removeEnhancementNoticesByFeature(current, feature));
+    },
+    setOcrInteractiveUnit: (unitId: string | null) => {
+        setOcrInteractiveUnitId(unitId);
+    },
+    toggleOcrInteractiveUnit: (unitId: string) => {
+        setOcrInteractiveUnitId((current) => current === unitId ? null : unitId);
+    },
+    clearOcrInteractiveUnit: (unitId?: string) => {
+        if (!unitId || ocrInteractiveUnitId() === unitId) setOcrInteractiveUnitId(null);
     },
     clearUnitUiState: (unitId: string) => {
         setUnitUiState(unitId, undefined!);
@@ -320,6 +334,10 @@ export const uiActions = {
             Object.keys(unitUiState).forEach((unitId) => {
                 if (!unitIds.has(unitId)) setUnitUiState(unitId, undefined!);
             });
+            const activeOcrUnitId = ocrInteractiveUnitId();
+            if (activeOcrUnitId && !unitIds.has(activeOcrUnitId)) {
+                setOcrInteractiveUnitId(null);
+            }
         });
     },
     setStickerEditMode: (mode: StickerToolSettings["mode"]) => {

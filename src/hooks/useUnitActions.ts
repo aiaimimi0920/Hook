@@ -2,7 +2,13 @@ import { api } from "../services/api";
 import { graphStore } from "../store/graphStore";
 import { syncService } from "../services/syncService";
 import { logger } from "../services/logger";
-import { setDraggingStickerId, setMultiDragPositions, uiActions } from "../store/uiStore";
+import {
+    selectedStickerId,
+    selectionActions,
+    setDraggingStickerId,
+    setMultiDragPositions,
+    uiActions,
+} from "../store/uiStore";
 import {
     computeMinifiedStickerWindow,
     computeRestoredMinifiedStickerWindow,
@@ -15,6 +21,12 @@ import { getCapabilityInputsForPorts } from "../services/artPorts";
 import { deriveUnitExecutionConfig } from "../services/nodeExecutionConfig";
 import { findArtCapability } from "../services/artCapabilityLookup";
 import { buildStandaloneArtNodeUnit } from "../services/artNodeFactory";
+import { resolveOcrImageDataUrl } from "../services/ocrImageSource";
+import { MAX_OCR_BLOCKS } from "../services/ocrOverlayLayout";
+import { showOcrCopyNotice } from "../services/ocrCopyNotice";
+import { copyOcrTextToClipboard } from "../services/ocrOverlayInteraction";
+import { buildBarcodeOutputValues } from "../services/barcodeRecognition";
+import { registerBarcodePropagation } from "../services/barcodeResultActions";
 
 const getSourceImageFrame = (unit: Unit): { w: number; h: number } => {
     const savedRect = unit.data.savedRect;
@@ -29,6 +41,27 @@ export function useUnitActions() {
 
     // Import logic from new hook
     const { handleParamChange } = useNodeParameters();
+    const barcodeOperationTokens = new Map<string, number>();
+    const ocrOperationTokens = new Map<string, number>();
+
+    const startOperation = (tokens: Map<string, number>, unitId: string) => {
+        const token = (tokens.get(unitId) ?? 0) + 1;
+        tokens.set(unitId, token);
+        return token;
+    };
+
+    const isCurrentOperation = (
+        tokens: Map<string, number>,
+        unitId: string,
+        token: number,
+        source: { src?: string; filePath?: string },
+    ) => {
+        const unit = graphStore.units.find((candidate) => candidate.id === unitId);
+        return tokens.get(unitId) === token &&
+            !!unit &&
+            unit.data.src === source.src &&
+            unit.data.filePath === source.filePath;
+    };
 
     const getPrimaryImageInputPort = (artId: string) => {
         const capability = findArtCapability(graphStore.capabilities, artId);
@@ -236,31 +269,154 @@ export function useUnitActions() {
          });
     };
 
+    const showOcrFailure = (unitId: string, message: string) => {
+         console.warn(`OCR failed: ${message}`);
+         uiActions.showEnhancementNotice(unitId, {
+             feature: "OCR",
+             title: "OCR 识别失败",
+             message,
+         });
+    };
+
+    const performBarcodeAction = async (unitId: string) => {
+         const unit = graphStore.units.find(candidate => candidate.id === unitId);
+         if (!unit?.data.src) return;
+         const source = { src: unit.data.src, filePath: unit.data.filePath };
+         const operationToken = startOperation(barcodeOperationTokens, unitId);
+
+         try {
+             const imageDataUrl = await resolveOcrImageDataUrl(
+                 source,
+                 { readImageFromPath: api.readImageFromPath },
+             );
+             const decoded = await api.decode(imageDataUrl);
+             const scan = decoded.results.length > 0 && !decoded.selectedId
+                 ? { ...decoded, selectedId: decoded.results[0].id }
+                 : decoded;
+             const latestUnit = graphStore.units.find(candidate => candidate.id === unitId);
+             if (!latestUnit || !isCurrentOperation(barcodeOperationTokens, unitId, operationToken, source)) return;
+             graphStore.actions.updateUnitData(unitId, {
+                 barcodeResult: scan,
+                 outputs: {
+                     ...latestUnit.data.outputs,
+                     ...buildBarcodeOutputValues(scan),
+                 },
+             });
+             syncService.performWorkflowSync();
+             if (scan.results.length > 0) {
+                 queueMicrotask(() => propagateFromUnit(unitId));
+                 uiActions.showEnhancementNotice(unitId, {
+                     feature: "Barcode",
+                     title: "二维码/条码识别完成",
+                     message: `识别到 ${scan.results.length} 个码，可在属性面板查看并连接到 Art。`,
+                 });
+             }
+         } catch (error) {
+             console.warn("Barcode recognition failed", error);
+             uiActions.showEnhancementNotice(unitId, {
+                 feature: "Barcode",
+                 title: "二维码/条码识别失败",
+                 message: "无法读取图片或执行本地解码，请确认图片清晰后重试。",
+             });
+         }
+    };
+
     const performOcrAction = async (unitId: string) => {
          const u = graphStore.units.find(u => u.id === unitId);
-         if(u && u.data.src) {
-             try {
-                  const capabilities = await api.getEnhancementCapabilities();
-                  if (!capabilities.ocr) {
-                      showEnhancementUnavailable(unitId, "OCR");
-                      return;
-                  }
-                  const res = await api.performOcr(u.data.src);
-                  if(res.fullText && res.textBlocks) {
-                      await navigator.clipboard.writeText(res.fullText);
-                      graphStore.actions.updateUnitData(unitId, {
-                          ocrResult: {
-                              fullText: res.fullText,
-                              textBlocks: res.textBlocks,
-                              width: res.width,
-                              height: res.height,
-                              scaleFactor: res.scaleFactor,
-                          }
-                      });
-                      syncService.performWorkflowSync();
-                  }
-             } catch(e) { console.error("OCR Error", e); }
+         if (!u) return;
+         uiActions.clearOcrInteractiveUnit(unitId);
+         if (!u.data.src) {
+             showOcrFailure(unitId, "所选贴图没有可识别的图片内容。");
+             return;
          }
+         const source = { src: u.data.src, filePath: u.data.filePath };
+         const operationToken = startOperation(ocrOperationTokens, unitId);
+
+         // Keep QR/barcode decoding local and independent from Loom OCR. A Loom
+         // outage must not prevent a captured code from being recognized.
+         void performBarcodeAction(unitId);
+
+         try {
+              const capabilities = await api.getEnhancementCapabilities();
+              if (!isCurrentOperation(ocrOperationTokens, unitId, operationToken, source)) return;
+              if (!capabilities.ocr) {
+                  showEnhancementUnavailable(unitId, "OCR");
+                  return;
+              }
+
+              // Region capture responses are file-backed asset URLs. Resolve
+              // them through the bounded native reader before crossing Loom's
+              // data-URL-only OCR protocol boundary.
+              const imageDataUrl = await resolveOcrImageDataUrl(
+                  source,
+                  { readImageFromPath: api.readImageFromPath },
+              );
+              const res = await api.performOcr(imageDataUrl);
+              if (!isCurrentOperation(ocrOperationTokens, unitId, operationToken, source)) return;
+              const response = res as typeof res & { text?: unknown };
+              const textBlocks = Array.isArray(response.textBlocks)
+                  ? response.textBlocks.slice(0, MAX_OCR_BLOCKS)
+                  : [];
+              const blockText = textBlocks
+                  .map((block) => typeof block?.text === "string" ? block.text : "")
+                  .filter(Boolean)
+                  .join("\n");
+              const fullTextCandidate = typeof response.fullText === "string"
+                  ? response.fullText.trim()
+                  : typeof response.text === "string"
+                      ? response.text.trim()
+                      : "";
+              const fullText = fullTextCandidate || blockText.trim();
+              if (!fullText) {
+                  showOcrFailure(unitId, "未识别到可复制的文本，请确认图片清晰且包含文字。");
+                  return;
+              }
+
+              // Persist and render the OCR result before attempting clipboard
+              // access. Clipboard permission/focus failures must not discard a
+              // successful recognition result.
+              graphStore.actions.updateUnitData(unitId, {
+                  ocrResult: {
+                      fullText,
+                      textBlocks,
+                      width: res.width,
+                      height: res.height,
+                      scaleFactor: res.scaleFactor,
+                  },
+                  hideOcr: false,
+              });
+              // Ctrl+2 owns a separate native command path from Alt+2. Restore
+              // interaction here as well, but never steal a newer selection from
+              // a slow OCR request that completed in the background.
+              const selectedUnitId = selectedStickerId();
+              if (!selectedUnitId) selectionActions.set([unitId]);
+              if (!selectedUnitId || selectedUnitId === unitId) {
+                  uiActions.setOcrInteractiveUnit(unitId);
+                  queueMicrotask(() => void syncService.updateBackendRects());
+              }
+              syncService.performWorkflowSync();
+
+              if (!isCurrentOperation(ocrOperationTokens, unitId, operationToken, source)) return;
+              const copied = await copyOcrTextToClipboard(fullText);
+              if (!isCurrentOperation(ocrOperationTokens, unitId, operationToken, source)) return;
+              showOcrCopyNotice(unitId, fullText, copied, "full");
+         } catch (error) {
+             if (!isCurrentOperation(ocrOperationTokens, unitId, operationToken, source)) return;
+             console.error("OCR Error", error);
+             showOcrFailure(unitId, "无法读取图片或连接 Loom Hook，请确认 Loom 已启动后重试。");
+         }
+    };
+
+    const toggleOcrAction = async (unitId: string) => {
+         const unit = graphStore.units.find(candidate => candidate.id === unitId);
+         if (!unit) return;
+         uiActions.clearOcrInteractiveUnit(unitId);
+         if (!unit.data.ocrResult) {
+             await performOcrAction(unitId);
+             return;
+         }
+         graphStore.actions.updateUnitData(unitId, { hideOcr: !unit.data.hideOcr });
+         syncService.performWorkflowSync();
     };
 
     const toggleTranslationAction = async (unitId: string) => {
@@ -322,8 +478,19 @@ export function useUnitActions() {
          }
 
          graphStore.actions.updateUnitData(unitId, { showTranslated: true });
-         syncService.performWorkflowSync();
+        syncService.performWorkflowSync();
     };
 
-    return { handleParamChange, propagateFromUnit, handleDoubleClick, spawnConnectedNode, performOcrAction, toggleTranslationAction };
+    registerBarcodePropagation(propagateFromUnit);
+
+    return {
+        handleParamChange,
+        propagateFromUnit,
+        handleDoubleClick,
+        spawnConnectedNode,
+        performOcrAction,
+        performBarcodeAction,
+        toggleOcrAction,
+        toggleTranslationAction,
+    };
 }

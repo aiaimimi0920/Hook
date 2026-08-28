@@ -19,6 +19,7 @@ describe("Hook sticker top strip catalog extraction contract", () => {
         expect(catalogSource).toContain("export const shapeToolOptions");
         expect(catalogSource).toContain("export const historyActionOptions");
         expect(catalogSource).toContain("export const rasterizeScopeOptions");
+        expect(catalogSource).toContain("export const ocrToolOptions");
         expect(catalogSource).toContain("export const isShapeTool =");
         expect(catalogSource).toContain("export const isLabelTool =");
         expect(catalogSource).toContain("export const isEffectTool =");

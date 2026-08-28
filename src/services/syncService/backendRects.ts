@@ -4,10 +4,12 @@ import { graphStore } from "../../store/graphStore";
 import { api } from "../api";
 import { extraRects } from "../uiRegistry";
 
-let syncRequested = false;
+type BackendRects = Awaited<Parameters<typeof api.updatePinRects>[0]>;
+
+let pendingRects: BackendRects | null = null;
 let syncPromise: Promise<void> | null = null;
 
-const syncLatestBackendRects = async (): Promise<void> => {
+const captureBackendRects = (): BackendRects => {
     const dpr = window.devicePixelRatio || 1;
     const rects = graphStore.units.map((unit) => ({
         id: unit.id,
@@ -29,6 +31,10 @@ const syncLatestBackendRects = async (): Promise<void> => {
         });
     });
 
+    return rects;
+};
+
+const syncBackendRects = async (rects: BackendRects): Promise<void> => {
     try {
         await api.updatePinRects(rects);
     } catch (error) {
@@ -37,12 +43,15 @@ const syncLatestBackendRects = async (): Promise<void> => {
 };
 
 export const requestBackendRectSync = (): Promise<void> => {
-    syncRequested = true;
+    // Capture before entering the async queue. Besides preserving latest-state
+    // coalescing, this keeps Solid effects subscribed even while a send is active.
+    pendingRects = captureBackendRects();
     if (!syncPromise) {
         syncPromise = (async () => {
-            while (syncRequested) {
-                syncRequested = false;
-                await syncLatestBackendRects();
+            while (pendingRects) {
+                const rects = pendingRects;
+                pendingRects = null;
+                await syncBackendRects(rects);
             }
         })().finally(() => {
             syncPromise = null;

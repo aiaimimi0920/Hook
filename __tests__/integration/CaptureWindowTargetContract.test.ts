@@ -27,16 +27,17 @@ describe("capture window target contract", () => {
     expect(libSource).toContain("fn get_capture_cursor_position(");
   });
 
-  it("loads targets before capture input activation and updates hover without requiring a pressed button", () => {
+  it("starts target discovery without blocking capture activation and updates hover without a pressed button", () => {
     const nativeActionSource = readSource("src/services/appNativeActionController.ts");
     const pointerListenerSource = readSource("src/services/appPointerListeners.ts");
     const selectionSource = readSource("src/hooks/useSelection.ts");
 
     const prepareIndex = nativeActionSource.indexOf("await dependencies.prepareCaptureWindowTargets(initialCapturePoint);");
-    const captureInputIndex = nativeActionSource.indexOf("await api.setCaptureInputActive(true);", prepareIndex);
+    const captureInputIndex = nativeActionSource.indexOf("await api.setCaptureInputActive(true);");
     expect(prepareIndex).toBeGreaterThan(-1);
     expect(nativeActionSource).toContain("api.getCaptureCursorPosition()");
-    expect(captureInputIndex).toBeGreaterThan(prepareIndex);
+    expect(nativeActionSource).toContain('runBackgroundTask("capture window target preparation"');
+    expect(captureInputIndex).toBeGreaterThan(-1);
     expect(pointerListenerSource).toContain("if (!isSelecting()) return;");
     expect(selectionSource).toContain("findCaptureWindowTargetAtPoint");
     expect(selectionSource).toContain("updateCaptureWindowHover(e.clientX, e.clientY)");

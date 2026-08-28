@@ -12,6 +12,7 @@ import { transitionAppSurfaceLifecycle } from "./services/appSurfaceListeners";
 import { useAppStartupLifecycle } from "./services/appStartupLifecycle";
 import { createAppArtWorkflowController } from "./services/appArtWorkflowController";
 import { createAppNativeActionController } from "./services/appNativeActionController";
+import { installNativeFocusPolling } from "./services/nativeFocusPolling";
 import { createAppStickerEditingController } from "./services/appStickerEditingController";
 import { createAppTeaTicketController } from "./services/appTeaTicketController";
 import { useAppShortcutController } from "./hooks/useAppShortcutController";
@@ -23,6 +24,7 @@ import "./app.css";
 
 // Components
 import { CanvasLinks } from "./components/CanvasLinks";
+import { CanvasOverlayLayers, type CanvasOverlayLayerRefs } from "./components/CanvasOverlayLayers";
 import { CanvasUnits } from "./components/CanvasUnits";
 import { CanvasSelection } from "./components/CanvasSelection";
 import { StickerGroupBar } from "./components/StickerGroupBar";
@@ -60,6 +62,10 @@ import {
 } from "./services/artCapabilityLookup";
 import type { BootProfile } from "./services/bootProfile";
 import { stickerContextMenuController } from "./services/stickerContextMenuController";
+import {
+    clearOcrInteractionIfSelectionChanged,
+    toggleSelectedStickerToolbar,
+} from "./services/ocrShortcutRouting";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "./types/appSettings";
 
 // Hooks
@@ -76,30 +82,16 @@ import {
 } from "./services/surfaceProtocol";
 
 export default function App() {
-  let portsLayerRef: HTMLDivElement | undefined;
+  const [canvasOverlayLayers, setCanvasOverlayLayers] = createSignal<CanvasOverlayLayerRefs>({});
   let activeBootProfile: BootProfile | null = null;
   const tauriRuntime = isTauriRuntimeAvailable();
   const disposeEditableFocusLifecycle = installEditableFocusLifecycle();
   onCleanup(disposeEditableFocusLifecycle);
   if (tauriRuntime) {
-      let focusPollInFlight = false;
-      let lastNativeFocus: boolean | undefined;
-      const pollNativeFocus = async () => {
-          if (focusPollInFlight) return;
-          focusPollInFlight = true;
-          try {
-              const focused = await api.hasForegroundWindow();
-              if (focused !== lastNativeFocus) {
-                  lastNativeFocus = focused;
-                  notifyNativeAppFocus(focused);
-              }
-          } finally {
-              focusPollInFlight = false;
-          }
-      };
-      const nativeFocusPoll = window.setInterval(() => void pollNativeFocus(), 250);
-      void pollNativeFocus();
-      onCleanup(() => window.clearInterval(nativeFocusPoll));
+      onCleanup(installNativeFocusPolling({
+          hasForegroundWindow: api.hasForegroundWindow,
+          notifyFocusChanged: notifyNativeAppFocus,
+      }));
   }
   const [_voiceStatus, setVoiceStatus] = createSignal<VoiceStatus>("idle");
   const [_lastVoiceHotkey, setLastVoiceHotkey] = createSignal<VoiceHotkeyPayload | null>(null);
@@ -168,7 +160,7 @@ export default function App() {
       notifyAutoLongCaptureWheel,
       prepareCaptureWindowTargets,
   } = useSelection(() => clearCaptureHover());
-  const { handleParamChange, handleDoubleClick, spawnConnectedNode, performOcrAction, toggleTranslationAction, propagateFromUnit } = useUnitActions();
+  const { handleParamChange, handleDoubleClick, spawnConnectedNode, performOcrAction, toggleOcrAction, toggleTranslationAction, propagateFromUnit } = useUnitActions();
   const { startLinking, handleLinkDrop, handleInputLinkDrag, handleLinkHover } = useLinking({
       onLinkCreated: (sourceId) => {
           graphStore.actions.propagateStickerEditsFrom(sourceId);
@@ -244,12 +236,12 @@ export default function App() {
       toggleStickerToolbarVisibility,
       refreshCapabilities,
       scheduleOverlayHitTestRefresh,
-      spawnConnectedNode,
-      toggleTranslationAction,
+      spawnConnectedNode, toggleOcrAction, toggleTranslationAction,
   });
 
   const {
       beginCaptureSelection,
+      abortCaptureSelection,
       handleNativeEscape,
       handleNativeDelete,
   } = createAppNativeActionController({
@@ -269,12 +261,10 @@ export default function App() {
       deleteSelectedUnitOrAnnotation,
   });
 
-  // NEW: Automatic Backend Sync when UI Layout Changes (Units or Panels)
-  // We use createEffect to track signal dependencies accessed in updateBackendRects
+  // updateBackendRects captures unit and registered-overlay geometry synchronously,
+  // keeping this effect subscribed even while an earlier native send is in flight.
   createEffect(() => {
-      // Access signals to subscribe (implicit in updateBackendRects, but we make it explicit for clarity if needed)
-      // data: graphStore.units, extraRects()
-      syncService.updateBackendRects();
+      void syncService.updateBackendRects();
   });
 
   createEffect(() => {
@@ -284,6 +274,8 @@ export default function App() {
 
       stickerContextMenuController.close();
   });
+
+  createEffect(() => clearOcrInteractionIfSelectionChanged());
 
   const {
       handleGlobalMouseDown,
@@ -316,7 +308,7 @@ export default function App() {
           beginCaptureSelection,
           finishAutoLongCaptureSession,
           notifyAutoLongCaptureWheel,
-          toggleStickerToolbarVisibility,
+          toggleStickerToolbarVisibility: () => toggleSelectedStickerToolbar({ fallback: toggleStickerToolbarVisibility, refreshHitTest: scheduleOverlayHitTestRefresh }),
           openImageForEdit,
           setAppSettingsOpen,
           handleCopy,
@@ -334,6 +326,7 @@ export default function App() {
           handleSelectionStart,
           handleSelectionMove,
           handleSelectionEnd,
+          abortCaptureSelection,
           handleDragMove,
       },
       registerAppArtControlListeners: {
@@ -437,9 +430,10 @@ export default function App() {
             }}
         />
 
-        <div id="ports-layer" ref={portsLayerRef!} class="absolute inset-0 z-[5] pointer-events-none overflow-visible" />
+        <CanvasOverlayLayers onLayersChange={setCanvasOverlayLayers} />
 
         <CanvasUnits
+            noticesLayerRef={canvasOverlayLayers().notices}
             onStartDrag={onStartDragUnit}
             onDoubleClick={handleDoubleClick}
 
@@ -448,6 +442,7 @@ export default function App() {
                 uiActions.clearStickerHistory(id);
                 uiActions.clearUnitUiState(id);
                 uiActions.dismissEnhancementNotice(id);
+                uiActions.clearOcrInteractiveUnit(id);
                 if (selectedStickerId() === id) {
                     uiActions.hideStickerToolbar();
                 }
@@ -493,7 +488,7 @@ export default function App() {
             }}
 
             resolveUnitImage={resolveUnitImage}
-            portsLayerRef={portsLayerRef}
+            portsLayerRef={canvasOverlayLayers().ports}
         />
 
         {/* Layer 3: Selection Overlay */}

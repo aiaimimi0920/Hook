@@ -12,6 +12,7 @@ import {
 } from "./UnitParamsPortRows";
 import { UnitParamsScrollRegion } from "./UnitParamsScrollRegion";
 import { UnitParamsExpandedSettings } from "./UnitParamsExpandedSettings";
+import { UnitBarcodeResultPanel } from "./UnitBarcodeResultPanel";
 import { createUnitParamsPortRegistryController } from "./unitParamsPortRegistryController";
 import { graphStore } from "../store/graphStore";
 import { normalizeImageSourceForDisplay } from "../services/imageSource";
@@ -351,6 +352,8 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
             registerPanelPort={registerPanelPort}
             toggleParamDisabled={toggleParamDisabled}
         />
+
+        <UnitBarcodeResultPanel unit={props.unit} />
 
         <UnitParamsScrollRegion
             unit={props.unit}
