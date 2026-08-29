@@ -32,6 +32,7 @@ import { HistoryPanel } from "./components/HistoryPanel";
 import { StickerContextMenuLayer } from "./components/StickerContextMenuLayer";
 import { AppSettingsDialog } from "./components/AppSettingsDialog";
 import { SurfaceConfirmationDialog } from "./components/SurfaceConfirmationDialog";
+import { ExtensionCommandPalette } from "./components/ExtensionCommandPalette";
 
 // Stores & Services
 import { graphStore } from "./store/graphStore";
@@ -303,8 +304,8 @@ export default function App() {
       },
       setVoiceSettings,
       setAppSettings,
+      performOcrAction,
       registerAppCommandListeners: {
-          performOcrAction,
           beginCaptureSelection,
           finishAutoLongCaptureSession,
           notifyAutoLongCaptureWheel,
@@ -519,6 +520,7 @@ export default function App() {
         </div>
 
         <StickerContextMenuLayer />
+        <ExtensionCommandPalette />
 
         <AppSettingsDialog
             open={appSettingsOpen()}

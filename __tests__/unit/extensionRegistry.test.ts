@@ -32,6 +32,21 @@ describe("ExtensionRegistry", () => {
         expect(registry.snapshot()).toBe(active);
     });
 
+    it("rejects an unsafe when expression before replacing the active snapshot", () => {
+        const registry = new ExtensionRegistry();
+        registry.beginSession("session-1");
+        const active = registry.applySnapshot("session-1", fixture());
+        const invalid = fixture() as {
+            generation: number;
+            contributions: { commands: Array<{ when?: string }> };
+        };
+        invalid.generation = 2;
+        invalid.contributions.commands[0]!.when = "globalThis.alert('unsafe')";
+
+        expect(() => registry.applySnapshot("session-1", invalid)).toThrow(/trailing|requires/u);
+        expect(registry.snapshot()).toBe(active);
+    });
+
     it("rejects stale sessions and non-increasing generations", () => {
         const registry = new ExtensionRegistry();
         registry.beginSession("session-1");

@@ -20,6 +20,8 @@ import { StickerTopStripCreateTools } from "./StickerTopStripCreateTools";
 import { StickerTopStripEditActions } from "./StickerTopStripEditActions";
 import { StickerTopStripOcrTools } from "./StickerTopStripOcrTools";
 import { StickerTopStripSurfaceView } from "./StickerTopStripSurfaceView";
+import { ExtensionToolbarItems } from "./ExtensionToolbarItems";
+import { extensionPresentationStore } from "../services/extensionPresentationStore";
 import type { TopStripOpenMenu } from "./stickerTopStripChrome";
 import { buildStickerTopStripInteractiveRect } from "./stickerTopStripInteractiveRect";
 import {
@@ -284,6 +286,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
             viewport().width,
             viewport().height,
             !!propertyBarTool(),
+            extensionPresentationStore.toolbarItems().filter((item) => item.available()).length,
         ),
     );
     const draggingThisSticker = createMemo(() => draggingStickerId() === props.unitId);
@@ -528,6 +531,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             setOpenMenu(null);
                         }}
                     />
+                    <ExtensionToolbarItems />
                 </div>
             </div>
         </Portal>

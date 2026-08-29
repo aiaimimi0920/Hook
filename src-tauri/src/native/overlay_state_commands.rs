@@ -74,7 +74,12 @@ fn get_cursor_position(app: tauri::AppHandle) -> Result<PhysicalPosition<f64>, S
 #[tauri::command]
 fn trigger_ocr_event(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
-        window.emit("trigger-ocr", ()).map_err(|e| e.to_string())?;
+        window
+            .emit(
+                "extension/command",
+                serde_json::json!({ "commandId": "hook.core.ocr" }),
+            )
+            .map_err(|e| e.to_string())?;
         return Ok(());
     }
 

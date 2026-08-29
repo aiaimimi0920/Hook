@@ -70,10 +70,13 @@ export const computeStickerTopStripLayout = (
     viewportWidth: number,
     viewportHeight: number,
     showPropertyBar: boolean,
+    additionalSlots = 0,
 ): StickerTopStripLayout => {
     const safeViewportWidth = Math.max(0, Math.round(viewportWidth));
     const safeViewportHeight = Math.max(0, Math.round(viewportHeight));
-    const width = Math.min(STICKER_TOP_STRIP_MIN_WIDTH, safeViewportWidth);
+    const boundedAdditionalSlots = Math.max(0, Math.min(8, Math.floor(additionalSlots)));
+    const desiredWidth = STICKER_TOP_STRIP_MIN_WIDTH + boundedAdditionalSlots * STICKER_TOP_STRIP_SLOT_WIDTH;
+    const width = Math.min(desiredWidth, safeViewportWidth);
     const maxLeft = Math.max(0, safeViewportWidth - width);
     const left = clamp(Math.round(anchor.x), 0, maxLeft);
     const propertyBarHeight = showPropertyBar ? STICKER_TOP_STRIP_PROPERTY_BAR_HEIGHT : 0;

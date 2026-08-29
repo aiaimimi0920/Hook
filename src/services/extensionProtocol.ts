@@ -1,3 +1,5 @@
+import { compileExtensionWhen } from "./extensionWhen";
+
 export const EXTENSION_PROTOCOL = "loom.extension.v1" as const;
 export const EXTENSION_API_VERSION = "1.0" as const;
 
@@ -184,6 +186,7 @@ export const parseContributionSnapshot = (value: unknown): ContributionSnapshot 
             if (pluginScopes.get(contribution.pluginId) !== contribution.scopeId) {
                 throw new Error(`contribution ${contribution.id} has no matching plugin scope`);
             }
+            compileExtensionWhen(contribution.when);
             return contribution;
         });
         total += list.length;

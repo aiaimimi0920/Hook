@@ -1,0 +1,110 @@
+import { DEFAULT_SHORTCUTS, parseShortcutAlternatives, type ShortcutCandidate } from "./shortcuts";
+import type { ContributionSnapshot, ExtensionContribution } from "./extensionProtocol";
+import { compileExtensionWhen, type ExtensionWhenPredicate } from "./extensionWhen";
+import { currentExtensionWhenContext } from "./extensionContext";
+import { extensionCommandRouter } from "./extensionCommandRouter";
+
+type ExtensionShortcutBinding = {
+    id: string;
+    commandId: string;
+    candidate: ShortcutCandidate;
+    available: ExtensionWhenPredicate;
+};
+
+const canonical = (candidate: ShortcutCandidate): string => [
+    ...candidate.modifiers.map((modifier) => modifier.toLowerCase()).sort(),
+    candidate.key.toLowerCase(),
+].join("+");
+
+const RESERVED = new Set([
+    ...DEFAULT_SHORTCUTS.flatMap((shortcut) => (
+        shortcut.candidates ?? [{ key: shortcut.key, modifiers: shortcut.modifiers }]
+    )).map(canonical),
+    "ctrl+1",
+    "ctrl+2",
+    "ctrl+3",
+    "ctrl+shift+p",
+]);
+
+const nestedPayload = (contribution: ExtensionContribution): Record<string, unknown> => {
+    if (!contribution.payload || typeof contribution.payload !== "object" || Array.isArray(contribution.payload)) return {};
+    const outer = contribution.payload as Record<string, unknown>;
+    const payload = outer.payload;
+    return payload && typeof payload === "object" && !Array.isArray(payload)
+        ? payload as Record<string, unknown>
+        : outer;
+};
+
+export const buildExtensionShortcutBindings = (snapshot: ContributionSnapshot): {
+    accepted: ExtensionShortcutBinding[];
+    rejected: string[];
+} => {
+    const accepted: ExtensionShortcutBinding[] = [];
+    const rejected: string[] = [];
+    const occupied = new Set<string>();
+    const shortcuts = [...snapshot.contributions.shortcuts].sort((left, right) => (
+        (left.order ?? 0) - (right.order ?? 0) || left.id.localeCompare(right.id, "en-US")
+    ));
+    for (const shortcut of shortcuts) {
+        const keys = nestedPayload(shortcut).keys;
+        const commandId = shortcut.commandId;
+        const candidates = typeof keys === "string" ? parseShortcutAlternatives(keys) : [];
+        if (!commandId || candidates.length === 0) {
+            rejected.push(shortcut.id);
+            continue;
+        }
+        const available = compileExtensionWhen(shortcut.when);
+        for (const candidate of candidates) {
+            const key = canonical(candidate);
+            if (RESERVED.has(key) || occupied.has(key)) {
+                rejected.push(shortcut.id);
+                continue;
+            }
+            occupied.add(key);
+            accepted.push({ id: shortcut.id, commandId, candidate, available });
+        }
+    }
+    return { accepted, rejected };
+};
+
+const eventMatches = (event: KeyboardEvent, candidate: ShortcutCandidate): boolean => {
+    const modifiers = new Set(candidate.modifiers);
+    const keyMatches = event.key.toLowerCase() === candidate.key.toLowerCase()
+        || (/^[a-z]$/iu.test(candidate.key) && event.code === `Key${candidate.key.toUpperCase()}`)
+        || (/^[0-9]$/u.test(candidate.key) && event.code === `Digit${candidate.key}`);
+    return keyMatches
+        && event.ctrlKey === modifiers.has("ctrl")
+        && event.altKey === modifiers.has("alt")
+        && event.shiftKey === modifiers.has("shift")
+        && event.metaKey === modifiers.has("meta");
+};
+
+export class ExtensionShortcutRegistry {
+    private bindings: ExtensionShortcutBinding[] = [];
+
+    applySnapshot(snapshot: ContributionSnapshot | null): string[] {
+        if (!snapshot) {
+            this.bindings = [];
+            return [];
+        }
+        const next = buildExtensionShortcutBindings(snapshot);
+        this.bindings = next.accepted;
+        return next.rejected;
+    }
+
+    handleKeyDown = (event: KeyboardEvent): void => {
+        const target = event.target as HTMLElement | null;
+        if (target?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "")) return;
+        const binding = this.bindings.find((entry) => (
+            entry.available(currentExtensionWhenContext()) && eventMatches(event, entry.candidate)
+        ));
+        if (!binding) return;
+        event.preventDefault();
+        event.stopPropagation();
+        void extensionCommandRouter.execute(binding.commandId).catch((error) => {
+            console.error(`Extension shortcut ${binding.id} failed`, error);
+        });
+    };
+}
+
+export const extensionShortcutRegistry = new ExtensionShortcutRegistry();

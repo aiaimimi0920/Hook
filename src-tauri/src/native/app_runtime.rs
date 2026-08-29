@@ -58,8 +58,11 @@ pub fn run() {
                             } else if shortcut.matches(Modifiers::CONTROL, Code::Digit2) {
                                 console_line!("Global Shortcut Ctrl+2 Triggered (OCR)");
                                 if let Some(window) = app.get_webview_window("main") {
-                                    if let Err(e) = window.emit("trigger-ocr", ()) {
-                                        console_line!("Failed to emit trigger-ocr: {}", e);
+                                    let payload = serde_json::json!({
+                                        "commandId": "hook.core.ocr",
+                                    });
+                                    if let Err(e) = window.emit("extension/command", payload) {
+                                        console_line!("Failed to emit extension/command: {}", e);
                                     }
                                 }
                             } else if shortcut

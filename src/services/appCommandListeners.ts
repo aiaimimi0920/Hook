@@ -38,7 +38,6 @@ export type VoiceSessionPayload = {
 
 type AppCommandListenerDependencies = {
     registry: AppListenerRegistry;
-    performOcrAction: (unitId: string) => Promise<void>;
     beginCaptureSelection: (mode: CaptureSelectionMode) => Promise<void>;
     finishAutoLongCaptureSession: () => Promise<boolean>;
     notifyAutoLongCaptureWheel: (delta: { deltaX: number; deltaY: number }) => void;
@@ -82,7 +81,6 @@ const resolveVoiceSessionStatus = (payload: VoiceSessionPayload): VoiceStatus =>
 /** Registers desktop command listeners while App retains product action ownership. */
 export async function registerAppCommandListeners({
     registry,
-    performOcrAction,
     beginCaptureSelection,
     finishAutoLongCaptureSession,
     notifyAutoLongCaptureWheel,
@@ -98,12 +96,6 @@ export async function registerAppCommandListeners({
     handleEscape,
     handleDelete,
 }: AppCommandListenerDependencies): Promise<void> {
-    await registry.register(() => listen("trigger-ocr", () => {
-        logger.debug("Backend Triggered OCR");
-        const id = selectedStickerId();
-        if (id) runBackgroundTask("OCR action", performOcrAction(id));
-    }));
-
     await registry.register(() => listen("trigger-capture", () => {
         logger.debug("Backend Triggered Capture Mode");
         void api.debugLogEvent("trigger-capture-listener");
