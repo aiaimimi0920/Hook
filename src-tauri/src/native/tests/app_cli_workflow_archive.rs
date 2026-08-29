@@ -140,6 +140,12 @@
             params: None,
             file_path: None,
             preview_src: Some("C:\\archive\\new-preview.png".to_string()),
+            surface_view_id: None,
+            rasterized_annotation_layer_src: None,
+            outputs: None,
+            ocr_result: None,
+            barcode_result: None,
+            extension_state: None,
             origin_workflow_id: None,
             origin_node_id: None,
             execution_config: None,
@@ -185,4 +191,3 @@
             "workflows that were not part of this sync must keep their prior archive index"
         );
     }
-

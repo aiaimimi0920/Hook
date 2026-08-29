@@ -146,6 +146,7 @@ pub fn run() {
             set_desktop_color_picker_active,
             save_session,
             load_session,
+            rollback_ocr_attachment_migration,
             save_history,
             load_history,
             save_tool_settings,

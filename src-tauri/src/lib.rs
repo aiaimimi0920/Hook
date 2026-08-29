@@ -233,6 +233,8 @@ include!("native/session_models.rs");
 
 include!("native/session_persistence.rs");
 
+include!("native/session_ocr_migration.rs");
+
 include!("native/precise_capture_commands.rs");
 include!("native/legacy_long_capture_commands.rs");
 
@@ -299,6 +301,7 @@ mod app_cli_tests {
     include!("native/tests/app_cli_capture_encoding.rs");
     include!("native/tests/app_cli_image_cache.rs");
     include!("native/tests/app_cli_session_persistence.rs");
+    include!("native/tests/app_cli_ocr_migration.rs");
     include!("native/tests/app_cli_workflow_archive.rs");
     include!("native/tests/app_cli_release_smoke.rs");
 }

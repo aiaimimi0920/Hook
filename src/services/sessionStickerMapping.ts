@@ -16,6 +16,7 @@ import { stripNonPersistableArtParams } from "./artParamSecurity";
 import { deriveUnitExecutionConfig } from "./nodeExecutionConfig";
 import { findArtCapability } from "./artCapabilityLookup";
 import { sanitizePersistedUnitExtensionState } from "./unitExtensionValidation";
+import { migrateLegacyOcrResultToAttachment } from "./legacyOcrAttachmentMigration";
 
 export interface SessionStickerMappingDeps {
     /** Art capabilities used to resolve node ports and execution defaults. */
@@ -63,6 +64,12 @@ export const mapSessionStickerToUnit = (
         capability,
         explicitConfig: sticker.executionConfig,
     });
+    const extensionState = sanitizePersistedUnitExtensionState(sticker.extensionState);
+    const migration = migrateLegacyOcrResultToAttachment(
+        sticker.ocrResult,
+        extensionState,
+        sticker.extensionState == null || extensionState !== undefined,
+    );
 
     return {
         id: sticker.id,
@@ -99,9 +106,9 @@ export const mapSessionStickerToUnit = (
             filePath: sticker.filePath || undefined,
             rasterizedAnnotationLayerSrc: sticker.rasterizedAnnotationLayerSrc || undefined,
             outputs: sticker.outputs || undefined,
-            ocrResult: sticker.ocrResult || undefined,
+            ocrResult: migration.ocrResult,
             barcodeResult: sticker.barcodeResult || undefined,
-            extensionState: sanitizePersistedUnitExtensionState(sticker.extensionState),
+            extensionState: migration.extensionState,
             originWorkflowId: sticker.originWorkflowId || undefined,
             originNodeId: sticker.originNodeId || undefined,
             executionConfig,

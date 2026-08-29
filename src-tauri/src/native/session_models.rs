@@ -41,6 +41,17 @@ pub struct StickerData {
     pub file_path: Option<String>,
     #[serde(rename = "previewSrc")]
     pub preview_src: Option<String>, // Processed image result
+    #[serde(rename = "surfaceViewId")]
+    pub surface_view_id: Option<String>,
+    #[serde(rename = "rasterizedAnnotationLayerSrc")]
+    pub rasterized_annotation_layer_src: Option<String>,
+    pub outputs: Option<serde_json::Value>,
+    #[serde(rename = "ocrResult")]
+    pub ocr_result: Option<serde_json::Value>,
+    #[serde(rename = "barcodeResult")]
+    pub barcode_result: Option<serde_json::Value>,
+    #[serde(rename = "extensionState")]
+    pub extension_state: Option<serde_json::Value>,
     #[serde(rename = "originWorkflowId")]
     pub origin_workflow_id: Option<String>,
     #[serde(rename = "originNodeId")]

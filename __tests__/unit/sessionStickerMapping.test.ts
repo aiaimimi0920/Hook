@@ -302,8 +302,17 @@ describe("mapSessionStickerToUnit", () => {
         expect(back.data.groupId).toBe("grp");
         expect(back.data.originWorkflowId).toBe("wf");
         expect(back.data.originNodeId).toBe("node");
-        expect(back.data.ocrResult).toEqual(unit.data.ocrResult);
-        expect(back.data.extensionState).toEqual(unit.data.extensionState);
+        expect(back.data.ocrResult).toBeUndefined();
+        expect(back.data.extensionState?.revision).toBe(3);
+        expect(back.data.extensionState?.attachments[0]).toEqual(unit.data.extensionState?.attachments[0]);
+        expect(back.data.extensionState?.attachments[1]).toMatchObject({
+            attachmentId: "neuro.official/ocr.result",
+            typeId: "neuro.official/ocr.result.v1",
+            pluginId: "neuro.official/ocr",
+        });
+        const contracted = mapUnitToSessionSticker(back);
+        expect(contracted.ocrResult).toBeNull();
+        expect(contracted.extensionState?.attachments).toHaveLength(2);
         expect(back.data.stickerEditPropagation).toEqual(unit.data.stickerEditPropagation);
         expect(back.data.executionConfig).toEqual(unit.data.executionConfig);
     });
