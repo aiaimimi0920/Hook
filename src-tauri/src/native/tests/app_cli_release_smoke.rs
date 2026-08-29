@@ -13,6 +13,9 @@
         assert_eq!(value["capabilities"]["loomConnector"], true);
         assert_eq!(value["capabilities"]["talkConnector"], true);
         assert_eq!(value["capabilities"]["teaConnector"], true);
+        assert_eq!(value["runtime"]["processId"], std::process::id());
+        #[cfg(windows)]
+        assert!(value["runtime"]["processHandleCount"].as_u64().is_some());
     }
 
     #[test]

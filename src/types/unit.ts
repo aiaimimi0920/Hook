@@ -5,6 +5,7 @@ import type {
     StickerImageEditState,
 } from "./stickerEditing";
 import type { ArtResultCandidate } from "../services/protocol";
+import type { UnitExtensionState } from "./unitExtension";
 
 export interface OcrPoint {
     x: number;
@@ -91,6 +92,7 @@ export interface UnitData {
         scaleFactor?: number;
     };
     barcodeResult?: BarcodeScanResult;
+    extensionState?: UnitExtensionState;
 
     // Art Specific
     processing?: boolean;
@@ -243,7 +245,9 @@ export interface SessionSticker {
     filePath?: string | null;
     rasterizedAnnotationLayerSrc?: string | null;
     outputs?: Record<string, unknown> | null;
+    ocrResult?: UnitData["ocrResult"] | null;
     barcodeResult?: BarcodeScanResult | null;
+    extensionState?: UnitExtensionState | null;
     originWorkflowId?: string | null;
     originNodeId?: string | null;
     executionConfig?: NodeExecutionConfig | null;

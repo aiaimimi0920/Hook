@@ -25,11 +25,14 @@ export class ExtensionNoticeRegistry {
             feature: "Loom",
             title: typeof payload.title === "string" ? payload.title.slice(0, 128) : "扩展能力",
             message: typeof payload.message === "string" ? payload.message.slice(0, 2048) : "操作已完成",
+            source: { namespace: "extension", id: scopeId },
         });
     }
 
     applySnapshot(snapshot: ContributionSnapshot | null): void {
-        const activeScopes = new Set(snapshot?.plugins.map((plugin) => plugin.scopeId) ?? []);
+        const activeScopes = new Set(snapshot?.plugins
+            .filter((plugin) => ["trusted", "unsigned_developer"].includes(plugin.trustStatus))
+            .map((plugin) => plugin.scopeId) ?? []);
         for (const [scopeId, unitNotices] of this.noticesByScope) {
             if (activeScopes.has(scopeId)) continue;
             for (const [unitId, noticeIds] of unitNotices) {

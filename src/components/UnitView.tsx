@@ -40,6 +40,7 @@ import { UnitEnhancementNotices } from "./UnitEnhancementNotices";
 import { createUnitPortRegistryController } from "./unitPortRegistryController";
 import { createUnitImageModel } from "./unitImageModel";
 import { createUnitSurfaceController } from "./unitSurfaceController";
+import { ExtensionUnitOverlayLayer } from "./ExtensionUnitOverlayLayer";
 
 // Editing panels are not needed for the normal canvas path. Their component
 // lifetimes were already conditional, so lazy loading preserves mount semantics.
@@ -418,6 +419,11 @@ export const UnitView: Component<Props> = (props) => {
                 minifiedAnnotationViewport={image.minifiedAnnotationViewport()}
                 displaySrc={image.displaySrc()}
                 artErrorMessage={surface.artErrorMessage()}
+            />
+            <ExtensionUnitOverlayLayer
+                unit={props.unit}
+                isMinified={isMinified()}
+                onActivate={activateUnit}
             />
 
         </div>

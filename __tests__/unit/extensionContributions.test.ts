@@ -108,6 +108,18 @@ describe("generic extension contributions", () => {
         uiActions.dismissEnhancementNotice("unit-1");
     });
 
+    it("removes notices when an extension becomes untrusted", () => {
+        const notices = new ExtensionNoticeRegistry();
+        const snapshot = contributionSnapshot();
+        notices.show("scope-demo", "unit-revoked", { message: "Pending" });
+        notices.applySnapshot({
+            ...snapshot,
+            plugins: snapshot.plugins.map((plugin) => ({ ...plugin, trustStatus: "revoked" })),
+        });
+
+        expect(enhancementNotices["unit-revoked"]).toBeUndefined();
+    });
+
     it("keeps extension notice ownership bounded during a long-lived session", () => {
         const notices = new ExtensionNoticeRegistry();
         uiActions.dismissEnhancementNotice("unit-bounded");
@@ -122,12 +134,12 @@ describe("generic extension contributions", () => {
 
     it("fails closed for unsupported or malformed command effects", async () => {
         await expect(applyExtensionEffect("scope-demo", "unit-1", {
-            type: "attachment.upsert",
+            type: "overlay.invalidate",
             payload: {},
-        })).rejects.toThrow("not implemented");
+        }, 0)).rejects.toThrow("not implemented");
         await expect(applyExtensionEffect("scope-demo", "unit-1", {
             type: "clipboard.writeText",
             payload: {},
-        })).rejects.toThrow("requires text");
+        }, 0)).rejects.toThrow("requires text");
     });
 });

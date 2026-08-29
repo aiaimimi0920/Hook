@@ -7,6 +7,7 @@ import { extensionNoticeRegistry } from "./extensionNoticeRegistry";
 import { applyExtensionPresentationSnapshot } from "./extensionPresentationStore";
 import { extensionRegistry } from "./extensionRegistry";
 import { extensionShortcutRegistry } from "./extensionShortcutRegistry";
+import { applyExtensionVisualSnapshot } from "./extensionVisualRegistry";
 
 type NativeExtensionCommand = { commandId?: string; input?: unknown };
 
@@ -18,12 +19,14 @@ export const registerExtensionLifecycle = async (
     const unsubscribe = extensionRegistry.subscribe((snapshot) => {
         extensionNoticeRegistry.applySnapshot(snapshot);
         applyExtensionPresentationSnapshot(snapshot);
+        applyExtensionVisualSnapshot(snapshot);
         const rejected = extensionShortcutRegistry.applySnapshot(snapshot);
         if (rejected.length > 0) console.warn("Rejected conflicting extension shortcuts", rejected);
     });
     registry.push(() => {
         unsubscribe();
         applyExtensionPresentationSnapshot(null);
+        applyExtensionVisualSnapshot(null);
         extensionShortcutRegistry.applySnapshot(null);
     });
 

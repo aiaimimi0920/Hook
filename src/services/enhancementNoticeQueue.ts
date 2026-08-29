@@ -6,6 +6,7 @@ export interface EnhancementNotice {
     feature: EnhancementNoticeFeature;
     title: string;
     message: string;
+    source?: { namespace: "core" | "extension"; id?: string };
 }
 
 export type EnhancementNoticeInput = Omit<EnhancementNotice, "id">;
@@ -23,7 +24,7 @@ export const normalizeEnhancementNotice = (
         ? suppliedId
         : nextEnhancementNoticeId++;
     if (id >= nextEnhancementNoticeId) nextEnhancementNoticeId = id + 1;
-    return { id, feature: notice.feature, title: notice.title, message: notice.message };
+    return { id, feature: notice.feature, title: notice.title, message: notice.message, source: notice.source };
 };
 
 export const appendEnhancementNotice = (

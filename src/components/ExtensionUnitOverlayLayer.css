@@ -1,0 +1,30 @@
+.extension-unit-surface {
+    position: absolute;
+    z-index: 32;
+    overflow: hidden;
+    pointer-events: auto;
+}
+
+.extension-attachment-placeholders {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    z-index: 33;
+    display: grid;
+    max-width: calc(100% - 12px);
+    gap: 4px;
+    pointer-events: none;
+}
+
+.extension-attachment-placeholder {
+    overflow: hidden;
+    padding: 4px 7px;
+    border: 1px solid color-mix(in srgb, var(--theme-info-text) 58%, transparent);
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--theme-panel) 94%, black);
+    color: var(--theme-info-text);
+    font-size: 11px;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

@@ -54,6 +54,20 @@ export class ExtensionBridgeClient {
         this.disconnect(new Error("extension bridge stopped"));
     }
 
+    diagnostics(): {
+        running: boolean;
+        connected: boolean;
+        pendingRequests: number;
+        reconnectTimers: number;
+    } {
+        return {
+            running: !this.stopped,
+            connected: this.socket?.readyState === 1 && this.extensionSessionId !== null,
+            pendingRequests: this.pending.size,
+            reconnectTimers: this.reconnectTimer ? 1 : 0,
+        };
+    }
+
     invoke(command: {
         pluginId: string;
         commandId: string;

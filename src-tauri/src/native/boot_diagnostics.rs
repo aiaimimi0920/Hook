@@ -90,6 +90,29 @@ pub struct SelfCheckReport {
     version: &'static str,
     status: &'static str,
     capabilities: SelfCheckCapabilities,
+    runtime: SelfCheckRuntime,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SelfCheckRuntime {
+    process_id: u32,
+    process_handle_count: Option<u32>,
+}
+
+#[cfg(windows)]
+fn process_handle_count() -> Option<u32> {
+    use windows::Win32::System::Threading::{GetCurrentProcess, GetProcessHandleCount};
+
+    let mut count = 0u32;
+    unsafe { GetProcessHandleCount(GetCurrentProcess(), &mut count) }
+        .ok()
+        .map(|()| count)
+}
+
+#[cfg(not(windows))]
+fn process_handle_count() -> Option<u32> {
+    None
 }
 
 pub fn self_check_report() -> SelfCheckReport {
@@ -105,6 +128,10 @@ pub fn self_check_report() -> SelfCheckReport {
             talk_connector: true,
             tea_connector: true,
             voice: true,
+        },
+        runtime: SelfCheckRuntime {
+            process_id: std::process::id(),
+            process_handle_count: process_handle_count(),
         },
     }
 }

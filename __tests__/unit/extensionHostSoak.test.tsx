@@ -1,0 +1,121 @@
+import { afterEach, describe, expect, it } from "vitest";
+import { createSignal } from "solid-js";
+import { render } from "solid-js/web";
+
+import { ExtensionUnitOverlayLayer } from "../../src/components/ExtensionUnitOverlayLayer";
+import { extensionHostDiagnostics } from "../../src/services/extensionHostDiagnostics";
+import { applyExtensionVisualSnapshot } from "../../src/services/extensionVisualRegistry";
+import { parseContributionSnapshot } from "../../src/services/extensionProtocol";
+import { extraRects, removeRect } from "../../src/services/uiRegistry";
+import type { Unit } from "../../src/types/unit";
+
+const contribution = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    pluginId: "publisher.example/demo",
+    scopeId: "scope-demo",
+    ...extra,
+});
+
+const snapshot = parseContributionSnapshot({
+    protocol: "loom.extension.v1",
+    apiVersion: "1.0",
+    generation: 1,
+    plugins: [{
+        id: "publisher.example/demo",
+        version: "1.0.0",
+        packageDigest: "a".repeat(64),
+        trustStatus: "trusted",
+        permissionGrantDigest: "b".repeat(64),
+        scopeId: "scope-demo",
+    }],
+    contributions: {
+        commands: [contribution("publisher.example/demo.run", { commandId: "publisher.example/demo.run" })],
+        shortcuts: [], menus: [], settings: [],
+        dataTypes: [contribution("publisher.example/demo.result.v1")],
+        renderers: [],
+        unitOverlays: [contribution("publisher.example/demo.overlay", {
+            commandId: "publisher.example/demo.run",
+            payload: {
+                schema: "unit-overlay.v1",
+                payload: {
+                    typeId: "publisher.example/demo.result.v1",
+                    bounds: { x: 80, y: 30, width: 40, height: 30 },
+                    scene: {
+                        id: "run",
+                        type: "button",
+                        props: { label: "Run" },
+                        events: { click: "publisher.example/demo.run" },
+                    },
+                },
+            },
+        })],
+        backgroundTasks: [], resourceProviders: [], diagnostics: [], eventSubscriptions: [],
+    },
+});
+
+const unit: Unit = {
+    id: "unit-soak",
+    type: "sticker",
+    x: 10,
+    y: 20,
+    w: 100,
+    h: 50,
+    params: {},
+    inputs: [],
+    outputs: [],
+    data: {
+        extensionState: {
+            schemaVersion: 1,
+            revision: 1,
+            attachments: [{
+                attachmentId: "publisher.example/demo.result",
+                typeId: "publisher.example/demo.result.v1",
+                schemaVersion: "1.0",
+                revision: 1,
+                pluginId: "publisher.example/demo",
+                pluginVersion: "1.0.0",
+                payload: { ok: true },
+                payloadDigest: "c".repeat(64),
+                resourceRefs: [],
+            }],
+        },
+    },
+};
+
+const extensionRectCount = () => extraRects().filter((rect) => rect.name === "EXTENSION_OVERLAY").length;
+
+describe("extension host cleanup soak", () => {
+    afterEach(() => {
+        applyExtensionVisualSnapshot(null);
+        extraRects().filter((rect) => rect.name === "EXTENSION_OVERLAY").forEach((rect) => removeRect(rect.id));
+        document.body.replaceChildren();
+    });
+
+    it("does not retain hit rects or registry entries across 100 enable/disable cycles", () => {
+        const root = document.createElement("div");
+        document.body.append(root);
+        const [isMinified, setIsMinified] = createSignal(false);
+        const dispose = render(() => (
+            <ExtensionUnitOverlayLayer unit={unit} isMinified={isMinified()} onActivate={() => undefined} />
+        ), root);
+
+        for (let index = 0; index < 100; index += 1) {
+            applyExtensionVisualSnapshot(snapshot);
+            expect(extensionRectCount()).toBe(1);
+            expect(extensionHostDiagnostics().visuals.unitOverlays).toBe(1);
+            expect(extensionHostDiagnostics().extensionSurfaceInstances).toBe(1);
+            setIsMinified(true);
+            expect(extensionRectCount()).toBe(0);
+            setIsMinified(false);
+            expect(extensionRectCount()).toBe(1);
+            applyExtensionVisualSnapshot(null);
+            expect(extensionRectCount()).toBe(0);
+            expect(extensionHostDiagnostics().visuals.unitOverlays).toBe(0);
+            expect(extensionHostDiagnostics().extensionSurfaceInstances).toBe(0);
+        }
+
+        dispose();
+        expect(extensionRectCount()).toBe(0);
+        expect(extensionHostDiagnostics().extensionSurfaceInstances).toBe(0);
+    });
+});

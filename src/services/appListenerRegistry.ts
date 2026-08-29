@@ -12,6 +12,7 @@ const noopDisposer: AppDisposer = () => undefined;
  * resolve after their component has already unmounted.
  */
 export class AppListenerRegistry {
+    private static activeDisposerCount = 0;
     private readonly disposers: AppDisposer[] = [];
     private readonly knownDisposers = new Set<AppDisposer>();
     private readonly onCleanupError: (error: unknown) => void;
@@ -27,6 +28,10 @@ export class AppListenerRegistry {
         return this.disposed;
     }
 
+    static diagnostics(): { activeDisposers: number } {
+        return { activeDisposers: AppListenerRegistry.activeDisposerCount };
+    }
+
     push(...disposers: AppDisposer[]): number {
         for (const disposer of disposers) {
             if (this.knownDisposers.has(disposer)) continue;
@@ -35,6 +40,7 @@ export class AppListenerRegistry {
                 this.runDisposer(disposer);
             } else {
                 this.disposers.push(disposer);
+                AppListenerRegistry.activeDisposerCount += 1;
             }
         }
         return this.disposers.length;
@@ -61,6 +67,7 @@ export class AppListenerRegistry {
 
         for (let index = this.disposers.length - 1; index >= 0; index -= 1) {
             this.runDisposer(this.disposers[index]);
+            AppListenerRegistry.activeDisposerCount = Math.max(0, AppListenerRegistry.activeDisposerCount - 1);
         }
         this.disposers.length = 0;
     }

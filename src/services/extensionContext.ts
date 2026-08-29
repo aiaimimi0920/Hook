@@ -13,6 +13,7 @@ export const currentExtensionWhenContext = (): ExtensionWhenContext => {
     const attachmentTypes = new Set<string>();
     if (unit?.data.ocrResult) attachmentTypes.add("text.ocr");
     if (unit?.data.barcodeResult) attachmentTypes.add("barcode.scan");
+    unit?.data.extensionState?.attachments.forEach((attachment) => attachmentTypes.add(attachment.typeId));
     return {
         unit: {
             kind: unit?.type ?? null,

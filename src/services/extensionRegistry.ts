@@ -43,6 +43,13 @@ export class ExtensionRegistry {
         return this.current?.contributions[kind] ?? [];
     }
 
+    diagnostics(): { plugins: number; contributions: number; listeners: number } {
+        const contributions = this.current
+            ? Object.values(this.current.contributions).reduce((total, list) => total + list.length, 0)
+            : 0;
+        return { plugins: this.current?.plugins.length ?? 0, contributions, listeners: this.listeners.size };
+    }
+
     subscribe(listener: ExtensionRegistryListener): () => void {
         this.listeners.add(listener);
         let active = true;

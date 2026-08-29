@@ -33,6 +33,22 @@ const createSticker = (): Unit => ({
             borderColor: "#ffffff",
             cornerRadius: 6,
         },
+        ocrResult: { fullText: "text", textBlocks: [] },
+        extensionState: {
+            schemaVersion: 1,
+            revision: 1,
+            attachments: [{
+                attachmentId: "publisher.example/demo.result",
+                typeId: "publisher.example/demo.result.v1",
+                schemaVersion: "1.0",
+                revision: 1,
+                pluginId: "publisher.example/demo",
+                pluginVersion: "1.0.0",
+                payload: { text: "frozen" },
+                payloadDigest: "a".repeat(64),
+                resourceRefs: [],
+            }],
+        },
     },
 });
 
@@ -43,10 +59,12 @@ describe("stickerSnapshot", () => {
 
         unit.data.opacityNormal = 0.1;
         unit.data.imageEditState!.borderColor = "#000000";
+        (unit.data.extensionState!.attachments[0].payload as { text: string }).text = "mutated";
 
         expect(snapshot.snapshot.opacityNormal).toBe(0.8);
         expect(snapshot.snapshot.imageEditState?.borderColor).toBe("#ffffff");
         expect(snapshot.snapshot.id).toBe("sticker-1");
+        expect(snapshot.snapshot.extensionState?.attachments[0].payload).toEqual({ text: "frozen" });
     });
 
     it("instantiates a new sticker instance from a frozen snapshot at a +50,+50 mouse offset", () => {
@@ -59,5 +77,7 @@ describe("stickerSnapshot", () => {
         expect(restored.y).toBe(450);
         expect(restored.data.previewSrc).toBe("data:image/png;base64,preview");
         expect(restored.data.imageEditState?.cropRect).toEqual({ x: 1, y: 2, w: 30, h: 40 });
+        expect(restored.data.ocrResult?.fullText).toBe("text");
+        expect(restored.data.extensionState?.attachments[0].attachmentId).toBe("publisher.example/demo.result");
     });
 });

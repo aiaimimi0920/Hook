@@ -15,6 +15,7 @@ import { getCapabilityInputsForPorts } from "./artPorts";
 import { stripNonPersistableArtParams } from "./artParamSecurity";
 import { deriveUnitExecutionConfig } from "./nodeExecutionConfig";
 import { findArtCapability } from "./artCapabilityLookup";
+import { sanitizePersistedUnitExtensionState } from "./unitExtensionValidation";
 
 export interface SessionStickerMappingDeps {
     /** Art capabilities used to resolve node ports and execution defaults. */
@@ -98,7 +99,9 @@ export const mapSessionStickerToUnit = (
             filePath: sticker.filePath || undefined,
             rasterizedAnnotationLayerSrc: sticker.rasterizedAnnotationLayerSrc || undefined,
             outputs: sticker.outputs || undefined,
+            ocrResult: sticker.ocrResult || undefined,
             barcodeResult: sticker.barcodeResult || undefined,
+            extensionState: sanitizePersistedUnitExtensionState(sticker.extensionState),
             originWorkflowId: sticker.originWorkflowId || undefined,
             originNodeId: sticker.originNodeId || undefined,
             executionConfig,
@@ -134,7 +137,9 @@ const KNOWN_SESSION_STICKER_KEYS = {
     filePath: true,
     rasterizedAnnotationLayerSrc: true,
     outputs: true,
+    ocrResult: true,
     barcodeResult: true,
+    extensionState: true,
     originWorkflowId: true,
     originNodeId: true,
     executionConfig: true,

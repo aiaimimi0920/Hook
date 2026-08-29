@@ -4,6 +4,7 @@ import { currentExtensionTarget } from "./extensionContext";
 import { extensionRegistry } from "./extensionRegistry";
 import type { ExtensionEffect, ExtensionResult } from "./extensionBridgeProtocol";
 import { extensionNoticeRegistry } from "./extensionNoticeRegistry";
+import { removeUnitAttachment, upsertUnitAttachment } from "./unitAttachmentStore";
 
 type CommandHandler = () => void | Promise<void>;
 
@@ -23,6 +24,7 @@ export const applyExtensionEffect = async (
     scopeId: string,
     unitId: string,
     effect: ExtensionEffect,
+    expectedTargetRevision: number,
 ): Promise<void> => {
     const payload = effectRecord(effect);
     if (effect.type === "notice.show") {
@@ -33,6 +35,14 @@ export const applyExtensionEffect = async (
         if (typeof payload.text !== "string") throw new Error("extension clipboard effect requires text");
         const copied = await api.copyTextToClipboard(payload.text.slice(0, 1_048_576));
         if (!copied) throw new Error("extension clipboard write was denied");
+        return;
+    }
+    if (effect.type === "attachment.upsert") {
+        await upsertUnitAttachment(scopeId, unitId, expectedTargetRevision, payload);
+        return;
+    }
+    if (effect.type === "attachment.remove") {
+        await removeUnitAttachment(scopeId, unitId, expectedTargetRevision, payload);
         return;
     }
     throw new Error(`extension effect ${effect.type} is not implemented by this Hook host`);
@@ -74,7 +84,7 @@ export class ExtensionCommandRouter {
             throw new Error(result.error?.message ?? "extension command failed");
         }
         for (const effect of result.effects) {
-            await applyExtensionEffect(contribution.scopeId, target.unitId, effect);
+            await applyExtensionEffect(contribution.scopeId, target.unitId, effect, target.revision);
         }
         return result;
     }
