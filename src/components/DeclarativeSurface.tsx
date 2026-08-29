@@ -61,7 +61,7 @@ export const safeSurfaceCssLength = (value: unknown): string | undefined => {
     if (typeof value !== "string") return undefined;
     const length = value.trim();
     if (length === "auto" || length === "0") return length;
-    const match = /^(\d+(?:\.\d+)?)(px|%|rem|em|vw|vh|fr)$/.exec(length);
+    const match = /^(\d+(?:\.\d+)?)(px|%|rem|em|vw|vh|cqw|cqh|fr)$/.exec(length);
     if (!match) return undefined;
     const magnitude = Number(match[1]);
     if (!Number.isFinite(magnitude)) return undefined;
@@ -165,7 +165,12 @@ export const surfaceNodeStyle = (node: SurfaceNode): JSX.CSSProperties => {
         "border-radius": safeSurfaceCssLength(style.borderRadius),
         opacity: boundedNumber(style.opacity, 0, 1),
         "font-size": safeSurfaceCssLength(style.fontSize),
+        "line-height": safeSurfaceCssLength(style.lineHeight),
         "font-weight": boundedNumber(style.fontWeight, 100, 900),
+        "white-space": typeof style.whiteSpace === "string"
+            && ["normal", "nowrap", "pre", "pre-wrap"].includes(style.whiteSpace)
+            ? style.whiteSpace as JSX.CSSProperties["white-space"]
+            : undefined,
         "text-align": style.textAlign === "left" || style.textAlign === "center" || style.textAlign === "right"
             ? style.textAlign
             : undefined,

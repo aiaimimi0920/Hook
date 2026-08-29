@@ -209,6 +209,7 @@ describe("DeclarativeSurface", () => {
 
     it("rejects malicious and unbounded declarative style values", () => {
         expect(safeSurfaceCssLength("8192px")).toBe("8192px");
+        expect(safeSurfaceCssLength("2.75cqh")).toBe("2.75cqh");
         expect(safeSurfaceCssLength("8193px")).toBeUndefined();
         expect(safeSurfaceCssLength("calc(100% + 1px)")).toBeUndefined();
         expect(safeSurfaceCssLength(-1)).toBeUndefined();
@@ -251,5 +252,14 @@ describe("DeclarativeSurface", () => {
             type: "text",
             layout: { position: "absolute", left: 4, top: "10%", width: 80 },
         })).toMatchObject({ position: "absolute", left: "4px", top: "10%", width: "80px" });
+        expect(surfaceNodeStyle({
+            id: "container-scaled-text",
+            type: "text",
+            style: { fontSize: "2.75cqh", lineHeight: "3cqh", whiteSpace: "nowrap" },
+        })).toMatchObject({
+            "font-size": "2.75cqh",
+            "line-height": "3cqh",
+            "white-space": "nowrap",
+        });
     });
 });

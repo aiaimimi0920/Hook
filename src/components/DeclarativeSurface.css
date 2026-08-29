@@ -4,6 +4,7 @@
     overflow: hidden;
     color: var(--nt-text-primary, #f5f7f8);
     background: var(--nt-surface-canvas, #090c10);
+    container-type: size;
     font: inherit;
     pointer-events: auto;
     user-select: none;
