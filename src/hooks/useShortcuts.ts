@@ -109,7 +109,6 @@ export function useShortcuts(options: UseShortcutsOptions) {
     if (handlers.onToggleActions) ShortcutManager.register('toggle-actions', handlers.onToggleActions);
     if (handlers.onToggleParams) ShortcutManager.register('toggle-params', handlers.onToggleParams);
     if (handlers.onToggleStickerToolbar) ShortcutManager.register('toggle-sticker-toolbar', handlers.onToggleStickerToolbar);
-    if (handlers.onToggleOcr) ShortcutManager.register('toggle-ocr', handlers.onToggleOcr);
     if (handlers.onToggleTranslation) ShortcutManager.register('toggle-translation', handlers.onToggleTranslation);
     if (handlers.onToggleCleanView) ShortcutManager.register('toggle-clean-view', handlers.onToggleCleanView);
     if (handlers.onTransformSelect) ShortcutManager.register('transform-select', handlers.onTransformSelect);
@@ -203,7 +202,6 @@ export function useShortcuts(options: UseShortcutsOptions) {
       ShortcutManager.unregister('toggle-actions');
       ShortcutManager.unregister('toggle-params');
       ShortcutManager.unregister('toggle-sticker-toolbar');
-      ShortcutManager.unregister('toggle-ocr');
       ShortcutManager.unregister('toggle-translation');
       ShortcutManager.unregister('toggle-clean-view');
       ShortcutManager.unregister('transform-select');

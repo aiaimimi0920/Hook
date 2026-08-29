@@ -4,6 +4,7 @@ import type { AppListenerRegistry } from "./appListenerRegistry";
 import { extensionBridgeClient } from "./extensionBridgeClient";
 import { extensionCommandRouter } from "./extensionCommandRouter";
 import { extensionNoticeRegistry } from "./extensionNoticeRegistry";
+import { extensionNativeShortcutSync } from "./extensionNativeShortcutSync";
 import { applyExtensionPresentationSnapshot } from "./extensionPresentationStore";
 import { extensionRegistry } from "./extensionRegistry";
 import { extensionShortcutRegistry } from "./extensionShortcutRegistry";
@@ -21,6 +22,7 @@ export const registerExtensionLifecycle = async (
         applyExtensionPresentationSnapshot(snapshot);
         applyExtensionVisualSnapshot(snapshot);
         const rejected = extensionShortcutRegistry.applySnapshot(snapshot);
+        extensionNativeShortcutSync.apply(tauriRuntime, extensionShortcutRegistry.nativeRegistrations());
         if (rejected.length > 0) console.warn("Rejected conflicting extension shortcuts", rejected);
     });
     registry.push(() => {
@@ -28,6 +30,7 @@ export const registerExtensionLifecycle = async (
         applyExtensionPresentationSnapshot(null);
         applyExtensionVisualSnapshot(null);
         extensionShortcutRegistry.applySnapshot(null);
+        extensionNativeShortcutSync.apply(tauriRuntime, []);
     });
 
     window.addEventListener("keydown", extensionShortcutRegistry.handleKeyDown, true);

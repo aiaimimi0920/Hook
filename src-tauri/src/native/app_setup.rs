@@ -78,21 +78,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
             #[cfg(desktop)]
             {
-                // Loom-managed shortcuts are registered from the shared runtime
-                // snapshot. OCR and emergency voice remain fixed native controls.
-                let ctrl_2 = Shortcut::new(Some(Modifiers::CONTROL), Code::Digit2);
+                // Core shortcuts come from settings; extension globals are
+                // registered later from the validated contribution snapshot.
                 let ctrl_alt_space =
                     Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space);
                 if let Err(error) = refresh_configured_global_shortcuts(app.handle()) {
                     append_runtime_log_line(&format!(
                         "register_loom_shortcuts_failed :: {error}"
                     ));
-                }
-                if let Err(e) = app.global_shortcut().register(ctrl_2) {
-                     console_line!("Warning: Failed to register Ctrl+2: {}", e);
-                     append_runtime_log_line(&format!("register_ctrl2_failed :: {}", e));
-                } else {
-                     append_runtime_log_line("register_ctrl2_success");
                 }
                 if let Err(e) = app.global_shortcut().register(ctrl_alt_space) {
                     console_line!("Warning: Failed to register Ctrl+Alt+Space: {}", e);

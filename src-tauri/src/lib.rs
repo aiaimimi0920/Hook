@@ -186,6 +186,8 @@ include!("native/keyboard_policy.rs");
 
 include!("native/rdev_key_map.rs");
 
+include!("native/extension_shortcuts.rs");
+
 include!("native/global_shortcuts.rs");
 
 include!("native/overlay_keyboard_routing.rs");

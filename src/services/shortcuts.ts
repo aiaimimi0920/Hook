@@ -49,7 +49,6 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
   { id: 'toggle-actions', key: '!', modifiers: ['shift'], description: 'Toggle Actions Menu', enabled: true, context: 'unit-selected' },
   { id: 'toggle-params', key: 'Tab', modifiers: [], description: 'Toggle Parameter Panel', enabled: true, context: 'unit-selected' },
   { id: 'toggle-sticker-toolbar', key: 'e', modifiers: ['ctrl'], description: 'Toggle sticker toolbar', enabled: true },
-  { id: 'toggle-ocr', key: '2', modifiers: ['alt'], description: 'Toggle OCR visibility', enabled: true, context: 'unit-selected' },
   { id: 'toggle-translation', key: '3', modifiers: ['alt'], description: 'Toggle translation', enabled: true, context: 'unit-selected' },
   { id: 'toggle-clean-view', key: '4', modifiers: ['ctrl'], description: 'Toggle Clean View Mode', enabled: true },
   { id: 'transform-select', key: 'q', modifiers: [], description: 'Switch sticker transform mode to select', enabled: true, context: 'unit-selected' },

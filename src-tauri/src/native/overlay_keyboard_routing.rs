@@ -132,11 +132,11 @@ fn overlay_keyboard_forwardable_shortcut(
         shift: modifiers.shift_pressed,
         meta: modifiers.meta_pressed,
     };
-    shortcut_config::frontend_shortcut(vk_code, runtime_modifiers).map(|chord| ForwardedShortcut {
+    extension_forwarded_shortcut(vk_code, modifiers).or_else(|| shortcut_config::frontend_shortcut(vk_code, runtime_modifiers).map(|chord| ForwardedShortcut {
         key: chord.key,
         ctrl: chord.modifiers.ctrl,
         shift: chord.modifiers.shift,
         alt: chord.modifiers.alt,
         meta: chord.modifiers.meta,
-    })
+    }))
 }

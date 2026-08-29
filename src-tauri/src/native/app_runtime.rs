@@ -55,14 +55,10 @@ pub fn run() {
                                     }
                                     _ => {}
                                 }
-                            } else if shortcut.matches(Modifiers::CONTROL, Code::Digit2) {
-                                console_line!("Global Shortcut Ctrl+2 Triggered (OCR)");
+                            } else if let Some(payload) = extension_shortcut_payload(shortcut) {
                                 if let Some(window) = app.get_webview_window("main") {
-                                    let payload = serde_json::json!({
-                                        "commandId": "hook.core.ocr",
-                                    });
-                                    if let Err(e) = window.emit("extension/command", payload) {
-                                        console_line!("Failed to emit extension/command: {}", e);
+                                    if let Err(e) = window.emit("overlay/global_shortcut", payload) {
+                                        console_line!("Failed to emit extension shortcut: {}", e);
                                     }
                                 }
                             } else if shortcut
@@ -157,6 +153,7 @@ pub fn run() {
             save_app_settings,
             load_app_settings,
             get_loom_shortcut_settings,
+            set_extension_shortcuts,
             get_installed_fonts,
             hook_has_foreground_window,
             initialize_overlay,

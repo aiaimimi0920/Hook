@@ -4,11 +4,22 @@ import { compileExtensionWhen, type ExtensionWhenPredicate } from "./extensionWh
 import { currentExtensionWhenContext } from "./extensionContext";
 import { extensionCommandRouter } from "./extensionCommandRouter";
 
-type ExtensionShortcutBinding = {
+export type ExtensionShortcutBinding = {
     id: string;
     commandId: string;
     candidate: ShortcutCandidate;
+    global: boolean;
     available: ExtensionWhenPredicate;
+};
+
+export type NativeExtensionShortcut = {
+    id: string;
+    key: string;
+    ctrl: boolean;
+    alt: boolean;
+    shift: boolean;
+    meta: boolean;
+    global: boolean;
 };
 
 const canonical = (candidate: ShortcutCandidate): string => [
@@ -21,7 +32,6 @@ const RESERVED = new Set([
         shortcut.candidates ?? [{ key: shortcut.key, modifiers: shortcut.modifiers }]
     )).map(canonical),
     "ctrl+1",
-    "ctrl+2",
     "ctrl+3",
     "ctrl+shift+p",
 ]);
@@ -61,7 +71,13 @@ export const buildExtensionShortcutBindings = (snapshot: ContributionSnapshot): 
                 continue;
             }
             occupied.add(key);
-            accepted.push({ id: shortcut.id, commandId, candidate, available });
+            accepted.push({
+                id: shortcut.id,
+                commandId,
+                candidate,
+                global: nestedPayload(shortcut).global === true,
+                available,
+            });
         }
     }
     return { accepted, rejected };
@@ -90,6 +106,18 @@ export class ExtensionShortcutRegistry {
         const next = buildExtensionShortcutBindings(snapshot);
         this.bindings = next.accepted;
         return next.rejected;
+    }
+
+    nativeRegistrations(): NativeExtensionShortcut[] {
+        return this.bindings.map((binding) => ({
+            id: binding.id,
+            key: binding.candidate.key,
+            ctrl: binding.candidate.modifiers.includes("ctrl"),
+            alt: binding.candidate.modifiers.includes("alt"),
+            shift: binding.candidate.modifiers.includes("shift"),
+            meta: binding.candidate.modifiers.includes("meta"),
+            global: binding.global,
+        }));
     }
 
     handleKeyDown = (event: KeyboardEvent): void => {

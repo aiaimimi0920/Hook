@@ -85,25 +85,7 @@ fn tauri_shortcut_from_chord(chord: &shortcut_config::Chord) -> Option<Shortcut>
     ))
 }
 
-// Ctrl+2 is a fixed OCR control. Never let a user-configured capture action
-// claim it, otherwise registration fails and the OCR trigger disappears.
-fn is_reserved_ocr_binding(vk_code: u32, modifiers: shortcut_config::Modifiers) -> bool {
-    vk_code == b'2' as u32
-        && modifiers
-            == (shortcut_config::Modifiers {
-                ctrl: true,
-                ..shortcut_config::Modifiers::default()
-            })
-}
-
-fn is_reserved_ocr_shortcut(shortcut: &Shortcut) -> bool {
-    shortcut.matches(Modifiers::CONTROL, Code::Digit2)
-}
-
 fn configured_global_action_for_shortcut(shortcut: &Shortcut) -> Option<&'static str> {
-    if is_reserved_ocr_shortcut(shortcut) {
-        return None;
-    }
     ["capture", "long_capture", "toggle_sticker_toolbar"]
         .into_iter()
         .find(|action| {
@@ -118,9 +100,7 @@ fn configured_global_shortcut_is_registered(
     vk_code: u32,
     modifiers: shortcut_config::Modifiers,
 ) -> bool {
-    // rdev must not fall back to a user-configured action for fixed Ctrl+2.
-    // The Tauri registration owns this chord and emits the OCR event.
-    if is_reserved_ocr_binding(vk_code, modifiers) {
+    if extension_global_shortcut_is_registered(vk_code, modifiers) {
         return true;
     }
     let Some(action) = shortcut_config::global_action(vk_code, modifiers) else {
@@ -151,7 +131,6 @@ fn refresh_configured_global_shortcuts(app: &tauri::AppHandle) -> Result<(), Str
         .into_iter()
         .flat_map(shortcut_config::chords_for_action)
         .filter_map(|chord| tauri_shortcut_from_chord(&chord))
-        .filter(|shortcut| !is_reserved_ocr_shortcut(shortcut))
         .collect::<Vec<_>>();
     desired.sort_by_key(Shortcut::id);
     desired.dedup_by_key(|shortcut| shortcut.id());

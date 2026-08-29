@@ -7,7 +7,7 @@ export type TopStripOpenMenu =
     | "effect"
     | "history"
     | "rasterize"
-    | "ocr"
+    | "extension"
     | "view"
     | null;
 

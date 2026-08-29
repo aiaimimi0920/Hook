@@ -17,13 +17,15 @@ describe("capture shortcut de-duplication", () => {
     expect(rustSource).toContain('"rdev_configured_shortcut_triggered :: {action}"');
   });
 
-  it("reserves Ctrl+2 for OCR even when Loom settings contain a conflicting global action", () => {
+  it("registers extension global shortcuts without hardcoding OCR", () => {
     const rustSource = readHookLibRustSources();
+    const runtimeSource = readSource("src-tauri/src/native/app_runtime.rs");
 
-    expect(rustSource).toContain("fn is_reserved_ocr_binding(");
-    expect(rustSource).toContain("if is_reserved_ocr_binding(vk_code, modifiers)");
-    expect(rustSource).toContain("if is_reserved_ocr_shortcut(shortcut)");
-    expect(rustSource).toContain("filter(|shortcut| !is_reserved_ocr_shortcut(shortcut))");
+    expect(rustSource).toContain("fn set_extension_shortcuts(");
+    expect(rustSource).toContain("fn extension_shortcut_payload(");
+    expect(rustSource).toContain("extension_global_shortcut_is_registered(vk_code, modifiers)");
+    expect(runtimeSource).not.toContain('"commandId": "hook.core.ocr"');
+    expect(runtimeSource).not.toContain("register_ctrl2_success");
   });
 
   it("debounces repeated Tauri Ctrl+1/Ctrl+3 pressed events instead of re-entering capture mode", () => {

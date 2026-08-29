@@ -6,6 +6,7 @@ import { buildExtensionShortcutBindings } from "../../src/services/extensionShor
 import {
     applyExtensionPresentationSnapshot,
     extensionPresentationStore,
+    visibleExtensionToolbarSlots,
 } from "../../src/services/extensionPresentationStore";
 import { ExtensionNoticeRegistry } from "../../src/services/extensionNoticeRegistry";
 import { enhancementNotices, uiActions } from "../../src/store/uiStore";
@@ -48,11 +49,11 @@ const contributionSnapshot = () => parseContributionSnapshot({
                 payload: { schema: "shortcut.v1", payload: { keys: "Ctrl+Shift+Y" } },
             },
             {
-                id: "third.party/demo.shortcut-reserved",
+                id: "third.party/demo.shortcut-global",
                 pluginId: "third.party/demo",
                 scopeId: "scope-demo",
                 commandId: "third.party/demo.run",
-                payload: { schema: "shortcut.v1", payload: { keys: "Ctrl+2" } },
+                payload: { schema: "shortcut.v1", payload: { keys: "Ctrl+2", global: true } },
             },
         ],
         menus: [{
@@ -62,6 +63,10 @@ const contributionSnapshot = () => parseContributionSnapshot({
             commandId: "third.party/demo.run",
             placement: "hook.unit.toolbar",
             title: "Unknown tool",
+            payload: {
+                groupId: "third.party/demo.tools",
+                groupTitle: "Demo",
+            },
         }],
         settings: [], dataTypes: [], renderers: [], unitOverlays: [], backgroundTasks: [],
         resourceProviders: [], diagnostics: [], eventSubscriptions: [],
@@ -69,13 +74,14 @@ const contributionSnapshot = () => parseContributionSnapshot({
 });
 
 describe("generic extension contributions", () => {
-    it("resolves deterministic shortcut conflicts and rejects reserved core keys", () => {
+    it("accepts plugin-owned Ctrl+2 and resolves deterministic conflicts", () => {
         const result = buildExtensionShortcutBindings(contributionSnapshot());
-        expect(result.accepted.map((binding) => binding.id)).toEqual(["third.party/demo.shortcut-a"]);
-        expect(result.rejected).toEqual(expect.arrayContaining([
-            "third.party/demo.shortcut-b",
-            "third.party/demo.shortcut-reserved",
-        ]));
+        expect(result.accepted.map((binding) => binding.id)).toEqual([
+            "third.party/demo.shortcut-global",
+            "third.party/demo.shortcut-a",
+        ]);
+        expect(result.accepted[0].global).toBe(true);
+        expect(result.rejected).toEqual(["third.party/demo.shortcut-b"]);
     });
 
     it("publishes unknown commands to toolbar and palette and removes them atomically", () => {
@@ -83,6 +89,11 @@ describe("generic extension contributions", () => {
         expect(extensionPresentationStore.toolbarItems().map((item) => item.commandId)).toEqual([
             "third.party/demo.run",
         ]);
+        expect(visibleExtensionToolbarSlots(extensionPresentationStore.toolbarItems())).toMatchObject([{
+            title: "Demo",
+            grouped: true,
+            items: [{ commandId: "third.party/demo.run" }],
+        }]);
         expect(extensionPresentationStore.paletteItems().map((item) => item.commandId)).toEqual([
             "third.party/demo.run",
         ]);

@@ -18,10 +18,12 @@ import {
 } from "./stickerTopStripCatalog";
 import { StickerTopStripCreateTools } from "./StickerTopStripCreateTools";
 import { StickerTopStripEditActions } from "./StickerTopStripEditActions";
-import { StickerTopStripOcrTools } from "./StickerTopStripOcrTools";
 import { StickerTopStripSurfaceView } from "./StickerTopStripSurfaceView";
 import { ExtensionToolbarItems } from "./ExtensionToolbarItems";
-import { extensionPresentationStore } from "../services/extensionPresentationStore";
+import {
+    extensionPresentationStore,
+    visibleExtensionToolbarSlots,
+} from "../services/extensionPresentationStore";
 import type { TopStripOpenMenu } from "./stickerTopStripChrome";
 import { buildStickerTopStripInteractiveRect } from "./stickerTopStripInteractiveRect";
 import {
@@ -33,7 +35,6 @@ import { captureStickerEditSnapshot } from "../services/stickerHistory";
 import type { StickerRasterizeScope } from "../services/stickerRasterize";
 import { rasterizeStickerAnnotationsForUnit } from "../services/stickerRasterizeActions";
 import { createSingleFlightAction } from "../services/singleFlightAction";
-import { copyCachedOcrFullText, resolveCachedOcrFullText } from "../services/ocrResultActions";
 import { syncTopStripBackendRects } from "../services/stickerTopStripSync";
 import { syncService } from "../services/syncService";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
@@ -275,6 +276,9 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
         );
         return tool;
     });
+    const extensionToolbarSlots = createMemo(() => visibleExtensionToolbarSlots(
+        extensionPresentationStore.toolbarItems(),
+    ));
     const layout = createMemo(() =>
         computeStickerTopStripLayout(
             {
@@ -286,7 +290,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
             viewport().width,
             viewport().height,
             !!propertyBarTool(),
-            extensionPresentationStore.toolbarItems().filter((item) => item.available()).length,
+            extensionToolbarSlots().length,
         ),
     );
     const draggingThisSticker = createMemo(() => draggingStickerId() === props.unitId);
@@ -511,15 +515,6 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             setOpenMenu(null);
                         }}
                     />
-                    <StickerTopStripOcrTools
-                        openMenu={openMenu()}
-                        canCopyFullText={!!resolveCachedOcrFullText(currentUnit())}
-                        onToggleMenu={toggleMenu}
-                        onCopyFullText={() => {
-                            setOpenMenu(null);
-                            void copyCachedOcrFullText(props.unitId);
-                        }}
-                    />
                     <StickerTopStripSurfaceView
                         isArt={props.isArt === true}
                         openMenu={openMenu()}
@@ -531,7 +526,10 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             setOpenMenu(null);
                         }}
                     />
-                    <ExtensionToolbarItems />
+                    <ExtensionToolbarItems
+                        open={openMenu() === "extension"}
+                        onOpenChange={(open) => setOpenMenu(open ? "extension" : null)}
+                    />
                 </div>
             </div>
         </Portal>

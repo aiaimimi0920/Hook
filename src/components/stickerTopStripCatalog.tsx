@@ -31,7 +31,6 @@ export type LabelCreateTool = Extract<StickerCreateTool, "text" | "serial">;
 export type EffectCreateTool = Extract<StickerCreateTool, "mosaic" | "blur">;
 export type TopStripCreateTool = ShapeCreateTool | "line" | "brush" | LabelCreateTool | EffectCreateTool;
 export type HistoryActionMode = "undo" | "redo";
-export type OcrToolId = "copy-full-text";
 
 export interface TransformModeOption {
     mode: StickerTransformMode;
@@ -58,11 +57,6 @@ export interface RasterizeScopeOption {
     Icon: Component<TopStripIconProps>;
 }
 
-export interface OcrToolOption {
-    id: OcrToolId;
-    label: string;
-    title: string;
-}
 
 export const transformModeOptions: TransformModeOption[] = [
     { mode: "select", label: "选择", shortcut: "Q", Icon: SelectModeIcon },
@@ -100,11 +94,6 @@ export const historyActionOptions: HistoryActionOption[] = [
 export const rasterizeScopeOptions: RasterizeScopeOption[] = [
     { mode: "selected", label: "栅格化", Icon: RasterizeSelectedToolIcon },
     { mode: "all", label: "栅格化全部", Icon: RasterizeAllToolIcon },
-];
-
-/** OCR submenu catalog; future OCR actions extend this list without changing the menu shell. */
-export const ocrToolOptions: OcrToolOption[] = [
-    { id: "copy-full-text", label: "复制全文", title: "复制当前显示语言的 OCR 全文" },
 ];
 
 export const isShapeTool = (value: StickerCreateTool): value is ShapeCreateTool =>
