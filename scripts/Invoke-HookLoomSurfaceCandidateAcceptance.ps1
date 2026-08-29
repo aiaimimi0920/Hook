@@ -25,6 +25,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$script:DaemonRequestHeaders = @{}
 
 $hookRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $neuroRoot = [System.IO.Path]::GetFullPath((Join-Path $hookRoot ".."))
@@ -199,6 +200,7 @@ function Invoke-JsonPost {
     )
 
     return Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" `
+        -Headers $script:DaemonRequestHeaders `
         -Body ($Body | ConvertTo-Json -Depth 40 -Compress) -TimeoutSec 30
 }
 
@@ -381,15 +383,6 @@ try {
         daemonPath = $loomDaemonExe
     }
 
-    $frameworkInstall = Invoke-JsonPost -Uri "$daemonBaseUrl/v1/frameworks/process/install" -Body @{}
-    if ($frameworkInstall.framework.id -ne "process" -or $frameworkInstall.framework.ready -ne $true) {
-        throw "isolated Loom process framework install failed"
-    }
-    $artInstall = Invoke-JsonPost -Uri "$daemonBaseUrl/v1/arts/store/install" -Body @{ artId = "surface-device-dashboard" }
-    $bridge = Invoke-JsonPost -Uri "$daemonBaseUrl/v1/hook-bridge/start" -Body @{ port = $bridgePort }
-    if ($bridge.running -ne $true -or [int]$bridge.port -ne $bridgePort) {
-        throw "isolated Loom Hook bridge did not start on the selected port"
-    }
     $manifestPath = Join-Path $manifestDir "loom.json"
     $deadline = (Get-Date).AddSeconds($StartupTimeoutSeconds)
     while (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf) -and (Get-Date) -lt $deadline) {
@@ -401,6 +394,21 @@ try {
     $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     if ([string]$manifest.transport.baseUrl -ne $daemonBaseUrl) {
         throw "isolated Loom manifest base URL mismatch"
+    }
+    $daemonToken = [string]$manifest.transport.authToken
+    if ([string]::IsNullOrWhiteSpace($daemonToken)) {
+        throw "isolated Loom manifest did not provide an authentication token"
+    }
+    $script:DaemonRequestHeaders = @{ Authorization = "Bearer $daemonToken" }
+
+    $frameworkInstall = Invoke-JsonPost -Uri "$daemonBaseUrl/v1/frameworks/process/install" -Body @{}
+    if ($frameworkInstall.framework.id -ne "process" -or $frameworkInstall.framework.ready -ne $true) {
+        throw "isolated Loom process framework install failed"
+    }
+    $artInstall = Invoke-JsonPost -Uri "$daemonBaseUrl/v1/arts/store/install" -Body @{ artId = "surface-device-dashboard" }
+    $bridge = Invoke-JsonPost -Uri "$daemonBaseUrl/v1/hook-bridge/start" -Body @{ port = $bridgePort }
+    if ($bridge.running -ne $true -or [int]$bridge.port -ne $bridgePort) {
+        throw "isolated Loom Hook bridge did not start on the selected port"
     }
     $summary.install = [ordered]@{
         framework = $frameworkInstall
