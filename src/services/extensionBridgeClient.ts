@@ -6,7 +6,9 @@ import {
     parseExtensionResult,
     parseExtensionSnapshotEvent,
     type ExtensionResult,
+    type ExtensionResourceUpload,
     type ExtensionTarget,
+    type ExtensionUnitAttachment,
 } from "./extensionBridgeProtocol";
 
 type PendingRequest = {
@@ -73,6 +75,8 @@ export class ExtensionBridgeClient {
         commandId: string;
         target: ExtensionTarget;
         input?: unknown;
+        resourceUploads?: readonly ExtensionResourceUpload[];
+        unitAttachments?: readonly ExtensionUnitAttachment[];
         userGestureToken?: string;
     }): Promise<ExtensionResult> {
         const sessionId = this.extensionSessionId;
@@ -95,8 +99,10 @@ export class ExtensionBridgeClient {
                     target: command.target,
                     input: command.input ?? {},
                     resourceRefs: [],
+                    ...(command.unitAttachments?.length ? { unitAttachments: command.unitAttachments } : {}),
                     ...(command.userGestureToken ? { userGestureToken: command.userGestureToken } : {}),
                 },
+                ...(command.resourceUploads?.length ? { resourceUploads: command.resourceUploads } : {}),
             },
         };
         const socket = this.socket;

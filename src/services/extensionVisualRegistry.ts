@@ -8,6 +8,11 @@ const MAX_VISUALS = 32;
 const MAX_NODES = 64;
 const MAX_CLICKABLE_NODES = 16;
 const MAX_TEXT_BYTES = 16 * 1024;
+const MAX_ATTACHMENT_SCENE_NODES = 512;
+const MAX_ATTACHMENT_SCENE_CLICKABLE_NODES = 256;
+const MAX_ATTACHMENT_SCENE_BYTES = 256 * 1024;
+const MAX_ATTACHMENT_SCENE_PATH_SEGMENTS = 8;
+const MAX_SCENE_DEPTH = 32;
 const ALLOWED_NODE_TYPES = new Set([
     "row", "column", "stack", "text", "icon", "button", "progress", "divider", "spacer",
 ]);
@@ -28,7 +33,8 @@ export interface ExtensionVisualDescriptor {
     typeId: string;
     commandId?: string;
     bounds: ExtensionVisualBounds;
-    scene: SurfaceNode;
+    scene?: SurfaceNode;
+    attachmentScenePath?: string[];
     generation: number;
 }
 
@@ -75,14 +81,28 @@ const parseBounds = (value: unknown): ExtensionVisualBounds | null => {
         : { x, y, width, height };
 };
 
-const sanitizeScene = (value: unknown, commandId: string | undefined): SurfaceNode | null => {
+interface SceneBudget {
+    nodes: number;
+    clickableNodes: number;
+    bytes: number;
+}
+
+const sanitizeScene = (
+    value: unknown,
+    commandId: string | undefined,
+    budget: SceneBudget = {
+        nodes: MAX_NODES,
+        clickableNodes: MAX_CLICKABLE_NODES,
+        bytes: MAX_TEXT_BYTES,
+    },
+): SurfaceNode | null => {
     const seen = new Set<string>();
     let nodes = 0;
     let clickable = 0;
     let textBytes = 0;
-    const sanitize = (candidate: unknown): SurfaceNode | null => {
+    const sanitize = (candidate: unknown, depth = 0): SurfaceNode | null => {
         const source = record(candidate);
-        if (!source || nodes >= MAX_NODES) return null;
+        if (!source || nodes >= budget.nodes || depth > MAX_SCENE_DEPTH) return null;
         const id = boundedString(source.id, 128);
         const type = boundedString(source.type, 32);
         if (!id || !type || seen.has(id) || !ALLOWED_NODE_TYPES.has(type)) return null;
@@ -92,17 +112,17 @@ const sanitizeScene = (value: unknown, commandId: string | undefined): SurfaceNo
             if (item === undefined) return undefined;
             const encoded = JSON.stringify(item);
             textBytes += new TextEncoder().encode(encoded).byteLength;
-            if (textBytes > MAX_TEXT_BYTES) throw new Error("extension Surface text budget exceeded");
+            if (textBytes > budget.bytes) throw new Error("extension Surface text budget exceeded");
             return JSON.parse(encoded) as unknown;
         };
         try {
             const rawChildren = source.children === undefined ? [] : source.children;
             if (!Array.isArray(rawChildren)) return null;
-            const children = rawChildren.map(sanitize);
+            const children = rawChildren.map((child) => sanitize(child, depth + 1));
             if (children.some((child) => child === null)) return null;
             const events = record(source.events);
             const clickAction = boundedString(events?.click, 384);
-            const safeClick = commandId && clickAction === commandId && clickable < MAX_CLICKABLE_NODES
+            const safeClick = commandId && clickAction === commandId && clickable < budget.clickableNodes
                 ? clickAction
                 : undefined;
             if (safeClick) clickable += 1;
@@ -121,6 +141,28 @@ const sanitizeScene = (value: unknown, commandId: string | undefined): SurfaceNo
         }
     };
     return sanitize(value);
+};
+
+const parseAttachmentScenePath = (value: unknown): string[] | undefined => {
+    if (value === undefined) return undefined;
+    if (typeof value !== "string" || !value.startsWith("/")) return undefined;
+    const segments = value.slice(1).split("/");
+    if (
+        segments.length === 0 ||
+        segments.length > MAX_ATTACHMENT_SCENE_PATH_SEGMENTS ||
+        segments.some((segment) => !/^[a-zA-Z0-9_-]{1,64}$/u.test(segment))
+    ) return undefined;
+    return segments;
+};
+
+const valueAtPath = (value: unknown, path: readonly string[]): unknown => {
+    let current = value;
+    for (const segment of path) {
+        const source = record(current);
+        if (!source || !Object.prototype.hasOwnProperty.call(source, segment)) return undefined;
+        current = source[segment];
+    }
+    return current;
 };
 
 const parseVisual = (
@@ -144,8 +186,12 @@ const parseVisual = (
         item.pluginId === contribution.pluginId &&
         item.scopeId === contribution.scopeId &&
         (item.commandId ?? item.id) === commandId)) return null;
-    const scene = sanitizeScene(payload.scene, commandId);
-    if (!scene) return null;
+    const attachmentScenePath = parseAttachmentScenePath(payload.attachmentScenePath);
+    if (payload.attachmentScenePath !== undefined && !attachmentScenePath) return null;
+    const scene = payload.scene === undefined
+        ? undefined
+        : sanitizeScene(payload.scene, commandId) ?? undefined;
+    if (!scene && !attachmentScenePath) return null;
     return {
         id: contribution.id,
         kind,
@@ -156,6 +202,7 @@ const parseVisual = (
         commandId,
         bounds,
         scene,
+        attachmentScenePath,
         generation: snapshot.generation,
     };
 };
@@ -203,6 +250,18 @@ export const extensionVisualRegistry = {
     attachmentAvailable: (attachment: UnitAttachment) =>
         visualState().activePluginIds.has(attachment.pluginId) &&
         visualState().dataTypeIds.has(attachment.typeId),
+    sceneFor: (descriptor: ExtensionVisualDescriptor, attachment: UnitAttachment) => {
+        if (!descriptor.attachmentScenePath) return descriptor.scene;
+        return sanitizeScene(
+            valueAtPath(attachment.payload, descriptor.attachmentScenePath),
+            descriptor.commandId,
+            {
+                nodes: MAX_ATTACHMENT_SCENE_NODES,
+                clickableNodes: MAX_ATTACHMENT_SCENE_CLICKABLE_NODES,
+                bytes: MAX_ATTACHMENT_SCENE_BYTES,
+            },
+        ) ?? descriptor.scene;
+    },
     diagnostics: () => ({
         dataTypes: visualState().dataTypeIds.size,
         renderers: visualState().renderers.length,

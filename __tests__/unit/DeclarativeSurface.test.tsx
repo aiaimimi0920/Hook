@@ -30,7 +30,7 @@ const snapshot: SurfaceSnapshot = {
             {
                 id: "refresh",
                 type: "button",
-                props: { label: "刷新" },
+                props: { label: "刷新", eventPayload: { source: "toolbar" } },
                 events: { click: "refresh_price" },
             },
             {
@@ -78,6 +78,7 @@ describe("DeclarativeSurface", () => {
             class: "discrete",
             generation: 4,
             baseRevision: 7,
+            payload: { source: "toolbar" },
         });
         expect(events[0].eventId).toMatch(/^event:/);
         dispose();
@@ -244,5 +245,11 @@ describe("DeclarativeSurface", () => {
         expect(style.opacity).toBeUndefined();
         expect(style).not.toHaveProperty("position");
         expect(style).not.toHaveProperty("z-index");
+
+        expect(surfaceNodeStyle({
+            id: "bounded-position",
+            type: "text",
+            layout: { position: "absolute", left: 4, top: "10%", width: 80 },
+        })).toMatchObject({ position: "absolute", left: "4px", top: "10%", width: "80px" });
     });
 });

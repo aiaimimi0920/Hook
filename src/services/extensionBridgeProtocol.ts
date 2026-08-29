@@ -7,6 +7,28 @@ import {
 export const EXTENSION_SNAPSHOT_EVENT = "loom.extension.snapshot.updated";
 
 export type ExtensionTarget = { unitId: string; revision: number };
+export type ExtensionResourceUpload = {
+    kind: "image";
+    mime: string;
+    dataBase64: string;
+};
+export type ExtensionUnitAttachment = {
+    attachmentId: string;
+    typeId: string;
+    schemaVersion: string;
+    revision: number;
+    pluginId: string;
+    pluginVersion: string;
+    rendererId?: string;
+    payload?: unknown;
+    resourceRefs: Array<{
+        resourceId: string;
+        kind: "file" | "shared_image" | "shared_memory";
+        digest: string;
+        byteLength: number;
+        leaseId: string;
+    }>;
+};
 export type ExtensionEffect = {
     type: "attachment.upsert" | "attachment.remove" | "notice.show" | "clipboard.writeText"
         | "overlay.invalidate" | "resource.publish";

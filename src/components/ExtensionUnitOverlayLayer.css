@@ -5,6 +5,10 @@
     pointer-events: auto;
 }
 
+.extension-unit-surface .declarative-surface {
+    background: transparent;
+}
+
 .extension-attachment-placeholders {
     position: absolute;
     top: 6px;

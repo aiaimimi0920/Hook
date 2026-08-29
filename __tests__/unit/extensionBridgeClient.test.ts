@@ -72,10 +72,26 @@ describe("ExtensionBridgeClient", () => {
             pluginId: "publisher.example/text-tools",
             commandId: "publisher.example/text-tools.transform",
             target: { unitId: "unit-1", revision: 2 },
+            resourceUploads: [{ kind: "image", mime: "image/png", dataBase64: "AA==" }],
+            unitAttachments: [{
+                attachmentId: "publisher.example/text-tools.result",
+                typeId: "publisher.example/text-tools.result.v1",
+                schemaVersion: "1.0",
+                revision: 1,
+                pluginId: "publisher.example/text-tools",
+                pluginVersion: "1.0.0",
+                payload: { text: "ready" },
+                resourceRefs: [],
+            }],
             userGestureToken: "hook-gesture:1234567890",
         });
         const invokeRequest = JSON.parse(socket.sent[2]!);
         expect(invokeRequest.params.invocation.snapshotGeneration).toBe(1);
+        expect(invokeRequest.params.invocation.resourceRefs).toEqual([]);
+        expect(invokeRequest.params.resourceUploads).toEqual([
+            { kind: "image", mime: "image/png", dataBase64: "AA==" },
+        ]);
+        expect(invokeRequest.params.invocation.unitAttachments[0].payload).toEqual({ text: "ready" });
         socket.receive({
             protocol: "loom.extension.v1",
             apiVersion: "1.0",

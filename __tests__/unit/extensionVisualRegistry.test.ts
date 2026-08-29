@@ -95,7 +95,7 @@ describe("extension visual registry", () => {
             typeId: attachment.typeId,
         });
         expect(extensionVisualRegistry.overlaysFor(attachment)).toHaveLength(1);
-        expect(extensionVisualRegistry.rendererFor(attachment)?.scene.children?.[0].events).toEqual({
+        expect(extensionVisualRegistry.rendererFor(attachment)?.scene?.children?.[0].events).toEqual({
             click: "publisher.example/demo.copy",
         });
         expect(extensionVisualRegistry.diagnostics()).toEqual({
@@ -119,5 +119,35 @@ describe("extension visual registry", () => {
             unitOverlays: 0,
             rejectedContributions: 0,
         });
+    });
+
+    it("sanitizes an attachment-owned scene instead of trusting persisted payload markup", () => {
+        const dynamic = snapshot({ id: "fallback", type: "text", props: { text: "Unavailable" } });
+        const renderer = dynamic.contributions.renderers[0]!;
+        const payload = renderer.payload as { payload: Record<string, unknown> };
+        payload.payload.attachmentScenePath = "/surfaceScene";
+        applyExtensionVisualSnapshot(dynamic);
+        const descriptor = extensionVisualRegistry.rendererFor(attachment)!;
+
+        expect(extensionVisualRegistry.sceneFor(descriptor, {
+            ...attachment,
+            payload: {
+                surfaceScene: {
+                    id: "copy-dynamic",
+                    type: "button",
+                    props: { label: "Copy", eventPayload: { blockIndex: 2 } },
+                    events: { click: "publisher.example/demo.copy", input: "process.launch" },
+                },
+            },
+        })).toMatchObject({
+            id: "copy-dynamic",
+            type: "button",
+            events: { click: "publisher.example/demo.copy" },
+        });
+
+        expect(extensionVisualRegistry.sceneFor(descriptor, {
+            ...attachment,
+            payload: { surfaceScene: { id: "unsafe", type: "html", props: { html: "<script>" } } },
+        })).toMatchObject({ id: "fallback", type: "text" });
     });
 });

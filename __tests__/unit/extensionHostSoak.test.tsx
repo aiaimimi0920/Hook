@@ -115,7 +115,15 @@ describe("extension host cleanup soak", () => {
                 await Promise.resolve();
                 await Promise.resolve();
                 expect(onActivate).toHaveBeenCalledTimes(1);
-                expect(execute).toHaveBeenCalledWith("publisher.example/demo.run");
+                expect(execute).toHaveBeenCalledWith("publisher.example/demo.run", {
+                    surfaceEvent: expect.objectContaining({
+                        attachmentId: "publisher.example/demo.result",
+                        nodeId: "run",
+                        event: "click",
+                        action: "publisher.example/demo.run",
+                        payload: {},
+                    }),
+                });
             }
             setIsMinified(true);
             expect(extensionRectCount()).toBe(0);

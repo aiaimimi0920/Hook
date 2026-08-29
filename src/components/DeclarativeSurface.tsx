@@ -49,6 +49,8 @@ const numberProp = (props: SurfaceProps, key: string, fallback = 0): number =>
 const booleanProp = (props: SurfaceProps, key: string, fallback = false): boolean =>
     typeof props[key] === "boolean" ? props[key] as boolean : fallback;
 
+const eventPayload = (values: SurfaceProps): unknown => values.eventPayload ?? {};
+
 const MAX_SURFACE_PIXEL_LENGTH = 8_192;
 const MAX_SURFACE_RELATIVE_LENGTH = 1_000;
 
@@ -125,6 +127,9 @@ export const surfaceNodeStyle = (node: SurfaceNode): JSX.CSSProperties => {
     const layout = asRecord(node.layout);
     const style = asRecord(node.style);
     const direction = node.type === "row" ? "row" : "column";
+    const position = layout.position === "absolute" || layout.position === "relative"
+        ? layout.position
+        : undefined;
     return {
         display: node.type === "stack" ? "grid" : "flex",
         "flex-direction": direction,
@@ -138,6 +143,13 @@ export const surfaceNodeStyle = (node: SurfaceNode): JSX.CSSProperties => {
         "min-height": safeSurfaceCssLength(layout.minHeight),
         "max-width": safeSurfaceCssLength(layout.maxWidth),
         "max-height": safeSurfaceCssLength(layout.maxHeight),
+        ...(position ? {
+            position,
+            left: safeSurfaceCssLength(layout.left),
+            top: safeSurfaceCssLength(layout.top),
+            right: safeSurfaceCssLength(layout.right),
+            bottom: safeSurfaceCssLength(layout.bottom),
+        } : {}),
         "flex-grow": boundedNumber(layout.grow, 0, 100),
         "overflow-x": layout.overflowX === "auto" || layout.overflowX === "hidden"
             ? layout.overflowX
@@ -266,7 +278,7 @@ const SurfaceNodeView: Component<NodeProps> = (props) => {
                         class={`surface-node surface-${props.node.type}`}
                         data-surface-node-id={props.node.id}
                         style={surfaceNodeStyle(props.node)}
-                        onClick={() => emitNodeEvent(props, "click", {})}
+                        onClick={() => emitNodeEvent(props, "click", eventPayload(values()))}
                         {...accessibleProps(props.node)}
                     >
                         <SurfaceChildren {...props} />
@@ -314,7 +326,7 @@ const SurfaceNodeView: Component<NodeProps> = (props) => {
                         disabled={booleanProp(values(), "disabled") || props.interactive === false}
                         onClick={(event) => {
                             event.stopPropagation();
-                            emitNodeEvent(props, "click", {});
+                            emitNodeEvent(props, "click", eventPayload(values()));
                         }}
                         {...accessibleProps(props.node)}
                     >

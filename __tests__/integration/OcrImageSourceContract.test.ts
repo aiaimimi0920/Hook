@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { resolveOcrImageDataUrl } from "../../src/services/ocrImageSource";
+import { resolveUnitImageDataUrl } from "../../src/services/unitImageSource";
 
 const PNG_DATA_URL = "data:image/png;base64,AA==";
 
@@ -10,7 +10,7 @@ describe("OCR image source conversion", () => {
     it("uses the native bounded reader for file-backed capture sources", async () => {
         const readImageFromPath = vi.fn(async () => PNG_DATA_URL);
 
-        const result = await resolveOcrImageDataUrl(
+        const result = await resolveUnitImageDataUrl(
             {
                 src: "http://asset.localhost/capture.png",
                 filePath: "C:\\Users\\Public\\Hook\\capture.png",
@@ -26,7 +26,7 @@ describe("OCR image source conversion", () => {
         const readImageFromPath = vi.fn(async () => PNG_DATA_URL);
         const fetchImage = vi.fn();
 
-        const result = await resolveOcrImageDataUrl(
+        const result = await resolveUnitImageDataUrl(
             { src: PNG_DATA_URL, filePath: "C:\\unused.png" },
             { readImageFromPath, fetchImage },
         );
@@ -37,7 +37,7 @@ describe("OCR image source conversion", () => {
     });
 
     it("rejects non-image sources instead of sending them to Loom", async () => {
-        await expect(resolveOcrImageDataUrl(
+        await expect(resolveUnitImageDataUrl(
             { src: "C:\\Users\\Public\\Hook\\capture.png" },
             { readImageFromPath: vi.fn(async () => PNG_DATA_URL) },
         )).rejects.toThrow("cannot be converted");

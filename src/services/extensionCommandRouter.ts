@@ -1,12 +1,16 @@
 import { api } from "./api";
 import { extensionBridgeClient } from "./extensionBridgeClient";
-import { currentExtensionTarget } from "./extensionContext";
+import { currentExtensionTarget, currentExtensionUnit } from "./extensionContext";
 import { extensionRegistry } from "./extensionRegistry";
 import type { ExtensionEffect, ExtensionResult } from "./extensionBridgeProtocol";
 import { extensionNoticeRegistry } from "./extensionNoticeRegistry";
 import { removeUnitAttachment, upsertUnitAttachment } from "./unitAttachmentStore";
+import { parseUnitImageDataUrl, resolveUnitImageDataUrl } from "./unitImageSource";
 
 type CommandHandler = () => void | Promise<void>;
+const MAX_EXTENSION_IMAGE_BYTES = 16 * 1024 * 1024;
+const IMAGE_READ_PERMISSION = "hook.unit.image.read";
+const ATTACHMENT_READ_PERMISSION = "hook.unit.attachments.read";
 
 const gestureToken = (): string => {
     const suffix = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -52,6 +56,63 @@ const commandContribution = (commandId: string) => extensionRegistry
     .contributions("commands")
     .find((command) => (command.commandId ?? command.id) === commandId);
 
+const contributionPermissions = (payload: unknown): Set<string> => {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return new Set();
+    const permissions = (payload as Record<string, unknown>).permissions;
+    if (!Array.isArray(permissions) || permissions.length > 64) return new Set();
+    const values = permissions.filter((permission): permission is string => (
+        typeof permission === "string" && permission.length > 0 && permission.length <= 128
+    ));
+    return values.length === permissions.length ? new Set(values) : new Set();
+};
+
+const resolveCommandResourceUploads = async (
+    permissions: ReadonlySet<string>,
+    target: { unitId: string; revision: number },
+) => {
+    if (!permissions.has(IMAGE_READ_PERMISSION)) return [];
+    const unit = currentExtensionUnit();
+    if (!unit || unit.id !== target.unitId) throw new Error("extension image target is stale");
+    const dataUrl = await resolveUnitImageDataUrl(
+        { src: unit.data.src ?? unit.data.previewSrc, filePath: unit.data.filePath },
+        { readImageFromPath: api.readImageFromPath },
+        MAX_EXTENSION_IMAGE_BYTES,
+    );
+    const currentTarget = currentExtensionTarget();
+    if (!currentTarget
+        || currentTarget.unitId !== target.unitId
+        || currentTarget.revision !== target.revision) {
+        throw new Error("extension image target changed while preparing the command");
+    }
+    const image = parseUnitImageDataUrl(dataUrl, MAX_EXTENSION_IMAGE_BYTES);
+    return [{ kind: "image" as const, mime: image.mime, dataBase64: image.dataBase64 }];
+};
+
+const resolveCommandUnitAttachments = (
+    permissions: ReadonlySet<string>,
+    target: { unitId: string; revision: number },
+    pluginId: string,
+) => {
+    if (!permissions.has(ATTACHMENT_READ_PERMISSION)) return [];
+    const unit = currentExtensionUnit();
+    if (!unit || unit.id !== target.unitId) throw new Error("extension attachment target is stale");
+    // v1 exposes only the invoking plugin's opaque state. Cross-plugin data
+    // sharing requires a future, explicitly declared compatibility contract.
+    return (unit.data.extensionState?.attachments ?? [])
+        .filter((attachment) => attachment.pluginId === pluginId)
+        .map((attachment) => ({
+            attachmentId: attachment.attachmentId,
+            typeId: attachment.typeId,
+            schemaVersion: attachment.schemaVersion,
+            revision: attachment.revision,
+            pluginId: attachment.pluginId,
+            pluginVersion: attachment.pluginVersion,
+            ...(attachment.rendererId ? { rendererId: attachment.rendererId } : {}),
+            ...(attachment.payload === undefined ? {} : { payload: attachment.payload }),
+            resourceRefs: attachment.resourceRefs,
+        }));
+};
+
 export class ExtensionCommandRouter {
     private readonly coreCommands = new Map<string, CommandHandler>();
 
@@ -73,11 +134,16 @@ export class ExtensionCommandRouter {
         if (!contribution) throw new Error(`extension command ${commandId} is unavailable`);
         const target = currentExtensionTarget();
         if (!target) throw new Error("extension command requires a selected unit");
+        const permissions = contributionPermissions(contribution.payload);
+        const resourceUploads = await resolveCommandResourceUploads(permissions, target);
+        const unitAttachments = resolveCommandUnitAttachments(permissions, target, contribution.pluginId);
         const result = await extensionBridgeClient.invoke({
             pluginId: contribution.pluginId,
             commandId,
             target,
             input,
+            resourceUploads,
+            unitAttachments,
             userGestureToken: gestureToken(),
         });
         if (result.status === "failed") {

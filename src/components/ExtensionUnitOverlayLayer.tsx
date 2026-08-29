@@ -72,7 +72,11 @@ const ExtensionSurfaceHost: Component<SurfaceHostProps> = (props) => {
         artVersion: props.descriptor.pluginVersion,
         revision: props.attachment.revision,
         runtime: "declarative",
-        scene: props.descriptor.scene,
+        scene: extensionVisualRegistry.sceneFor(props.descriptor, props.attachment) ?? {
+            id: "extension-unavailable",
+            type: "text",
+            props: { text: "扩展视图不可用" },
+        },
         authoritativeState: props.attachment.payload,
     });
     const style = () => {
@@ -88,7 +92,18 @@ const ExtensionSurfaceHost: Component<SurfaceHostProps> = (props) => {
         const commandId = props.descriptor.commandId;
         if (!commandId || event.action !== commandId) return;
         void Promise.resolve(props.onActivate())
-            .then(() => extensionCommandRouter.execute(commandId))
+            .then(() => extensionCommandRouter.execute(commandId, {
+                surfaceEvent: {
+                    attachmentId: event.attachmentId,
+                    nodeId: event.nodeId,
+                    event: event.event,
+                    action: event.action,
+                    class: event.class,
+                    generation: event.generation,
+                    baseRevision: event.baseRevision,
+                    payload: event.payload,
+                },
+            }))
             .catch((error) => console.error("Extension overlay command failed", error));
     };
     return (

@@ -21,7 +21,7 @@ import { getCapabilityInputsForPorts } from "../services/artPorts";
 import { deriveUnitExecutionConfig } from "../services/nodeExecutionConfig";
 import { findArtCapability } from "../services/artCapabilityLookup";
 import { buildStandaloneArtNodeUnit } from "../services/artNodeFactory";
-import { resolveOcrImageDataUrl } from "../services/ocrImageSource";
+import { resolveUnitImageDataUrl } from "../services/unitImageSource";
 import { MAX_OCR_BLOCKS } from "../services/ocrOverlayLayout";
 import { showOcrCopyNotice } from "../services/ocrCopyNotice";
 import { copyOcrTextToClipboard } from "../services/ocrOverlayInteraction";
@@ -285,7 +285,7 @@ export function useUnitActions() {
          const operationToken = startOperation(barcodeOperationTokens, unitId);
 
          try {
-             const imageDataUrl = await resolveOcrImageDataUrl(
+             const imageDataUrl = await resolveUnitImageDataUrl(
                  source,
                  { readImageFromPath: api.readImageFromPath },
              );
@@ -347,7 +347,7 @@ export function useUnitActions() {
               // Region capture responses are file-backed asset URLs. Resolve
               // them through the bounded native reader before crossing Loom's
               // data-URL-only OCR protocol boundary.
-              const imageDataUrl = await resolveOcrImageDataUrl(
+              const imageDataUrl = await resolveUnitImageDataUrl(
                   source,
                   { readImageFromPath: api.readImageFromPath },
               );
