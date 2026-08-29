@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSignal } from "solid-js";
 import { render } from "solid-js/web";
 
 import { ExtensionUnitOverlayLayer } from "../../src/components/ExtensionUnitOverlayLayer";
+import { extensionCommandRouter } from "../../src/services/extensionCommandRouter";
 import { extensionHostDiagnostics } from "../../src/services/extensionHostDiagnostics";
 import { applyExtensionVisualSnapshot } from "../../src/services/extensionVisualRegistry";
 import { parseContributionSnapshot } from "../../src/services/extensionProtocol";
@@ -89,14 +90,18 @@ describe("extension host cleanup soak", () => {
         applyExtensionVisualSnapshot(null);
         extraRects().filter((rect) => rect.name === "EXTENSION_OVERLAY").forEach((rect) => removeRect(rect.id));
         document.body.replaceChildren();
+        vi.restoreAllMocks();
     });
 
-    it("does not retain hit rects or registry entries across 100 enable/disable cycles", () => {
+    it("routes overlay clicks and retains no host objects across 100 enable/disable cycles", async () => {
+        const baseline = extensionHostDiagnostics();
         const root = document.createElement("div");
         document.body.append(root);
         const [isMinified, setIsMinified] = createSignal(false);
+        const onActivate = vi.fn();
+        const execute = vi.spyOn(extensionCommandRouter, "execute").mockResolvedValue(null);
         const dispose = render(() => (
-            <ExtensionUnitOverlayLayer unit={unit} isMinified={isMinified()} onActivate={() => undefined} />
+            <ExtensionUnitOverlayLayer unit={unit} isMinified={isMinified()} onActivate={onActivate} />
         ), root);
 
         for (let index = 0; index < 100; index += 1) {
@@ -104,6 +109,14 @@ describe("extension host cleanup soak", () => {
             expect(extensionRectCount()).toBe(1);
             expect(extensionHostDiagnostics().visuals.unitOverlays).toBe(1);
             expect(extensionHostDiagnostics().extensionSurfaceInstances).toBe(1);
+            expect(extensionHostDiagnostics().surfaceInstances).toBe(baseline.surfaceInstances + 1);
+            if (index === 0) {
+                (root.querySelector("button") as HTMLButtonElement).click();
+                await Promise.resolve();
+                await Promise.resolve();
+                expect(onActivate).toHaveBeenCalledTimes(1);
+                expect(execute).toHaveBeenCalledWith("publisher.example/demo.run");
+            }
             setIsMinified(true);
             expect(extensionRectCount()).toBe(0);
             setIsMinified(false);
@@ -112,10 +125,16 @@ describe("extension host cleanup soak", () => {
             expect(extensionRectCount()).toBe(0);
             expect(extensionHostDiagnostics().visuals.unitOverlays).toBe(0);
             expect(extensionHostDiagnostics().extensionSurfaceInstances).toBe(0);
+            expect(extensionHostDiagnostics().surfaceInstances).toBe(baseline.surfaceInstances);
+            expect(extensionHostDiagnostics().listeners).toBe(baseline.listeners);
+            expect(extensionHostDiagnostics().timers).toBe(baseline.timers);
         }
 
         dispose();
         expect(extensionRectCount()).toBe(0);
         expect(extensionHostDiagnostics().extensionSurfaceInstances).toBe(0);
+        expect(extensionHostDiagnostics().surfaceInstances).toBe(baseline.surfaceInstances);
+        expect(extensionHostDiagnostics().listeners).toBe(baseline.listeners);
+        expect(extensionHostDiagnostics().timers).toBe(baseline.timers);
     });
 });

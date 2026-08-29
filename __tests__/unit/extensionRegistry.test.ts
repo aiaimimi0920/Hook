@@ -11,12 +11,40 @@ const fixture = (): unknown => JSON.parse(readFileSync(resolve(
 ), "utf8"));
 
 describe("ExtensionRegistry", () => {
-    it("parses the canonical snapshot and exposes commands", () => {
+    it("parses the canonical snapshot and exposes unknown third-party contributions", () => {
         const snapshot = parseContributionSnapshot(fixture());
         expect(snapshot.generation).toBe(1);
         expect(snapshot.contributions.commands[0]?.id).toBe(
             "publisher.example/text-tools.transform",
         );
+        expect(snapshot.contributions.shortcuts[0]?.commandId).toBe(
+            "publisher.example/text-tools.transform",
+        );
+        expect(snapshot.contributions.shortcuts[0]).toMatchObject({
+            payload: { payload: { keys: "Ctrl+Alt+T" } },
+        });
+        expect(snapshot.contributions.menus[0]).toMatchObject({
+            commandId: "publisher.example/text-tools.transform",
+            placement: "hook.unit.toolbar",
+            order: 20,
+        });
+        expect(snapshot.contributions.settings[0]).toMatchObject({
+            id: "publisher.example/text-tools.mode",
+            payload: { payload: { type: "enum", default: "safe" } },
+        });
+        expect(snapshot.contributions.dataTypes[0]?.id).toBe("publisher.example/text-tools.result.v1");
+        expect(snapshot.contributions.renderers[0]).toMatchObject({
+            payload: { payload: { typeId: "publisher.example/text-tools.result.v1" } },
+        });
+        expect(snapshot.contributions.unitOverlays[0]).toMatchObject({
+            commandId: "publisher.example/text-tools.transform",
+            payload: {
+                payload: {
+                    typeId: "publisher.example/text-tools.result.v1",
+                    scene: { events: { click: "publisher.example/text-tools.transform" } },
+                },
+            },
+        });
     });
 
     it("rejects invalid scopes without replacing the active snapshot", () => {

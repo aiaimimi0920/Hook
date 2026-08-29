@@ -110,6 +110,19 @@ describe("unit attachment store", () => {
         expect(graphStore.units[0].data.extensionState?.attachments).toHaveLength(1);
     });
 
+    it("retains opaque attachments when their plugin disconnects", async () => {
+        await applyExtensionEffect(plugin.scopeId, "unit-1", {
+            type: "attachment.upsert",
+            payload: upsertPayload(),
+        }, 4);
+        const retained = JSON.stringify(graphStore.units[0].data.extensionState);
+
+        extensionRegistry.disconnect("session-1");
+
+        expect(JSON.stringify(graphStore.units[0].data.extensionState)).toBe(retained);
+        expect(graphStore.units[0].data.extensionState?.attachments[0]?.payload).toEqual({ text: "safe" });
+    });
+
     it("rejects undeclared types, stale targets, and arbitrary resource paths", async () => {
         await expect(applyExtensionEffect(plugin.scopeId, "unit-1", {
             type: "attachment.upsert",

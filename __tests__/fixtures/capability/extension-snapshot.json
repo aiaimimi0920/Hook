@@ -18,15 +18,70 @@
         "id": "publisher.example/text-tools.transform",
         "pluginId": "publisher.example/text-tools",
         "title": "Transform text",
+        "commandId": "publisher.example/text-tools.transform",
         "scopeId": "scope-1"
       }
     ],
-    "shortcuts": [],
-    "menus": [],
-    "settings": [],
-    "dataTypes": [],
-    "renderers": [],
-    "unitOverlays": [],
+    "shortcuts": [{
+      "id": "publisher.example/text-tools.default-shortcut",
+      "pluginId": "publisher.example/text-tools",
+      "scopeId": "scope-1",
+      "commandId": "publisher.example/text-tools.transform",
+      "payload": { "schema": null, "payload": { "keys": "Ctrl+Alt+T" } }
+    }],
+    "menus": [{
+      "id": "publisher.example/text-tools.unit-toolbar",
+      "pluginId": "publisher.example/text-tools",
+      "scopeId": "scope-1",
+      "title": "Transform text",
+      "commandId": "publisher.example/text-tools.transform",
+      "placement": "hook.unit.toolbar",
+      "order": 20
+    }],
+    "settings": [{
+      "id": "publisher.example/text-tools.mode",
+      "pluginId": "publisher.example/text-tools",
+      "scopeId": "scope-1",
+      "title": "Transform mode",
+      "payload": { "schema": null, "payload": { "type": "enum", "options": ["safe", "fast"], "default": "safe" } }
+    }],
+    "dataTypes": [{
+      "id": "publisher.example/text-tools.result.v1",
+      "pluginId": "publisher.example/text-tools",
+      "scopeId": "scope-1"
+    }],
+    "renderers": [{
+      "id": "publisher.example/text-tools.result-card",
+      "pluginId": "publisher.example/text-tools",
+      "scopeId": "scope-1",
+      "payload": {
+        "schema": "renderer.v1",
+        "payload": {
+          "typeId": "publisher.example/text-tools.result.v1",
+          "bounds": { "x": 8, "y": 8, "width": 180, "height": 44 },
+          "scene": { "id": "result", "type": "text", "props": { "text": "Transformed" } }
+        }
+      }
+    }],
+    "unitOverlays": [{
+      "id": "publisher.example/text-tools.transform-overlay",
+      "pluginId": "publisher.example/text-tools",
+      "scopeId": "scope-1",
+      "commandId": "publisher.example/text-tools.transform",
+      "payload": {
+        "schema": "unit-overlay.v1",
+        "payload": {
+          "typeId": "publisher.example/text-tools.result.v1",
+          "bounds": { "x": 8, "y": 56, "width": 120, "height": 36 },
+          "scene": {
+            "id": "transform",
+            "type": "button",
+            "props": { "label": "Transform" },
+            "events": { "click": "publisher.example/text-tools.transform" }
+          }
+        }
+      }
+    }],
     "backgroundTasks": [],
     "resourceProviders": [],
     "diagnostics": [],
