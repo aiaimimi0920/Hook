@@ -1,5 +1,16 @@
 <# Validates the cross-repository extension compatibility evidence. #>
 
+function Assert-HookCompatibilityFeatures {
+    param([object]$Requirement, [string[]]$Expected, [string]$Label)
+
+    $actual = @($Requirement.requiredFeatures | ForEach-Object { [string]$_ } | Sort-Object)
+    $expectedSorted = @($Expected | Sort-Object)
+    if ([string]$Requirement.minimum -cne "1.0" -or
+        ($actual -join ",") -cne ($expectedSorted -join ",")) {
+        throw "Extension compatibility evidence has invalid $Label requirements."
+    }
+}
+
 function Read-HookExtensionCompatibility {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -21,6 +32,15 @@ function Read-HookExtensionCompatibility {
             throw "Extension compatibility evidence has an unsupported API range."
         }
     }
+    Assert-HookCompatibilityFeatures `
+        -Requirement $document.pluginHostRequirements.loomCapabilityApi `
+        -Expected @("commands.v1", "attachments.v1") -Label "Loom capability host"
+    Assert-HookCompatibilityFeatures `
+        -Requirement $document.pluginHostRequirements.hookExtensionApi `
+        -Expected @("commands.v1", "unit-overlays.v1") -Label "Hook extension host"
+    Assert-HookCompatibilityFeatures `
+        -Requirement $document.pluginHostRequirements.surfaceApi `
+        -Expected @("declarative.v1") -Label "Surface host"
     return $document
 }
 
@@ -34,6 +54,7 @@ function Assert-HookExtensionCompatibility {
     $digest = Get-HookReleaseDigest -Path $ExecutablePath
     if ([string]$Document.hook.commit -cne $GitHead -or
         [string]$Document.hook.executable.name -cne "hook.exe" -or
+        ([string]$Document.hook.executable.path).Replace("\", "/") -cne "portable/hook.exe" -or
         [int64]$Document.hook.executable.bytes -ne $digest.bytes -or
         [string]$Document.hook.executable.sha256 -cne $digest.sha256) {
         throw "Extension compatibility evidence does not match this Hook executable and commit."
