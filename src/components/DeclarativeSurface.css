@@ -43,6 +43,19 @@
     overflow-wrap: anywhere;
 }
 
+.surface-text[data-surface-selectable-text="true"],
+.surface-textarea {
+    cursor: text;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+.surface-text[data-surface-selectable-text="true"]::selection,
+.surface-textarea::selection {
+    color: inherit;
+    background: color-mix(in srgb, var(--nt-signal-primary, #dfff2f) 42%, transparent);
+}
+
 .surface-image {
     display: block;
     max-width: 100%;
@@ -96,6 +109,27 @@
 
 .surface-textarea {
     resize: none;
+    overflow-y: auto;
+    scrollbar-color: var(--nt-border-default, #313943) transparent;
+    scrollbar-width: thin;
+    scrollbar-gutter: stable;
+}
+
+.surface-textarea::-webkit-scrollbar {
+    width: 6px;
+}
+
+.surface-textarea::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.surface-textarea::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    background: var(--nt-border-default, #313943);
+}
+
+.surface-textarea::-webkit-scrollbar-thumb:hover {
+    background: var(--nt-text-secondary, #aab2bc);
 }
 
 .surface-slider {

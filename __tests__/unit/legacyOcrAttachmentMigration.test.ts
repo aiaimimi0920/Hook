@@ -84,6 +84,7 @@ describe("legacy OCR attachment migration", () => {
         expect(children[0]).toMatchObject({
             events: { click: "neuro.official/ocr.copy-block" },
             props: { eventPayload: { text: "第一行" } },
+            children: [{ props: { text: "第一行", selectable: true } }],
         });
     });
 

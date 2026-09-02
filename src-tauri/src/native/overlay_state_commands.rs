@@ -1,4 +1,4 @@
-// Owns overlay hit-map, mouse monitoring, cursor, and OCR trigger commands.
+// Owns overlay hit-map, mouse monitoring, and cursor commands.
 
 #[tauri::command]
 fn update_pin_rects(
@@ -69,19 +69,4 @@ fn get_cursor_position(app: tauri::AppHandle) -> Result<PhysicalPosition<f64>, S
     } else {
         Err("Window not found".to_string())
     }
-}
-
-#[tauri::command]
-fn trigger_ocr_event(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("main") {
-        window
-            .emit(
-                "extension/command",
-                serde_json::json!({ "commandId": "hook.core.ocr" }),
-            )
-            .map_err(|e| e.to_string())?;
-        return Ok(());
-    }
-
-    Err("Window not found".to_string())
 }

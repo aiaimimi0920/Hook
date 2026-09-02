@@ -73,6 +73,25 @@ describe("ShortcutManager Hook shortcuts", () => {
         expect(shouldIgnoreGlobalShortcut(editableChild, "Escape")).toBe(true);
     });
 
+    it("preserves native Ctrl+C for a selected declarative text substring", () => {
+        const span = document.createElement("span");
+        span.dataset.surfaceSelectableText = "true";
+        span.textContent = "copy only this";
+        document.body.append(span);
+        const range = document.createRange();
+        range.setStart(span.firstChild!, 0);
+        range.setEnd(span.firstChild!, 4);
+        document.getSelection()?.removeAllRanges();
+        document.getSelection()?.addRange(range);
+
+        expect(shouldIgnoreGlobalShortcut(document.body, "c", true)).toBe(true);
+        expect(shouldIgnoreGlobalShortcut(document.body, "c")).toBe(false);
+        expect(shouldIgnoreGlobalShortcut(document.body, "v")).toBe(false);
+
+        document.getSelection()?.removeAllRanges();
+        span.remove();
+    });
+
     it("lets a focused editor consume Escape before selected-unit deletion", () => {
         const host = document.createElement("div");
         const input = document.createElement("input");

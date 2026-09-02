@@ -5,10 +5,8 @@ import {
     resolveOcrBlockBounds,
     resolveOcrBlockPresentation,
     resolveOcrImageFrame,
-    resolveOcrOverlayColor,
     resolveOcrOverlayBlocks,
-    resolveReadableOcrColor,
-} from "../../src/components/UnitVisualOverlays";
+} from "../../src/services/ocrOverlayLayout";
 import type { OcrBlock, Unit } from "../../src/types/unit";
 
 const unitWithOcr = (width: number, height: number): Unit => ({
@@ -377,15 +375,4 @@ describe("Unit visual OCR overlay validation", () => {
         );
     });
 
-    it("accepts only six- or eight-digit hex colors", () => {
-        expect(resolveOcrOverlayColor("#12aBcF", "#ffffff")).toBe("#12aBcF");
-        expect(resolveOcrOverlayColor("#12abcdef", "#ffffff")).toBe("#12abcdef");
-        expect(resolveOcrOverlayColor("url(javascript:bad)", "#ffffff")).toBe("#ffffff");
-    });
-
-    it("keeps OCR text readable on the opaque shared fill", () => {
-        expect(resolveReadableOcrColor("#ffffff", "#101010")).toBe("#ffffff");
-        expect(resolveReadableOcrColor("#777777", "#808080")).toBe("#000000");
-        expect(resolveReadableOcrColor("invalid", "#808080")).toBe("invalid");
-    });
 });

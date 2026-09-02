@@ -1,12 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
 import { resolveUnitImageDataUrl } from "../../src/services/unitImageSource";
 
 const PNG_DATA_URL = "data:image/png;base64,AA==";
 
-describe("OCR image source conversion", () => {
+describe("unit image source conversion", () => {
     it("uses the native bounded reader for file-backed capture sources", async () => {
         const readImageFromPath = vi.fn(async () => PNG_DATA_URL);
 
@@ -43,18 +41,4 @@ describe("OCR image source conversion", () => {
         )).rejects.toThrow("cannot be converted");
     });
 
-    it("persists a successful OCR result before clipboard access", () => {
-        const source = readFileSync(resolve(process.cwd(), "src/hooks/useUnitActions.ts"), "utf8");
-        const persistIndex = source.indexOf("graphStore.actions.updateUnitData(unitId");
-        const copyIndex = source.indexOf("copyOcrTextToClipboard(fullText)");
-
-        expect(persistIndex).toBeGreaterThanOrEqual(0);
-        expect(copyIndex).toBeGreaterThan(persistIndex);
-        expect(source).toContain("if (!selectedUnitId) selectionActions.set([unitId]);");
-    });
-
-    it("uses the persisted hide flag for OCR overlay visibility", () => {
-        const source = readFileSync(resolve(process.cwd(), "src/components/UnitVisualOverlays.tsx"), "utf8");
-        expect(source).toContain("!props.unit.data.hideOcr");
-    });
 });

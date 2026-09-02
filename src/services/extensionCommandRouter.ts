@@ -6,8 +6,10 @@ import type { ExtensionEffect, ExtensionResult } from "./extensionBridgeProtocol
 import { extensionNoticeRegistry } from "./extensionNoticeRegistry";
 import { removeUnitAttachment, upsertUnitAttachment } from "./unitAttachmentStore";
 import { parseUnitImageDataUrl, resolveUnitImageDataUrl } from "./unitImageSource";
+import { isDirectSurfaceClick, normalizeExternalHttpsUrl } from "./externalUrlEffect";
 
 type CommandHandler = () => void | Promise<void>;
+type EffectContext = { directSurfaceClick?: boolean };
 const MAX_EXTENSION_IMAGE_BYTES = 16 * 1024 * 1024;
 const IMAGE_READ_PERMISSION = "hook.unit.image.read";
 const ATTACHMENT_READ_PERMISSION = "hook.unit.attachments.read";
@@ -29,6 +31,7 @@ export const applyExtensionEffect = async (
     unitId: string,
     effect: ExtensionEffect,
     expectedTargetRevision: number,
+    context: EffectContext = {},
 ): Promise<void> => {
     const payload = effectRecord(effect);
     if (effect.type === "notice.show") {
@@ -39,6 +42,13 @@ export const applyExtensionEffect = async (
         if (typeof payload.text !== "string") throw new Error("extension clipboard effect requires text");
         const copied = await api.copyTextToClipboard(payload.text.slice(0, 1_048_576));
         if (!copied) throw new Error("extension clipboard write was denied");
+        return;
+    }
+    if (effect.type === "external.openUrl") {
+        if (!context.directSurfaceClick) {
+            throw new Error("extension external URL requires a direct Surface click");
+        }
+        await api.openExternalHttpsUrl(normalizeExternalHttpsUrl(payload.url));
         return;
     }
     if (effect.type === "attachment.upsert") {
@@ -150,7 +160,9 @@ export class ExtensionCommandRouter {
             throw new Error(result.error?.message ?? "extension command failed");
         }
         for (const effect of result.effects) {
-            await applyExtensionEffect(contribution.scopeId, target.unitId, effect, target.revision);
+            await applyExtensionEffect(contribution.scopeId, target.unitId, effect, target.revision, {
+                directSurfaceClick: isDirectSurfaceClick(input, commandId),
+            });
         }
         return result;
     }

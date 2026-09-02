@@ -1,14 +1,11 @@
 // Shared API DTOs remain type-only so transport and consumers do not acquire runtime dependencies.
 import type { FrozenStickerEntry } from "./stickerSnapshot";
 import type {
-    OcrBlock,
     SessionGroup,
     SessionLink,
     SessionSticker,
     WorkflowAssetArchiveIndex,
 } from "../types/unit";
-
-export type { BarcodeResult, BarcodeScanResult } from "../types/unit";
 
 export interface PinRect {
     id: string;
@@ -40,19 +37,6 @@ export interface CaptureRegionOptions {
      * of sampling the desktop composition behind it.
      */
     captureWindowId?: string;
-}
-
-export interface OcrResult {
-    fullText: string;
-    textBlocks?: OcrBlock[];
-    width?: number;
-    height?: number;
-    scaleFactor?: number;
-}
-
-export interface EnhancementCapabilities {
-    ocr: boolean;
-    translation: boolean;
 }
 
 export interface VoiceSettingsSummary {

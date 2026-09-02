@@ -21,9 +21,9 @@ describe("capture overlay stability", () => {
     expect(captureUpEnd).toBeGreaterThan(captureUpStart);
     const captureUpBlock = pointerListenerSource.slice(captureUpStart, captureUpEnd);
     expect(captureUpBlock).toContain("handleSelectionMove(captureEvent);");
-    expect(captureUpBlock).toContain("handleSelectionEnd(captureEvent);");
+    expect(captureUpBlock).toContain("handleSelectionEnd(captureEvent)");
     expect(captureUpBlock.indexOf("handleSelectionMove(captureEvent);")).toBeLessThan(
-      captureUpBlock.indexOf("handleSelectionEnd(captureEvent);"),
+      captureUpBlock.indexOf("handleSelectionEnd(captureEvent)"),
     );
   });
 

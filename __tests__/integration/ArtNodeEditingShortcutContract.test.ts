@@ -34,8 +34,9 @@ describe("Art node editing shortcut contract", () => {
     expect(shortcutSource).toContain("{ id: 'toggle-params', key: 'Tab', modifiers: []");
     expect(handlerSource).not.toContain("uiActions.toggleParams(stickerId);");
     expect(handlerSource).toContain('selectedUnit?.type !== "sticker" && selectedUnit?.type !== "art"');
+    expect(appShortcutSource).toContain("onToggleStickerToolbar: () => {");
     expect(appShortcutSource).toContain(
-      "onToggleStickerToolbar: dependencies.toggleStickerToolbarVisibility",
+      "fallback: dependencies.toggleStickerToolbarVisibility",
     );
     expect(appShortcutSource).not.toContain("onToggleStickerToolbar: tauriRuntime ? undefined");
     expect(handlerSource).toContain("now - lastToolbarToggleAt < 250");

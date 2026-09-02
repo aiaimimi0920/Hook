@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { parseContributionSnapshot } from "../../src/services/extensionProtocol";
 import { applyExtensionEffect } from "../../src/services/extensionCommandRouter";
+import { normalizeExternalHttpsUrl } from "../../src/services/externalUrlEffect";
+import { api } from "../../src/services/api";
 import { buildExtensionShortcutBindings } from "../../src/services/extensionShortcutRegistry";
 import {
     applyExtensionPresentationSnapshot,
@@ -74,6 +76,8 @@ const contributionSnapshot = () => parseContributionSnapshot({
 });
 
 describe("generic extension contributions", () => {
+    afterEach(() => vi.restoreAllMocks());
+
     it("accepts plugin-owned Ctrl+2 and resolves deterministic conflicts", () => {
         const result = buildExtensionShortcutBindings(contributionSnapshot());
         expect(result.accepted.map((binding) => binding.id)).toEqual([
@@ -152,5 +156,24 @@ describe("generic extension contributions", () => {
             type: "clipboard.writeText",
             payload: {},
         }, 0)).rejects.toThrow("requires text");
+        await expect(applyExtensionEffect("scope-demo", "unit-1", {
+            type: "external.openUrl",
+            payload: { url: "https://example.com" },
+        }, 0)).rejects.toThrow("direct Surface click");
+    });
+
+    it("opens only credential-free HTTPS URLs after a direct Surface click", async () => {
+        const open = vi.spyOn(api, "openExternalHttpsUrl").mockResolvedValue(undefined);
+        await applyExtensionEffect("scope-demo", "unit-1", {
+            type: "external.openUrl",
+            payload: { url: "https://example.com/path" },
+        }, 0, { directSurfaceClick: true });
+        expect(open).toHaveBeenCalledWith("https://example.com/path");
+
+        await expect(applyExtensionEffect("scope-demo", "unit-1", {
+            type: "external.openUrl",
+            payload: { url: "https://user@example.com/path" },
+        }, 0, { directSurfaceClick: true })).rejects.toThrow("without credentials");
+        expect(() => normalizeExternalHttpsUrl("javascript:alert(1)")).toThrow("HTTPS");
     });
 });

@@ -105,7 +105,10 @@ describe("hook terminal theme contract", () => {
         const themeCss = readSource("src/styles/theme-foundation.css");
         const terminalCss = readSource("src/styles/terminal-primitives.css");
         const featureCss = readSource("src/styles/feature-surfaces.css");
-        const unitOverlays = readSource("src/components/UnitVisualOverlays.tsx");
+        const unitOverlays = [
+            readSource("src/components/UnitVisualOverlays.tsx"),
+            readSource("src/components/UnitEnhancementNotices.tsx"),
+        ].join("\n");
         const paramsPanel = readSource("src/components/UnitParamsScrollRegion.tsx");
         const colorPicker = readSource("src/components/ColorPicker.tsx");
         const addNodeMenu = readSource("src/components/UnitAddNodeMenu.tsx");

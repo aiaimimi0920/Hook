@@ -41,6 +41,10 @@ describe("sticker edit synthetic move relay contract", () => {
     expect(dispatchSource).toContain('new MouseEvent("mousemove"');
     expect(dispatchSource).toContain("state.moveRelayActive = true;");
     expect(dispatchSource).toContain("state.moveRelayActive = false;");
+    expect(dispatchSource).toContain("textSelectionActive");
+    expect(pointerListenerSource).toContain("overlaySynthetic.textSelectionActive");
+    expect(pointerListenerSource).toContain("const textSelectionOwnsPointer = overlaySynthetic.textSelectionActive;");
+    expect(pointerListenerSource).toContain("if (!textSelectionOwnsPointer)");
     expect(globalMoveBlock).not.toContain("if (overlaySyntheticMoveRelayActive) return;");
     expect(globalMoveBlock).toContain("if (!overlaySynthetic.moveRelayActive && !draggingStickerId()) {");
     expect(globalMoveBlock).toContain("overlaySynthetic.relayPointerMove(event);");
@@ -59,7 +63,7 @@ describe("sticker edit synthetic move relay contract", () => {
     expect(topStripSource).toContain("draggingStickerId");
     expect(topStripSource).toContain("const draggingThisSticker = createMemo(() => draggingStickerId() === props.unitId);");
     expect(syncEffectBlock).toContain("if (draggingThisSticker()) return;");
-    expect(syncEffectBlock).toContain("addOrUpdateRect(buildStripInteractiveRect(stripRef, currentUnitId));");
+    expect(syncEffectBlock).toContain("addOrUpdateRect(buildStickerTopStripInteractiveRect(stripRef, currentUnitId));");
     expect(syncEffectBlock).toContain("syncTopStripBackendRects();");
     expect(topStripSyncSource).toContain("syncService.updateBackendRects()");
     expect(topStripSyncSource).toContain("void promise.catch");

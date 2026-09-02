@@ -58,9 +58,9 @@ describe('Hook api browser mode', () => {
   it('request sockets close immediately when Loom sends malformed JSON', async () => {
     installBrowserGlobals();
     const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout');
-    const { api } = await import('../../src/services/api');
+    const { loomHookRequest } = await import('../../src/services/apiBrowserLoomTransport');
 
-    const pending = api.performOcr('data:image/png;base64,abc123');
+    const pending = loomHookRequest('loom.hook.transport.probe', { requestId: 'transport-probe' });
     const socket = MockWebSocket.instances.at(-1)!;
     socket.open();
     socket.emitRawMessage('{');

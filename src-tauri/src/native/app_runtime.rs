@@ -57,7 +57,8 @@ pub fn run() {
                                 }
                             } else if let Some(payload) = extension_shortcut_payload(shortcut) {
                                 if let Some(window) = app.get_webview_window("main") {
-                                    if let Err(e) = window.emit("overlay/global_shortcut", payload) {
+                                    if let Err(e) = window.emit("overlay/global_shortcut", payload)
+                                    {
                                         console_line!("Failed to emit extension shortcut: {}", e);
                                     }
                                 }
@@ -140,6 +141,7 @@ pub fn run() {
             get_cursor_position,
             copy_to_clipboard,
             copy_text_to_clipboard,
+            open_external_https_url,
             copy_node_image_to_clipboard,
             copy_sticker_image_to_smart_clipboard,
             set_capture_input_active,
@@ -185,9 +187,6 @@ pub fn run() {
             sample_long_capture_session,
             finish_long_capture_session,
             cancel_long_capture_session,
-            trigger_ocr_event,
-            barcode::decode_barcodes,
-            url_actions::open_http_url,
             tea_client::create_tea_ticket,
             loom_hook::loom_hook_handshake,
             loom_hook::loom_hook_dispatch_action,

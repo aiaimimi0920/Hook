@@ -1,22 +1,18 @@
 import { describe, expect, it } from "vitest";
-import {
-  BARCODE_OUTPUT_PORTS,
-  buildBarcodeOutputValues,
-  hasBarcodeResults,
-} from "../../src/services/barcodeRecognition";
+import { migrateLegacyBarcodeResultToAttachment } from "../../src/services/legacyBarcodeAttachmentMigration";
+import { MAX_ATTACHMENTS_PER_UNIT } from "../../src/services/unitExtensionValidation";
 import {
   mapSessionStickerToUnit,
   type SessionStickerMappingDeps,
 } from "../../src/services/sessionStickerMapping";
 import { mapUnitToSessionSticker } from "../../src/services/sessionStickerPayload";
-import { resolveUnitOutputValue } from "../../src/services/graphImageResolution";
-import { resolveImageFrame } from "../../src/services/ocrOverlayLayout";
-import { resolveBarcodeOverlayRect } from "../../src/services/barcodeOverlayInteraction";
 import type { BarcodeScanResult, Unit } from "../../src/types/unit";
+import type { UnitExtensionState } from "../../src/types/unitExtension";
 
 const scan: BarcodeScanResult = {
   width: 640,
   height: 480,
+  selectedId: "code-1",
   results: [{
     id: "code-1",
     format: "QR_CODE",
@@ -27,82 +23,121 @@ const scan: BarcodeScanResult = {
   }],
 };
 
-const sticker: Unit = {
+const legacySticker: Unit = {
   id: "sticker-1",
   type: "sticker",
   x: 0,
   y: 0,
   w: 640,
   h: 480,
-  data: {
-    src: "data:image/png;base64,fixture",
-    barcodeResult: scan,
-    outputs: buildBarcodeOutputValues(scan),
-  },
+  data: { src: "data:image/png;base64,fixture", barcodeResult: scan },
   params: { image: "" },
   inputs: [{ id: "image", type: "image", direction: "input" }],
   outputs: [{ id: "output_image", type: "image", direction: "output" }],
 };
 
-describe("barcode recognition contracts", () => {
-  it("publishes stable scalar output ports and preserves every result", () => {
-    expect(BARCODE_OUTPUT_PORTS.map((port) => port.name)).toEqual([
-      "recognized_url",
-      "recognized_text",
-      "recognized_codes",
-    ]);
-    expect(buildBarcodeOutputValues(scan)).toEqual({
-      recognized_url: scan.results[0].url,
-      recognized_text: scan.results[0].text,
-      recognized_codes: scan.results,
-    });
-    expect(hasBarcodeResults(scan)).toBe(true);
-    expect(hasBarcodeResults({ ...scan, results: [] })).toBe(false);
-  });
-
-  it("uses the explicitly selected result for scalar outputs", () => {
-    const second = { ...scan.results[0], id: "code-2", text: "https://example.com/second", url: "https://example.com/second" };
-    const selected = { ...scan, results: [scan.results[0], second], selectedId: second.id };
-    expect(buildBarcodeOutputValues(selected).recognized_url).toBe(second.url);
-    expect(buildBarcodeOutputValues(selected).recognized_text).toBe(second.text);
-  });
-
-  it("round-trips barcode results through the session sticker boundary", () => {
-    const persisted = mapUnitToSessionSticker(sticker);
-    expect(persisted.barcodeResult).toEqual(scan);
-
+describe("legacy QR/barcode migration", () => {
+  it("moves a complete legacy result into one official OCR attachment", () => {
+    const persisted = mapUnitToSessionSticker(legacySticker);
     const deps: SessionStickerMappingDeps = { capabilities: [] };
     const restored = mapSessionStickerToUnit(persisted, deps);
-    expect(restored.data.barcodeResult).toEqual(scan);
+    const attachment = restored.data.extensionState?.attachments[0];
+
+    expect(restored.data.barcodeResult).toBeUndefined();
+    expect(attachment?.pluginId).toBe("neuro.official/ocr");
+    expect(attachment?.typeId).toBe("neuro.official/ocr.codes.v1");
+    expect(attachment?.rendererId).toBe("neuro.official/ocr.codes-overlay");
+    expect(attachment?.payload).toMatchObject({
+      schemaVersion: "1",
+      selectedId: "code-1",
+      results: scan.results,
+      migration: { source: "hook.unitData.barcodeResult", version: 1 },
+    });
+    const scene = attachment?.payload as { surfaceScene?: { children?: unknown[] } };
+    expect(scene.surfaceScene?.children).toHaveLength(1);
   });
 
-  it("resolves recognized URL output through a downstream value link", () => {
-    const target: Unit = {
-      ...sticker,
-      id: "art-1",
-      type: "art",
-      artId: "text-art",
-      data: {},
-      params: { prompt: "" },
-      inputs: [{ id: "prompt", type: "text", direction: "input" }],
-      outputs: [],
+  it("is idempotent after a completed attachment exists", () => {
+    const first = migrateLegacyBarcodeResultToAttachment(scan, undefined);
+    const second = migrateLegacyBarcodeResultToAttachment(scan, first.extensionState);
+    expect(first.migrated).toBe(true);
+    expect(second.migrated).toBe(true);
+    expect(second.barcodeResult).toBeUndefined();
+    expect(second.extensionState).toEqual(first.extensionState);
+  });
+
+  it("preserves legacy data when conversion cannot be complete", () => {
+    const malformed = {
+      ...scan,
+      results: [{ ...scan.results[0], points: [{ x: Number.NaN, y: 20 }] }],
     };
-    expect(resolveUnitOutputValue({
-      units: [sticker, target],
-      links: [{ id: "link-1", fromUnitId: sticker.id, fromPortId: "recognized_url", toUnitId: target.id, toPortId: "prompt" }],
-      unitId: sticker.id,
-      portId: "recognized_url",
-      capabilities: [],
-    })).toBe(scan.results[0].url);
+    const invalidPayload = migrateLegacyBarcodeResultToAttachment(malformed, undefined);
+    const invalidEnvelope = migrateLegacyBarcodeResultToAttachment(scan, undefined, false);
+    expect(invalidPayload.migrated).toBe(false);
+    expect(invalidPayload.barcodeResult).toBe(malformed);
+    expect(invalidEnvelope.migrated).toBe(false);
+    expect(invalidEnvelope.barcodeResult).toBe(scan);
   });
 
-  it("maps barcode coordinates to the same letterboxed frame and native hit rect", () => {
-    const frame = resolveImageFrame(sticker, false, 330, 330);
-    expect(frame?.left).toBeCloseTo(80);
-    expect(frame?.top).toBe(0);
-    const rect = frame && resolveBarcodeOverlayRect(sticker, frame, scan.results[0]);
-    expect(rect?.x).toBeCloseTo(94.545);
-    expect(rect?.width).toBe(24);
-    expect(rect?.height).toBe(24);
+  it("does not overwrite a conflicting official OCR attachment", () => {
+    const extensionState: UnitExtensionState = {
+      schemaVersion: 1,
+      revision: 4,
+      attachments: [{
+        attachmentId: "neuro.official/ocr.codes",
+        typeId: "neuro.official/ocr.other.v1",
+        schemaVersion: "1",
+        revision: 1,
+        pluginId: "neuro.official/ocr",
+        pluginVersion: "1.1.0",
+        payload: { schemaVersion: "1", retained: true },
+        resourceRefs: [],
+      }],
+    };
+
+    const result = migrateLegacyBarcodeResultToAttachment(scan, extensionState);
+
+    expect(result).toEqual({
+      barcodeResult: scan,
+      extensionState,
+      migrated: false,
+    });
+  });
+
+  it("preserves legacy data when the attachment envelope is at capacity", () => {
+    const extensionState: UnitExtensionState = {
+      schemaVersion: 1,
+      revision: 7,
+      attachments: Array.from({ length: MAX_ATTACHMENTS_PER_UNIT }, (_, index) => ({
+        attachmentId: `test.plugin.item-${index}`,
+        typeId: "test.plugin.payload.v1",
+        schemaVersion: "1",
+        revision: 1,
+        pluginId: "test.plugin",
+        pluginVersion: "1.0.0",
+        payload: { index },
+        resourceRefs: [],
+      })),
+    };
+
+    const result = migrateLegacyBarcodeResultToAttachment(scan, extensionState);
+
+    expect(result.migrated).toBe(false);
+    expect(result.barcodeResult).toBe(scan);
+    expect(result.extensionState).toBe(extensionState);
+  });
+
+  it("does not overflow the extension revision", () => {
+    const extensionState: UnitExtensionState = {
+      schemaVersion: 1,
+      revision: Number.MAX_SAFE_INTEGER,
+      attachments: [],
+    };
+
+    const result = migrateLegacyBarcodeResultToAttachment(scan, extensionState);
+
+    expect(result.migrated).toBe(false);
+    expect(result.barcodeResult).toBe(scan);
+    expect(result.extensionState).toBe(extensionState);
   });
 });

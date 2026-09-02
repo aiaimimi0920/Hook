@@ -1,12 +1,12 @@
 // Stable public API facade. Domain clients own command routing and resource-specific fallbacks.
 import { bootSettingsApi } from "./apiBootSettings";
-import { barcodeApi } from "./apiBarcode";
 import { captureApi } from "./apiCapture";
+import { externalUrlApi } from "./apiExternalUrl";
 import { imageResourceApi } from "./apiImageResource";
 import {
-    loomEnhancementApi,
     loomPlanningApi,
     loomProtocolApi,
+    loomShaderApi,
 } from "./apiLoomSurface";
 import { overlayWindowApi } from "./apiOverlayWindow";
 import { sessionHistoryApi } from "./apiSessionHistory";
@@ -16,15 +16,11 @@ import { voiceApi } from "./apiVoice";
 export { listenBrowserLoomHookMethod } from "./apiBrowserLoomTransport";
 export { isTauriRuntimeAvailable } from "./apiTransport";
 export type {
-    BarcodeResult,
-    BarcodeScanResult,
     CaptureRegionOptions,
     CaptureResponse,
-    EnhancementCapabilities,
     LoomBrainPlanRequest,
     LoomBrainPlanResult,
     LoomInvokeErrorPayload,
-    OcrResult,
     PinRect,
     PreciseSelectionResult,
     ScreenColorSample,
@@ -43,14 +39,14 @@ export type {
 
 export const api = {
     ...bootSettingsApi,
-    ...barcodeApi,
     ...voiceApi,
     ...loomPlanningApi,
     ...teaApi,
     ...loomProtocolApi,
     ...sessionHistoryApi,
     ...overlayWindowApi,
-    ...loomEnhancementApi,
+    ...loomShaderApi,
     ...captureApi,
+    ...externalUrlApi,
     ...imageResourceApi,
 };

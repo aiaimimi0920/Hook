@@ -1,34 +1,25 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const read = (...parts: string[]) => readFileSync(resolve(process.cwd(), ...parts), "utf8");
+const path = (...parts: string[]) => resolve(process.cwd(), ...parts);
+const read = (...parts: string[]) => readFileSync(path(...parts), "utf8");
 
-describe("barcode recognition integration contract", () => {
-  it("keeps local decode, persisted outputs, and explicit URL actions separate", () => {
-    const actionSource = read("src", "hooks", "useUnitActions.ts");
-    const nativeSource = read("src-tauri", "src", "native", "app_runtime.rs");
-    const decoderSource = read("src-tauri", "src", "barcode.rs");
-    const urlSource = read("src-tauri", "src", "url_actions.rs");
-    const payloadSource = read("src", "services", "sessionStickerPayload.ts");
-    const mappingSource = read("src", "services", "sessionStickerMapping.ts");
-    const outputSource = read("src", "services", "barcodeRecognition.ts");
-    const overlaySource = read("src", "components", "BarcodeVisualOverlay.tsx");
+describe("QR/barcode capability migration contract", () => {
+  it("keeps decoders and product UI out of Hook core", () => {
+    expect(existsSync(path("src-tauri", "src", "barcode.rs"))).toBe(false);
+    expect(existsSync(path("src", "services", "barcodeScanAction.ts"))).toBe(false);
+    expect(existsSync(path("src", "components", "UnitBarcodeResultPanel.tsx"))).toBe(false);
+    expect(read("src-tauri", "Cargo.toml")).not.toContain("rxing");
+    expect(read("src-tauri", "src", "native", "app_runtime.rs")).not.toContain("decode_barcodes");
+  });
 
-    expect(actionSource).toContain("void performBarcodeAction(unitId);");
-    expect(actionSource).toContain("startOperation(barcodeOperationTokens, unitId)");
-    expect(actionSource).toContain("isCurrentOperation(barcodeOperationTokens, unitId, operationToken, source)");
-    expect(actionSource).toContain("registerBarcodePropagation(propagateFromUnit)");
-    expect(outputSource).toContain("recognized_url");
-    expect(nativeSource).toContain("barcode::decode_barcodes");
-    expect(nativeSource).toContain("url_actions::open_http_url");
-    expect(decoderSource).toContain("detect_multiple_in_luma_with_hints");
-    expect(decoderSource).toContain("MAX_RESULTS");
-    expect(urlSource).toContain("Only absolute HTTP(S) URLs can be opened");
-    expect(payloadSource).toContain("barcodeResult: unit.data.barcodeResult || null");
-    expect(mappingSource).toContain("barcodeResult: sticker.barcodeResult || undefined");
-    expect(overlaySource).toContain("selectBarcodeResult");
-    expect(overlaySource).toContain("openBarcodeResultUrl");
-    expect(read("src", "services", "barcodeResultActions.ts")).toContain("queueMicrotask(() => barcodePropagation?.(unitId))");
+  it("imports old session results into the official OCR attachment namespace", () => {
+    const mapping = read("src", "services", "sessionStickerMapping.ts");
+    const migration = read("src", "services", "legacyBarcodeAttachmentMigration.ts");
+    expect(mapping).toContain("migrateLegacyBarcodeResultToAttachment");
+    expect(migration).toContain('LEGACY_CODES_PLUGIN_ID = "neuro.official/ocr"');
+    expect(migration).toContain('LEGACY_CODES_TYPE_ID = "neuro.official/ocr.codes.v1"');
+    expect(migration).toContain("sanitizePersistedUnitExtensionState(candidate)");
   });
 });

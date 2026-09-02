@@ -1,7 +1,8 @@
 import type { OverlaySyntheticDeps } from "./overlaySyntheticTypes";
 
+const SELECTABLE_SELECTOR = "[data-surface-selectable-text='true']";
 const INTERACTIVE_TARGET_SELECTOR =
-    "input, select, textarea, button, a[href], [contenteditable='true'], [role='button'], [role='slider'], [data-surface-no-drag]";
+    "input, select, textarea, button, a[href], [contenteditable='true'], [role='button'], [role='slider'], [data-surface-no-drag], [data-surface-selectable-text='true']";
 
 export interface OverlaySyntheticTargets {
     getAppMain: () => HTMLElement | null;
@@ -68,6 +69,17 @@ export const createOverlaySyntheticTargets = (
         clientX: number,
         clientY: number,
     ): Element | null => {
+        // OCR/QR extension surfaces are selectable even when the annotation
+        // interaction root is layered above the sticker visual. Prefer the
+        // deepest selectable control at the pointer before applying the normal
+        // pass-through rules for blank sticker space.
+        const visual = stickerInteractionRoot.closest(".sticker-visual");
+        const selectableControls = visual?.querySelectorAll<HTMLElement>(SELECTABLE_SELECTOR) ?? [];
+        for (let index = selectableControls.length - 1; index >= 0; index -= 1) {
+            if (containsPoint(selectableControls[index], clientX, clientY)) {
+                return selectableControls[index];
+            }
+        }
         // Blank annotation roots sit above the live Art Surface. Let only those
         // roots fall through; real annotation descendants keep ownership.
         if (
@@ -75,7 +87,6 @@ export const createOverlaySyntheticTargets = (
         ) {
             return null;
         }
-        const visual = stickerInteractionRoot.closest(".sticker-visual");
         const frame = visual?.querySelector<HTMLIFrameElement>(
             ".art-surface-presentation iframe[data-javascript-surface-frame='true']",
         );
@@ -85,7 +96,7 @@ export const createOverlaySyntheticTargets = (
         if (!presentation || !containsPoint(presentation, clientX, clientY)) return null;
 
         const controls = presentation.querySelectorAll<HTMLElement>(
-            "input, select, textarea, button, a[href], [contenteditable='true'], [role='button'], [role='slider'], [data-surface-no-drag], [data-surface-node-id]",
+            "input, select, textarea, button, a[href], [contenteditable='true'], [role='button'], [role='slider'], [data-surface-no-drag], [data-surface-selectable-text='true'], [data-surface-node-id]",
         );
         for (let index = controls.length - 1; index >= 0; index -= 1) {
             if (containsPoint(controls[index], clientX, clientY)) return controls[index];
@@ -93,6 +104,22 @@ export const createOverlaySyntheticTargets = (
         // A blank declarative Surface still bubbles through UnitView so normal
         // Art-node dragging remains available.
         return presentation;
+    };
+
+    const resolveSelectableTarget = (
+        target: Element,
+        clientX: number,
+        clientY: number,
+    ): Element | null => {
+        const direct = target.matches(SELECTABLE_SELECTOR)
+            ? target
+            : target.closest(SELECTABLE_SELECTOR);
+        if (direct && containsPoint(direct, clientX, clientY)) return direct;
+        const descendants = target.querySelectorAll<HTMLElement>(SELECTABLE_SELECTOR);
+        for (let index = descendants.length - 1; index >= 0; index -= 1) {
+            if (containsPoint(descendants[index], clientX, clientY)) return descendants[index];
+        }
+        return null;
     };
 
     const resolveEditableSyntheticControl = (target: EventTarget | null): Element | null => {
@@ -137,11 +164,19 @@ export const createOverlaySyntheticTargets = (
     ): EventTarget | null => {
         const rawTarget = elementFromPoint(clientX, clientY) as EventTarget | null;
         if (!rawTarget || isOverlayRootTarget(rawTarget, appMain)) {
+            // Transparent native-overlay samples can collapse to #app-main even
+            // when a bounded OCR text node is visibly under the pointer. Recover
+            // selectable descendants only for discrete/fallback hit tests so raw
+            // hover streams retain their constant-time path.
+            const selectable = allowFallback && appMain
+                ? resolveSelectableTarget(appMain, clientX, clientY)
+                : null;
+            if (selectable) return selectable;
             return allowFallback ? appMain ?? win : null;
         }
         if (rawTarget instanceof Element) {
             if (rawTarget.closest?.("[data-overlay-synthetic-target='direct']")) {
-                return rawTarget;
+                return resolveSelectableTarget(rawTarget, clientX, clientY) ?? rawTarget;
             }
             const stickerInteractionRoot =
                 rawTarget.closest?.("[data-sticker-interaction-root='true']") ?? null;

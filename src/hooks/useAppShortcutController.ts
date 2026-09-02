@@ -22,7 +22,7 @@ import { resolveShortcutContext } from "../services/captureState";
 import { logger } from "../services/logger";
 import type { ArtCapability } from "../services/protocol";
 import { syncService } from "../services/syncService";
-import { toggleSelectedStickerToolbar } from "../services/ocrShortcutRouting";
+import { toggleSelectedStickerToolbar } from "../services/stickerToolbarShortcutRouting";
 import { useShortcuts } from "./useShortcuts";
 
 type AppShortcutControllerDependencies = {
@@ -44,8 +44,6 @@ type AppShortcutControllerDependencies = {
     refreshCapabilities: () => Promise<void>;
     scheduleOverlayHitTestRefresh: () => void;
     spawnConnectedNode: (sourceId: string, artId: string) => string | null;
-    toggleOcrAction: (unitId: string) => Promise<void>;
-    toggleTranslationAction: (unitId: string) => Promise<void>;
 };
 
 /** Binds product shortcut actions while leaving their domain commands injectable. */
@@ -207,33 +205,6 @@ export function useAppShortcutController(dependencies: AppShortcutControllerDepe
                     "quick-art-node-created",
                     `source=${sourceId} node=${nodeId} requested=${artId} resolved=${capability.id}`,
                 );
-            },
-            onToggleOcr: async () => {
-                const id = selectedStickerId();
-                if (!id) return;
-                logger.debug("Toggling OCR visibility...");
-                uiActions.clearOcrInteractiveUnit(id);
-                await dependencies.toggleOcrAction(id);
-
-                // Alt+2 is the public OCR entry point. Once recognition has
-                // completed (or an existing result has been shown), make the
-                // visible blocks interactive immediately; requiring a second
-                // Ctrl+E press left the native hit rectangles unregistered.
-                // Re-check selection after the await so a slow OCR request can
-                // never activate a different sticker that the user selected.
-                if (selectedStickerId() !== id) return;
-                const unit = graphStore.units.find((candidate) => candidate.id === id);
-                if (unit?.data.ocrResult && !unit.data.hideOcr) {
-                    uiActions.setOcrInteractiveUnit(id);
-                } else {
-                    uiActions.clearOcrInteractiveUnit(id);
-                }
-                dependencies.scheduleOverlayHitTestRefresh();
-            },
-            onToggleTranslation: async () => {
-                const id = selectedStickerId();
-                if (!id) return;
-                await dependencies.toggleTranslationAction(id);
             },
         },
     });

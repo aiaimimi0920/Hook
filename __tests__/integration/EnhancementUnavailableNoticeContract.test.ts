@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
 describe("enhancement unavailable notice contract", () => {
-    const unitActionsSource = readSource("src/hooks/useUnitActions.ts");
     const unitOverlaysSource = readSource("src/components/UnitVisualOverlays.tsx");
     const unitNoticesSource = readSource("src/components/UnitEnhancementNotices.tsx");
     const canvasLayersSource = readSource("src/components/CanvasOverlayLayers.tsx");
@@ -13,11 +12,14 @@ describe("enhancement unavailable notice contract", () => {
     const appSource = readSource("src/app.tsx");
     const uiStoreSource = readSource("src/store/uiStore.ts");
     const noticeQueueSource = readSource("src/services/enhancementNoticeQueue.ts");
+    const extensionRouterSource = readSource("src/services/extensionCommandRouter.ts");
+    const extensionNoticeSource = readSource("src/services/extensionNoticeRegistry.ts");
 
-    it("does not use native alert for missing OCR or translation enhancements because Hook click-through blocks it", () => {
-        expect(unitActionsSource).not.toContain("window.alert");
-        expect(unitActionsSource).not.toContain(".alert(");
-        expect(unitActionsSource).toContain("uiActions.showEnhancementNotice");
+    it("routes extension notices through the unit-bound notice host", () => {
+        expect(extensionRouterSource).toContain('effect.type === "notice.show"');
+        expect(extensionRouterSource).toContain("extensionNoticeRegistry.show(scopeId, unitId, payload)");
+        expect(extensionNoticeSource).toContain("uiActions.showEnhancementNotice(unitId");
+        expect(extensionNoticeSource).not.toContain("window.alert");
         expect(noticeQueueSource).toContain('"Loom"');
     });
 
@@ -48,8 +50,8 @@ describe("enhancement unavailable notice contract", () => {
         expect(canvasLayersSource).toContain('id="unit-notices-layer"');
         expect(canvasLayersSource).toContain("z-[2000000]");
         expect(unitOverlaysSource).not.toContain("hook-enhancement-notice-stack");
-        expect(unitOverlaysSource).toContain("charCodeAt(0)");
-        expect(unitOverlaysSource).toContain("message: `已复制文本：${summarizeCopiedOcrText(text)}`");
+        expect(extensionNoticeSource).toContain("payload.message.slice(0, 2048)");
+        expect(extensionNoticeSource).toContain('source: { namespace: "extension", id: scopeId }');
         expect(noticeQueueSource).toContain("MAX_ENHANCEMENT_NOTICES_PER_UNIT");
         expect(noticeQueueSource).toContain("appendEnhancementNotice");
     });

@@ -15,7 +15,14 @@ import {
     SurfaceNode,
     SurfaceSnapshot,
 } from "../services/surfaceProtocol";
+import {
+    safeSurfaceCssColor,
+    safeSurfaceCssLength,
+    surfaceNodeStyle,
+} from "./declarativeSurfaceStyle";
 import "./DeclarativeSurface.css";
+
+export { safeSurfaceCssColor, safeSurfaceCssLength, surfaceNodeStyle };
 
 type SurfaceProps = Record<string, unknown>;
 
@@ -31,6 +38,8 @@ interface Props {
 
 interface NodeProps extends Props {
     node: SurfaceNode;
+    surfaceValues: () => Readonly<Record<string, string>>;
+    updateSurfaceValue: (nodeId: string, value: string) => void;
 }
 
 const asRecord = (value: unknown): SurfaceProps =>
@@ -49,133 +58,58 @@ const numberProp = (props: SurfaceProps, key: string, fallback = 0): number =>
 const booleanProp = (props: SurfaceProps, key: string, fallback = false): boolean =>
     typeof props[key] === "boolean" ? props[key] as boolean : fallback;
 
-const eventPayload = (values: SurfaceProps): unknown => values.eventPayload ?? {};
-
-const MAX_SURFACE_PIXEL_LENGTH = 8_192;
-const MAX_SURFACE_RELATIVE_LENGTH = 1_000;
-
-export const safeSurfaceCssLength = (value: unknown): string | undefined => {
-    if (typeof value === "number" && Number.isFinite(value)) {
-        return value >= 0 && value <= MAX_SURFACE_PIXEL_LENGTH ? `${value}px` : undefined;
+const eventPayload = (
+    values: SurfaceProps,
+    surfaceValues: Readonly<Record<string, string>>,
+): unknown => {
+    const configured = values.eventPayload ?? {};
+    if (!booleanProp(values, "includeSurfaceValues") || Object.keys(surfaceValues).length === 0) {
+        return configured;
     }
-    if (typeof value !== "string") return undefined;
-    const length = value.trim();
-    if (length === "auto" || length === "0") return length;
-    const match = /^(\d+(?:\.\d+)?)(px|%|rem|em|vw|vh|cqw|cqh|fr)$/.exec(length);
-    if (!match) return undefined;
-    const magnitude = Number(match[1]);
-    if (!Number.isFinite(magnitude)) return undefined;
-    const maximum = match[2] === "px" ? MAX_SURFACE_PIXEL_LENGTH : MAX_SURFACE_RELATIVE_LENGTH;
-    return magnitude <= maximum ? length : undefined;
+    return typeof configured === "object" && configured !== null && !Array.isArray(configured)
+        ? { ...configured as SurfaceProps, surfaceValues }
+        : { configured, surfaceValues };
 };
-
-const SAFE_NAMED_COLORS = new Set([
-    "black",
-    "white",
-    "red",
-    "green",
-    "blue",
-    "gray",
-    "grey",
-    "yellow",
-    "orange",
-    "purple",
-    "pink",
-    "transparent",
-    "currentcolor",
-]);
-
-export const safeSurfaceCssColor = (value: unknown): string | undefined => {
-    if (typeof value !== "string") return undefined;
-    const color = value.trim();
-    if (color.length === 0 || color.length > 64 || /[;{}!]|url\(|expression\(/i.test(color)) {
-        return undefined;
+const MAX_SURFACE_DRAFT_FIELDS = 16;
+const MAX_SURFACE_DRAFT_CHARACTERS = 64 * 1024;
+const MAX_SURFACE_DRAFT_VALUE_BYTES = 48 * 1024;
+const MAX_SURFACE_DRAFT_TOTAL_BYTES = 48 * 1024;
+const utf8Bytes = (value: string): number => new TextEncoder().encode(value).byteLength;
+const truncateUtf8 = (value: string, maximumBytes: number): string => {
+    if (utf8Bytes(value) <= maximumBytes) return value;
+    let low = 0;
+    let high = value.length;
+    while (low < high) {
+        const middle = Math.ceil((low + high) / 2);
+        if (utf8Bytes(value.slice(0, middle)) <= maximumBytes) low = middle;
+        else high = middle - 1;
     }
-    if (/^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color)) {
-        return color;
-    }
-    if (/^(?:rgb|rgba|hsl|hsla)\([0-9.,%+\-\s]+\)$/i.test(color)) {
-        return color;
-    }
-    if (/^var\(--[a-z0-9-]{1,48}\)$/i.test(color)) return color;
-    return SAFE_NAMED_COLORS.has(color.toLowerCase()) ? color : undefined;
+    return value.slice(0, low);
 };
+const SURFACE_POINTER_OWNER_SELECTOR = [
+    "[data-surface-pointer-owner='true']",
+    "[data-surface-selectable-text='true']",
+    "button",
+    "input",
+    "textarea",
+    "select",
+    "label",
+    "[contenteditable='true']",
+].join(",");
 
-const safeAlignment = (value: unknown): JSX.CSSProperties["align-items"] =>
-    typeof value === "string" && ["stretch", "flex-start", "center", "flex-end", "baseline"].includes(value)
-        ? value as JSX.CSSProperties["align-items"]
-        : undefined;
+const ownsSurfacePointerInteraction = (target: EventTarget | null): boolean =>
+    target instanceof Element && target.closest(SURFACE_POINTER_OWNER_SELECTOR) !== null;
 
-const safeJustification = (value: unknown): JSX.CSSProperties["justify-content"] =>
-    typeof value === "string" && [
-        "flex-start",
-        "center",
-        "flex-end",
-        "space-between",
-        "space-around",
-        "space-evenly",
-    ].includes(value)
-        ? value as JSX.CSSProperties["justify-content"]
-        : undefined;
+const ownsSelectableTextInteraction = (target: EventTarget | null): boolean =>
+    target instanceof Element
+    && target.closest("[data-surface-selectable-text='true']") !== null;
 
-const boundedNumber = (value: unknown, minimum: number, maximum: number): number | undefined =>
-    typeof value === "number" && Number.isFinite(value)
-        ? Math.min(maximum, Math.max(minimum, value))
-        : undefined;
-
-export const surfaceNodeStyle = (node: SurfaceNode): JSX.CSSProperties => {
-    const layout = asRecord(node.layout);
-    const style = asRecord(node.style);
-    const direction = node.type === "row" ? "row" : "column";
-    const position = layout.position === "absolute" || layout.position === "relative"
-        ? layout.position
-        : undefined;
-    return {
-        display: node.type === "stack" ? "grid" : "flex",
-        "flex-direction": direction,
-        "align-items": safeAlignment(layout.align) ?? "stretch",
-        "justify-content": safeJustification(layout.justify) ?? "flex-start",
-        gap: safeSurfaceCssLength(layout.gap),
-        padding: safeSurfaceCssLength(layout.padding),
-        width: safeSurfaceCssLength(layout.width),
-        height: safeSurfaceCssLength(layout.height),
-        "min-width": safeSurfaceCssLength(layout.minWidth),
-        "min-height": safeSurfaceCssLength(layout.minHeight),
-        "max-width": safeSurfaceCssLength(layout.maxWidth),
-        "max-height": safeSurfaceCssLength(layout.maxHeight),
-        ...(position ? {
-            position,
-            left: safeSurfaceCssLength(layout.left),
-            top: safeSurfaceCssLength(layout.top),
-            right: safeSurfaceCssLength(layout.right),
-            bottom: safeSurfaceCssLength(layout.bottom),
-        } : {}),
-        "flex-grow": boundedNumber(layout.grow, 0, 100),
-        "overflow-x": layout.overflowX === "auto" || layout.overflowX === "hidden"
-            ? layout.overflowX
-            : undefined,
-        "overflow-y": layout.overflowY === "auto" || layout.overflowY === "hidden"
-            ? layout.overflowY
-            : undefined,
-        color: safeSurfaceCssColor(style.color),
-        background: safeSurfaceCssColor(style.background),
-        "border-color": safeSurfaceCssColor(style.borderColor),
-        "border-width": safeSurfaceCssLength(style.borderWidth),
-        "border-style": style.borderWidth === undefined ? undefined : "solid",
-        "border-radius": safeSurfaceCssLength(style.borderRadius),
-        opacity: boundedNumber(style.opacity, 0, 1),
-        "font-size": safeSurfaceCssLength(style.fontSize),
-        "line-height": safeSurfaceCssLength(style.lineHeight),
-        "font-weight": boundedNumber(style.fontWeight, 100, 900),
-        "white-space": typeof style.whiteSpace === "string"
-            && ["normal", "nowrap", "pre", "pre-wrap"].includes(style.whiteSpace)
-            ? style.whiteSpace as JSX.CSSProperties["white-space"]
-            : undefined,
-        "text-align": style.textAlign === "left" || style.textAlign === "center" || style.textAlign === "right"
-            ? style.textAlign
-            : undefined,
-        "grid-area": node.type === "stack" ? "1 / 1" : undefined,
-    };
+const hasSelectableTextSelection = (target: EventTarget | null): boolean => {
+    if (!(target instanceof Element)) return false;
+    const selectable = target.closest<HTMLElement>("[data-surface-selectable-text='true']");
+    const selection = selectable?.ownerDocument.defaultView?.getSelection();
+    if (!selectable || !selection || selection.isCollapsed || !selection.toString()) return false;
+    return selectable.contains(selection.anchorNode) || selectable.contains(selection.focusNode);
 };
 
 const newEventId = (): string => {
@@ -231,7 +165,11 @@ const SurfaceChildren: Component<NodeProps> = (props) => (
 const SurfaceTextInput: Component<NodeProps & { type: "text" | "number" }> = (props) => {
     const values = () => asRecord(props.node.props);
     const [value, setValue] = createSignal(stringProp(values(), "value"));
-    createEffect(() => setValue(stringProp(values(), "value")));
+    createEffect(() => {
+        const next = stringProp(values(), "value");
+        setValue(next);
+        props.updateSurfaceValue(props.node.id, next);
+    });
     return (
         <input
             class="surface-control surface-input"
@@ -245,6 +183,7 @@ const SurfaceTextInput: Component<NodeProps & { type: "text" | "number" }> = (pr
             step={props.type === "number" ? numberProp(values(), "step", 1) : undefined}
             onInput={(event) => {
                 setValue(event.currentTarget.value);
+                props.updateSurfaceValue(props.node.id, event.currentTarget.value);
                 emitNodeEvent(props, "input", {
                     value: props.type === "number"
                         ? event.currentTarget.valueAsNumber
@@ -282,8 +221,24 @@ const SurfaceNodeView: Component<NodeProps> = (props) => {
                     <div
                         class={`surface-node surface-${props.node.type}`}
                         data-surface-node-id={props.node.id}
+                        data-surface-pointer-owner={Object.values(props.node.events ?? {}).some(Boolean)
+                            && !booleanProp(values(), "hostPointerPassthrough")
+                            ? "true"
+                            : undefined}
                         style={surfaceNodeStyle(props.node)}
-                        onClick={() => emitNodeEvent(props, "click", eventPayload(values()))}
+                        onClick={(event) => {
+                            // A native selection gesture must not turn into the
+                            // container's whole-block click action on pointer-up.
+                            if (hasSelectableTextSelection(event.target)) {
+                                event.stopPropagation();
+                                return;
+                            }
+                            emitNodeEvent(
+                                props,
+                                "click",
+                                eventPayload(values(), props.surfaceValues()),
+                            );
+                        }}
                         {...accessibleProps(props.node)}
                     >
                         <SurfaceChildren {...props} />
@@ -293,7 +248,14 @@ const SurfaceNodeView: Component<NodeProps> = (props) => {
                     <span
                         class="surface-text"
                         data-surface-node-id={props.node.id}
-                        style={surfaceNodeStyle(props.node)}
+                        data-surface-selectable-text={booleanProp(values(), "selectable") ? "true" : undefined}
+                        style={{
+                            ...surfaceNodeStyle(props.node),
+                            ...(booleanProp(values(), "selectable") ? {
+                                "user-select": "text",
+                                "-webkit-user-select": "text",
+                            } : {}),
+                        }}
                         {...accessibleProps(props.node)}
                     >
                         {stringProp(values(), "text")}
@@ -329,9 +291,14 @@ const SurfaceNodeView: Component<NodeProps> = (props) => {
                         data-surface-node-id={props.node.id}
                         type="button"
                         disabled={booleanProp(values(), "disabled") || props.interactive === false}
+                        style={surfaceNodeStyle(props.node)}
                         onClick={(event) => {
                             event.stopPropagation();
-                            emitNodeEvent(props, "click", eventPayload(values()));
+                            emitNodeEvent(
+                                props,
+                                "click",
+                                eventPayload(values(), props.surfaceValues()),
+                            );
                         }}
                         {...accessibleProps(props.node)}
                     >
@@ -345,16 +312,7 @@ const SurfaceNodeView: Component<NodeProps> = (props) => {
                     <SurfaceTextInput {...props} type="number" />
                 </Match>
                 <Match when={props.node.type === "textarea"}>
-                    <textarea
-                        class="surface-control surface-textarea"
-                        data-surface-node-id={props.node.id}
-                        value={stringProp(values(), "value")}
-                        placeholder={stringProp(values(), "placeholder")}
-                        disabled={booleanProp(values(), "disabled") || props.interactive === false}
-                        onInput={(event) => emitNodeEvent(props, "input", { value: event.currentTarget.value })}
-                        onChange={(event) => emitNodeEvent(props, "change", { value: event.currentTarget.value })}
-                        {...accessibleProps(props.node)}
-                    />
+                    <SurfaceTextArea {...props} />
                 </Match>
                 <Match when={props.node.type === "slider"}>
                     <input
@@ -420,8 +378,65 @@ const SurfaceNodeView: Component<NodeProps> = (props) => {
     );
 };
 
-export const DeclarativeSurface: Component<Props> = (props) => (
-    <div
+const SurfaceTextArea: Component<NodeProps> = (props) => {
+    const values = () => asRecord(props.node.props);
+    const [value, setValue] = createSignal(stringProp(values(), "value"));
+    createEffect(() => {
+        const next = stringProp(values(), "value");
+        setValue(next);
+        props.updateSurfaceValue(props.node.id, next);
+    });
+    const rows = () => Math.trunc(Math.min(20, Math.max(1, numberProp(values(), "rows", 3))));
+    const maxLength = () => Math.trunc(Math.min(
+        MAX_SURFACE_DRAFT_CHARACTERS,
+        Math.max(1, numberProp(values(), "maxLength", MAX_SURFACE_DRAFT_CHARACTERS)),
+    ));
+    return (
+        <textarea
+            class="surface-control surface-textarea"
+            data-surface-node-id={props.node.id}
+            data-surface-selectable-text="true"
+            value={value()}
+            rows={rows()}
+            maxLength={maxLength()}
+            placeholder={stringProp(values(), "placeholder")}
+            disabled={booleanProp(values(), "disabled") || props.interactive === false}
+            style={{
+                ...surfaceNodeStyle(props.node),
+                "user-select": "text",
+                "-webkit-user-select": "text",
+                "scrollbar-gutter": "stable",
+            }}
+            onInput={(event) => {
+                const next = event.currentTarget.value;
+                setValue(next);
+                props.updateSurfaceValue(props.node.id, next);
+                emitNodeEvent(props, "input", { value: next });
+            }}
+            onChange={(event) => emitNodeEvent(props, "change", { value: event.currentTarget.value })}
+            onWheel={(event) => event.stopPropagation()}
+            {...accessibleProps(props.node)}
+        />
+    );
+};
+
+export const DeclarativeSurface: Component<Props> = (props) => {
+    const [surfaceValues, setSurfaceValues] = createSignal<Record<string, string>>({});
+    const updateSurfaceValue = (nodeId: string, value: string): void => {
+        setSurfaceValues((current) => {
+            if (!Object.prototype.hasOwnProperty.call(current, nodeId)
+                && Object.keys(current).length >= MAX_SURFACE_DRAFT_FIELDS) return current;
+            const otherBytes = Object.entries(current).reduce((total, [key, existing]) =>
+                key === nodeId ? total : total + utf8Bytes(existing), 0);
+            const availableBytes = Math.max(0, MAX_SURFACE_DRAFT_TOTAL_BYTES - otherBytes);
+            const bounded = truncateUtf8(
+                value.slice(0, MAX_SURFACE_DRAFT_CHARACTERS),
+                Math.min(MAX_SURFACE_DRAFT_VALUE_BYTES, availableBytes),
+            );
+            return current[nodeId] === bounded ? current : { ...current, [nodeId]: bounded };
+        });
+    };
+    return <div
         class="declarative-surface"
         data-surface-instance-id={props.snapshot.instanceId}
         data-surface-attachment-id={props.snapshot.attachmentId}
@@ -429,8 +444,13 @@ export const DeclarativeSurface: Component<Props> = (props) => (
         data-surface-unit-id={props.unitId}
         data-overlay-synthetic-target="direct"
         onPointerDown={(event) => {
-            if (props.interactive === false) return;
+            // Blank Surface space remains part of the unit drag target. Only
+            // host-rendered controls and declared actions claim pointer input.
+            if (props.interactive === false || !ownsSurfacePointerInteraction(event.target)) return;
             event.stopPropagation();
+            // Refocusing the native overlay window while the browser is
+            // establishing a selection cancels text drag selection in WebView2.
+            if (ownsSelectableTextInteraction(event.target)) return;
             const editable = event.target instanceof Element
                 ? event.target.closest<HTMLElement>("input, textarea, select, [contenteditable='true']")
                 : null;
@@ -440,12 +460,21 @@ export const DeclarativeSurface: Component<Props> = (props) => (
             });
         }}
         onMouseDown={(event) => {
-            if (props.interactive !== false) event.stopPropagation();
+            if (props.interactive !== false && ownsSurfacePointerInteraction(event.target)) {
+                event.stopPropagation();
+            }
         }}
         onDblClick={(event) => {
-            if (props.interactive !== false) event.stopPropagation();
+            if (props.interactive !== false && ownsSurfacePointerInteraction(event.target)) {
+                event.stopPropagation();
+            }
         }}
     >
-        <SurfaceNodeView {...props} node={props.snapshot.scene} />
+        <SurfaceNodeView
+            {...props}
+            node={props.snapshot.scene}
+            surfaceValues={surfaceValues}
+            updateSurfaceValue={updateSurfaceValue}
+        />
     </div>
-);
+};

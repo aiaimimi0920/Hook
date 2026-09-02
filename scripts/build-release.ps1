@@ -90,16 +90,30 @@ if ($preparedMode) {
         Copy-Item -LiteralPath $source -Destination (Join-Path $portableDir $name)
     }
 } else {
-    & (Join-Path $PSScriptRoot "build-local-hook-exe.ps1") -OutputDir $portableDir -RequireCleanSource -Force
+    & (Join-Path $PSScriptRoot "build-local-hook-exe.ps1") `
+        -OutputDir $portableDir `
+        -RequireCleanSource:$RequireCleanSource.IsPresent `
+        -Force
 }
 $gitHead = Get-HookGitText -Arguments @("rev-parse", "HEAD")
 if ($gitHead -notmatch '^[0-9a-f]{40}$') { throw "Cannot resolve the Hook source commit for provenance." }
 if ($preparedMode) {
     $preparedProvenance = Read-HookBoundedText -Path $portableProvenance -MaxBytes 1MB | ConvertFrom-Json
     if ([string]$preparedProvenance.app -cne "Hook" -or
-        [string]$preparedProvenance.gitHead -cne $gitHead -or
-        [bool]$preparedProvenance.gitDirty -ne $false) {
-        throw "Prepared Hook provenance does not match the clean Hook source commit."
+        [string]$preparedProvenance.gitHead -cne $gitHead) {
+        throw "Prepared Hook provenance does not match the Hook source commit."
+    }
+    if ($null -eq $sourceDirty -or [bool]$preparedProvenance.gitDirty -ne [bool]$sourceDirty) {
+        throw "Prepared Hook provenance does not match the current worktree state."
+    }
+    if ($RequireCleanSource -and [bool]$preparedProvenance.gitDirty -ne $false) {
+        throw "Prepared Hook provenance is not clean."
+    }
+    $preparedDigest = Get-HookReleaseDigest -Path $portableExe
+    if ([string]$preparedProvenance.artifact.name -cne "hook.exe" -or
+        [int64]$preparedProvenance.artifact.bytes -ne [int64]$preparedDigest.bytes -or
+        [string]$preparedProvenance.artifact.sha256 -cne [string]$preparedDigest.sha256) {
+        throw "Prepared Hook executable does not match its provenance artifact record."
     }
 }
 $compatibilityRecord = $null

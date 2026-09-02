@@ -5,6 +5,7 @@ import {
     resetOverlaySyntheticState,
 } from "./overlaySyntheticState";
 import { createOverlaySyntheticTargets } from "./overlaySyntheticTargets";
+import { createOverlaySyntheticTextSelection } from "./overlaySyntheticTextSelection";
 import {
     JAVASCRIPT_SURFACE_POINTER_EVENT,
     OVERLAY_SYNTHETIC_CLICK_MAX_DISTANCE,
@@ -35,6 +36,11 @@ export function createOverlaySyntheticDispatcher(
     const now = deps.now ?? (() => Date.now());
     const state = createOverlaySyntheticState();
     const targets = createOverlaySyntheticTargets(deps, win);
+    const textSelection = createOverlaySyntheticTextSelection(doc, win);
+    const resetPointerSession = () => {
+        resetOverlaySyntheticState(state);
+        textSelection.reset();
+    };
 
     const relayJavaScriptSurfacePointer = (
         target: EventTarget,
@@ -109,6 +115,7 @@ export function createOverlaySyntheticDispatcher(
         const pinDragTargetToAppMain =
             type === "mousemove"
             && state.primaryButtonDown
+            && !textSelection.active
             && !!deps.getDraggingStickerId();
         let target: EventTarget | null = pinDragTargetToAppMain
             ? appMain ?? win
@@ -119,14 +126,15 @@ export function createOverlaySyntheticDispatcher(
             type === "mousedown"
             && !!payload.shiftKey
             && targets.isStickerInteractionRootTarget(target);
+        let selectionOwnsClick = false;
 
         if (type === "mousedown") {
             if (shouldBypassSyntheticPointerCapture) {
                 state.pointerDownTarget = null;
                 state.pointerDownPoint = null;
-                resetOverlaySyntheticState(state);
+                resetPointerSession();
             } else {
-                resetOverlaySyntheticState(state);
+                resetPointerSession();
                 state.pointerTarget = target;
                 state.pointerDownTarget = target;
                 state.pointerDownInteractiveTarget = targets.resolveInteractiveSyntheticTarget(target);
@@ -148,6 +156,7 @@ export function createOverlaySyntheticDispatcher(
 
         if (!target) {
             dispatchOverlaySyntheticHoverTransition(state, null, pointerInit, baseInit);
+            if (type === "mouseup") resetPointerSession();
             return;
         }
         if (
@@ -157,13 +166,34 @@ export function createOverlaySyntheticDispatcher(
         ) {
             dispatchOverlaySyntheticHoverTransition(state, target, pointerInit, baseInit);
         }
-        if (type === "mousedown") targets.focusEditableSyntheticControl(target);
+        if (type === "mousedown") {
+            targets.focusEditableSyntheticControl(target);
+            if (textSelection.begin(target, clientX, clientY) && textSelection.target) {
+                // Document-wide OCR hit recovery may find a selectable span even
+                // when native hit testing reported the unit root. The recovered
+                // text must own the whole stream; dispatching down to the unit
+                // would start sticker drag alongside browser text selection.
+                target = textSelection.target;
+                if (state.pointerActive) {
+                    state.pointerTarget = target;
+                    state.pointerDownTarget = target;
+                    state.pointerDownInteractiveTarget =
+                        targets.resolveInteractiveSyntheticTarget(target);
+                }
+                targets.focusEditableSyntheticControl(target);
+            }
+        }
+        if (type === "mousemove" && state.primaryButtonDown) {
+            textSelection.update(clientX, clientY);
+        }
+        if (type === "mouseup") selectionOwnsClick = textSelection.finish(clientX, clientY);
+        if (type === "wheel") textSelection.scroll(target, payload.deltaY ?? 0);
 
         const relayedToJavaScriptSurface = relayJavaScriptSurfacePointer(target, type, payload);
         if (relayedToJavaScriptSurface) {
             // A Surface owns the complete stream after the sample crosses its
             // iframe boundary; a second parent-DOM stream would race it.
-            if (type === "mouseup") resetOverlaySyntheticState(state);
+            if (type === "mouseup") resetPointerSession();
             return;
         }
 
@@ -199,6 +229,8 @@ export function createOverlaySyntheticDispatcher(
                     clientY - state.pointerDownPoint.y,
                 ) <= OVERLAY_SYNTHETIC_INTERACTIVE_CLICK_MAX_DISTANCE;
             if (
+                !selectionOwnsClick
+                &&
                 state.pointerDownTarget
                 && state.pointerDownTarget === target
                 && state.pointerDownPoint
@@ -229,7 +261,7 @@ export function createOverlaySyntheticDispatcher(
                     state.lastClickAt = clickTime;
                 }
             }
-            resetOverlaySyntheticState(state);
+            resetPointerSession();
         }
     };
 
@@ -260,6 +292,7 @@ export function createOverlaySyntheticDispatcher(
 
         state.moveRelayActive = true;
         try {
+            textSelection.update(event.clientX, event.clientY);
             const relayedToJavaScriptSurface = relayJavaScriptSurfacePointer(
                 state.pointerTarget,
                 "mousemove",
@@ -322,9 +355,12 @@ export function createOverlaySyntheticDispatcher(
         dispatch: dispatchSyntheticOverlayMouseEvent,
         relayPointerMove: relayOverlaySyntheticPointerMove,
         clearHover: clearSyntheticHover,
-        reset: () => resetOverlaySyntheticState(state),
+        reset: resetPointerSession,
         get moveRelayActive() {
             return state.moveRelayActive;
+        },
+        get textSelectionActive() {
+            return textSelection.active;
         },
     };
 }

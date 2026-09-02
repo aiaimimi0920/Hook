@@ -19,12 +19,13 @@ describe("capture shortcut de-duplication", () => {
 
   it("registers extension global shortcuts without hardcoding OCR", () => {
     const rustSource = readHookLibRustSources();
-    const runtimeSource = readSource("src-tauri/src/native/app_runtime.rs");
+    const runtimeSource = readHookLibRustSources();
 
     expect(rustSource).toContain("fn set_extension_shortcuts(");
     expect(rustSource).toContain("fn extension_shortcut_payload(");
     expect(rustSource).toContain("extension_global_shortcut_is_registered(vk_code, modifiers)");
     expect(runtimeSource).not.toContain('"commandId": "hook.core.ocr"');
+    expect(runtimeSource).not.toContain("trigger_ocr_event");
     expect(runtimeSource).not.toContain("register_ctrl2_success");
   });
 

@@ -52,7 +52,14 @@ describe("ExtensionToolbarItems", () => {
 
     it("renders manifest groups as one toolbar tab with command children", async () => {
         applyExtensionPresentationSnapshot(snapshot);
-        const execute = vi.spyOn(extensionCommandRouter, "execute").mockResolvedValue({});
+        const execute = vi.spyOn(extensionCommandRouter, "execute").mockResolvedValue({
+            protocol: "loom.extension.v1",
+            apiVersion: "1.0",
+            requestId: "toolbar-test",
+            status: "succeeded",
+            output: null,
+            effects: [],
+        });
         const host = document.createElement("div");
         document.body.append(host);
         const dispose = render(() => <ExtensionToolbarItems open={true} onOpenChange={() => undefined} />, host);

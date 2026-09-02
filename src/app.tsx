@@ -64,9 +64,8 @@ import {
 import type { BootProfile } from "./services/bootProfile";
 import { stickerContextMenuController } from "./services/stickerContextMenuController";
 import {
-    clearOcrInteractionIfSelectionChanged,
     toggleSelectedStickerToolbar,
-} from "./services/ocrShortcutRouting";
+} from "./services/stickerToolbarShortcutRouting";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "./types/appSettings";
 
 // Hooks
@@ -161,7 +160,7 @@ export default function App() {
       notifyAutoLongCaptureWheel,
       prepareCaptureWindowTargets,
   } = useSelection(() => clearCaptureHover());
-  const { handleParamChange, handleDoubleClick, spawnConnectedNode, performOcrAction, toggleOcrAction, toggleTranslationAction, propagateFromUnit } = useUnitActions();
+  const { handleParamChange, handleDoubleClick, spawnConnectedNode, propagateFromUnit } = useUnitActions();
   const { startLinking, handleLinkDrop, handleInputLinkDrag, handleLinkHover } = useLinking({
       onLinkCreated: (sourceId) => {
           graphStore.actions.propagateStickerEditsFrom(sourceId);
@@ -237,7 +236,7 @@ export default function App() {
       toggleStickerToolbarVisibility,
       refreshCapabilities,
       scheduleOverlayHitTestRefresh,
-      spawnConnectedNode, toggleOcrAction, toggleTranslationAction,
+      spawnConnectedNode,
   });
 
   const {
@@ -276,8 +275,6 @@ export default function App() {
       stickerContextMenuController.close();
   });
 
-  createEffect(() => clearOcrInteractionIfSelectionChanged());
-
   const {
       handleGlobalMouseDown,
       handleGlobalMouseMove,
@@ -304,7 +301,6 @@ export default function App() {
       },
       setVoiceSettings,
       setAppSettings,
-      performOcrAction,
       registerAppCommandListeners: {
           beginCaptureSelection,
           finishAutoLongCaptureSession,
@@ -443,7 +439,6 @@ export default function App() {
                 uiActions.clearStickerHistory(id);
                 uiActions.clearUnitUiState(id);
                 uiActions.dismissEnhancementNotice(id);
-                uiActions.clearOcrInteractiveUnit(id);
                 if (selectedStickerId() === id) {
                     uiActions.hideStickerToolbar();
                 }

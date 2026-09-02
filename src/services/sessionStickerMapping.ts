@@ -17,6 +17,7 @@ import { deriveUnitExecutionConfig } from "./nodeExecutionConfig";
 import { findArtCapability } from "./artCapabilityLookup";
 import { sanitizePersistedUnitExtensionState } from "./unitExtensionValidation";
 import { migrateLegacyOcrResultToAttachment } from "./legacyOcrAttachmentMigration";
+import { migrateLegacyBarcodeResultToAttachment } from "./legacyBarcodeAttachmentMigration";
 
 export interface SessionStickerMappingDeps {
     /** Art capabilities used to resolve node ports and execution defaults. */
@@ -65,10 +66,16 @@ export const mapSessionStickerToUnit = (
         explicitConfig: sticker.executionConfig,
     });
     const extensionState = sanitizePersistedUnitExtensionState(sticker.extensionState);
-    const migration = migrateLegacyOcrResultToAttachment(
+    const extensionEnvelopeWasValid = sticker.extensionState == null || extensionState !== undefined;
+    const ocrMigration = migrateLegacyOcrResultToAttachment(
         sticker.ocrResult,
         extensionState,
-        sticker.extensionState == null || extensionState !== undefined,
+        extensionEnvelopeWasValid,
+    );
+    const barcodeMigration = migrateLegacyBarcodeResultToAttachment(
+        sticker.barcodeResult,
+        ocrMigration.extensionState,
+        extensionEnvelopeWasValid,
     );
 
     return {
@@ -106,9 +113,9 @@ export const mapSessionStickerToUnit = (
             filePath: sticker.filePath || undefined,
             rasterizedAnnotationLayerSrc: sticker.rasterizedAnnotationLayerSrc || undefined,
             outputs: sticker.outputs || undefined,
-            ocrResult: migration.ocrResult,
-            barcodeResult: sticker.barcodeResult || undefined,
-            extensionState: migration.extensionState,
+            ocrResult: ocrMigration.ocrResult,
+            barcodeResult: barcodeMigration.barcodeResult,
+            extensionState: barcodeMigration.extensionState,
             originWorkflowId: sticker.originWorkflowId || undefined,
             originNodeId: sticker.originNodeId || undefined,
             executionConfig,

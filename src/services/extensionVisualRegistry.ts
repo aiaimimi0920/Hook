@@ -14,7 +14,7 @@ const MAX_ATTACHMENT_SCENE_BYTES = 256 * 1024;
 const MAX_ATTACHMENT_SCENE_PATH_SEGMENTS = 8;
 const MAX_SCENE_DEPTH = 32;
 const ALLOWED_NODE_TYPES = new Set([
-    "row", "column", "stack", "text", "icon", "button", "progress", "divider", "spacer",
+    "row", "column", "stack", "text", "icon", "button", "textarea", "progress", "divider", "spacer",
 ]);
 
 export interface ExtensionVisualBounds {

@@ -150,4 +150,54 @@ describe("extension visual registry", () => {
             payload: { surfaceScene: { id: "unsafe", type: "html", props: { html: "<script>" } } },
         })).toMatchObject({ id: "fallback", type: "text" });
     });
+
+    it("preserves multiple same-command actions in a code-result popup", () => {
+        const dynamic = snapshot({ id: "fallback", type: "text", props: { text: "Unavailable" } });
+        const renderer = dynamic.contributions.renderers[0]!;
+        const payload = renderer.payload as { payload: Record<string, unknown> };
+        payload.payload.attachmentScenePath = "/surfaceScene";
+        applyExtensionVisualSnapshot(dynamic);
+        const descriptor = extensionVisualRegistry.rendererFor(attachment)!;
+        const action = (id: string, operation: string) => ({
+            id,
+            type: "button",
+            props: { label: operation, eventPayload: { operation, resultId: "code-1" } },
+            events: { click: "publisher.example/demo.copy" },
+        });
+
+        const codeScene = extensionVisualRegistry.sceneFor(descriptor, {
+            ...attachment,
+            payload: {
+                surfaceScene: {
+                    id: "codes",
+                    type: "stack",
+                    children: [
+                        action("center", "select"),
+                        {
+                            id: "popup",
+                            type: "column",
+                            children: [
+                                {
+                                    id: "code-editor",
+                                    type: "textarea",
+                                    props: { value: "https://example.com", rows: 3 },
+                                },
+                                action("copy-code", "copy"),
+                                action("open-code", "open"),
+                            ],
+                        },
+                    ],
+                },
+            },
+        });
+        expect(codeScene?.children?.[0].events?.click).toBe("publisher.example/demo.copy");
+        expect(codeScene?.children?.[1].children?.[0]).toMatchObject({
+            id: "code-editor",
+            type: "textarea",
+            props: { rows: 3 },
+        });
+        expect(codeScene?.children?.[1].children?.slice(1).map((node) => (
+            (node.props as { eventPayload: { operation: string } }).eventPayload.operation
+        ))).toEqual(["copy", "open"]);
+    });
 });

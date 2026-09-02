@@ -98,6 +98,7 @@ describe("app native capture action controller", () => {
             clearHover: vi.fn(),
             reset: vi.fn(),
             moveRelayActive: false,
+            textSelectionActive: false,
         };
         const dependencies = {
             activeBootProfile: () => null,

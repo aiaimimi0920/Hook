@@ -1,7 +1,6 @@
 import { Unit } from "../types/unit";
 import { ArtCapability } from "../services/protocol";
 import { findArtCapability } from "../services/artCapabilityLookup";
-import { BARCODE_OUTPUT_PORTS, hasBarcodeResults } from "../services/barcodeRecognition";
 
 /**
  * Calculates the Y position of a port on a unit.
@@ -26,11 +25,7 @@ export const calculatePortY = (
              if (ports) count = ports.length || 1;
          }
     } else {
-         // Stickers expose barcode outputs only after a successful local scan.
-         const outputs = [
-             { name: "output_image" },
-             ...(hasBarcodeResults(u.data.barcodeResult) ? BARCODE_OUTPUT_PORTS : []),
-         ];
+         const outputs = [{ name: "output_image" }];
          const found = isInput ? 0 : outputs.findIndex((port) => port.name === portName);
          index = found >= 0 ? found : 0;
          count = isInput ? 1 : outputs.length;

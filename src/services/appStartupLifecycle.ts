@@ -15,7 +15,6 @@ import { installErrorDiagnostics } from "./errorDiagnostics";
 import { registerExtensionLifecycle } from "./extensionLifecycle";
 import { sanitizeHistoryState } from "./historyModel";
 import { logger } from "./logger";
-import { registerLegacyOcrCommandAdapter } from "./legacyOcrCommandAdapter";
 import { refreshLoomHookCapabilitiesOnStartup } from "./loomHookStartup";
 import {
     restoredSessionNeedsCapabilityRefresh,
@@ -37,7 +36,6 @@ type AppStartupLifecycleDependencies = {
     setActiveBootProfile: (profile: BootProfile) => void;
     setVoiceSettings: Setter<VoiceSettingsSummary | null>;
     setAppSettings: Setter<AppSettings>;
-    performOcrAction: (unitId: string) => Promise<void>;
     registerAppCommandListeners: CommandListeners;
     registerAppPointerListeners: PointerListeners;
     registerAppArtControlListeners: ArtControlListeners;
@@ -175,7 +173,6 @@ export function useAppStartupLifecycle(dependencies: AppStartupLifecycleDependen
         if (dependencies.tauriRuntime) {
             // Register before handshake/session restore so no initial workflow
             // broadcast can race ahead of the frontend listeners.
-            await registerLegacyOcrCommandAdapter(cleanups, dependencies.performOcrAction);
             await registerExtensionLifecycle(cleanups, dependencies.tauriRuntime);
             await registerAppCommandListeners({
                 registry: cleanups,

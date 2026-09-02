@@ -143,7 +143,16 @@ export async function registerAppPointerListeners({
                     detail: event.payload,
                 }));
             } else if (draggingStickerId()) {
-                handleDragMove(toOverlayDragMouseEvent(event.payload));
+                // Sticker dragging and OCR text selection can share one native
+                // pointer stream. Keep selection updates ahead of the drag fast
+                // path when a selectable overlay owns the active gesture.
+                const textSelectionOwnsPointer = overlaySynthetic.textSelectionActive;
+                if (textSelectionOwnsPointer) {
+                    overlaySynthetic.dispatch("mousemove", event.payload);
+                }
+                if (!textSelectionOwnsPointer) {
+                    handleDragMove(toOverlayDragMouseEvent(event.payload));
+                }
             } else {
                 overlaySynthetic.dispatch("mousemove", event.payload);
             }

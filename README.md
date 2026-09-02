@@ -55,9 +55,14 @@ connected to local Art/Loom workflows without leaving the application.
 
 - node canvas, links, grouped parameters, and shader previews;
 - Loom capability discovery and Art execution/delivery;
-- optional Loom OCR for selected captured stickers (`Ctrl+2` always re-runs recognition and copies the complete result, `Alt+2` shows or hides the scaled result and enables click-to-copy, and `Ctrl+E` toggles the sticker toolbar without disabling OCR interaction); the toolbar's extensible `OCR` menu can copy the cached full result, while clicking a block copies only that block and shows a unit-scoped notice;
+- installable Loom Capability Plugins can contribute commands, shortcuts, toolbar
+  menus, result attachments, overlays, and unit-scoped notices without a Hook
+  business branch; the official OCR package contributes its own `Ctrl+2`,
+  `Alt+2`, copy-full-text, and click-to-copy behavior only while installed and enabled;
 - all sticker and Art notices stay bound to their owning unit, stack in its upper-right corner, and can be dismissed one at a time;
-- local QR/barcode recognition from the same `Ctrl+2` entry point, with bounded results, explicit URL opening, and `recognized_url`/`recognized_text`/`recognized_codes` graph outputs;
+- the official OCR package automatically performs bounded local QR/barcode
+  decoding during `Ctrl+2`, then contributes generic result attachments, green hit markers, and
+  click-to-copy behavior; Hook core contains no QR/barcode decoder or product branch;
 - optional Talk voice capture and Tea ticket creation through local capability
   bridges;
 - single-instance enforcement, tray residency, runtime diagnostics, and an

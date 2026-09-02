@@ -45,6 +45,6 @@ describe("overlay synthetic pointer reset contract", () => {
     expect(globalMouseUpBlock).toContain("overlaySynthetic.reset();");
     expect(facadeSource).toContain("return !tauriRuntime || isTrusted;");
     expect(dispatchBlock).toContain("if (type === \"mousedown\") {");
-    expect(dispatchBlock).toContain("resetOverlaySyntheticState(state);");
+    expect(dispatchBlock).toContain("resetPointerSession();");
   });
 });

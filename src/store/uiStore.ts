@@ -176,10 +176,6 @@ export const [globalAddNodeMenu, setGlobalAddNodeMenu] = createSignal<{
 
 export const [enhancementNotices, setEnhancementNotices] = createStore<Record<string, EnhancementNotice[] | undefined>>({});
 
-// Transient OCR interaction mode. It is deliberately not part of UnitData so
-// entering copy mode never dirties or persists the workflow document.
-export const [ocrInteractiveUnitId, setOcrInteractiveUnitId] = createSignal<string | null>(null);
-
 // Unit-Specific UI State (e.g. Panels open/close)
 // Key: Unit ID
 export const [unitUiState, setUnitUiState] = createStore<Record<string, { showActions: boolean; showParams: boolean }>>({});
@@ -311,15 +307,6 @@ export const uiActions = {
     dismissEnhancementNoticesByFeature: (unitId: string, feature: EnhancementNoticeFeature) => {
         setEnhancementNotices(unitId, (current) => removeEnhancementNoticesByFeature(current, feature));
     },
-    setOcrInteractiveUnit: (unitId: string | null) => {
-        setOcrInteractiveUnitId(unitId);
-    },
-    toggleOcrInteractiveUnit: (unitId: string) => {
-        setOcrInteractiveUnitId((current) => current === unitId ? null : unitId);
-    },
-    clearOcrInteractiveUnit: (unitId?: string) => {
-        if (!unitId || ocrInteractiveUnitId() === unitId) setOcrInteractiveUnitId(null);
-    },
     clearUnitUiState: (unitId: string) => {
         setUnitUiState(unitId, undefined!);
     },
@@ -334,10 +321,6 @@ export const uiActions = {
             Object.keys(unitUiState).forEach((unitId) => {
                 if (!unitIds.has(unitId)) setUnitUiState(unitId, undefined!);
             });
-            const activeOcrUnitId = ocrInteractiveUnitId();
-            if (activeOcrUnitId && !unitIds.has(activeOcrUnitId)) {
-                setOcrInteractiveUnitId(null);
-            }
         });
     },
     setStickerEditMode: (mode: StickerToolSettings["mode"]) => {

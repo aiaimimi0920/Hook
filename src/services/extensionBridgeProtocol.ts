@@ -31,7 +31,7 @@ export type ExtensionUnitAttachment = {
 };
 export type ExtensionEffect = {
     type: "attachment.upsert" | "attachment.remove" | "notice.show" | "clipboard.writeText"
-        | "overlay.invalidate" | "resource.publish";
+        | "external.openUrl" | "overlay.invalidate" | "resource.publish";
     payload: unknown;
 };
 export type ExtensionResult = {
@@ -58,6 +58,7 @@ const EXTENSION_EFFECT_TYPES = new Set<ExtensionEffect["type"]>([
     "attachment.remove",
     "notice.show",
     "clipboard.writeText",
+    "external.openUrl",
     "overlay.invalidate",
     "resource.publish",
 ]);

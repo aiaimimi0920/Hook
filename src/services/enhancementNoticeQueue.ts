@@ -1,5 +1,5 @@
 /** Bounded, unit-scoped notice inputs used by visual overlay surfaces. */
-export type EnhancementNoticeFeature = "OCR" | "Translation" | "Barcode" | "Loom" | "Interaction";
+export type EnhancementNoticeFeature = "OCR" | "Translation" | "Loom" | "Interaction";
 
 export interface EnhancementNotice {
     id: number;

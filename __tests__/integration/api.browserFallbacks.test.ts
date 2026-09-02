@@ -216,66 +216,6 @@ describe('Hook api browser persistence and fallbacks', () => {
     });
   });
 
-  it('performOcr delegates to the Loom Hook websocket request path', async () => {
-    installBrowserGlobals();
-    const { api } = await import('../../src/services/api');
-
-    const pending = api.performOcr('data:image/png;base64,abc123');
-
-    const socket = MockWebSocket.instances.at(-1);
-    expect(socket).toBeTruthy();
-
-    socket!.open();
-    const ocrRequest = JSON.parse(socket!.sent[0]);
-    expect(ocrRequest).toMatchObject({
-      method: 'loom.hook.ocr.execute',
-      params: { imageBase64: 'data:image/png;base64,abc123' },
-    });
-
-    socket!.emitMessage({
-      protocolVersion: 'loom.hook.v1',
-      requestId: ocrRequest.params.requestId,
-      status: 'succeeded',
-      data: {
-        fullText: 'hello',
-        textBlocks: [],
-      },
-    });
-
-    await expect(pending).resolves.toMatchObject({
-      fullText: 'hello',
-      textBlocks: [],
-    });
-  });
-
-  it('translateText delegates to the Loom Hook websocket request path', async () => {
-    installBrowserGlobals();
-    const { api } = await import('../../src/services/api');
-
-    const pending = api.translateText('hello', 'zh');
-
-    const socket = MockWebSocket.instances.at(-1);
-    expect(socket).toBeTruthy();
-
-    socket!.open();
-    const translationRequest = JSON.parse(socket!.sent[0]);
-    expect(translationRequest).toMatchObject({
-      method: 'loom.hook.translation.execute',
-      params: { text: 'hello', targetLanguage: 'zh' },
-    });
-
-    socket!.emitMessage({
-      protocolVersion: 'loom.hook.v1',
-      requestId: translationRequest.params.requestId,
-      status: 'succeeded',
-      data: {
-        translatedText: '你好',
-      },
-    });
-
-    await expect(pending).resolves.toBe('你好');
-  });
-
   it('createTeaTicket is Tauri-only and rejects in browser preview mode', async () => {
     installBrowserGlobals();
     const { api } = await import('../../src/services/api');

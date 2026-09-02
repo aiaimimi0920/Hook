@@ -52,12 +52,12 @@
 
   const isInteractiveTarget = (target) => target instanceof Element
     && target.closest(
-      "input, textarea, select, button, a[href], [contenteditable='true'], [role='button'], [role='slider'], [data-surface-no-drag]",
+      "input, textarea, select, button, a[href], [contenteditable='true'], [role='button'], [role='slider'], [data-surface-no-drag], [data-surface-selectable-text='true']",
     ) !== null;
   const resolveInteractiveTarget = (target) => {
     if (!(target instanceof Element)) return null;
     const interactive = target.closest(
-      "input, textarea, select, button, a[href], [contenteditable='true'], [role='button'], [role='slider'], [data-surface-no-drag]",
+      "input, textarea, select, button, a[href], [contenteditable='true'], [role='button'], [role='slider'], [data-surface-no-drag], [data-surface-selectable-text='true']",
     );
     return interactive instanceof HTMLElement ? interactive : null;
   };

@@ -1,16 +1,11 @@
 // Routes Loom/Surface protocol commands without owning the browser sockets or native resources.
 import type { ShaderResponse } from "../components/ShaderRenderer";
 import { browserDispatchActionFallback } from "./apiBrowserArt";
-import {
-    browserHandshakeFallback,
-    loomHookRequest,
-} from "./apiBrowserLoomTransport";
+import { browserHandshakeFallback } from "./apiBrowserLoomTransport";
 import { safeInvoke } from "./apiTransport";
 import type {
-    EnhancementCapabilities,
     LoomBrainPlanRequest,
     LoomBrainPlanResult,
-    OcrResult,
 } from "./apiTypes";
 import type { HandshakeRequest, HandshakeResponse } from "./protocol";
 
@@ -34,7 +29,7 @@ export const loomProtocolApi = {
         ),
 };
 
-export const loomEnhancementApi = {
+export const loomShaderApi = {
     prefetchShader: (args: {
         artId: string;
         inputPath: string | null;
@@ -45,27 +40,4 @@ export const loomEnhancementApi = {
             success: false,
         }), false),
 
-    getEnhancementCapabilities: (): Promise<EnhancementCapabilities> =>
-        loomHookRequest<EnhancementCapabilities>("loom.hook.enhancements.get", {
-            requestId: `enhancements:${crypto.randomUUID()}`,
-        }).catch(() => ({
-            ocr: false,
-            translation: false,
-        })),
-
-    performOcr: (imageBase64: string): Promise<OcrResult> =>
-        loomHookRequest("loom.hook.ocr.execute", {
-            requestId: `ocr:${crypto.randomUUID()}`,
-            imageBase64,
-        }),
-
-    translateText: (text: string, targetLang: string): Promise<string> =>
-        loomHookRequest<{ translatedText: string }>("loom.hook.translation.execute", {
-            requestId: `translation:${crypto.randomUUID()}`,
-            text,
-            targetLanguage: targetLang,
-        }).then((result) => result.translatedText),
-
-    triggerOcrEvent: (): Promise<void> =>
-        safeInvoke("trigger_ocr_event", undefined, () => undefined, false),
 };

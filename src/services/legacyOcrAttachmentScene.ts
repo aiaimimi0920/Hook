@@ -1,11 +1,15 @@
 // Builds the generic attachment payload used only while importing pre-plugin OCR sessions.
 import type { OcrBlock, UnitData } from "../types/unit";
-import { resolveOcrOverlayFillColor } from "./ocrOverlayFillColor";
+import {
+    resolveOcrOverlayFillColor,
+    resolveOcrOverlayTextColor,
+} from "./ocrOverlayFillColor";
 import {
     resolveOcrBlockBounds,
     resolveOcrOverlayBlocks,
     resolveOcrOverlayVisualLines,
 } from "./ocrOverlayLayout";
+import { resolveOcrSurfaceTypography } from "./ocrSurfaceTypography";
 import { validateExtensionJsonValue } from "./unitExtensionValidation";
 
 type LegacyOcrResult = NonNullable<UnitData["ocrResult"]>;
@@ -16,10 +20,7 @@ const MAX_CLICKABLE_SCENE_BLOCKS = 255;
 const MAX_TEXT_BYTES = 96 * 1024;
 const MAX_BLOCK_TEXT_BYTES = 1024;
 const HEX_COLOR = /^#[0-9a-f]{6}$/iu;
-
 const utf8Length = (value: string): number => new TextEncoder().encode(value).byteLength;
-const safeColor = (value: unknown, fallback: string): string =>
-    typeof value === "string" && HEX_COLOR.test(value) ? value : fallback;
 const positiveFinite = (value: unknown): value is number =>
     typeof value === "number" && Number.isFinite(value) && value > 0;
 const unitScore = (value: unknown): value is number =>
@@ -122,7 +123,7 @@ const preserveBlock = (
         top,
         width: right - left,
         height: bottom - top,
-        textColor: safeColor(block.colorHex, "#f8fafc"),
+        textColor: resolveOcrOverlayTextColor(block.colorHex, fillColor),
         backgroundColor: fillColor,
         boxPoints: block.boxPoints,
         boxScore: block.boxScore,
@@ -150,8 +151,13 @@ const buildSurfaceScene = (
     const children = overlays.map((block, index) => {
         const lines = resolveOcrOverlayVisualLines(block);
         const lineHeight = (block.bounds.maxY - block.bounds.minY) / Math.max(1, lines.length);
-        const fontSize = Math.max(0.2, Math.min(100, lineHeight / sourceHeight * 76));
-        const cssLineHeight = Math.max(0.2, Math.min(100, lineHeight / sourceHeight * 100));
+        const typography = resolveOcrSurfaceTypography(
+            block.text,
+            block.bounds.maxX - block.bounds.minX,
+            lineHeight,
+            sourceWidth,
+            sourceHeight,
+        );
         return {
             id: `ocr-block-${index}`,
             type: "stack",
@@ -162,20 +168,18 @@ const buildSurfaceScene = (
                 top: percent(block.bounds.minY, sourceHeight),
                 width: percent(block.bounds.maxX - block.bounds.minX, sourceWidth),
                 height: percent(block.bounds.maxY - block.bounds.minY, sourceHeight),
-                overflowX: "hidden",
-                overflowY: "hidden",
             },
             style: { background: fillColor },
             events: { click: "neuro.official/ocr.copy-block" },
             children: [{
                 id: `ocr-text-${index}`,
                 type: "text",
-                props: { text: block.text },
+                props: { text: block.text, selectable: true },
                 layout: { width: "100%", height: "100%" },
                 style: {
-                    color: safeColor(block.colorHex, "#f8fafc"),
-                    fontSize: `${fontSize.toFixed(4)}cqh`,
-                    lineHeight: `${cssLineHeight.toFixed(4)}cqh`,
+                    color: resolveOcrOverlayTextColor(block.colorHex, fillColor),
+                    fontSize: typography.fontSize,
+                    lineHeight: typography.lineHeight,
                     whiteSpace: lines.length > 1 ? "pre" : "nowrap",
                 },
             }],

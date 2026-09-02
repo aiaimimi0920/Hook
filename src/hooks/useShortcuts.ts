@@ -27,8 +27,6 @@ interface ShortcutHandlers {
   onToggleActions?: () => void | Promise<void>;
   onToggleParams?: () => void | Promise<void>;
   onToggleStickerToolbar?: () => void | Promise<void>;
-  onToggleOcr?: () => void | Promise<void>;
-  onToggleTranslation?: () => void | Promise<void>;
   onToggleCleanView?: () => void | Promise<void>;
   onTransformSelect?: () => void | Promise<void>;
   onTransformMove?: () => void | Promise<void>;
@@ -60,8 +58,27 @@ export function isGlobalShortcutEditingTarget(target: EventTarget | null): boole
   ) !== null;
 }
 
-export function shouldIgnoreGlobalShortcut(target: EventTarget | null, _key: string): boolean {
-  return isGlobalShortcutEditingTarget(target);
+const selectableRootForNode = (node: Node | null): Element | null => {
+  const element = node instanceof Element ? node : node?.parentElement;
+  return element?.closest("[data-surface-selectable-text='true']") ?? null;
+};
+
+const hasSurfaceTextSelection = (): boolean => {
+  if (typeof document === "undefined") return false;
+  const selection = document.getSelection();
+  if (!selection || selection.isCollapsed || selection.toString().length === 0) return false;
+  const anchorRoot = selectableRootForNode(selection.anchorNode);
+  return anchorRoot !== null && anchorRoot === selectableRootForNode(selection.focusNode);
+};
+
+export function shouldIgnoreGlobalShortcut(
+  target: EventTarget | null,
+  key: string,
+  ctrlKey = false,
+  metaKey = false,
+): boolean {
+  return isGlobalShortcutEditingTarget(target)
+    || ((ctrlKey || metaKey) && key.toLowerCase() === "c" && hasSurfaceTextSelection());
 }
 
 export function isActionsMenuDismissShortcut(
@@ -109,7 +126,6 @@ export function useShortcuts(options: UseShortcutsOptions) {
     if (handlers.onToggleActions) ShortcutManager.register('toggle-actions', handlers.onToggleActions);
     if (handlers.onToggleParams) ShortcutManager.register('toggle-params', handlers.onToggleParams);
     if (handlers.onToggleStickerToolbar) ShortcutManager.register('toggle-sticker-toolbar', handlers.onToggleStickerToolbar);
-    if (handlers.onToggleTranslation) ShortcutManager.register('toggle-translation', handlers.onToggleTranslation);
     if (handlers.onToggleCleanView) ShortcutManager.register('toggle-clean-view', handlers.onToggleCleanView);
     if (handlers.onTransformSelect) ShortcutManager.register('transform-select', handlers.onTransformSelect);
     if (handlers.onTransformMove) ShortcutManager.register('transform-move', handlers.onTransformMove);
@@ -159,7 +175,7 @@ export function useShortcuts(options: UseShortcutsOptions) {
         return;
       }
 
-      if (shouldIgnoreGlobalShortcut(e.target, e.key)) return;
+      if (shouldIgnoreGlobalShortcut(e.target, e.key, e.ctrlKey, e.metaKey)) return;
 
       executeShortcut(e);
     };
@@ -202,7 +218,6 @@ export function useShortcuts(options: UseShortcutsOptions) {
       ShortcutManager.unregister('toggle-actions');
       ShortcutManager.unregister('toggle-params');
       ShortcutManager.unregister('toggle-sticker-toolbar');
-      ShortcutManager.unregister('toggle-translation');
       ShortcutManager.unregister('toggle-clean-view');
       ShortcutManager.unregister('transform-select');
       ShortcutManager.unregister('transform-move');
