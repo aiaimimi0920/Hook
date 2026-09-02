@@ -232,6 +232,13 @@ export interface SurfacePatch {
 
 export type SurfaceEventClass = "discrete" | "continuous" | "commit" | "local";
 
+export interface SurfaceEventModifiers {
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
+}
+
 export interface SurfaceEvent {
     protocolVersion: typeof SURFACE_PROTOCOL_VERSION;
     instanceId: string;
@@ -243,6 +250,7 @@ export interface SurfaceEvent {
     class: SurfaceEventClass;
     generation: number;
     baseRevision: number;
+    modifiers?: SurfaceEventModifiers;
     payload?: unknown;
 }
 

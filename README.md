@@ -58,7 +58,8 @@ connected to local Art/Loom workflows without leaving the application.
 - installable Loom Capability Plugins can contribute commands, shortcuts, toolbar
   menus, result attachments, overlays, and unit-scoped notices without a Hook
   business branch; the official OCR package contributes its own `Ctrl+2`,
-  `Alt+2`, copy-full-text, and click-to-copy behavior only while installed and enabled;
+  `Alt+2`, cached full/layout copy, click-to-copy, and Shift+click multi-block
+  selection behavior only while installed and enabled;
 - all sticker and Art notices stay bound to their owning unit, stack in its upper-right corner, and can be dismissed one at a time;
 - the official OCR package automatically performs bounded local QR/barcode
   decoding during `Ctrl+2`, then contributes generic result attachments, green hit markers, and

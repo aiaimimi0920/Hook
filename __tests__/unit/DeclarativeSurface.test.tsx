@@ -422,11 +422,12 @@ describe("DeclarativeSurface", () => {
         expect(events).toHaveLength(0);
 
         selection.removeAllRanges();
-        text.click();
+        text.dispatchEvent(new MouseEvent("click", { bubbles: true, shiftKey: true }));
         expect(events).toHaveLength(1);
         expect(events[0]).toMatchObject({
             nodeId: "ocr-block",
             action: "copy-block",
+            modifiers: { altKey: false, ctrlKey: false, metaKey: false, shiftKey: true },
             payload: { text: "single OCR block" },
         });
         dispose();

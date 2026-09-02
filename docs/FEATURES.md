@@ -50,6 +50,11 @@ Single-`Escape` context actions and Double-`Escape` emergency exit are separate
 mechanisms. Do not lengthen the 400 ms emergency window to compensate for missed
 input; fix the input path instead.
 
+OCR text overlays preserve native substring selection. A plain block click copies
+that block; `Shift+click` toggles bounded multi-block selection without moving the
+sticker. The contributed OCR toolbar can copy cached full text, reconstruct relative
+layout, or copy selected blocks in reading order. Re-running OCR clears the selection.
+
 QR/barcode recognition is a child capability of the installed official OCR
 Capability Plugin. `Ctrl+2` performs text and code recognition together; the
 unit toolbar intentionally exposes cached OCR actions instead of a redundant

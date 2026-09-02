@@ -12,6 +12,7 @@ import {
     SURFACE_PROTOCOL_VERSION,
     SurfaceEvent,
     SurfaceEventClass,
+    SurfaceEventModifiers,
     SurfaceNode,
     SurfaceSnapshot,
 } from "../services/surfaceProtocol";
@@ -112,6 +113,13 @@ const hasSelectableTextSelection = (target: EventTarget | null): boolean => {
     return selectable.contains(selection.anchorNode) || selectable.contains(selection.focusNode);
 };
 
+const mouseEventModifiers = (event: MouseEvent): SurfaceEventModifiers => ({
+    altKey: event.altKey,
+    ctrlKey: event.ctrlKey,
+    metaKey: event.metaKey,
+    shiftKey: event.shiftKey,
+});
+
 const newEventId = (): string => {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
         return `event:${crypto.randomUUID()}`;
@@ -129,6 +137,7 @@ const emitNodeEvent = (
     props: NodeProps,
     event: string,
     payload: unknown,
+    modifiers?: SurfaceEventModifiers,
 ): void => {
     if (props.interactive === false) return;
     const action = props.node.events?.[event];
@@ -144,6 +153,7 @@ const emitNodeEvent = (
         class: eventClass(event),
         generation: props.generation,
         baseRevision: props.snapshot.revision,
+        modifiers,
         payload,
     });
 };
@@ -237,6 +247,7 @@ const SurfaceNodeView: Component<NodeProps> = (props) => {
                                 props,
                                 "click",
                                 eventPayload(values(), props.surfaceValues()),
+                                mouseEventModifiers(event),
                             );
                         }}
                         {...accessibleProps(props.node)}

@@ -101,6 +101,7 @@ const ExtensionSurfaceHost: Component<SurfaceHostProps> = (props) => {
                     class: event.class,
                     generation: event.generation,
                     baseRevision: event.baseRevision,
+                    modifiers: event.modifiers,
                     payload: event.payload,
                 },
             }))
