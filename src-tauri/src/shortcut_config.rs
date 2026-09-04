@@ -71,8 +71,6 @@ const FRONTEND_ACTIONS: &[&str] = &[
     "toggle_history",
     "toggle_actions",
     "toggle_params",
-    "toggle_ocr",
-    "toggle_translation",
     "undo_edit",
     "redo_edit",
     "transform_select",
@@ -100,8 +98,6 @@ fn default_actions() -> HashMap<String, Vec<Chord>> {
         ("paste_unit", "Ctrl+V"),
         ("delete_unit", "Escape / Delete / Backspace"),
         ("toggle_sticker_toolbar", "Ctrl+E"),
-        ("toggle_ocr", "Alt+2"),
-        ("toggle_translation", "Alt+3"),
         ("undo_edit", "Ctrl+Z"),
         ("redo_edit", "Ctrl+Y"),
         ("transform_select", "Q"),
@@ -388,5 +384,12 @@ mod tests {
 
         let defaults = config_from_settings(&json!({})).expect("default settings parse");
         assert!(defaults.close_to_tray);
+    }
+
+    #[test]
+    fn ocr_and_translation_shortcuts_are_not_core_defaults() {
+        let defaults = default_actions();
+        assert!(!defaults.contains_key("toggle_ocr"));
+        assert!(!defaults.contains_key("toggle_translation"));
     }
 }

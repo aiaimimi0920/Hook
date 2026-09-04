@@ -1,5 +1,5 @@
 import { DEFAULT_SHORTCUTS, parseShortcutAlternatives, type ShortcutCandidate } from "./shortcuts";
-import type { ContributionSnapshot, ExtensionContribution } from "./extensionProtocol";
+import { extensionContributionPayload, type ContributionSnapshot } from "./extensionProtocol";
 import { compileExtensionWhen, type ExtensionWhenPredicate } from "./extensionWhen";
 import { currentExtensionWhenContext } from "./extensionContext";
 import { extensionCommandRouter } from "./extensionCommandRouter";
@@ -36,15 +36,6 @@ const RESERVED = new Set([
     "ctrl+shift+p",
 ]);
 
-const nestedPayload = (contribution: ExtensionContribution): Record<string, unknown> => {
-    if (!contribution.payload || typeof contribution.payload !== "object" || Array.isArray(contribution.payload)) return {};
-    const outer = contribution.payload as Record<string, unknown>;
-    const payload = outer.payload;
-    return payload && typeof payload === "object" && !Array.isArray(payload)
-        ? payload as Record<string, unknown>
-        : outer;
-};
-
 export const buildExtensionShortcutBindings = (snapshot: ContributionSnapshot): {
     accepted: ExtensionShortcutBinding[];
     rejected: string[];
@@ -56,7 +47,8 @@ export const buildExtensionShortcutBindings = (snapshot: ContributionSnapshot): 
         (left.order ?? 0) - (right.order ?? 0) || left.id.localeCompare(right.id, "en-US")
     ));
     for (const shortcut of shortcuts) {
-        const keys = nestedPayload(shortcut).keys;
+        const payload = extensionContributionPayload(shortcut);
+        const keys = payload.keys;
         const commandId = shortcut.commandId;
         const candidates = typeof keys === "string" ? parseShortcutAlternatives(keys) : [];
         if (!commandId || candidates.length === 0) {
@@ -75,7 +67,7 @@ export const buildExtensionShortcutBindings = (snapshot: ContributionSnapshot): 
                 id: shortcut.id,
                 commandId,
                 candidate,
-                global: nestedPayload(shortcut).global === true,
+                global: payload.global === true,
                 available,
             });
         }

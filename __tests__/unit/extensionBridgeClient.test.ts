@@ -143,6 +143,47 @@ describe("ExtensionBridgeClient", () => {
         stop();
     });
 
+    it("honours the command's declared budget instead of the default deadline", async () => {
+        vi.useFakeTimers();
+        const socket = new FakeWebSocket();
+        const client = new ExtensionBridgeClient(() => socket as unknown as WebSocket);
+        const stop = client.start();
+        socket.open();
+        socket.receive({ sessionId: "hook:budget", protocolVersion: "loom.hook.v1" });
+        const handshake = JSON.parse(socket.sent[1]!);
+        socket.receive({
+            protocol: "loom.extension.v1",
+            apiVersion: "1.0",
+            requestId: handshake.params.requestId,
+            status: "succeeded",
+            data: {
+                sessionId: "extension:budget",
+                features: ["contribution.snapshot", "command.invoke"],
+                snapshot: snapshot(),
+            },
+        });
+
+        let settled: string | null = null;
+        const invocation = client
+            .invoke({
+                pluginId: "publisher.example/text-tools",
+                commandId: "publisher.example/text-tools.transform",
+                target: { unitId: "unit-1", revision: 2 },
+                timeoutMs: 70_000,
+            })
+            .catch((error: Error) => {
+                settled = error.message;
+            });
+
+        await vi.advanceTimersByTimeAsync(30_000);
+        expect(settled).toBeNull();
+        await vi.advanceTimersByTimeAsync(40_000);
+        await invocation;
+        expect(settled).toBe("extension command timed out");
+        expect(client.diagnostics().pendingRequests).toBe(0);
+        stop();
+    });
+
     it("rejects effect types outside the negotiated protocol", () => {
         expect(() => parseExtensionResult({
             protocol: "loom.extension.v1",

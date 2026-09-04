@@ -144,9 +144,24 @@ fn replace_session_file(temp_path: &Path, session_file: &Path) -> Result<(), Str
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AtomicSessionWriteFault {
+    DiskFull,
+    SyncFailure,
+    ReplaceFailure,
+}
+
 fn write_session_document_atomically(
     session_file: &Path,
     session: &SessionData,
+) -> Result<(), String> {
+    write_session_document_atomically_with_fault(session_file, session, None)
+}
+
+fn write_session_document_atomically_with_fault(
+    session_file: &Path,
+    session: &SessionData,
+    fault: Option<AtomicSessionWriteFault>,
 ) -> Result<(), String> {
     let parent = session_file
         .parent()
@@ -178,16 +193,28 @@ fn write_session_document_atomically(
     }
     let (temp_path, mut file) =
         temporary.ok_or_else(|| "Failed to allocate a Hook session temporary file".to_string())?;
-    let result = (|| {
+    let write_result = (|| {
+        if fault == Some(AtomicSessionWriteFault::DiskFull) {
+            return Err("Injected disk-full failure before session write".to_string());
+        }
         file.write_all(&json).map_err(|error| error.to_string())?;
         file.flush().map_err(|error| error.to_string())?;
+        if fault == Some(AtomicSessionWriteFault::SyncFailure) {
+            return Err("Injected interruption before session sync".to_string());
+        }
         file.sync_all().map_err(|error| error.to_string())?;
-        drop(file);
+        Ok(())
+    })();
+    drop(file);
+    let result = write_result.and_then(|()| {
         if let Ok(metadata) = fs::metadata(session_file) {
             let _ = fs::set_permissions(&temp_path, metadata.permissions());
         }
+        if fault == Some(AtomicSessionWriteFault::ReplaceFailure) {
+            return Err("Injected atomic session replace failure".to_string());
+        }
         replace_session_file(&temp_path, session_file)
-    })();
+    });
     if result.is_err() {
         let _ = fs::remove_file(&temp_path);
     }

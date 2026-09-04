@@ -9,6 +9,11 @@
     background: transparent;
 }
 
+.extension-unit-surface[data-editor-pointer-passthrough="true"],
+.extension-unit-surface[data-editor-pointer-passthrough="true"] .declarative-surface {
+    pointer-events: none;
+}
+
 .extension-attachment-placeholders {
     position: absolute;
     top: 6px;

@@ -21,6 +21,10 @@ describe("Hook native candidate acceptance contract", () => {
     expect(script).toContain('/v1/devices/$encodedDeviceId/approve');
     expect(script).toContain('[string]$device.approval -ne "pending"');
     expect(script).toContain('[string]$_.approval -eq "approved"');
+    expect(script).toContain('[string]$_.id -eq "device-000-local"');
+    expect(script).toContain('$_.isLocal -eq $true');
+    expect(script).toContain("isolated Loom reported multiple protected local devices");
+    expect(script).toContain("isolated Loom reported a protected local device and unexpected pending Hook devices");
     expect(script).toContain('$cleanupNeedle = "hook_process_exit_cleanup :: reason=tauri_"');
     expect(instantiate).toBeGreaterThanOrEqual(0);
     expect(approval).toBeGreaterThan(instantiate);
@@ -55,5 +59,21 @@ describe("Hook native candidate acceptance contract", () => {
     );
     expect(`${nativeScript}\n${pairedScript}`).not.toContain("20260811-distributed-art-surface-r8");
     expect(pairedScript).not.toContain("23f682da17db9594ec1d0e16f0f218475478266f4808d37a5f10b0d22b500e40");
+  });
+
+  it("authenticates isolated Loom HTTP probes without recording the token", () => {
+    const nativeScript = readFileSync(
+      resolve(process.cwd(), "scripts", "Invoke-HookNativeCandidateAcceptance.ps1"),
+      "utf8",
+    );
+    const helpers = readFileSync(
+      resolve(process.cwd(), "scripts", "native-candidate-acceptance", "summary-process-wait.ps1"),
+      "utf8",
+    );
+
+    expect(nativeScript).toContain('$script:LoomRequestHeaders = @{ Authorization = "Bearer $loomAuthToken" }');
+    expect(nativeScript).toContain("Loom manifest base URL does not match SurfaceBaseUrl");
+    expect(nativeScript).toContain("it must never enter the");
+    expect(helpers.match(/\$request\.Headers = \$script:LoomRequestHeaders/g)).toHaveLength(2);
   });
 });

@@ -90,6 +90,7 @@ const tokenize = (source: string): Token[] => {
 class Parser {
     private offset = 0;
     private nodes = 0;
+    private unsupported = false;
 
     constructor(private readonly tokens: readonly Token[]) {}
 
@@ -97,6 +98,19 @@ class Parser {
         const expression = this.parseOr(0);
         if (this.current().kind !== "end") throw new Error("extension when expression has trailing tokens");
         return expression;
+    }
+
+    /**
+     * Reports whether the expression named a property this host does not implement.
+     *
+     * A plugin built against a newer contribution vocabulary is the expected
+     * source. Substituting a false literal for the unknown property is not safe
+     * on its own: `!unit.futureFlag` would then evaluate true and reveal a
+     * contribution the author meant to hide, so the caller discards the whole
+     * predicate instead.
+     */
+    hasUnsupportedProperty(): boolean {
+        return this.unsupported;
     }
 
     private parseOr(depth: number): ExpressionNode {
@@ -142,6 +156,7 @@ class Parser {
         if (token.kind === "boolean") return { type: "literal", value: token.value === "true" };
         if (token.kind !== "identifier") throw new Error("extension when expression requires a value");
         if (!SUPPORTED_PROPERTIES.has(token.value)) {
+            this.unsupported = true;
             return { type: "literal", value: false };
         }
         return { type: "property", key: token.value as "unit.kind" | "unit.hasImage" };
@@ -174,9 +189,36 @@ const valueOf = (node: ValueNode, context: ExtensionWhenContext): string | boole
     return node.key === "unit.kind" ? context.unit.kind : context.unit.hasImage;
 };
 
+const valueKind = (node: ValueNode): "boolean" | "string" => {
+    if (node.type === "literal") return typeof node.value === "boolean" ? "boolean" : "string";
+    return node.key === "unit.hasImage" ? "boolean" : "string";
+};
+
+const validateBooleanExpression = (node: ExpressionNode): void => {
+    switch (node.type) {
+        case "value":
+            if (valueKind(node.value) !== "boolean") {
+                throw new Error("extension when predicate requires a boolean value");
+            }
+            return;
+        case "hasAttachment": return;
+        case "not": return validateBooleanExpression(node.operand);
+        case "and":
+        case "or":
+            validateBooleanExpression(node.left);
+            validateBooleanExpression(node.right);
+            return;
+        case "equal":
+        case "notEqual":
+            if (valueKind(node.left) !== valueKind(node.right)) {
+                throw new Error("extension when comparison requires compatible values");
+            }
+    }
+};
+
 const evaluate = (node: ExpressionNode, context: ExtensionWhenContext): boolean => {
     switch (node.type) {
-        case "value": return Boolean(valueOf(node.value, context));
+        case "value": return valueOf(node.value, context) === true;
         case "hasAttachment": return context.attachmentTypes.has(node.typeId);
         case "not": return !evaluate(node.operand, context);
         case "and": return evaluate(node.left, context) && evaluate(node.right, context);
@@ -190,6 +232,12 @@ export type ExtensionWhenPredicate = (context: ExtensionWhenContext) => boolean;
 
 export const compileExtensionWhen = (source: string | undefined): ExtensionWhenPredicate => {
     if (!source?.trim()) return () => true;
-    const expression = new Parser(tokenize(source)).parse();
+    const parser = new Parser(tokenize(source));
+    const expression = parser.parse();
+    // Rejecting the expression here rather than throwing keeps one forward-looking
+    // contribution from invalidating the whole snapshot: only the contribution
+    // that asked for an unknown property disappears.
+    if (parser.hasUnsupportedProperty()) return () => false;
+    validateBooleanExpression(expression);
     return (context) => evaluate(expression, context);
 };

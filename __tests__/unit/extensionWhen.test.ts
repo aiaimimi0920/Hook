@@ -24,4 +24,27 @@ describe("compileExtensionWhen", () => {
         expect(() => compileExtensionWhen("(".repeat(20) + "true" + ")".repeat(20))).toThrow(/depth/u);
         expect(() => compileExtensionWhen("globalThis.alert('unsafe')")).toThrow(/trailing|requires/u);
     });
+
+    it("keeps an unknown context key from enabling a contribution through negation", () => {
+        expect(compileExtensionWhen("!future.context.key")(context("sticker", true))).toBe(false);
+        expect(compileExtensionWhen('future.context.key != "sticker"')(context("sticker", true))).toBe(false);
+        expect(
+            compileExtensionWhen("unit.hasImage || !future.context.key")(context("sticker", false)),
+        ).toBe(false);
+    });
+
+    it("rejects non-boolean values and incompatible comparisons as predicates", () => {
+        for (const source of [
+            '"sticker"',
+            "unit.kind",
+            "unit.kind && unit.hasImage",
+            "!unit.kind",
+            "unit.kind == true",
+        ]) {
+            expect(() => compileExtensionWhen(source)).toThrow(/boolean|compatible/u);
+        }
+
+        expect(compileExtensionWhen("true")(context(null, false))).toBe(true);
+        expect(compileExtensionWhen("unit.hasImage")(context("art", true))).toBe(true);
+    });
 });

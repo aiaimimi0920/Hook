@@ -33,15 +33,13 @@ mod overlay_forwardable_shortcut_tests {
     }
 
     #[test]
-    fn forwards_alt_digit_toggles() {
-        let alt_2 =
-            overlay_keyboard_forwardable_shortcut(b'2' as u32, mods(false, false, true)).unwrap();
-        let alt_3 =
-            overlay_keyboard_forwardable_shortcut(b'3' as u32, mods(false, false, true)).unwrap();
-        assert_eq!(alt_2.key, "2");
-        assert_eq!(alt_3.key, "3");
-        assert!(!overlay_keyboard_should_consume_forwarded_shortcut(&alt_2));
-        assert!(!overlay_keyboard_should_consume_forwarded_shortcut(&alt_3));
+    fn does_not_forward_removed_core_ocr_or_translation_shortcuts() {
+        assert!(
+            overlay_keyboard_forwardable_shortcut(b'2' as u32, mods(false, false, true)).is_none()
+        );
+        assert!(
+            overlay_keyboard_forwardable_shortcut(b'3' as u32, mods(false, false, true)).is_none()
+        );
     }
 
     #[test]
@@ -101,4 +99,3 @@ mod overlay_forwardable_shortcut_tests {
         );
     }
 }
-

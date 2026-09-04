@@ -423,6 +423,7 @@ export const UnitView: Component<Props> = (props) => {
             <ExtensionUnitOverlayLayer
                 unit={props.unit}
                 isMinified={isMinified()}
+                editorOwnsPointerInput={props.isSelected && activeStickerEditTargetId() === props.unit.id}
                 onActivate={activateUnit}
             />
 

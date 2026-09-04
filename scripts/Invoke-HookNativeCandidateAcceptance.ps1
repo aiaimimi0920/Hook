@@ -63,6 +63,7 @@ New-Item -ItemType Directory -Path $resolvedArtifactRoot -Force | Out-Null
 $acceptanceOwnersDir = Join-Path $PSScriptRoot "native-candidate-acceptance"
 . (Join-Path $acceptanceOwnersDir "summary-process-wait.ps1")
 . (Join-Path $acceptanceOwnersDir "probe-lifecycle.ps1")
+$script:LoomRequestHeaders = @{}
 
 $debugPort = Get-FreeTcpPort
 do {
@@ -173,6 +174,21 @@ try {
         if ($SurfaceBaseUrl -notmatch '^http://127\.0\.0\.1:\d+$') {
             throw "RequireSurfaceDashboard needs a loopback SurfaceBaseUrl"
         }
+        $manifestFile = Get-Item -LiteralPath $resolvedLoomManifestPath
+        if ([int64]$manifestFile.Length -gt 256KB) {
+            throw "Loom manifest exceeds the acceptance size budget"
+        }
+        $loomManifest = Get-Content -LiteralPath $resolvedLoomManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ([string]$loomManifest.transport.baseUrl -cne $SurfaceBaseUrl) {
+            throw "Loom manifest base URL does not match SurfaceBaseUrl"
+        }
+        $loomAuthToken = [string]$loomManifest.transport.authToken
+        if ([string]::IsNullOrWhiteSpace($loomAuthToken)) {
+            throw "Loom manifest does not contain an authentication token"
+        }
+        # Keep the token in request headers only; it must never enter the
+        # acceptance summary or console output.
+        $script:LoomRequestHeaders = @{ Authorization = "Bearer $loomAuthToken" }
     }
 
     $summary.preflight.ready = ($hookProcessesBefore.Count -eq 0)

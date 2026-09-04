@@ -19,9 +19,26 @@ type PendingRequest = {
 
 type WebSocketFactory = (url: string) => WebSocket;
 
+const DEFAULT_INVOKE_TIMEOUT_MS = 20_000;
+const MIN_INVOKE_TIMEOUT_MS = 5_000;
+const MAX_INVOKE_TIMEOUT_MS = 180_000;
+
 const requestId = (prefix: string): string => {
     const suffix = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     return `${prefix}:${suffix}`;
+};
+
+/**
+ * Clamps the caller's requested deadline into the bridge's own window.
+ *
+ * A command declares its runtime budget in the capability manifest, and OCR
+ * recognition asks for a full minute. Rejecting locally before the runtime's own
+ * deadline would surface a spurious timeout while the daemon is still working,
+ * so the caller's value wins inside a bounded range.
+ */
+const invokeTimeout = (value: number | undefined): number => {
+    if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_INVOKE_TIMEOUT_MS;
+    return Math.min(Math.max(Math.trunc(value), MIN_INVOKE_TIMEOUT_MS), MAX_INVOKE_TIMEOUT_MS);
 };
 
 /** Maintains one reconnecting extension session over a Hook-authenticated WebSocket. */
@@ -78,6 +95,7 @@ export class ExtensionBridgeClient {
         resourceUploads?: readonly ExtensionResourceUpload[];
         unitAttachments?: readonly ExtensionUnitAttachment[];
         userGestureToken?: string;
+        timeoutMs?: number;
     }): Promise<ExtensionResult> {
         const sessionId = this.extensionSessionId;
         const snapshot = extensionRegistry.snapshot();
@@ -106,11 +124,12 @@ export class ExtensionBridgeClient {
             },
         };
         const socket = this.socket;
+        const deadline = invokeTimeout(command.timeoutMs);
         return new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
                 this.pending.delete(id);
                 reject(new Error("extension command timed out"));
-            }, 20_000);
+            }, deadline);
             this.pending.set(id, { resolve, reject, timeout });
             if (!socket || !this.send(socket, payload)) return;
         });

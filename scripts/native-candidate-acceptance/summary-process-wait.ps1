@@ -68,7 +68,15 @@ function Get-FreeTcpPort {
 function Invoke-JsonGet {
     param([Parameter(Mandatory = $true)][string]$Uri)
 
-    return Invoke-RestMethod -Uri $Uri -Method Get -TimeoutSec 20
+    $request = @{
+        Uri = $Uri
+        Method = "Get"
+        TimeoutSec = 20
+    }
+    if ($script:LoomRequestHeaders.Count -gt 0) {
+        $request.Headers = $script:LoomRequestHeaders
+    }
+    return Invoke-RestMethod @request
 }
 
 function Invoke-JsonPost {
@@ -77,8 +85,17 @@ function Invoke-JsonPost {
         [Parameter(Mandatory = $true)][object]$Body
     )
 
-    return Invoke-RestMethod -Uri $Uri -Method Post -ContentType "application/json" `
-        -Body ($Body | ConvertTo-Json -Depth 40 -Compress) -TimeoutSec 30
+    $request = @{
+        Uri = $Uri
+        Method = "Post"
+        ContentType = "application/json"
+        Body = ($Body | ConvertTo-Json -Depth 40 -Compress)
+        TimeoutSec = 30
+    }
+    if ($script:LoomRequestHeaders.Count -gt 0) {
+        $request.Headers = $script:LoomRequestHeaders
+    }
+    return Invoke-RestMethod @request
 }
 
 function Wait-HookBridgeSubscriber {
@@ -114,6 +131,27 @@ function Wait-AndApprovePendingHookDevice {
         try {
             $registry = Invoke-JsonGet -Uri "$BaseUrl/v1/devices"
             $pending = @($registry.pending | Where-Object { $null -ne $_ })
+            $local = @($registry.devices | Where-Object {
+                [string]$_.id -eq "device-000-local" -and
+                $_.isLocal -eq $true -and
+                [string]$_.approval -eq "approved" -and
+                $_.enabled -eq $true
+            })
+            if ($local.Count -gt 1) {
+                throw "isolated Loom reported multiple protected local devices"
+            }
+            if ($local.Count -eq 1 -and $pending.Count -gt 0) {
+                throw "isolated Loom reported a protected local device and unexpected pending Hook devices"
+            }
+            if ($local.Count -eq 1) {
+                return [ordered]@{
+                    deviceId = [string]$local[0].id
+                    initialApproval = [string]$local[0].approval
+                    finalApproval = [string]$local[0].approval
+                    sessionEpoch = [int64]$local[0].sessionEpoch
+                    isLocal = $true
+                }
+            }
             if ($pending.Count -gt 1) {
                 throw "isolated Loom reported multiple pending Hook devices"
             }
@@ -142,6 +180,7 @@ function Wait-AndApprovePendingHookDevice {
                     initialApproval = [string]$device.approval
                     finalApproval = [string]$approved[0].approval
                     sessionEpoch = [int64]$approved[0].sessionEpoch
+                    isLocal = $false
                 }
             }
         }

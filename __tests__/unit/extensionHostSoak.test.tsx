@@ -101,7 +101,12 @@ describe("extension host cleanup soak", () => {
         const onActivate = vi.fn();
         const execute = vi.spyOn(extensionCommandRouter, "execute").mockResolvedValue(null);
         const dispose = render(() => (
-            <ExtensionUnitOverlayLayer unit={unit} isMinified={isMinified()} onActivate={onActivate} />
+            <ExtensionUnitOverlayLayer
+                unit={unit}
+                isMinified={isMinified()}
+                editorOwnsPointerInput={false}
+                onActivate={onActivate}
+            />
         ), root);
 
         for (let index = 0; index < 100; index += 1) {
@@ -144,5 +149,46 @@ describe("extension host cleanup soak", () => {
         expect(extensionHostDiagnostics().surfaceInstances).toBe(baseline.surfaceInstances);
         expect(extensionHostDiagnostics().listeners).toBe(baseline.listeners);
         expect(extensionHostDiagnostics().timers).toBe(baseline.timers);
+    });
+
+    it("yields DOM and native pointer ownership while the sticker editor is active", async () => {
+        const root = document.createElement("div");
+        document.body.append(root);
+        const [editorOwnsPointerInput, setEditorOwnsPointerInput] = createSignal(false);
+        const execute = vi.spyOn(extensionCommandRouter, "execute").mockResolvedValue(null);
+        const dispose = render(() => (
+            <ExtensionUnitOverlayLayer
+                unit={unit}
+                isMinified={false}
+                editorOwnsPointerInput={editorOwnsPointerInput()}
+                onActivate={() => undefined}
+            />
+        ), root);
+        applyExtensionVisualSnapshot(snapshot);
+
+        const surface = () => root.querySelector<HTMLElement>(".extension-unit-surface");
+        const declarativeSurface = () => root.querySelector<HTMLElement>(".declarative-surface");
+        const button = () => root.querySelector<HTMLButtonElement>("button");
+        expect(extensionRectCount()).toBe(1);
+        expect(surface()?.dataset.editorPointerPassthrough).toBe("false");
+        expect(button()?.disabled).toBe(false);
+
+        setEditorOwnsPointerInput(true);
+        expect(extensionRectCount()).toBe(0);
+        expect(surface()?.dataset.editorPointerPassthrough).toBe("true");
+        expect(getComputedStyle(surface()!).pointerEvents).toBe("none");
+        expect(getComputedStyle(declarativeSurface()!).pointerEvents).toBe("none");
+        expect(button()?.disabled).toBe(true);
+        button()?.click();
+        await Promise.resolve();
+        expect(execute).not.toHaveBeenCalled();
+
+        setEditorOwnsPointerInput(false);
+        expect(extensionRectCount()).toBe(1);
+        expect(surface()?.dataset.editorPointerPassthrough).toBe("false");
+        expect(getComputedStyle(surface()!).pointerEvents).toBe("auto");
+        expect(getComputedStyle(declarativeSurface()!).pointerEvents).toBe("auto");
+        expect(button()?.disabled).toBe(false);
+        dispose();
     });
 });

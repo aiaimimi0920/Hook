@@ -44,6 +44,23 @@ export interface ExtensionContribution {
     payload?: unknown;
 }
 
+/** Returns the signed contribution body regardless of its snapshot envelope. */
+export const extensionContributionPayload = (
+    contribution: ExtensionContribution,
+): Record<string, unknown> => {
+    if (!contribution.payload || typeof contribution.payload !== "object" || Array.isArray(contribution.payload)) {
+        return {};
+    }
+    const outer = contribution.payload as Record<string, unknown>;
+    const isSchemaEnvelope = Object.prototype.hasOwnProperty.call(outer, "schema")
+        && Object.prototype.hasOwnProperty.call(outer, "payload");
+    if (!isSchemaEnvelope) return outer;
+    const nested = outer.payload;
+    return nested && typeof nested === "object" && !Array.isArray(nested)
+        ? nested as Record<string, unknown>
+        : outer;
+};
+
 export type ExtensionContributions = Record<ExtensionContributionKind, ExtensionContribution[]>;
 
 export interface ContributionSnapshot {

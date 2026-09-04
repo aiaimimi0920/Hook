@@ -32,6 +32,7 @@ interface Props {
     snapshot: SurfaceSnapshot;
     generation: number;
     interactive?: boolean;
+    pointerPassthrough?: boolean;
     onActivate?: () => void | Promise<void>;
     resolveResource?: (resourceId: string) => string | undefined;
     onEvent: (event: SurfaceEvent) => void;
@@ -454,6 +455,7 @@ export const DeclarativeSurface: Component<Props> = (props) => {
         data-surface-revision={props.snapshot.revision}
         data-surface-unit-id={props.unitId}
         data-overlay-synthetic-target="direct"
+        style={{ "pointer-events": props.pointerPassthrough ? "none" : undefined }}
         onPointerDown={(event) => {
             // Blank Surface space remains part of the unit drag target. Only
             // host-rendered controls and declared actions claim pointer input.

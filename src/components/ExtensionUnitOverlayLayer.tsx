@@ -1,4 +1,4 @@
-import { Component, For, Show, createEffect, onCleanup } from "solid-js";
+import { Component, For, JSX, Show, createEffect, onCleanup } from "solid-js";
 
 import { extensionCommandRouter } from "../services/extensionCommandRouter";
 import {
@@ -17,6 +17,7 @@ import "./ExtensionUnitOverlayLayer.css";
 interface Props {
     unit: Unit;
     isMinified: boolean;
+    editorOwnsPointerInput: boolean;
     onActivate: () => void | Promise<void>;
 }
 
@@ -45,7 +46,7 @@ const ExtensionSurfaceHost: Component<SurfaceHostProps> = (props) => {
     createEffect(() => {
         const id = rectId(props.unit.id, props.descriptor.id, props.attachment.attachmentId);
         const bounds = clippedBounds(props.unit, props.descriptor.bounds);
-        if (!props.isMinified && props.descriptor.commandId && bounds) {
+        if (!props.isMinified && !props.editorOwnsPointerInput && props.descriptor.commandId && bounds) {
             addOrUpdateRect({
                 id,
                 x: props.unit.x + bounds.x,
@@ -79,13 +80,14 @@ const ExtensionSurfaceHost: Component<SurfaceHostProps> = (props) => {
         },
         authoritativeState: props.attachment.payload,
     });
-    const style = () => {
+    const style = (): JSX.CSSProperties => {
         const bounds = clippedBounds(props.unit, props.descriptor.bounds);
         return bounds ? {
             left: `${bounds.x}px`,
             top: `${bounds.y}px`,
             width: `${bounds.width}px`,
             height: `${bounds.height}px`,
+            "pointer-events": props.editorOwnsPointerInput ? "none" : "auto",
         } : { display: "none" };
     };
     const onEvent = (event: SurfaceEvent) => {
@@ -108,12 +110,17 @@ const ExtensionSurfaceHost: Component<SurfaceHostProps> = (props) => {
             .catch((error) => console.error("Extension overlay command failed", error));
     };
     return (
-        <div class="extension-unit-surface" style={style()}>
+        <div
+            class="extension-unit-surface"
+            data-editor-pointer-passthrough={props.editorOwnsPointerInput ? "true" : "false"}
+            style={style()}
+        >
             <DeclarativeSurface
                 unitId={props.unit.id}
                 snapshot={snapshot()}
                 generation={props.descriptor.generation}
-                interactive={!props.isMinified && Boolean(props.descriptor.commandId)}
+                interactive={!props.isMinified && !props.editorOwnsPointerInput && Boolean(props.descriptor.commandId)}
+                pointerPassthrough={props.editorOwnsPointerInput}
                 onActivate={props.onActivate}
                 onEvent={onEvent}
             />

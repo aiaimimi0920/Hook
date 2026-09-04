@@ -16,6 +16,16 @@ describe("Hook release build scripts contract", () => {
     expect(script).not.toMatch(/release\\Hook\\full/i);
   });
 
+  test("local build treats Tauri stderr progress as output and still fails on its exit code", () => {
+    const repoRoot = path.resolve(__dirname, "..");
+    const scriptPath = path.join(repoRoot, "scripts", "build-local-hook-exe.ps1");
+    const script = fs.readFileSync(scriptPath, "utf8");
+
+    expect(script).toContain('$ErrorActionPreference = "Continue"');
+    expect(script).toContain("$buildExitCode = $LASTEXITCODE");
+    expect(script).toMatch(/if \(\$buildExitCode -ne 0\)/);
+  });
+
   test("local build script falls back to a timestamped exe when release/Hook/hook.exe is locked", () => {
     const repoRoot = path.resolve(__dirname, "..");
     const scriptPath = path.join(repoRoot, "scripts", "build-local-hook-exe.ps1");

@@ -57,14 +57,14 @@ fn write_migration_journal(path: &Path, journal: &OcrMigrationJournal) -> Result
         std::process::id(),
         SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos()
     ));
-    let result = (|| {
+    let write_result = (|| {
         let mut file = OpenOptions::new().write(true).create_new(true).open(&temp_path)
             .map_err(|error| format!("Failed to create OCR migration journal: {error}"))?;
         file.write_all(&bytes).map_err(|error| error.to_string())?;
         file.sync_all().map_err(|error| error.to_string())?;
-        drop(file);
-        replace_session_file(&temp_path, path)
+        Ok(())
     })();
+    let result = write_result.and_then(|()| replace_session_file(&temp_path, path));
     if result.is_err() {
         let _ = fs::remove_file(&temp_path);
     }
@@ -89,6 +89,15 @@ fn prepare_ocr_migration_backup(
     existing: &SessionData,
     incoming: &[StickerData],
 ) -> Result<bool, String> {
+    prepare_ocr_migration_backup_with_fault(app_dir, existing, incoming, None)
+}
+
+fn prepare_ocr_migration_backup_with_fault(
+    app_dir: &Path,
+    existing: &SessionData,
+    incoming: &[StickerData],
+    backup_fault: Option<AtomicSessionWriteFault>,
+) -> Result<bool, String> {
     if !is_ocr_migration_save(existing, incoming) {
         return Ok(false);
     }
@@ -98,7 +107,7 @@ fn prepare_ocr_migration_backup(
         .map_err(|error| format!("Failed to create OCR migration backup directory: {error}"))?;
     let prior_journal = load_migration_journal(&journal_path)?;
     if prior_journal.as_ref().is_some_and(|journal| journal.status == "rolledBack") {
-        write_session_document_atomically(&backup_path, existing)?;
+        write_session_document_atomically_with_fault(&backup_path, existing, backup_fault)?;
         write_migration_journal(&journal_path, &OcrMigrationJournal {
             schema_version: 1,
             source_revision: existing.document_revision,
@@ -110,7 +119,7 @@ fn prepare_ocr_migration_backup(
     let backup = if backup_path.is_file() {
         deserialize_session_document(&fs::read(&backup_path).map_err(|error| error.to_string())?)?
     } else {
-        write_session_document_atomically(&backup_path, existing)?;
+        write_session_document_atomically_with_fault(&backup_path, existing, backup_fault)?;
         existing.clone()
     };
     if backup.document_revision != existing.document_revision
