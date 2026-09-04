@@ -1,22 +1,24 @@
-## Hook V0.2.0
+## Hook V0.2.1
 
-This is the first refactored Hook release. It keeps the capture preview and the
-post-capture selection frame on the same outward-outline geometry, so the visible
-capture range no longer appears to change when the result is committed.
+Hook V0.2.1 makes OCR and barcode recognition installable Loom Capability Plugin
+features while keeping Hook's capture and editing core generic. Existing local OCR
+results are migrated to the extension attachment model when sessions are restored.
 
 ### Highlights
 
-- Unified yellow selection, precise-selection, and box-selection overlays with the
-  same outward outline model used by the final white frame.
-- Preserved mixed-window and protected-surface capture composition while keeping
-  the physical cursor responsive and suppressing hover transitions during capture.
-- Retained the split native capture pipeline, bounded resource cleanup, and release
-  provenance/security gates from the refactored codebase.
+- Added a generic capability host for contributed commands, shortcuts, menus,
+  attachments, overlays, notices, and bounded resource access.
+- Moved OCR and barcode behavior behind the optional Loom capability package while
+  preserving and migrating previously saved recognition results.
+- Restored Ctrl+E drawing and annotation input after OCR overlays are present, while
+  retaining click-to-copy and text-selection behavior outside edit mode.
+- Hardened extension effect failure reporting, shortcut routing, acceptance
+  authentication, cleanup checks, and release verification.
 
 ### Package notes
 
 The public Release intentionally keeps the download surface small. Ordinary users
-should download `hook-windows-x64-V0.2.0.zip`; users who want to verify the download
+should download `hook-windows-x64-V0.2.1.zip`; users who want to verify the download
 should also download its matching `.zip.sha256` file. Extract the ZIP and run
 `hook.exe`. Build provenance, SBOMs, manifests, and full checksum inventories are
 still generated and verified in the release pipeline, but remain maintainer-side
@@ -26,4 +28,4 @@ Free code signing provided by [SignPath.io](https://signpath.io/), certificate b
 [SignPath Foundation](https://signpath.org/), applies only after Hook is provisioned
 and a hosted signing request receives manual approval.
 
-**Full Changelog**: [V0.1.11...V0.2.0](https://github.com/aiaimimi0920/Hook/compare/V0.1.11...V0.2.0)
+**Full Changelog**: [V0.2.0...V0.2.1](https://github.com/aiaimimi0920/Hook/compare/V0.2.0...V0.2.1)
