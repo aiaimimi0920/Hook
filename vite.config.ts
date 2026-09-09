@@ -1,9 +1,10 @@
 import { configDefaults, defineConfig } from "vitest/config";
 import solid from "vite-plugin-solid";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base: "./",
-  plugins: [solid()],
+  // Vitest's module runner must not load the dev-server refresh virtual module.
+  plugins: [solid({ hot: mode !== "test" })],
   envPrefix: ["VITE_", "TAURI_"],
   test: {
     // These tests use node:test so Vitest must not collect them as empty suites.
@@ -29,4 +30,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));
