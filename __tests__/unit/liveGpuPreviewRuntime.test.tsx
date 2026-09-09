@@ -56,6 +56,79 @@ afterEach(async () => {
 });
 
 describe("GPU mirror Unit lifecycle", () => {
+    it("bounds unchanged mirror configuration without faking native acknowledgements", async () => {
+        mount(); await flush();
+        await vi.advanceTimersByTimeAsync(960);
+        const configurations = invoke.mock.calls.filter(([command]) => command === "configure_live_gpu_preview");
+        expect(configurations).toHaveLength(7);
+        expect(presenting).toHaveBeenCalledTimes(configurations.length);
+        expect(presenting.mock.calls.every(([, acknowledged]) => acknowledged === true)).toBe(true);
+    });
+
+    it("updates moved geometry on the next layout tick even between heartbeats", async () => {
+        const image = mount(); await flush();
+        image.getBoundingClientRect = () => new DOMRect(200, 50, 200, 100);
+        await vi.advanceTimersByTimeAsync(80);
+        expect(invoke.mock.calls.filter(([command]) => command === "configure_live_gpu_preview")).toHaveLength(2);
+        expect(invoke.mock.calls.at(-1)?.[1].layout.x).toBe(200 * devicePixelRatio);
+    });
+
+    it("lets the real frontend lease expire while a native heartbeat is stalled", async () => {
+        const leases = await vi.importActual<typeof import("../../src/services/liveCapturePollCadence")>(
+            "../../src/services/liveCapturePollCadence");
+        const cadence = leases.createLiveCapturePollCadence();
+        cadence.register("live-test", vi.fn());
+        presenting.mockImplementation(leases.setLiveGpuPresenting);
+        let finish: ((value: typeof status) => void) | undefined;
+        try {
+            mount(); await flush();
+            invoke.mockImplementationOnce(() => new Promise<typeof status>((resolve) => { finish = resolve; }));
+            await vi.advanceTimersByTimeAsync(80);
+            expect(presenting).toHaveBeenCalledTimes(1);
+            expect(cadence.delay("live-test", 60, 0)).toBe(250);
+            await vi.advanceTimersByTimeAsync(480);
+            expect(finish).toBeDefined();
+            expect(presenting).toHaveBeenCalledTimes(1);
+            expect(cadence.delay("live-test", 60, 0)).toBeCloseTo(1000 / 60);
+        } finally {
+            finish?.({ ...status, presenting: false });
+            await flush();
+            cadence.clear();
+        }
+    });
+
+    it("keeps fast activation polling until native presentation is acknowledged", async () => {
+        invoke.mockImplementation(async (command: string) => command === "get_live_gpu_preview_capability"
+            ? true : { ...status, presenting: false });
+        mount(); await flush();
+        await vi.advanceTimersByTimeAsync(160);
+        expect(invoke.mock.calls.filter(([command]) => command === "configure_live_gpu_preview")).toHaveLength(3);
+        expect(presenting.mock.calls.every(([, acknowledged]) => acknowledged === false)).toBe(true);
+    });
+
+    it("avoids style and occlusion scans for fully offscreen mirrors", async () => {
+        const image = mount(); await flush();
+        image.getBoundingClientRect = () => new DOMRect(-300, 50, 200, 100);
+        vi.mocked(window.getComputedStyle).mockClear();
+        await vi.advanceTimersByTimeAsync(80);
+        expect(window.getComputedStyle).not.toHaveBeenCalled();
+        expect(invoke.mock.calls.at(-1)?.[1]).toMatchObject({ layout: null, visible: false });
+        image.getBoundingClientRect = () => new DOMRect(100, 50, 200, 100);
+        await vi.advanceTimersByTimeAsync(80);
+        expect(window.getComputedStyle).toHaveBeenCalled();
+        expect(invoke.mock.calls.at(-1)?.[1].layout).not.toBeNull();
+    });
+
+    it("retries failed heartbeats promptly instead of caching failure as a lease", async () => {
+        mount(); await flush();
+        invoke.mockRejectedValueOnce(new Error("IPC failure"));
+        await vi.advanceTimersByTimeAsync(160);
+        expect(presenting).toHaveBeenLastCalledWith("live-test", false);
+        await vi.advanceTimersByTimeAsync(80);
+        expect(presenting).toHaveBeenLastCalledWith("live-test", true);
+        expect(invoke.mock.calls.filter(([command]) => command === "configure_live_gpu_preview")).toHaveLength(3);
+    });
+
     it("activates DPI-rounded strips using contained pixels without changing the DOM box", async () => {
         const image = mount({ width: 655, height: 67 }, new DOMRect(100, 50, 436, 44));
         await flush();
