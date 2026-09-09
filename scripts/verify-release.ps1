@@ -120,6 +120,8 @@ $portableDigest = Get-HookReleaseDigest -Path $portableExe
 $zipExeDigest = Get-HookArchiveEntryDigest -ZipPath $zipPath -EntryName "hook.exe"
 Assert-ReleaseCondition ($portableDigest.bytes -eq $zipExeDigest.bytes -and $portableDigest.sha256 -ceq $zipExeDigest.sha256) "Packaged hook.exe does not match the verified portable executable."
 $embeddedProvenance = Read-HookArchiveEntryText -ZipPath $zipPath -EntryName "build-provenance.json" -MaxBytes 1MB | ConvertFrom-Json
+. (Join-Path $PSScriptRoot "version-identity.ps1")
+Assert-HookPublicBuildIdentity -Provenance $embeddedProvenance -ProductVersion $versionId.Substring(1)
 Assert-ReleaseCondition ([int]$embeddedProvenance.schemaVersion -eq 1 -and [string]$embeddedProvenance.app -eq "Hook") "Embedded Hook build provenance is unsupported."
 Assert-ReleaseCondition ([string]$embeddedProvenance.gitHead -ceq [string]$manifest.gitHead -and $embeddedProvenance.gitDirty -eq $false) "Embedded Hook build provenance does not match the formal source commit."
 Assert-ReleaseCondition ([string]$embeddedProvenance.productVersion -ceq $versionId.Substring(1)) "Embedded Hook build provenance has the wrong product version."

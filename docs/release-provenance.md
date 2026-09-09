@@ -1,7 +1,9 @@
 # Hook Release Provenance
 
 A publishable Hook release comes from a clean Git worktree and an exact
-`Vx.y.z` tag that is reachable from `origin/main`. The dependency gate scans
+`vx.y.z` tag that is reachable from `origin/main` (legacy uppercase tags remain
+accepted). Internal `vx.y.z.n` builds cannot be published. See [versioning](VERSIONING.md).
+The dependency gate scans
 that exact tag/ref; evidence from another commit does not authorize release.
 
 ```powershell

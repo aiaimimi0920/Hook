@@ -9,6 +9,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+. (Join-Path $PSScriptRoot "version-identity.ps1")
+$null = Get-HookVersionIdentity -RepoRoot $repoRoot
 $packageJson = Get-Content -LiteralPath (Join-Path $repoRoot "package.json") -Raw | ConvertFrom-Json
 $packageLockRaw = Get-Content -LiteralPath (Join-Path $repoRoot "package-lock.json") -Raw
 $tauriConfig = Get-Content -LiteralPath (Join-Path $repoRoot "src-tauri\tauri.conf.json") -Raw | ConvertFrom-Json

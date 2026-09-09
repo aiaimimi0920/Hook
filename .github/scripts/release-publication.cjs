@@ -3,8 +3,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 function assertTag(tag) {
-  if (!/^V\d+\.\d+\.\d+$/.test(tag)) {
-    throw new Error(`Release tag must match Vx.y.z: ${tag}`);
+  if (!/^[vV]\d+\.\d+\.\d+$/.test(tag)) {
+    throw new Error(`Release tag must match vx.y.z (legacy V accepted): ${tag}`);
   }
 }
 

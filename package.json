@@ -1,6 +1,6 @@
 {
   "name": "hook",
-  "version": "0.2.29",
+  "version": "0.2.30",
   "description": "Windows-first Tauri desktop capture, sticker editing, and visual workflow workspace.",
   "type": "module",
   "author": "yamiyu",
@@ -41,6 +41,7 @@
     "check:effective-lines": "node scripts/effective-code-lines.mjs --mode ratchet --json artifacts/effective-code-lines.json",
     "check:effective-lines:strict": "node scripts/effective-code-lines.mjs --mode strict --json artifacts/effective-code-lines-strict.json",
     "verify:version": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\assert-release-version.ps1",
+    "version:internal": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\bump-internal-version.ps1",
     "test:dependency-security": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\tests\\Test-DependencySecurityContract.ps1",
     "test:homepage-fixture": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\tests\\Test-HomepageSessionFixture.ps1",
     "probe:live-screenshot:phase0": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\tests\\Invoke-LiveScreenshotPhaseZeroProbe.ps1",

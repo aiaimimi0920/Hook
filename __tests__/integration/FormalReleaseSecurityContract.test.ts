@@ -93,7 +93,7 @@ describe("formal release security contract", () => {
 
   it("requires the exact public asset set and verifies remote digests", async () => {
     const root = mkdtempSync(join(tmpdir(), "hook-release-contract-"));
-    const tag = "V9.8.7";
+    const tag = "v9.8.7";
     try {
       const releaseRoot = join(root, tag);
       const paths = [
@@ -103,6 +103,7 @@ describe("formal release security contract", () => {
       paths.forEach((path, index) => writeFixture(path, `fixture-${index}`));
 
       const expected = publication.collectExpectedAssets(releaseRoot, tag);
+      expect(() => publication.collectExpectedAssets(releaseRoot, "v9.8.7.1")).toThrow("Release tag");
       expect(expected).toHaveLength(2);
       const actual = expected.map((record) => {
         // Hash the one bounded read that supplies the size so the fixture cannot
