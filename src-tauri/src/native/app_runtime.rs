@@ -8,6 +8,9 @@ pub fn run() {
     let tauri_ctrl_1_last_trigger = Arc::new(std::sync::Mutex::new(
         std::time::Instant::now() - std::time::Duration::from_secs(2),
     ));
+    let tauri_ctrl_2_last_trigger = Arc::new(std::sync::Mutex::new(
+        std::time::Instant::now() - std::time::Duration::from_secs(2),
+    ));
     let tauri_ctrl_3_last_trigger = Arc::new(std::sync::Mutex::new(
         std::time::Instant::now() - std::time::Duration::from_secs(2),
     ));
@@ -20,6 +23,7 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler({
                     let tauri_ctrl_1_last_trigger = tauri_ctrl_1_last_trigger.clone();
+                    let tauri_ctrl_2_last_trigger = tauri_ctrl_2_last_trigger.clone();
                     let tauri_ctrl_3_last_trigger = tauri_ctrl_3_last_trigger.clone();
                     let voice_hotkeys = voice_hotkeys.clone();
                     move |app, shortcut, event| {
@@ -35,6 +39,17 @@ pub fn run() {
                                         }
                                         if let Some(window) = app.get_webview_window("main") {
                                             enter_capture_mode(&window);
+                                        }
+                                    }
+                                    "live_capture" => {
+                                        if !should_accept_tauri_shortcut_trigger(
+                                            &tauri_ctrl_2_last_trigger,
+                                            "tauri_live_capture_duplicate_ignored",
+                                        ) {
+                                            return;
+                                        }
+                                        if let Some(window) = app.get_webview_window("main") {
+                                            enter_live_capture_mode(&window);
                                         }
                                     }
                                     "long_capture" => {
@@ -187,6 +202,32 @@ pub fn run() {
             sample_long_capture_session,
             finish_long_capture_session,
             cancel_long_capture_session,
+            start_live_capture,
+            live_resources::get_live_resource_status,
+            get_live_capture_status,
+            live_gpu::get_live_gpu_preview_capability,
+            live_gpu::configure_live_gpu_preview,
+            live_gpu::read_live_gpu_snapshot,
+            get_live_extension_capabilities,
+            get_live_network_capabilities,
+            poll_live_capture_frame,
+            read_live_capture_frame,
+            set_live_capture_source_hidden,
+            set_live_capture_interaction_enabled,
+            send_live_capture_input,
+            stop_live_capture,
+            publish_live_capture_to_loom,
+            discover_live_relay_sessions,
+            join_live_relay_session,
+            get_live_relay_status,
+            configure_live_relay_trigger,
+            reconnect_live_relay_session,
+            poll_live_relay_frame,
+            read_live_relay_frame,
+            change_live_relay_controller,
+            send_live_relay_input,
+            reclaim_live_relay_control,
+            stop_live_relay_session,
             tea_client::create_tea_ticket,
             loom_hook::loom_hook_handshake,
             loom_hook::loom_hook_dispatch_action,
@@ -201,11 +242,17 @@ pub fn run() {
         .setup(setup_app)
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
-    let exit_code = app.run_return(|_app_handle, event| match event {
+    let exit_code = app.run_return(|app_handle, event| match event {
         tauri::RunEvent::ExitRequested { .. } => {
+            shutdown_live_relay_sessions(app_handle);
+            shutdown_live_capture_sessions(app_handle);
             prepare_for_hook_process_exit("tauri_exit_requested");
         }
-        tauri::RunEvent::Exit => prepare_for_hook_process_exit("tauri_exit"),
+        tauri::RunEvent::Exit => {
+            shutdown_live_relay_sessions(app_handle);
+            shutdown_live_capture_sessions(app_handle);
+            prepare_for_hook_process_exit("tauri_exit");
+        }
         _ => {}
     });
     prepare_for_hook_process_exit("tauri_run_returned");

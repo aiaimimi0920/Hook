@@ -185,6 +185,14 @@ pub fn run(parent_pid: u32) -> i32 {
     loop {
         match unsafe { WaitForSingleObject(process, 0) } {
             WAIT_OBJECT_0 => {
+                let _ =
+                    super::restore_live_source_windows_for_parent(parent_pid).map_err(|error| {
+                        super::append_runtime_log_line_sync(&format!(
+                            "emergency_watchdog_source_restore_failed :: parent_pid={} error={}",
+                            parent_pid, error
+                        ));
+                    });
+                restore_input_state_from_watchdog();
                 let _ = unsafe { CloseHandle(process) };
                 return 0;
             }
@@ -222,6 +230,14 @@ pub fn run(parent_pid: u32) -> i32 {
             let exit_code = match unsafe { TerminateProcess(process, 0) } {
                 Ok(()) => {
                     let _ = unsafe { WaitForSingleObject(process, 5_000) };
+                    let _ = super::restore_live_source_windows_for_parent(parent_pid).map_err(
+                        |error| {
+                            super::append_runtime_log_line_sync(&format!(
+                                "emergency_watchdog_source_restore_failed :: parent_pid={} error={}",
+                                parent_pid, error
+                            ));
+                        },
+                    );
                     0
                 }
                 Err(error) => {

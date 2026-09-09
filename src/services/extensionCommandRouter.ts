@@ -18,7 +18,7 @@ const ATTACHMENT_READ_PERMISSION = "hook.unit.attachments.read";
 const MAX_EFFECT_FAILURE_DETAILS = 3;
 const MAX_EFFECT_FAILURE_DETAIL_LENGTH = 256;
 
-const gestureToken = (): string => {
+export const gestureToken = (): string => {
     const suffix = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     return `hook-gesture:${suffix}`;
 };

@@ -113,7 +113,7 @@ struct ForwardedShortcut {
 #[cfg(target_os = "windows")]
 fn overlay_keyboard_should_consume_forwarded_shortcut(shortcut: &ForwardedShortcut) -> bool {
     // Alt combinations must remain visible to the foreground application. Hook
-    // can mirror Alt+2/Alt+3 into its unfocused WebView without suppressing the
+    // can mirror Alt+4/Alt+3 into its unfocused WebView without suppressing the
     // original system key event.
     !shortcut.alt
 }
@@ -132,11 +132,15 @@ fn overlay_keyboard_forwardable_shortcut(
         shift: modifiers.shift_pressed,
         meta: modifiers.meta_pressed,
     };
-    extension_forwarded_shortcut(vk_code, modifiers).or_else(|| shortcut_config::frontend_shortcut(vk_code, runtime_modifiers).map(|chord| ForwardedShortcut {
-        key: chord.key,
-        ctrl: chord.modifiers.ctrl,
-        shift: chord.modifiers.shift,
-        alt: chord.modifiers.alt,
-        meta: chord.modifiers.meta,
-    }))
+    extension_forwarded_shortcut(vk_code, modifiers).or_else(|| {
+        shortcut_config::frontend_shortcut(vk_code, runtime_modifiers).map(|chord| {
+            ForwardedShortcut {
+                key: chord.key,
+                ctrl: chord.modifiers.ctrl,
+                shift: chord.modifiers.shift,
+                alt: chord.modifiers.alt,
+                meta: chord.modifiers.meta,
+            }
+        })
+    })
 }

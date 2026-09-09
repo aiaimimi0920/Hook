@@ -142,9 +142,14 @@ use windows::Win32::UI::WindowsAndMessaging::{
 // New WinAPI helpers for Shared Memory
 // =====================================
 
+mod live_gpu;
+mod live_resources;
+
 include!("native/shared_memory.rs");
 
 include!("native/boot_diagnostics.rs");
+
+include!("native/runtime_log_sanitize.rs");
 
 include!("native/runtime_logging.rs");
 
@@ -281,6 +286,64 @@ include!("native/capture_mode_entry.rs");
 include!("native/long_capture_encoding.rs");
 
 include!("native/long_capture_session_commands.rs");
+
+include!("native/live_source_recovery.rs");
+
+include!("native/live_capture_region.rs");
+
+include!("native/live_source_window.rs");
+include!("native/live_source_visibility.rs");
+
+include!("native/live_source_security.rs");
+
+include!("native/live_source_input_target.rs");
+
+include!("native/live_source_input.rs");
+
+include!("native/live_capture_types.rs");
+
+include!("native/live_capture_commands.rs");
+include!("native/live_input_dispatch.rs");
+
+include!("native/live_observation_types.rs");
+
+include!("native/live_extension_capabilities.rs");
+
+include!("native/live_network_capabilities.rs");
+
+include!("native/live_trigger_types.rs");
+
+include!("native/live_observation_uia.rs");
+
+include!("native/live_observation_uia_sample.rs");
+
+include!("native/live_observation_state.rs");
+
+include!("native/live_relay_types.rs");
+
+include!("native/live_relay_protocol.rs");
+
+include!("native/live_relay_http.rs");
+
+include!("native/live_relay_http_trigger.rs");
+
+include!("native/live_relay_observation.rs");
+
+include!("native/live_relay_input.rs");
+
+include!("native/live_relay_input_source.rs");
+
+include!("native/live_relay_websocket.rs");
+
+include!("native/live_relay_commands.rs");
+
+#[cfg(all(test, target_os = "windows", feature = "remote-surface"))]
+mod live_relay_acceptance_tests {
+    include!("native/tests/live_relay_phase4_acceptance.rs");
+    include!("native/tests/live_relay_acceptance_session_support.rs");
+    include!("native/tests/live_relay_phase4_acceptance_support.rs");
+    include!("native/tests/live_relay_phase6_acceptance_support.rs");
+}
 
 include!("native/overlay_commands.rs");
 

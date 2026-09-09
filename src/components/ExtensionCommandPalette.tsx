@@ -2,6 +2,8 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, 
 
 import { extensionCommandRouter } from "../services/extensionCommandRouter";
 import { extensionPresentationStore } from "../services/extensionPresentationStore";
+import { currentExtensionTarget } from "../services/extensionContext";
+import { showUnitFailureNotice } from "../services/unitFailureNotice";
 
 export const ExtensionCommandPalette: Component = () => {
     const [open, setOpen] = createSignal(false);
@@ -64,9 +66,12 @@ export const ExtensionCommandPalette: Component = () => {
                                 type="button"
                                 class="block w-full border-b border-[#2c2c2c] px-3 py-2 text-left text-xs text-[#f1f1f1] hover:bg-[#2b2b2b]"
                                 onClick={() => {
+                                    const unitId = currentExtensionTarget()?.unitId;
                                     setOpen(false);
-                                    void extensionCommandRouter.execute(item.commandId).catch((error) => {
-                                        console.error(`Extension palette command ${item.commandId} failed`, error);
+                                    void extensionCommandRouter.execute(item.commandId).catch(() => {
+                                        showUnitFailureNotice({ feature: "Loom", title: "扩展命令执行失败",
+                                            message: "命令执行失败，请检查扩展状态后重试。",
+                                            source: { namespace: "core", id: "extension-command-failed" } }, unitId);
                                     });
                                 }}
                             >

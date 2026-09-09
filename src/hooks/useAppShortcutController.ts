@@ -24,6 +24,8 @@ import type { ArtCapability } from "../services/protocol";
 import { syncService } from "../services/syncService";
 import { toggleSelectedStickerToolbar } from "../services/stickerToolbarShortcutRouting";
 import { useShortcuts } from "./useShortcuts";
+import { commitLiveCaptureUnitFrame } from "../services/liveCaptureUnit";
+import type { LiveSnapshotActionResult } from "../services/liveCaptureSnapshotAction";
 
 type AppShortcutControllerDependencies = {
     appSettingsOpen: Accessor<boolean>;
@@ -40,10 +42,10 @@ type AppShortcutControllerDependencies = {
     cancelAutoLongCaptureSession: () => Promise<boolean>;
     invalidateCaptureSessionLifecycle: () => void;
     resetSelection: () => void;
-    toggleStickerToolbarVisibility: () => void;
+    toggleStickerToolbarVisibility: () => void | Promise<void>;
     refreshCapabilities: () => Promise<void>;
     scheduleOverlayHitTestRefresh: () => void;
-    spawnConnectedNode: (sourceId: string, artId: string) => string | null;
+    spawnConnectedNode: (sourceId: string, artId: string) => LiveSnapshotActionResult<string | null>;
 };
 
 /** Binds product shortcut actions while leaving their domain commands injectable. */
@@ -132,6 +134,7 @@ export function useAppShortcutController(dependencies: AppShortcutControllerDepe
             onToggleActions: () => {
                 const id = selectedStickerId();
                 if (!id) return;
+                commitLiveCaptureUnitFrame(id);
                 // Refresh each time because Loom can add tools after Hook starts.
                 refreshActionsCapabilities(id);
                 uiActions.toggleActions(id);
@@ -199,7 +202,7 @@ export function useAppShortcutController(dependencies: AppShortcutControllerDepe
                     return;
                 }
 
-                const nodeId = dependencies.spawnConnectedNode(sourceId, capability.id);
+                const nodeId = await dependencies.spawnConnectedNode(sourceId, capability.id);
                 if (!nodeId) return;
                 void api.debugLogEvent(
                     "quick-art-node-created",

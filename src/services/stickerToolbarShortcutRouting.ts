@@ -1,5 +1,5 @@
 interface StickerToolbarShortcutOptions {
-    fallback: () => void;
+    fallback: () => void | Promise<void>;
     refreshHitTest: () => void;
 }
 
@@ -19,6 +19,7 @@ export const toggleSelectedStickerToolbar = ({
     refreshHitTest,
 }: StickerToolbarShortcutOptions): void => {
     if (!shouldHandleShortcut()) return;
-    fallback();
-    refreshHitTest();
+    const pending = fallback();
+    if (pending) void pending.then(refreshHitTest).catch(() => undefined);
+    else refreshHitTest();
 };

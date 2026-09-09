@@ -96,7 +96,7 @@ export type MultiDragPositionMap = Record<string, MultiDragPosition>;
 export const [multiDragPositions, setMultiDragPositions] = createSignal<MultiDragPositionMap | null>(null);
 // Capture Mode (Screenshot)
 export const [isSelecting, setIsSelecting] = createSignal(false);
-export const [captureMode, setCaptureMode] = createSignal<"region" | "long-vertical">("region");
+export const [captureMode, setCaptureMode] = createSignal<"region" | "long-vertical" | "live">("region");
 export const [longCaptureSession, setLongCaptureSession] = createSignal<{
     active: boolean;
     rect: CaptureRect;

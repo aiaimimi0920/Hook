@@ -10,6 +10,12 @@ unsafe extern "system" fn capture_mouse_hook_proc(
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
 
+    let _timing = CaptureMouseHookTiming {
+        started: Instant::now(),
+        message: wparam.0 as u32,
+        capture_active: CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::Relaxed),
+    };
+
     if lparam.0 == 0 {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
@@ -309,4 +315,28 @@ unsafe extern "system" fn capture_mouse_hook_proc(
     }
 
     unsafe { CallNextHookEx(None, code, wparam, lparam) }
+}
+
+#[cfg(target_os = "windows")]
+struct CaptureMouseHookTiming {
+    started: Instant,
+    message: u32,
+    capture_active: bool,
+}
+
+#[cfg(target_os = "windows")]
+impl Drop for CaptureMouseHookTiming {
+    fn drop(&mut self) {
+        let elapsed = self.started.elapsed();
+        // Slow low-level hooks can be silently removed by Windows. Record only
+        // outliers through the existing nonblocking log queue, never per move.
+        if elapsed >= Duration::from_millis(100) {
+            append_runtime_log_line(&format!(
+                "capture_mouse_hook_slow :: message={} capture_active={} elapsed_ms={}",
+                self.message,
+                self.capture_active,
+                elapsed.as_millis()
+            ));
+        }
+    }
 }

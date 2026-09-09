@@ -33,6 +33,33 @@ Hook 将透明桌面截图层和可持续编辑的贴图工作区放在同一个
 
 - `Ctrl+1` 区域截图；
 - 鼠标悬停窗口识别与双击窗口截图；
+- 通过 `Ctrl+2` 或托盘进入单设备实时截图；拖拽区域完整位于有效程序窗口内时，
+  绑定到该程序的固定窗口局部像素区域，程序移动后仍显示同一块 UI；其他拖拽保留
+  屏幕区域捕获；浏览器也使用此原生流程，无需安装扩展。滚动网页或切换标签后，
+  Live 显示对应区域的新内容，不再提供原网页内容的独立绑定；
+- 重复使用 `Ctrl+2` 可创建按资源动态接纳的 Live 贴图，包括同一程序的不同区域；
+  每张独立刷新、摆放和交互，关闭其中一张不影响其他张。桌面不再显示全局 LIVE 标签；
+- [运行时资源接纳](docs/LIVE_RESOURCE_ADMISSION.md) 取代固定四路：根据源窗口和选区尺寸、
+  内存余量、DXGI 显存预算、CPU 负载及采集增长估计决定能否新增，仍保留 16 路安全硬上限。
+  负载过高时降低已有采集频率并拒绝新增，不自动删除已有贴图；
+- 本地 Live 以最高 60 FPS 为目标，使用新帧唤醒、Windows JPEG 编码及解码后再显示，
+  不再在处理每帧后额外等待完整帧周期；实际帧率取决于源刷新、区域大小、硬件和并发数量；
+- 多张 Live 共用采集像素量/频率预算和一个自动 CPU 读回/编码许可。隐藏或完全移出视口后，
+  源采集降为 1 FPS、暂停 JPEG 生产；不支持原生合成的可见贴图限速回退，避免同时开启多路
+  不受限的 CPU 流水线。布局检查共用一个时钟及 Unit 几何采样；同窗口区域现在
+  [共用一个 WGC 采集源](docs/LIVE_SHARED_SOURCE_CAPTURE.md)，仍保留独立裁剪、刷新、可见性和关闭；
+- 自动使用[路线 B GPU 呈现](docs/LIVE_GPU_PRESENTATION.md)：将 WGC 纹理直接送入
+  原生交换链，该显示分支不经过 JPEG；复制、保存及原生 Shift 拖拽导出可按需获取无损 GPU
+  快照。GPU 健康呈现时跳过连续 CPU 读回和 JPEG 编码；不支持的组合效果使用新鲜解码帧回退。
+  可设置 `HOOK_LIVE_GPU_PREVIEW=0` 强制 JPEG 兼容模式；这不等于对实际帧率的保证；
+- 本地实时视图创建在刚才框选的位置，只显示当前捕获画面、主题绿色边框和主题黄色
+  边角；拖动任一黄色边角即可移动，单击画面中的按钮会直接操作源程序；与普通 Unit
+  一样，`Ctrl`+滚轮围绕指针缩放，`Alt`+滚轮调整透明度；
+- 对同权限 Win32/WinForms 源窗口及其经过验证的跨 UI 线程/辅助进程子 HWND，提供
+  持续捕获的逻辑隐藏，以及有序鼠标、滚轮、拖动、键盘控制、本地抢回和 watchdog 恢复；
+- Live 输入遵循 Windows UIPI 的权限方向：允许同一用户的同级或较低权限源程序，
+  不再误拦截管理员 Hook 操作普通程序；仍禁止向更高权限、其他用户/会话和安全桌面
+  发送输入。输入被拒绝时显示贴图内短暂提示，不再静默无反应；
 - Windows 11 HDR 感知截图，并自动降级到 SDR；
 - `Ctrl+3` 长截图；
 - 文件型截图载荷，避免不必要的大型 Base64 传输；
@@ -56,9 +83,9 @@ Hook 将透明桌面截图层和可持续编辑的贴图工作区放在同一个
 
 - 节点画布、连线、分组参数和 Shader 预览；
 - Loom 能力发现、Art 执行与结果回传；
-- 可选的 Loom OCR（`Ctrl+2` 始终重新识别所选贴图并复制全文，`Alt+2` 显示或隐藏按原文字号缩放的结果并启用点击复制，`Ctrl+E` 切换贴图工具栏且不会关闭 OCR 点击态）；工具栏 `OCR` 主菜单提供缓存全文、保留版式和已选文本复制，普通点击复制单块，`Shift+点击` 可按阅读顺序增减多个文本块；
+- 可选的 Loom OCR（`Ctrl+4` 始终重新识别所选贴图并复制全文，`Alt+4` 显示或隐藏按原文字号缩放的结果并启用点击复制，`Ctrl+E` 切换贴图工具栏且不会关闭 OCR 点击态）；工具栏 `OCR` 主菜单提供缓存全文、保留版式和已选文本复制，普通点击复制单块，`Shift+点击` 可按阅读顺序增减多个文本块；
 - 所有贴图与 Art 块的通知都绑定到对应贴图区域，在右上角按时间堆叠显示，点击单条即可关闭；
-- 同一 `Ctrl+2` 入口自动提供本地二维码/条码识别，`OCR` 工具栏不再重复提供手动扫码项；结果可在属性面板中复制、明确打开 HTTP(S) 地址，并通过 `recognized_url`、`recognized_text`、`recognized_codes` 输出端口连接工作流；
+- 同一 `Ctrl+4` 入口自动提供本地二维码/条码识别，`OCR` 工具栏不再重复提供手动扫码项；结果可在属性面板中复制、明确打开 HTTP(S) 地址，并通过 `recognized_url`、`recognized_text`、`recognized_codes` 输出端口连接工作流；
 - 通过本地能力桥接可选接入 Talk 语音和 Tea 工单；
 - 单实例、托盘驻留、运行日志和独立的紧急退出 watchdog。
 
@@ -86,6 +113,8 @@ npm run typecheck
 npm run test:performance
 npm run test:parallel
 npm test
+npm run probe:live-screenshot:phase2
+npm run probe:live-screenshot:phase3
 cargo fmt --check --manifest-path src-tauri\Cargo.toml
 cargo test --manifest-path src-tauri\Cargo.toml
 npm run build
@@ -93,6 +122,17 @@ npm run build
 
 `npm run verify:local` 会执行完整的串行验证，并继续构建和打包本地 Release；它不
 是轻量级的 lint 命令。
+
+实时截图 G2 探针默认在交互式桌面运行 600 秒。它使用同权限、持续变化的 WinForms
+夹具验证 WGC 新帧、尺寸变化后的重建、源关闭 fail-closed、会话清理，以及句柄和
+私有内存增长上限；证据写入 `artifacts/live-screenshot-phase2/<run-id>`，不提交到
+Git。本地 WebView 展示通过 Tauri 原始二进制响应读取有界 JPEG 帧，不把帧塞进
+`loom.surface.v1`，也不进行逐帧 JSON/Base64 传输。
+
+G3 探针只覆盖已锁定的 Windows 11、单 SDR 显示器、同权限 Win32/WinForms 范围：
+源窗口变成接近透明的合成器窗口后仍产生变化帧，并验证独立输入边沿、精确恢复、
+本地抢回、恢复日志执行和 worker 清理。该结果不承诺原生最小化、提权/跨会话、
+WPF、WinUI 或任意自定义控件兼容。
 
 直接构建便携 exe：
 

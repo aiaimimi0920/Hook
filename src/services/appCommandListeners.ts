@@ -103,6 +103,13 @@ export async function registerAppCommandListeners({
         runBackgroundTask("region capture activation", beginCaptureSelection("region"));
     }));
 
+    await registry.register(() => listen("trigger-live-capture", () => {
+        logger.debug("Backend Triggered Live Capture Mode");
+        void api.debugLogEvent("trigger-live-capture-listener");
+        setAppSettingsOpen(false);
+        runBackgroundTask("live capture activation", beginCaptureSelection("live"));
+    }));
+
     await registry.register(() => listen("trigger-long-capture", () => {
         logger.debug("Backend Triggered Long Capture Mode");
         void api.debugLogEvent("trigger-long-capture-listener");

@@ -56,6 +56,22 @@ impl fmt::Debug for DeviceSessionAuthorization {
 }
 
 impl DeviceSessionAuthorization {
+    #[cfg(test)]
+    pub(crate) fn none_for_test(device_id: &str) -> Self {
+        Self {
+            device_id: device_id.to_owned(),
+            credential: SurfaceRequestCredential::None,
+        }
+    }
+
+    #[cfg(all(test, feature = "remote-surface"))]
+    pub(crate) fn device_for_test(device_id: &str, token: &str) -> Self {
+        Self {
+            device_id: device_id.to_owned(),
+            credential: SurfaceRequestCredential::Device(token.to_owned()),
+        }
+    }
+
     pub(crate) fn apply(&self, request: RequestBuilder) -> RequestBuilder {
         match &self.credential {
             SurfaceRequestCredential::None => request,
@@ -65,6 +81,50 @@ impl DeviceSessionAuthorization {
                 .header("Authorization", format!("Device {token}"))
                 .header("X-Loom-Device-Nonce", random_url_safe(24)),
         }
+    }
+
+    pub(crate) fn apply_blocking(
+        &self,
+        request: reqwest::blocking::RequestBuilder,
+    ) -> reqwest::blocking::RequestBuilder {
+        match &self.credential {
+            SurfaceRequestCredential::None => request,
+            SurfaceRequestCredential::Bearer(token) => request.bearer_auth(token),
+            #[cfg(feature = "remote-surface")]
+            SurfaceRequestCredential::Device(token) => request
+                .header("Authorization", format!("Device {token}"))
+                .header("X-Loom-Device-Nonce", random_url_safe(24)),
+        }
+    }
+
+    pub(crate) fn apply_websocket(
+        &self,
+        request: &mut tungstenite::http::Request<()>,
+    ) -> Result<(), String> {
+        use tungstenite::http::{header::AUTHORIZATION, HeaderName, HeaderValue};
+
+        let authorization = match &self.credential {
+            SurfaceRequestCredential::None => None,
+            SurfaceRequestCredential::Bearer(token) => Some(format!("Bearer {token}")),
+            #[cfg(feature = "remote-surface")]
+            SurfaceRequestCredential::Device(token) => Some(format!("Device {token}")),
+        };
+        if let Some(value) = authorization {
+            request.headers_mut().insert(
+                AUTHORIZATION,
+                HeaderValue::from_str(&value)
+                    .map_err(|_| "Loom authorization header is invalid".to_owned())?,
+            );
+        }
+        #[cfg(feature = "remote-surface")]
+        if matches!(&self.credential, SurfaceRequestCredential::Device(_)) {
+            request.headers_mut().insert(
+                HeaderName::from_static("x-loom-device-nonce"),
+                HeaderValue::from_str(&random_url_safe(24))
+                    .map_err(|_| "Loom device nonce header is invalid".to_owned())?,
+            );
+        }
+        Ok(())
     }
 }
 

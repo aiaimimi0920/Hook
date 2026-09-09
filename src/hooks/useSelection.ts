@@ -21,14 +21,23 @@ import {
     CaptureWindowClickState,
     CaptureWindowTarget,
     isLongCaptureMode,
+    isWindowTargetCaptureMode,
     findCaptureWindowTargetAtPoint,
+    findCaptureWindowTargetForRegion,
     findRefreshedCaptureWindowTarget,
     shouldConfirmCaptureWindowDoubleClick,
 } from "../services/captureState";
+import type { LiveCaptureSelection } from "../services/liveCapture";
+import { showLiveCaptureAdmissionError } from "../services/liveCaptureAdmissionFeedback";
 
 let cachedUnitRects: {id: string, x: number, y: number, w: number, h: number}[] = [];
 
-export function useSelection(onCaptureHoverClear: () => void = () => {}) {
+export function useSelection(
+    onCaptureHoverClear: () => void = () => {},
+    onLiveCapture: (selection: LiveCaptureSelection) => Promise<void> = async () => {
+        throw new Error("Live capture controller is unavailable");
+    },
+) {
     let captureSessionGeneration = 0;
     let pendingCaptureTimer: number | null = null;
     let captureWindowTargets: CaptureWindowTarget[] = [];
@@ -70,7 +79,7 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
         });
 
     const updateCaptureWindowHover = (x: number, y: number) => {
-        if (!isSelecting() || captureMode() !== "region" || startPos()) return;
+        if (!isSelecting() || !isWindowTargetCaptureMode(captureMode()) || startPos()) return;
         const target = findCaptureWindowTargetAtPoint(captureWindowTargets, x, y);
         if (target?.id === hoveredCaptureWindowTargetId) return;
         hoveredCaptureWindowTargetId = target?.id ?? null;
@@ -81,7 +90,7 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
         captureWindowTargetLoadGeneration += 1;
         const loadGeneration = captureWindowTargetLoadGeneration;
         const sessionGeneration = captureSessionGeneration;
-        if (captureMode() !== "region") {
+        if (!isWindowTargetCaptureMode(captureMode())) {
             captureWindowTargets = [];
             return;
         }
@@ -92,7 +101,7 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
                 loadGeneration !== captureWindowTargetLoadGeneration
                 || !isCaptureSessionCurrent(sessionGeneration)
                 || !isSelecting()
-                || captureMode() !== "region"
+                || !isWindowTargetCaptureMode(captureMode())
             ) {
                 return;
             }
@@ -125,7 +134,7 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
                 loadGeneration !== captureWindowTargetLoadGeneration
                 || !isCaptureSessionCurrent(sessionGeneration)
                 || !isSelecting()
-                || captureMode() !== "region"
+                || !isWindowTargetCaptureMode(captureMode())
             ) {
                 return null;
             }
@@ -193,7 +202,7 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
          // Mode 1: Capture (Explicitly triggered)
          if (isSelecting()) {
              void api.debugLogEvent("selection-start", `x=${e.clientX} y=${e.clientY}`);
-             pressedCaptureWindowTarget = captureMode() === "region"
+             pressedCaptureWindowTarget = isWindowTargetCaptureMode(captureMode())
                  ? findCaptureWindowTargetAtPoint(captureWindowTargets, e.clientX, e.clientY)
                  : null;
              setStartPos({ x: e.clientX, y: e.clientY });
@@ -321,10 +330,12 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
         let resolvedCaptureRect = rect;
         let confirmedCaptureWindowTargetId: string | null = null;
         let captureWindowSurfaceTargetId: string | null = null;
+        let captureWindowSourceTitle: string | undefined;
+        let captureWindowRegion: LiveCaptureSelection["windowRegion"];
         preciseSelection.invalidate();
         const sessionGeneration = captureSessionGeneration;
 
-        const releasedCaptureWindowTarget = event && captureMode() === "region"
+        const releasedCaptureWindowTarget = event && isWindowTargetCaptureMode(captureMode())
             ? findCaptureWindowTargetAtPoint(captureWindowTargets, event.clientX, event.clientY)
             : null;
         let clickedCaptureWindowTarget = resolvedCaptureRect.w < 5
@@ -333,6 +344,7 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
             && releasedCaptureWindowTarget?.id === pressedCaptureWindowTarget.id
             ? releasedCaptureWindowTarget
             : null;
+        const draggedCaptureWindowTarget = pressedCaptureWindowTarget;
         pressedCaptureWindowTarget = null;
         if (clickedCaptureWindowTarget) {
             const clickPoint = {
@@ -380,6 +392,7 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
             lastCaptureWindowClick = null;
             confirmedCaptureWindowTargetId = clickedCaptureWindowTarget.id;
             captureWindowSurfaceTargetId = clickedCaptureWindowTarget.id;
+            captureWindowSourceTitle = clickedCaptureWindowTarget.title ?? undefined;
             resolvedCaptureRect = {
                 x: clickedCaptureWindowTarget.x,
                 y: clickedCaptureWindowTarget.y,
@@ -409,6 +422,23 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
         // CAPTURE
         const activeCaptureMode = captureMode();
         const isLongCapture = isLongCaptureMode(activeCaptureMode);
+        if (activeCaptureMode === "live" && !captureWindowSurfaceTargetId) {
+            const regionTarget = findCaptureWindowTargetForRegion(
+                draggedCaptureWindowTarget
+                    ? [draggedCaptureWindowTarget]
+                    : captureWindowTargets,
+                resolvedCaptureRect,
+            ) ?? findCaptureWindowTargetForRegion(captureWindowTargets, resolvedCaptureRect);
+            if (regionTarget) {
+                captureWindowSurfaceTargetId = regionTarget.target.id;
+                captureWindowSourceTitle = regionTarget.target.title ?? undefined;
+                captureWindowRegion = regionTarget.region;
+                void api.debugLogEvent(
+                    "live-capture-window-region-anchored",
+                    `target=${regionTarget.target.id} x=${regionTarget.region.x} y=${regionTarget.region.y} w=${regionTarget.region.w} h=${regionTarget.region.h}`,
+                );
+            }
+        }
         setIsSelecting(false);
         if (!isCaptureSessionCurrent(sessionGeneration)) {
             void api.debugLogEvent("selection-end-stale", `generation=${sessionGeneration}`);
@@ -431,6 +461,7 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
             }
 
             logger.debug("[Selection] Executing Capture for rect:", resolvedCaptureRect);
+            let liveAdmissionError: unknown;
             try {
                 if (confirmedCaptureWindowTargetId) {
                     const finalTargets = await api.listCaptureWindowTargets();
@@ -447,6 +478,7 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
                         w: finalTarget.w,
                         h: finalTarget.h,
                     };
+                    captureWindowSourceTitle = finalTarget.title ?? captureWindowSourceTitle;
                     startX = finalTarget.x;
                     startY = finalTarget.y;
                     await api.debugLogEvent(
@@ -463,6 +495,16 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
                     await api.debugLogEvent("selection-long-capture-prepare");
                     if (!isCaptureSessionCurrent(sessionGeneration)) return;
                     await startAutoLongCaptureSession(resolvedCaptureRect, { x: startX, y: startY });
+                    return;
+                }
+
+                if (activeCaptureMode === "live") {
+                    await onLiveCapture({
+                        windowId: captureWindowSurfaceTargetId ?? undefined,
+                        sourceTitle: captureWindowSourceTitle,
+                        windowRegion: captureWindowRegion,
+                        rect: resolvedCaptureRect,
+                    });
                     return;
                 }
 
@@ -488,6 +530,7 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
                 );
 
             } catch (e) {
+                if (activeCaptureMode === "live") liveAdmissionError = e ?? new Error("live_capture_start_failed");
                 console.error("Capture Failed", e);
                 void api.debugLogEvent("selection-capture-failure", e instanceof Error ? e.message : String(e));
                 if (isLongCapture && isCaptureSessionCurrent(sessionGeneration)) {
@@ -499,6 +542,7 @@ export function useSelection(onCaptureHoverClear: () => void = () => {}) {
                     // request above has settled; otherwise the release point
                     // can trigger a new external hover before capture completes.
                     await cleanupCaptureSession("capture-finished", true);
+                    showLiveCaptureAdmissionError(liveAdmissionError);
                 }
             }
         }, 50);

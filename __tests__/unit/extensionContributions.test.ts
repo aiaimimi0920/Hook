@@ -4,7 +4,10 @@ import { parseContributionSnapshot } from "../../src/services/extensionProtocol"
 import { applyExtensionEffect } from "../../src/services/extensionCommandRouter";
 import { normalizeExternalHttpsUrl } from "../../src/services/externalUrlEffect";
 import { api } from "../../src/services/api";
-import { buildExtensionShortcutBindings } from "../../src/services/extensionShortcutRegistry";
+import {
+    buildExtensionShortcutBindings,
+    ExtensionShortcutRegistry,
+} from "../../src/services/extensionShortcutRegistry";
 import {
     applyExtensionPresentationSnapshot,
     extensionPresentationStore,
@@ -13,7 +16,7 @@ import {
 import { ExtensionNoticeRegistry } from "../../src/services/extensionNoticeRegistry";
 import { enhancementNotices, uiActions } from "../../src/store/uiStore";
 
-const contributionSnapshot = () => parseContributionSnapshot({
+const contributionSnapshot = (globalKeys = "Ctrl+4") => parseContributionSnapshot({
     protocol: "loom.extension.v1",
     apiVersion: "1.0",
     generation: 7,
@@ -55,7 +58,7 @@ const contributionSnapshot = () => parseContributionSnapshot({
                 pluginId: "third.party/demo",
                 scopeId: "scope-demo",
                 commandId: "third.party/demo.run",
-                payload: { schema: "shortcut.v1", payload: { keys: "Ctrl+2", global: true } },
+                payload: { schema: "shortcut.v1", payload: { keys: globalKeys, global: true } },
             },
         ],
         menus: [{
@@ -78,7 +81,7 @@ const contributionSnapshot = () => parseContributionSnapshot({
 describe("generic extension contributions", () => {
     afterEach(() => vi.restoreAllMocks());
 
-    it("accepts plugin-owned Ctrl+2 and resolves deterministic conflicts", () => {
+    it("accepts plugin-owned Ctrl+4 and resolves deterministic conflicts", () => {
         const result = buildExtensionShortcutBindings(contributionSnapshot());
         expect(result.accepted.map((binding) => binding.id)).toEqual([
             "third.party/demo.shortcut-global",
@@ -86,6 +89,39 @@ describe("generic extension contributions", () => {
         ]);
         expect(result.accepted[0].global).toBe(true);
         expect(result.rejected).toEqual(["third.party/demo.shortcut-b"]);
+    });
+
+    it("reserves Ctrl+2 for live capture instead of plugin shortcuts", () => {
+        const result = buildExtensionShortcutBindings(contributionSnapshot("Ctrl+2"));
+        expect(result.accepted.map((binding) => binding.id)).toEqual([
+            "third.party/demo.shortcut-a",
+        ]);
+        expect(result.rejected).toEqual([
+            "third.party/demo.shortcut-global",
+            "third.party/demo.shortcut-b",
+        ]);
+    });
+
+    it("does not consume extension shortcuts owned by a live-control subtree", () => {
+        const registry = new ExtensionShortcutRegistry();
+        registry.applySnapshot(contributionSnapshot());
+        const viewport = document.createElement("div");
+        viewport.dataset.hookGlobalShortcuts = "ignore";
+        const child = document.createElement("span");
+        viewport.append(child);
+        viewport.addEventListener("keydown", registry.handleKeyDown);
+        const event = new KeyboardEvent("keydown", {
+            key: "Y",
+            code: "KeyY",
+            ctrlKey: true,
+            shiftKey: true,
+            bubbles: true,
+            cancelable: true,
+        });
+
+        child.dispatchEvent(event);
+
+        expect(event.defaultPrevented).toBe(false);
     });
 
     it("publishes unknown commands to toolbar and palette and removes them atomically", () => {

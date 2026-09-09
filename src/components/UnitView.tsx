@@ -41,6 +41,8 @@ import { createUnitPortRegistryController } from "./unitPortRegistryController";
 import { createUnitImageModel } from "./unitImageModel";
 import { createUnitSurfaceController } from "./unitSurfaceController";
 import { ExtensionUnitOverlayLayer } from "./ExtensionUnitOverlayLayer";
+import { UnitLiveCaptureInput } from "./UnitLiveCaptureInput";
+import { liveCaptureViews } from "../store/liveCaptureStore";
 
 // Editing panels are not needed for the normal canvas path. Their component
 // lifetimes were already conditional, so lazy loading preserves mount semantics.
@@ -428,6 +430,10 @@ export const UnitView: Component<Props> = (props) => {
             />
 
         </div>
+
+        <Show when={liveCaptureViews.some((view) => view.sessionId === props.unit.id)}>
+            <UnitLiveCaptureInput unit={props.unit} element={unitElement()} onMouseDown={props.onMouseDown} />
+        </Show>
 
         <UnitEnhancementNotices
             unitId={props.unit.id}

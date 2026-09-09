@@ -41,7 +41,8 @@ describe("Art node editing shortcut contract", () => {
     expect(appShortcutSource).not.toContain("onToggleStickerToolbar: tauriRuntime ? undefined");
     expect(handlerSource).toContain("now - lastToolbarToggleAt < 250");
     expect(handlerSource).toContain("uiActions.showStickerToolbar(stickerId);");
-    expect(handlerSource).toContain('if (selectedUnit.type === "art")');
+    expect(handlerSource).toContain("runWithLiveCaptureSnapshots([stickerId]");
+    expect(handlerSource).toContain('if (current.type === "art")');
     expect(handlerSource).toContain('uiActions.setStickerEditMode("select");');
     expect(stickerEditingSource).toContain('unit.type !== "sticker" && unit.type !== "art"');
     expect(visualOverlaysSource).toContain('props.unit.type === "sticker" || props.unit.type === "art"');

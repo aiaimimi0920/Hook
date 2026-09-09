@@ -4,6 +4,7 @@ import { getCurrentAppSettings } from "../services/appSettings";
 import { buildUnitFileNamingContext, renderFileNamingStem } from "../services/fileNaming";
 import { isUnitFormalImagePending } from "../services/graphImageResolution";
 import { renderStickerComposite } from "../services/stickerExport";
+import { prepareLiveCaptureUnitSnapshot } from "../services/liveCaptureUnit";
 import {
     NativeDragOverlayPayload,
     resolveNativeDragDropPhysicalPointFromOverlay,
@@ -160,6 +161,10 @@ export const createUnitNativeStickerDragController = (
         nativeStickerDragInFlight = true;
         const requestGeneration = ++exportRequestGeneration;
         try {
+            const unitId = options.unit().id;
+            const pendingSnapshot = prepareLiveCaptureUnitSnapshot(unitId);
+            if (pendingSnapshot) await pendingSnapshot;
+            if (disposed || requestGeneration !== exportRequestGeneration || options.unit().id !== unitId) return;
             const unit = options.unit();
             const displaySrcAtStart = options.displaySrc();
             const exportPlan = resolveCurrentUnitDragExportPlan();
@@ -188,7 +193,7 @@ export const createUnitNativeStickerDragController = (
                     break;
                 case "rendered-composite":
                     path = await api.saveStickerDragExport(
-                        await renderStickerComposite(unit),
+                        await renderStickerComposite(unit, { liveSnapshotPrepared: true }),
                         exportPlan.fileNamingContext,
                         globalX,
                         globalY,

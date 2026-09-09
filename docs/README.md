@@ -13,6 +13,13 @@ tests remain the source of truth.
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md) - engineering and verification rules.
 - [`FEATURES.md`](FEATURES.md) - implemented shortcuts and manual regression matrix.
 - [`HDR_CAPTURE.md`](HDR_CAPTURE.md) - HDR capture behavior and SDR fallback rules.
+- [`LIVE_SCREENSHOT_COMPATIBILITY_BASELINE.md`](LIVE_SCREENSHOT_COMPATIBILITY_BASELINE.md) -
+  measured Phase 0 evidence and the current G0 decision.
+- [`LIVE_SCREENSHOT_PROTOCOL.md`](LIVE_SCREENSHOT_PROTOCOL.md) - `loom.live.v1`
+  source/viewer, ordering, binary-media, and security boundaries.
+- [`ASSET_LIBRARY_INTEGRATION.md`](ASSET_LIBRARY_INTEGRATION.md) - target
+  AssetLibrary catalog, download, Loom-owned installation, and Hook activation
+  boundary.
 
 ## Release and signing
 

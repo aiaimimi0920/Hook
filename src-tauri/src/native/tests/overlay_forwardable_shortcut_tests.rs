@@ -35,7 +35,7 @@ mod overlay_forwardable_shortcut_tests {
     #[test]
     fn does_not_forward_removed_core_ocr_or_translation_shortcuts() {
         assert!(
-            overlay_keyboard_forwardable_shortcut(b'2' as u32, mods(false, false, true)).is_none()
+            overlay_keyboard_forwardable_shortcut(b'4' as u32, mods(false, false, true)).is_none()
         );
         assert!(
             overlay_keyboard_forwardable_shortcut(b'3' as u32, mods(false, false, true)).is_none()
@@ -57,13 +57,20 @@ mod overlay_forwardable_shortcut_tests {
             (b'Y', "y"),
             (b'H', "h"),
             (b'O', "o"),
-            (b'4', "4"),
         ] {
             let sc = overlay_keyboard_forwardable_shortcut(vk as u32, mods(true, false, false))
                 .unwrap_or_else(|| panic!("Ctrl+{} should forward", expected));
             assert_eq!(sc.key, expected);
             assert!(sc.ctrl && !sc.shift && !sc.alt);
         }
+    }
+
+    #[test]
+    fn forwards_ctrl_shift_4_as_clean_view() {
+        let sc = overlay_keyboard_forwardable_shortcut(b'4' as u32, mods(true, true, false))
+            .expect("Ctrl+Shift+4 should forward");
+        assert_eq!(sc.key, "4");
+        assert!(sc.ctrl && sc.shift && !sc.alt);
     }
 
     #[test]

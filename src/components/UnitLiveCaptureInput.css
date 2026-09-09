@@ -1,0 +1,57 @@
+.unit-live-border {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  border: 2px solid var(--theme-success);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.unit-live-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 14;
+  touch-action: none;
+  outline: none;
+}
+
+.unit-live-corner {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  z-index: 16;
+  box-sizing: border-box;
+  border-color: var(--theme-signal);
+  cursor: move;
+  touch-action: none;
+}
+
+.unit-live-corner--top-left {
+  left: 0;
+  border-top: 2px solid var(--theme-signal);
+  border-left: 2px solid var(--theme-signal);
+  clip-path: polygon(0 0, 100% 0, 100% 5px, 5px 5px, 5px 100%, 0 100%);
+}
+
+.unit-live-corner--top-right {
+  right: 0;
+  border-top: 2px solid var(--theme-signal);
+  border-right: 2px solid var(--theme-signal);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, calc(100% - 5px) 100%, calc(100% - 5px) 5px, 0 5px);
+}
+
+.unit-live-corner--bottom-right {
+  right: 0;
+  border-right: 2px solid var(--theme-signal);
+  border-bottom: 2px solid var(--theme-signal);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%, 0 calc(100% - 5px), calc(100% - 5px) calc(100% - 5px), calc(100% - 5px) 0);
+}
+
+.unit-live-corner--bottom-left {
+  left: 0;
+  border-bottom: 2px solid var(--theme-signal);
+  border-left: 2px solid var(--theme-signal);
+  clip-path: polygon(0 0, 5px 0, 5px calc(100% - 5px), 100% calc(100% - 5px), 100% 100%, 0 100%);
+}

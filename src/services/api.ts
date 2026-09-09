@@ -3,6 +3,8 @@ import { bootSettingsApi } from "./apiBootSettings";
 import { captureApi } from "./apiCapture";
 import { externalUrlApi } from "./apiExternalUrl";
 import { imageResourceApi } from "./apiImageResource";
+import { liveCaptureApi } from "./apiLiveCapture";
+import { liveRelayApi } from "./apiLiveRelay";
 import {
     loomPlanningApi,
     loomProtocolApi,
@@ -49,4 +51,6 @@ export const api = {
     ...captureApi,
     ...externalUrlApi,
     ...imageResourceApi,
+    ...liveCaptureApi,
+    ...liveRelayApi,
 };

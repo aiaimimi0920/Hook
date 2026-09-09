@@ -79,6 +79,13 @@ const FRONTEND_ACTIONS: &[&str] = &[
     "transform_scale",
 ];
 
+pub const GLOBAL_SHORTCUT_ACTIONS: &[&str] = &[
+    "capture",
+    "live_capture",
+    "long_capture",
+    "toggle_sticker_toolbar",
+];
+
 fn enabled_by_default() -> bool {
     true
 }
@@ -86,10 +93,11 @@ fn enabled_by_default() -> bool {
 fn default_actions() -> HashMap<String, Vec<Chord>> {
     [
         ("capture", "Ctrl+1"),
+        ("live_capture", "Ctrl+2"),
         ("long_capture", "Ctrl+3"),
         ("open_image", "Ctrl+O"),
         ("save_image", "Ctrl+S"),
-        ("toggle_clean_view", "Ctrl+4"),
+        ("toggle_clean_view", "Ctrl+Shift+4"),
         ("toggle_history", "Ctrl+H"),
         ("cancel", "Escape / Delete / Backspace"),
         ("toggle_actions", "Shift+1"),
@@ -152,8 +160,14 @@ fn config_from_settings(settings: &Value) -> Result<RuntimeShortcutConfig, Strin
         .map_err(|error| format!("invalid Loom shortcut settings: {error}"))?;
     let mut actions = default_actions();
     for (id, shortcut) in parsed.shortcuts {
+        let keys =
+            if id == "toggle_clean_view" && shortcut.keys.trim().eq_ignore_ascii_case("Ctrl+4") {
+                "Ctrl+Shift+4"
+            } else {
+                shortcut.keys.as_str()
+            };
         let chords = if shortcut.enabled {
-            parse_chords(&shortcut.keys)
+            parse_chords(keys)
         } else {
             Vec::new()
         };
@@ -215,8 +229,9 @@ pub fn frontend_shortcut(vk_code: u32, modifiers: Modifiers) -> Option<Chord> {
 }
 
 pub fn global_action(vk_code: u32, modifiers: Modifiers) -> Option<&'static str> {
-    ["capture", "long_capture", "toggle_sticker_toolbar"]
-        .into_iter()
+    GLOBAL_SHORTCUT_ACTIONS
+        .iter()
+        .copied()
         .find(|action| action_matches(action, vk_code, modifiers))
 }
 
@@ -384,6 +399,54 @@ mod tests {
 
         let defaults = config_from_settings(&json!({})).expect("default settings parse");
         assert!(defaults.close_to_tray);
+    }
+
+    #[test]
+    fn default_capture_shortcuts_reserve_ctrl_digits_and_move_clean_view() {
+        let defaults = default_actions();
+        let live_capture = defaults
+            .get("live_capture")
+            .and_then(|chords| chords.first())
+            .expect("live capture shortcut");
+        assert_eq!(live_capture.key, "2");
+        assert!(live_capture.modifiers.ctrl);
+        assert!(GLOBAL_SHORTCUT_ACTIONS.contains(&"live_capture"));
+        assert_eq!(
+            global_action(
+                b'2' as u32,
+                Modifiers {
+                    ctrl: true,
+                    ..Modifiers::default()
+                }
+            ),
+            Some("live_capture")
+        );
+
+        let clean_view = defaults
+            .get("toggle_clean_view")
+            .and_then(|chords| chords.first())
+            .expect("clean view shortcut");
+        assert_eq!(clean_view.key, "4");
+        assert!(clean_view.modifiers.ctrl);
+        assert!(clean_view.modifiers.shift);
+    }
+
+    #[test]
+    fn legacy_clean_view_setting_cannot_reclaim_ocr_ctrl_4() {
+        let config = config_from_settings(&json!({
+            "shortcuts": {
+                "toggle_clean_view": { "keys": "Ctrl+4", "enabled": true }
+            }
+        }))
+        .expect("legacy settings parse");
+        let clean_view = config
+            .actions
+            .get("toggle_clean_view")
+            .and_then(|chords| chords.first())
+            .expect("migrated clean view shortcut");
+        assert_eq!(clean_view.key, "4");
+        assert!(clean_view.modifiers.ctrl);
+        assert!(clean_view.modifiers.shift);
     }
 
     #[test]

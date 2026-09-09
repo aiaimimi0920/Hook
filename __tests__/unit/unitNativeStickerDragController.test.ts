@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
     saveStickerDragExportFromPath: vi.fn(),
     updateUnitData: vi.fn(),
     renderStickerComposite: vi.fn(async () => "data:image/png;base64,Q09NUE9TSVRF"),
+    prepareSnapshot: vi.fn<() => Promise<string | undefined> | undefined>(),
 }));
 
 vi.mock("../../src/services/api", () => ({
@@ -37,6 +38,7 @@ vi.mock("../../src/store/graphStore", () => ({
 vi.mock("../../src/services/stickerExport", () => ({
     renderStickerComposite: state.renderStickerComposite,
 }));
+vi.mock("../../src/services/liveCaptureUnit", () => ({ prepareLiveCaptureUnitSnapshot: state.prepareSnapshot }));
 
 import { createUnitNativeStickerDragController } from "../../src/components/unitNativeStickerDragController";
 
@@ -77,6 +79,7 @@ describe("unit native sticker drag controller", () => {
         state.tauri = true;
         state.units.splice(0, state.units.length, createUnit());
         vi.clearAllMocks();
+        state.prepareSnapshot.mockReset();
     });
 
     afterEach(() => {
@@ -164,6 +167,40 @@ describe("unit native sticker drag controller", () => {
         resolveSave("C:\\temp\\stale.png");
         await flushPromises();
         expect(state.updateUnitData).not.toHaveBeenCalled();
+        mounted.dispose();
+    });
+
+    it("prepares live pixels before resolving cached-path or composite export plans", async () => {
+        const unit = state.units[0];
+        unit.data.src = unit.data.previewSrc;
+        unit.data.dragOutFilePath = "C:\\temp\\old.png";
+        let release!: () => void;
+        state.prepareSnapshot.mockReturnValue(new Promise<string>((resolve) => {
+            release = () => {
+                unit.data.dragOutFilePath = undefined;
+                unit.data.src = "data:image/png;base64,TkVX";
+                unit.data.previewSrc = undefined;
+                resolve(unit.data.src);
+            };
+        }));
+        state.saveStickerDragExport.mockResolvedValue("C:\\temp\\new.png");
+        const element = document.createElement("div");
+        document.body.append(element);
+        const mounted = mountController(() => unit, element);
+        element.dispatchEvent(new MouseEvent("pointerdown", { clientX: 0, clientY: 0, shiftKey: true }));
+        window.dispatchEvent(new MouseEvent("mousemove", { clientX: 20, clientY: 0 }));
+        window.dispatchEvent(new MouseEvent("mouseup", { screenX: 30, screenY: 40 }));
+        await flushPromises();
+        expect(state.prepareSnapshot).toHaveBeenCalledTimes(1);
+        expect(state.saveStickerDragExport).not.toHaveBeenCalled();
+        release();
+        await vi.waitFor(() => expect(state.saveStickerDragExport).toHaveBeenCalledTimes(1));
+        expect(state.renderStickerComposite).toHaveBeenCalledWith(
+            expect.objectContaining({ data: expect.objectContaining({ src: "data:image/png;base64,TkVX" }) }),
+            { liveSnapshotPrepared: true },
+        );
+        expect(state.saveStickerDragExport.mock.calls[0][0]).toBe("data:image/png;base64,Q09NUE9TSVRF");
+        expect(state.saveStickerDragExportFromPath).not.toHaveBeenCalled();
         mounted.dispose();
     });
 });

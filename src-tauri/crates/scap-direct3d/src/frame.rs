@@ -14,7 +14,10 @@ use windows::{
     core::Error,
 };
 
-use crate::{PixelFormat, staging_pool::{StagingTextureLease, StagingTexturePool}};
+use crate::{
+    PixelFormat,
+    staging_pool::{StagingTextureLease, StagingTexturePool},
+};
 
 const MAX_MAPPED_FRAME_BUFFER_BYTES: usize = 512 * 1024 * 1024;
 
@@ -158,8 +161,7 @@ pub struct FrameBuffer<'a> {
 impl Drop for FrameBuffer<'_> {
     fn drop(&mut self) {
         unsafe {
-            self.d3d_context
-                .Unmap(self.staging_texture.texture(), 0);
+            self.d3d_context.Unmap(self.staging_texture.texture(), 0);
         }
     }
 }
@@ -194,7 +196,9 @@ mod tests {
     fn mapped_buffer_layout_rejects_null_short_and_overflowing_rows() {
         assert!(mapped_buffer_len(1, 1, 4, PixelFormat::R8G8B8A8Unorm, false).is_err());
         assert!(mapped_buffer_len(2, 1, 4, PixelFormat::R8G8B8A8Unorm, true).is_err());
-        assert!(mapped_buffer_len(u32::MAX, 1, u32::MAX, PixelFormat::R16G16B16A16Float, true).is_err());
+        assert!(
+            mapped_buffer_len(u32::MAX, 1, u32::MAX, PixelFormat::R16G16B16A16Float, true).is_err()
+        );
         assert!(
             mapped_buffer_len(
                 1,

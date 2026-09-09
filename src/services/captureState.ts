@@ -5,7 +5,7 @@ import type {
     StickerTransformMode,
 } from "../types/stickerEditing";
 
-export type CaptureSelectionMode = "region" | "long-vertical";
+export type CaptureSelectionMode = "region" | "long-vertical" | "live";
 
 export type CaptureShortcutContext =
     | "modal"
@@ -16,7 +16,8 @@ export type CaptureShortcutContext =
 
 export type CaptureDuplicateDebugEvent =
     | "trigger-capture-ignored-duplicate"
-    | "trigger-long-capture-ignored-duplicate";
+    | "trigger-long-capture-ignored-duplicate"
+    | "trigger-live-capture-ignored-duplicate";
 
 export interface CaptureRect {
     x: number;
@@ -98,9 +99,14 @@ export interface CaptureCtrlModifierState {
 }
 
 export const isLongCaptureMode = (mode: CaptureSelectionMode) => mode === "long-vertical";
+export const isWindowTargetCaptureMode = (mode: CaptureSelectionMode) => mode !== "long-vertical";
 
 export const getCaptureDuplicateDebugEvent = (mode: CaptureSelectionMode): CaptureDuplicateDebugEvent =>
-    isLongCaptureMode(mode) ? "trigger-long-capture-ignored-duplicate" : "trigger-capture-ignored-duplicate";
+    mode === "live"
+        ? "trigger-live-capture-ignored-duplicate"
+        : isLongCaptureMode(mode)
+            ? "trigger-long-capture-ignored-duplicate"
+            : "trigger-capture-ignored-duplicate";
 
 export const beginCaptureSelectionState = (
     requestedMode: CaptureSelectionMode,
@@ -142,6 +148,36 @@ export const findCaptureWindowTargetAtPoint = (
     && x < target.x + target.w
     && y < target.y + target.h,
 ) ?? null;
+
+export interface WindowRelativeCaptureRegion {
+    target: CaptureWindowTarget;
+    region: CaptureRect;
+}
+
+export const findCaptureWindowTargetForRegion = (
+    targets: readonly CaptureWindowTarget[],
+    rect: CaptureRect,
+): WindowRelativeCaptureRegion | null => {
+    if (rect.w <= 0 || rect.h <= 0) return null;
+    const target = targets.find((candidate) => (
+        candidate.w > 0
+        && candidate.h > 0
+        && rect.x >= candidate.x
+        && rect.y >= candidate.y
+        && rect.x + rect.w <= candidate.x + candidate.w
+        && rect.y + rect.h <= candidate.y + candidate.h
+    ));
+    if (!target) return null;
+    return {
+        target,
+        region: {
+            x: rect.x - target.x,
+            y: rect.y - target.y,
+            w: rect.w,
+            h: rect.h,
+        },
+    };
+};
 
 export const findRefreshedCaptureWindowTarget = (
     targets: readonly CaptureWindowTarget[],

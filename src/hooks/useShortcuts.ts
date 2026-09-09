@@ -54,7 +54,7 @@ export function isGlobalShortcutEditingTarget(target: EventTarget | null): boole
     }
   }
   return target.closest(
-    "input, textarea, select, [contenteditable='true'], [contenteditable='plaintext-only']",
+    "input, textarea, select, [contenteditable='true'], [contenteditable='plaintext-only'], [data-hook-global-shortcuts='ignore']",
   ) !== null;
 }
 

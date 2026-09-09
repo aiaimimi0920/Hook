@@ -33,6 +33,7 @@ import { StickerContextMenuLayer } from "./components/StickerContextMenuLayer";
 import { AppSettingsDialog } from "./components/AppSettingsDialog";
 import { SurfaceConfirmationDialog } from "./components/SurfaceConfirmationDialog";
 import { ExtensionCommandPalette } from "./components/ExtensionCommandPalette";
+import { LiveFeatures } from "./components/LiveFeatures";
 
 // Stores & Services
 import { graphStore } from "./store/graphStore";
@@ -63,6 +64,7 @@ import {
 } from "./services/artCapabilityLookup";
 import type { BootProfile } from "./services/bootProfile";
 import { stickerContextMenuController } from "./services/stickerContextMenuController";
+import { createLiveCaptureController } from "./services/liveCaptureController";
 import {
     toggleSelectedStickerToolbar,
 } from "./services/stickerToolbarShortcutRouting";
@@ -143,6 +145,8 @@ export default function App() {
   };
 
   // Hooks Integration
+  const liveCaptureController = createLiveCaptureController(api);
+  onCleanup(liveCaptureController.dispose);
   const { startDrag, handleDragMove, handleDragEnd } = useDraggable();
   // The synthetic dispatcher is created below because it needs the live
   // linking/dragging accessors. Capture teardown receives this late-bound
@@ -159,7 +163,10 @@ export default function App() {
       cancelAutoLongCaptureSession,
       notifyAutoLongCaptureWheel,
       prepareCaptureWindowTargets,
-  } = useSelection(() => clearCaptureHover());
+  } = useSelection(
+      () => clearCaptureHover(),
+      liveCaptureController.start,
+  );
   const { handleParamChange, handleDoubleClick, spawnConnectedNode, propagateFromUnit } = useUnitActions();
   const { startLinking, handleLinkDrop, handleInputLinkDrag, handleLinkHover } = useLinking({
       onLinkCreated: (sourceId) => {
@@ -486,6 +493,8 @@ export default function App() {
             resolveUnitImage={resolveUnitImage}
             portsLayerRef={canvasOverlayLayers().ports}
         />
+
+        <LiveFeatures />
 
         {/* Layer 3: Selection Overlay */}
         <CanvasSelection />

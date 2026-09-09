@@ -57,10 +57,13 @@ pub struct Settings {
     pub pixel_format: PixelFormat,
     pub crop: Option<D3D11_BOX>,
     pub fps: Option<u32>,
+    /// Discard queued old frames before copying; leave false for frame-by-frame consumers.
+    pub latest_frame_only: bool,
 }
 
 impl Settings {
     pub fn can_is_border_required() -> windows::core::Result<bool> {
+        crate::runtime::ensure_runtime()?;
         ApiInformation::IsPropertyPresent(
             &HSTRING::from("Windows.Graphics.Capture.GraphicsCaptureSession"),
             &HSTRING::from("IsBorderRequired"),
@@ -68,6 +71,7 @@ impl Settings {
     }
 
     pub fn can_is_cursor_capture_enabled() -> windows::core::Result<bool> {
+        crate::runtime::ensure_runtime()?;
         ApiInformation::IsPropertyPresent(
             &HSTRING::from("Windows.Graphics.Capture.GraphicsCaptureSession"),
             &HSTRING::from("IsCursorCaptureEnabled"),
@@ -75,6 +79,7 @@ impl Settings {
     }
 
     pub fn can_min_update_interval() -> windows::core::Result<bool> {
+        crate::runtime::ensure_runtime()?;
         ApiInformation::IsPropertyPresent(
             &HSTRING::from("Windows.Graphics.Capture.GraphicsCaptureSession"),
             &HSTRING::from("MinUpdateInterval"),
@@ -83,6 +88,7 @@ impl Settings {
 }
 
 pub fn is_supported() -> windows::core::Result<bool> {
+    crate::runtime::ensure_runtime()?;
     Ok(ApiInformation::IsApiContractPresentByMajor(
         &HSTRING::from("Windows.Foundation.UniversalApiContract"),
         8,

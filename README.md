@@ -34,6 +34,47 @@ connected to local Art/Loom workflows without leaving the application.
 
 - region capture through `Ctrl+1`;
 - hovered-window targeting and double-click window capture;
+- persistent single-device live capture through `Ctrl+2` or the tray. A drag
+  fully contained by a valid program window keeps a fixed window-local pixel
+  region when that program moves; other drags remain screen-region captures;
+- repeat `Ctrl+2` for resource-admitted concurrent Live stickers, including different
+  regions of the same program. Each has independent frames, placement, and input;
+  closing one leaves the others running. No global desktop LIVE badge is shown;
+- browser windows use the same native `Ctrl+2` capture without an extension.
+  Scrolling or switching tabs changes the captured pixels; preserving the original
+  webpage content across those actions is outside the Live capture scope;
+- [runtime resource admission](docs/LIVE_RESOURCE_ADMISSION.md) replaces the fixed
+  four-source cap: source/crop size, RAM headroom, DXGI budget and sampled CPU/load
+  growth determine whether another source can start, within a 16-source safety
+  ceiling. Pressure slows existing capture and rejects new work without deleting Units;
+- local Live targets up to 60 FPS, using frame-ready wakeups, Windows JPEG
+  encoding, and decode-before-display presentation. Actual rate depends on source
+  updates, region size, hardware, and concurrent captures; queues remain bounded;
+- multiple Live sources share a capture pixel/rate budget and one automatic CPU
+  readback/encode permit. Hidden/offscreen views reduce capture to 1 FPS and pause
+  JPEG production; visible unsupported effects use bounded-rate fallback rather
+  than unrestricted CPU pipelines. Layout polling shares one clock and Unit
+  geometry sample. Same-window regions now [share one WGC source](docs/LIVE_SHARED_SOURCE_CAPTURE.md)
+  while retaining independent crops, frame delivery, visibility and stop;
+- automatic [route B GPU presentation](docs/LIVE_GPU_PRESENTATION.md) copies
+  WGC textures into native swapchains without JPEG on that display branch. The
+  copy/save and native Shift-drag export can request lossless GPU snapshots. The
+  ordinary JPEG branch pauses CPU readback/encoding while GPU presentation is
+  healthy. Unsupported composition uses fresh decoded fallback pixels; set
+  `HOOK_LIVE_GPU_PREVIEW=0` to force JPEG compatibility. This is not an FPS guarantee;
+- the local live view starts at the selected screen position and contains only
+  the current pixels, a theme-green border, and theme-yellow move corners.
+  Drag any yellow corner to move it; clicking a captured control operates the
+  source program directly. Like ordinary units, `Ctrl`+wheel resizes the live
+  view around the pointer and `Alt`+wheel changes its opacity;
+- same-integrity Win32/WinForms source windows, including validated child HWNDs
+  hosted on another UI thread or helper process, can be logically hidden while
+  capture continues, then controlled through ordered mouse, wheel, drag, and
+  keyboard messages with explicit reclaim and watchdog recovery;
+- Live input follows Windows UIPI direction: the same user's source may have
+  equal or lower integrity than Hook. An administrator Hook is not blocked from
+  controlling ordinary programs; upward, cross-user/session, and secure-desktop
+  input stays blocked. Refusals appear as short Unit notices, not silent clicks;
 - HDR-aware Windows 11 capture with automatic SDR fallback;
 - long capture through `Ctrl+3`;
 - file-backed capture payloads to avoid unnecessary large Base64 transfers;
@@ -57,12 +98,12 @@ connected to local Art/Loom workflows without leaving the application.
 - Loom capability discovery and Art execution/delivery;
 - installable Loom Capability Plugins can contribute commands, shortcuts, toolbar
   menus, result attachments, overlays, and unit-scoped notices without a Hook
-  business branch; the official OCR package contributes its own `Ctrl+2`,
-  `Alt+2`, cached full/layout copy, click-to-copy, and Shift+click multi-block
+  business branch; the official OCR package contributes its own `Ctrl+4`,
+  `Alt+4`, cached full/layout copy, click-to-copy, and Shift+click multi-block
   selection behavior only while installed and enabled;
 - all sticker and Art notices stay bound to their owning unit, stack in its upper-right corner, and can be dismissed one at a time;
 - the official OCR package automatically performs bounded local QR/barcode
-  decoding during `Ctrl+2`, then contributes generic result attachments, green hit markers, and
+  decoding during `Ctrl+4`, then contributes generic result attachments, green hit markers, and
   click-to-copy behavior; Hook core contains no QR/barcode decoder or product branch;
 - optional Talk voice capture and Tea ticket creation through local capability
   bridges;
@@ -101,6 +142,8 @@ npm run test:performance
 npm run test:surface-browser
 npm run test:parallel
 npm test
+npm run probe:live-screenshot:phase2
+npm run probe:live-screenshot:phase3
 cargo fmt --check --manifest-path src-tauri\Cargo.toml
 cargo test --manifest-path src-tauri\Cargo.toml
 npm run build
@@ -113,6 +156,21 @@ builds/packages a local release. It is not a lightweight lint-only command.
 the production JavaScript Surface document builder, and exercises healthy,
 timer, DOM, CPU long-task, and heap-growth budget paths. It does not launch a
 second native Hook process or bypass Hook's global single-instance safety mutex.
+
+The live-capture G2 probe is interactive and runs for 600 seconds by default. It
+uses an animated same-integrity WinForms fixture to prove fresh WGC frames,
+resize/recreate, source-close fail-closed behavior, session cleanup, and bounded
+handle/private-memory growth. Its evidence is written below
+`artifacts/live-screenshot-phase2/<run-id>` and is intentionally not committed.
+Local WebView presentation uses raw Tauri binary responses carrying bounded JPEG
+frames; it does not send frames through `loom.surface.v1` or JSON/Base64.
+
+The G3 probe covers the deliberately narrow Windows 11, single-SDR-display,
+same-integrity Win32/WinForms declaration. It verifies changing frames while the
+source is a near-transparent compositor window, independent input edges, exact
+restore, local reclaim, recovery-journal execution, and worker cleanup. Hook does
+not claim native-minimize, elevated, cross-session, WPF, WinUI, or arbitrary
+custom-control support from this result.
 
 Validate a built native candidate in two stages. Preflight only hashes the
 candidate, checks the CDP dependency/port, and reports any live Hook main or

@@ -6,12 +6,20 @@ import { drawAnnotationsWithHighlighterLayer } from "./stickerAnnotationLayer";
 import { loadImage, resolveFiniteCanvasDimension } from "./stickerCanvas";
 import { renderStickerCompositeWithAnnotations } from "./stickerCompositeRenderer";
 import { applyStickerExportBeautify } from "./stickerExportBeautify";
+import { prepareLiveCaptureUnitSnapshot } from "./liveCaptureUnit";
 import {
     resolveRuntimeDirectStickerExportImageSrc,
     resolveRuntimeStickerCompositeBaseImageSrc,
 } from "./stickerExportSource";
 
-export const renderStickerComposite = async (unit: Unit): Promise<string> => {
+export const renderStickerComposite = async (
+    unit: Unit,
+    options: { liveSnapshotPrepared?: boolean } = {},
+): Promise<string> => {
+    const pendingSnapshot = options.liveSnapshotPrepared ? undefined : prepareLiveCaptureUnitSnapshot(unit.id);
+    const liveSource = pendingSnapshot ? await pendingSnapshot : undefined;
+    // Drag export can pass a captured Unit object instead of the current store proxy.
+    if (liveSource) unit = { ...unit, data: { ...unit.data, src: liveSource, previewSrc: undefined, filePath: undefined } };
     if (isUnitFormalImagePending({
         unitId: unit.id,
         units: graphStore.units,

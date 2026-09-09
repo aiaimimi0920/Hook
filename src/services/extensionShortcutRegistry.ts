@@ -32,6 +32,7 @@ const RESERVED = new Set([
         shortcut.candidates ?? [{ key: shortcut.key, modifiers: shortcut.modifiers }]
     )).map(canonical),
     "ctrl+1",
+    "ctrl+2",
     "ctrl+3",
     "ctrl+shift+p",
 ]);
@@ -113,8 +114,13 @@ export class ExtensionShortcutRegistry {
     }
 
     handleKeyDown = (event: KeyboardEvent): void => {
-        const target = event.target as HTMLElement | null;
-        if (target?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "")) return;
+        // Native shortcuts dispatch on Window, not necessarily a DOM element.
+        const target = event.target instanceof Element ? event.target : null;
+        if (
+            (target instanceof HTMLElement && target.isContentEditable)
+            || ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "")
+            || target?.closest("[data-hook-global-shortcuts='ignore']")
+        ) return;
         const binding = this.bindings.find((entry) => (
             entry.available(currentExtensionWhenContext()) && eventMatches(event, entry.candidate)
         ));

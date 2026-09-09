@@ -20,6 +20,7 @@ param(
     [int]$StartupTimeoutSeconds = 90,
     [string]$ArtifactRoot = "",
     [switch]$ValidateLoomServicesOnly,
+    [switch]$LiveUnitProbe,
     [switch]$PreflightOnly
 )
 
@@ -443,6 +444,14 @@ try {
             "-SurfaceBaseUrl", $daemonBaseUrl
         )
         $innerArgs += @("-ExpectedSha256", $ExpectedHookSha256)
+        if ($LiveUnitProbe) {
+            $innerArgs = @(
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", (Join-Path $PSScriptRoot "tests/Invoke-LiveUnitNativeProbe.ps1"),
+                "-HookExe", $resolvedHookExe, "-OutputRoot", $innerArtifactRoot,
+                "-LoomManifestPath", $manifestPath, "-LoomHookWsUrl", $bridgeWsUrl
+            )
+        }
         & powershell.exe @innerArgs
         $innerExitCode = $LASTEXITCODE
         if (-not (Test-Path -LiteralPath $innerSummaryPath -PathType Leaf)) {

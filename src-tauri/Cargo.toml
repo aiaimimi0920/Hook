@@ -1,6 +1,6 @@
 [package]
 name = "hook"
-version = "0.2.1"
+version = "0.2.29"
 description = "Windows-first Tauri desktop capture, sticker editing, and visual workflow workspace."
 authors = ["yamiyu"]
 edition = "2021"
@@ -66,7 +66,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "time", "macros"] }
 uuid = { version = "1.10.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 dirs = "5.0"
 fs2 = "0.4"
-tungstenite = "0.24"
+tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 clipboard-win = "5.4.1"
 
 [target.'cfg(windows)'.dependencies]
@@ -88,19 +88,25 @@ windows = { version = "0.60.0", features = [
     "Win32_Foundation",
     "Win32_Devices_Display",
     "Win32_Graphics_Gdi",
+    "Win32_Graphics_Imaging",
     "Win32_Graphics_Dwm",
     "Win32_Graphics_Direct3D",
     "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_DirectComposition",
     "Win32_Graphics_Dxgi_Common",
     "Win32_Graphics_Dxgi",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
     "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_ProcessStatus",
     "Win32_System_Ole",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_StationsAndDesktops",
     "Win32_System_Threading",
     "Win32_System_WinRT_Direct3D11",
     "Win32_System_WinRT_Graphics_Capture",
     "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_HiDpi",
     "Win32_Media_MediaFoundation",
     "Win32_Media_DxMediaObjects",
     "Foundation_Collections",
@@ -119,7 +125,7 @@ windows = { version = "0.60.0", features = [
 ] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-uiautomation = "0.24.0"
+uiautomation = { version = "0.24.0", features = ["event"] }
 drag = { path = "crates/drag" }
 
 [profile.release]

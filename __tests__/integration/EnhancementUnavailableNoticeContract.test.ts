@@ -5,6 +5,16 @@ import { describe, expect, it } from "vitest";
 const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
 describe("enhancement unavailable notice contract", () => {
+    it("does not reopen global dialogs for capture, command, or link failures", () => {
+        const admission = readSource("src/services/liveCaptureAdmissionFeedback.ts");
+        const palette = readSource("src/components/ExtensionCommandPalette.tsx");
+        const linking = readSource("src/hooks/useLinking.ts");
+        for (const source of [admission, palette, linking]) {
+            expect(source).toContain("showUnitFailureNotice");
+            expect(source).not.toMatch(/\balert\(/);
+        }
+        expect(palette).not.toContain("setOpen(true)");
+    });
     const unitOverlaysSource = readSource("src/components/UnitVisualOverlays.tsx");
     const unitNoticesSource = readSource("src/components/UnitEnhancementNotices.tsx");
     const canvasLayersSource = readSource("src/components/CanvasOverlayLayers.tsx");

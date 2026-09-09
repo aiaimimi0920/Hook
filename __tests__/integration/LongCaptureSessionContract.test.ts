@@ -175,7 +175,7 @@ describe("Hook long capture session contract", () => {
         expect(appSource).toContain("registerAppCommandListeners");
         expect(commandSource).toContain("listen<{ deltaX?: number; deltaY?: number }>(");
         expect(commandSource).toContain('"trigger-long-capture-wheel"');
-        expect(rustSource).toContain('window.emit("trigger-long-capture-wheel"');
+        expect(rustSource).toMatch(/window\.emit\(\s*"trigger-long-capture-wheel"\s*,\s*LongCaptureWheelEvent\s*\{/);
         expect(rustSource).toContain("rdev::EventType::Wheel { delta_x, delta_y }");
     });
 

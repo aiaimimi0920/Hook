@@ -15,6 +15,7 @@ import { getCapabilityInputsForPorts } from "../services/artPorts";
 import { deriveUnitExecutionConfig } from "../services/nodeExecutionConfig";
 import { findArtCapability } from "../services/artCapabilityLookup";
 import { buildStandaloneArtNodeUnit } from "../services/artNodeFactory";
+import { runWithLiveCaptureSnapshots } from "../services/liveCaptureSnapshotAction";
 
 const getSourceImageFrame = (unit: Unit): { w: number; h: number } => {
     const savedRect = unit.data.savedRect;
@@ -189,7 +190,7 @@ export function useUnitActions() {
     };
 
     // Extracted from App.tsx - Inline Logic
-    const spawnConnectedNode = (fromId: string, artId: string): string | null => {
+    const spawnConnectedNode = (fromId: string, artId: string) => runWithLiveCaptureSnapshots([fromId], () => {
          const u = graphStore.units.find(u => u.id === fromId);
          if (!u) return null;
 
@@ -222,7 +223,7 @@ export function useUnitActions() {
          syncService.performWorkflowSync();
          queueMicrotask(() => propagateFromUnit(fromId));
          return newId;
-    };
+    });
 
     return {
         handleParamChange,
