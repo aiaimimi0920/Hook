@@ -141,7 +141,7 @@ const executeSyncCycle = async () => {
         const bakedPreviewSrc = await renderStickerCompositeWithAnnotations(
             bakedUnit,
             unit.data.annotationState?.elements || [],
-            { baseImageSrcOverride },
+            { baseImageSrcOverride, outputMode: "source-resolution" },
         );
         if (
             isSyncImageCacheTokenCurrent(unit.id, cacheToken) &&

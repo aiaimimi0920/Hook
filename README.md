@@ -96,6 +96,14 @@ connected to local Art/Loom workflows without leaving the application.
 
 - node canvas, links, grouped parameters, and shader previews;
 - Loom capability discovery and Art execution/delivery;
+- an opt-in [tile terminal](docs/TILE_TERMINAL.md) through `--tile`, presenting
+  Loom-managed images, Live content and declarative Art on a selected physical
+  output, with endpoint-scoped input and host-owned Art confirmation/cancellation.
+  Loom can freeze, black out and resume a saved wall, with per-output application
+  reports and paused input. Identify one screen by its actual output name with a
+  marker lasting at most 10 seconds; Escape dismisses it without exiting the output.
+  This remains an internal development slice;
+  scheduling and multi-computer acceptance are pending;
 - installable Loom Capability Plugins can contribute commands, shortcuts, toolbar
   menus, result attachments, overlays, and unit-scoped notices without a Hook
   business branch; the official OCR package contributes its own `Ctrl+4`,

@@ -140,6 +140,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
                             deferred_event: next,
                         } => {
                             deferred_event = next;
+                            overlay_webview_cursor::restore_hidden_cursor(latest_modifiers.alt_pressed);
                             // The queue sample can already be several milliseconds
                             // old by the time Tauri IPC starts. During a sticker
                             // drag, sample the hardware cursor again at the last

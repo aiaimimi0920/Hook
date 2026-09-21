@@ -39,9 +39,8 @@ fn apply_live_relay_source_input(
     let event: LiveRelayInputEvent = serde_json::from_value(payload.clone())
         .map_err(|error| format!("parse Loom live input event: {error}"))?;
     let _ = event.issued_at_ms;
-    if event.source_device_id == relay.authorization.device_id {
-        return Err("Loom live input cannot originate from its source device".to_owned());
-    }
+    // A separately authorized wall endpoint may share the source's paired device.
+    // The authoritative controller event, not device inequality, grants input.
     {
         let state = relay
             .state
@@ -54,7 +53,7 @@ fn apply_live_relay_source_input(
     if matches!(&event.kind, LiveRelayInputKind::Cancel) {
         return release_live_relay_source_inputs(relay);
     }
-    let request = live_relay_input_to_capture(event)?;
+    let mut request = live_relay_input_to_capture(event)?;
     let capture = relay
         .capture
         .as_ref()
@@ -66,6 +65,9 @@ fn apply_live_relay_source_input(
     let mut source = source_window
         .lock()
         .map_err(|_| "live source window lock poisoned".to_owned())?;
+    // Local input and successive remote controllers have independent wire sequences.
+    // The reliable event cursor was checked before reaching this shared native owner.
+    request.sequence = source.last_input_sequence.saturating_add(1);
     if let Err(error) = source.send_input(&request) {
         let _ = source.set_interaction_enabled(false);
         update_live_source_status(capture, &source)?;

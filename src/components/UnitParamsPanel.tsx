@@ -4,6 +4,7 @@ import { Unit, Link, NodeExecutionConfig } from "../types/unit";
 import { ArtCapability, ArtParam } from "../services/protocol";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import { UnitActionsMenu } from "./UnitActionsMenu";
+import { UnitLivePublication } from "./UnitLivePublication";
 import { UnitParamControl } from "./params/UnitParamControl";
 import { UnitParamsCandidateResults } from "./UnitParamsCandidateResults";
 import {
@@ -339,6 +340,8 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                 onParamChange={props.onParamChange}
             />
         </Show>
+
+        <UnitLivePublication unitId={props.unit.id} />
 
         <UnitParamsPortRows
             unit={props.unit}

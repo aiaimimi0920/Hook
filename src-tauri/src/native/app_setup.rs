@@ -52,6 +52,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         append_runtime_log_line(&format!("app_settings_dir_failed :: {error}"));
         error
     })?;
+    // Restored sessions use file-backed images instead of the first-run data URLs.
+    // Grant only managed image files, including when the app-data root is overridden.
+    app.asset_protocol_scope()
+        .allow_directory(app_settings_dir.join("images"), false)?;
     let initial_app_settings =
         app_settings::load_app_settings(&app_settings_dir).map_err(|error| {
             append_runtime_log_line(&format!("app_settings_load_failed :: {error}"));

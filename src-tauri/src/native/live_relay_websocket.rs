@@ -24,6 +24,9 @@ fn spawn_live_relay_viewer_worker(
 fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureSession>) {
     let mut last_frame_id = 0_u64;
     while !relay.stop.load(Ordering::SeqCst) {
+        if live_relay_capture_ended(&capture) {
+            break;
+        }
         let connection = connect_live_relay_socket(&relay, 0, 0);
         let mut socket = match connection {
             Ok(socket) => {
@@ -38,6 +41,9 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
         };
         let mut last_ping = Instant::now();
         while !relay.stop.load(Ordering::SeqCst) {
+            if live_relay_capture_ended(&capture) {
+                break;
+            }
             if relay.reconnect.swap(false, Ordering::SeqCst) {
                 mark_live_relay_recovering(
                     &relay,
@@ -83,6 +89,10 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
                 }
                 last_ping = Instant::now();
             }
+            if let Err(error) = service_live_relay_source_socket(&mut socket) {
+                mark_live_relay_recovering(&relay, "source_read_failed", error);
+                break;
+            }
             std::thread::sleep(Duration::from_millis(10));
         }
         let _ = socket.close(None);
@@ -90,7 +100,18 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
             live_relay_reconnect_delay(&relay.stop);
         }
     }
+    if live_relay_capture_ended(&capture) {
+        relay.stop.store(true, Ordering::SeqCst);
+        clear_live_relay_authority(&relay);
+        let _ = close_live_session_blocking(&relay);
+    }
     mark_live_relay_closed(&relay);
+}
+
+fn live_relay_capture_ended(capture: &LiveCaptureSession) -> bool {
+    capture.state.lock().map_or(true, |state| {
+        matches!(state.capture_state.as_str(), "closed" | "failed")
+    })
 }
 
 fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
@@ -198,6 +219,7 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
                     );
                     break;
                 }
+                Err(error) if live_relay_read_timeout(&error) => {}
                 Err(error) => {
                     mark_live_relay_recovering(
                         &relay,
@@ -279,17 +301,7 @@ fn connect_live_relay_socket(
         HeaderValue::from_static(LIVE_RELAY_PROTOCOL_VERSION),
     );
     relay.authorization.apply_websocket(&mut request)?;
-    let (socket, response) = tungstenite::connect(request)
-        .map_err(|error| format!("connect Loom live WebSocket: {error}"))?;
-    if response
-        .headers()
-        .get(SEC_WEBSOCKET_PROTOCOL)
-        .and_then(|value| value.to_str().ok())
-        != Some(LIVE_RELAY_PROTOCOL_VERSION)
-    {
-        return Err("Loom live WebSocket did not negotiate loom.live.v1".to_owned());
-    }
-    Ok(socket)
+    connect_live_relay_transport(request, &url, relay.role)
 }
 
 fn mark_live_relay_connected(relay: &LiveRelaySession) {
@@ -346,11 +358,14 @@ mod live_relay_websocket_tests {
             live_session_id: "live:test".to_owned(),
             role: LiveRelayRole::Viewer,
             base_url: "http://127.0.0.1:1".to_owned(),
-            surface_instance_id: "instance:test".to_owned(),
-            attachment_id: "attachment:test".to_owned(),
+            surface_instance_id: Some("instance:test".to_owned()),
+            attachment_id: Some("attachment:test".to_owned()),
             authorization: crate::device_session::DeviceSessionAuthorization::none_for_test(
                 "device-000-local",
             ),
+            publication: None,
+            recovery_busy: AtomicBool::new(false),
+            event_cursor: std::sync::atomic::AtomicU64::new(0),
             capture: None,
             state: Arc::new(Mutex::new(state)),
             frames: Arc::new(Mutex::new(LiveRelayFrameBuffer::new())),

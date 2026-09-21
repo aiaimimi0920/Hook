@@ -8,8 +8,8 @@ const LIVE_RELAY_MAX_FRAME_BYTES: usize = 64 * 1024 * 1024;
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct LiveRelayPublishRequest {
     capture_session_id: String,
-    surface_instance_id: String,
-    source_attachment_id: String,
+    surface_instance_id: Option<String>,
+    source_attachment_id: Option<String>,
     source_hook_id: String,
     #[serde(default)]
     live_session_id: Option<String>,
@@ -265,9 +265,12 @@ struct LiveRelaySession {
     live_session_id: String,
     role: LiveRelayRole,
     base_url: String,
-    surface_instance_id: String,
-    attachment_id: String,
+    surface_instance_id: Option<String>,
+    attachment_id: Option<String>,
     authorization: crate::device_session::DeviceSessionAuthorization,
+    publication: Option<LiveRelayPublishRequest>,
+    recovery_busy: AtomicBool,
+    event_cursor: std::sync::atomic::AtomicU64,
     capture: Option<Arc<LiveCaptureSession>>,
     state: Arc<Mutex<LiveRelayRuntimeState>>,
     frames: Arc<Mutex<LiveRelayFrameBuffer>>,

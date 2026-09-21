@@ -8,7 +8,16 @@ export default defineConfig(({ mode }) => ({
   envPrefix: ["VITE_", "TAURI_"],
   test: {
     // These tests use node:test so Vitest must not collect them as empty suites.
-    exclude: [...configDefaults.exclude, "scripts/tests/**"],
+    exclude: [
+      ...configDefaults.exclude,
+      "scripts/tests/**",
+      "artifacts/**",
+      "output/**",
+      ".tmp/**",
+      "release/**",
+      "target/**",
+      "src-tauri/target*/**",
+    ],
     setupFiles: ["./__tests__/setup/vitest.setup.ts"],
   },
   server: {

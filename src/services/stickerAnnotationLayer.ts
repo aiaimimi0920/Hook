@@ -59,6 +59,6 @@ export const drawAnnotationsWithHighlighterLayer = (
 
     for (const annotation of sorted) {
         if (annotation.type === "highlighter") continue;
-        drawAnnotation(context, annotation, sourceImage, unit);
+        drawAnnotation(context, annotation, sourceImage, unit, coordinateScale);
     }
 };

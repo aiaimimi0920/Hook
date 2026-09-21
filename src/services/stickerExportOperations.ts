@@ -37,7 +37,7 @@ export const renderStickerComposite = async (
     const composite = await renderStickerCompositeWithAnnotations(
         unit,
         unit.data.annotationState?.elements || [],
-        { outputMode: "image-content" },
+        { outputMode: "source-resolution" },
     );
     return applyStickerExportBeautify(composite, unit);
 };

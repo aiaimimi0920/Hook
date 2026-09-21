@@ -213,3 +213,53 @@ and an animated-source CPU sample; submission counts are not monitor FPS.
   before capture mode can begin.
 - Native minimize, higher-integrity targets, other Windows sessions, and secure
   desktop input remain fail-closed rather than reporting successful control.
+
+## 8. Tile terminal regression matrix
+
+The opt-in `--tile` / `--tile-output` entry is described in
+[TILE_TERMINAL.md](TILE_TERMINAL.md). It has its own output mutex and device
+identity path and does not start the ordinary capture workspace.
+
+- Images and existing Live sessions follow one versioned crop/rotation mapping;
+  creating a placement does not create a second source program or capture.
+- Declarative Art reuses an existing instance and one ephemeral attachment per
+  output. Repeated placements share that attachment; ordinary source state and
+  formal results survive view cleanup and later edits.
+- Art input uses applied-layout authorization, host confirmation and declared
+  cancellation. Stable controls retain text drafts while accepted edits finish;
+  slow execution does not erase a newer queued absolute value edit.
+- An input grant belongs to one endpoint, presenter lease, layout revision and
+  placement. A contending endpoint receives a refusal without stealing control.
+- Authority feedback leaves the image visible and the canvas hit-testable.
+- Click, drag, wheel and keyboard produce observable effects in the source;
+  dragging a push button must not activate it as a click.
+- Blur, invalid layout, source loss and output crash release held source input;
+  delayed network results do not restore invalid authority or old frames.
+- Output loss is detected while network work is pending; stale authorization
+  clears static and dynamic presentations independently of control I/O.
+- Closing the manager leaves the output running. Restarting that output keeps
+  the same source session and application state; closing it releases only its
+  own presentation resources.
+- Freeze retains only an already complete frame for the current mapping and
+  presenter lease. Art polling and media decoding stop; accepted source work
+  continues. Black removes all content. Both modes immediately reject new wall
+  input at the daemon, release Live control and report each output's application.
+- Resume advances the layout revision and loads current source state. Output
+  restart, authorization loss, geometry changes or black-to-freeze cannot replay
+  old frozen pixels: the output is cleared and reports `frame_unavailable`.
+- Physical identification shows the enumerated output name, device/output IDs,
+  pixels and a countdown, even before assigning a wall. Its lease-owned request
+  lasts at most 10 seconds; repeated commands do not extend it or revise geometry.
+  Management distinguishes acceptance from the output's application report and
+  preserves dirty layout drafts. Covered input is paused; Escape/close dismisses
+  the marker without exiting the output. Freeze/black must resume first.
+
+`scripts/tests/Invoke-TileWallNativeInputProbe.ps1` uses an isolated packaged
+daemon and terminal with a native Rust WGC/input source harness and a WinForms
+client-region fixture. Its output records executable paths, digests, source
+effects, teardown and measured observation latency. This is one-physical-output
+evidence. `scripts/tests/Invoke-TileWallArtProbe.ps1` adds installed PowerShell
+Art execution, rapid cross-field input, bounded acknowledgement stress,
+confirmation/cancellation, resources and daemon/output recovery. Physical
+multi-machine seams/synchronization and longer soaks remain separate acceptance
+requirements.

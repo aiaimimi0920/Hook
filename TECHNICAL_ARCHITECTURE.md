@@ -139,10 +139,30 @@ they must not be unified as a cosmetic refactor without behavior tests.
 
 ## 4. Native backend architecture
 
+The independent tile path uses `TileTerminal.tsx`, `tilePresenter.ts`, bounded
+image/Live caches, and the shared `wallGeometry.ts` mapping. Its serial input
+controller owns one bounded queue and one endpoint control lease. A separate
+500 ms output monitor invalidates late control results after geometry or display
+loss; six seconds without renewed authorization clears even static content.
+Input feedback is a noninteractive badge, separate from full-screen error state.
+
+Art has a separate `tileSurfaceController.ts` action owner, serial state cache
+and bounded resource cache. `TileSurfaceLayers.tsx` composes existing declarative
+controls with media using the shared crop/rotation mapping. Stable node IDs and
+`surfaceInputDraft.ts` preserve local edits until an outcome read completes.
+Loom owns the ephemeral view, event identity, confirmation and execution state;
+the terminal never launches Art code. Layout and connection teardown release
+only presentation grants, leaving the source and its formal output intact.
+
 ### 4.1 Entry and command surface
 
 - `src-tauri/src/main.rs` handles process-only CLI modes such as `--version`,
   `--self-check`, smoke helpers, and the emergency watchdog child process.
+- `tile_terminal.rs` handles `--tile` / `--tile-output`, owns one mutex per physical
+  output and registers only terminal commands. It does not install capture hooks
+  or start the ordinary Hook workspace. `tile_outputs.rs` owns stable Windows
+  output identities and physical/DPI geometry; `wall_client.rs` and `wall_live.rs`
+  keep device credentials and network media outside the frontend.
 - `src-tauri/src/lib.rs` registers Tauri commands, initializes the runtime,
   installs global input handling, owns overlay/tray transitions, and connects the
   frontend to native services.
@@ -266,6 +286,14 @@ cross-thread and helper-process controls without relaxing UIPI. If a deepest
 child becomes invalid, input falls back to the nearest valid ancestor instead of
 disabling the whole session. `SendMessageTimeoutW` provides bounded delivery.
 This does not emulate hardware input, secure desktop, or native minimization.
+
+`native/live_source_button.rs` tracks a bounded push-button gesture for WinForms
+controls whose ordinary mouse-up Click is suppressed by occlusion. Only an
+explicit, un-dragged release at the same validated, enabled control may complete
+the standard parent `BN_CLICKED` notification. Cleanup never runs this action.
+Ordinary discrete input delivery allows 250 ms for cold control handlers; move
+samples and cleanup releases retain their 50 ms bound. Unknown completion is not
+retried. Existing user/session, UIPI and child-HWND checks remain in force.
 
 Static rectangular region drags intentionally use the visible display composition
 to preserve every window that overlaps the selection. Live drags are program-first:
@@ -396,6 +424,9 @@ transport files, logs, and caches do not use the visible naming templates.
 The public bundle identity and canonical automatic data root are
 `com.yamiyu.hook`. Tests and isolated launches can override the data root with
 `HOOK_APPDATA_DIR`; the runtime does not scan or migrate obsolete identities.
+Startup grants the WebView asset protocol access to image files directly inside
+that effective data root's `images` directory so persisted stickers can render
+after restart. The grant does not expose session/settings files or the whole data root.
 
 Phase 71 enforces the same canonical-only rule across the active Art boundary:
 current schemas, package layouts, and app-data identities are accepted;

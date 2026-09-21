@@ -4,7 +4,7 @@ import {
     Match,
     Show,
     Switch,
-    createEffect,
+    createMemo,
     createSignal,
 } from "solid-js";
 import type { JSX } from "solid-js";
@@ -22,6 +22,7 @@ import {
     surfaceNodeStyle,
 } from "./declarativeSurfaceStyle";
 import "./DeclarativeSurface.css";
+import { createSurfaceInputDraft } from "./surfaceInputDraft";
 
 export { safeSurfaceCssColor, safeSurfaceCssLength, surfaceNodeStyle };
 
@@ -35,7 +36,7 @@ interface Props {
     pointerPassthrough?: boolean;
     onActivate?: () => void | Promise<void>;
     resolveResource?: (resourceId: string) => string | undefined;
-    onEvent: (event: SurfaceEvent) => void;
+    onEvent: (event: SurfaceEvent) => unknown;
 }
 
 interface NodeProps extends Props {
@@ -139,11 +140,11 @@ const emitNodeEvent = (
     event: string,
     payload: unknown,
     modifiers?: SurfaceEventModifiers,
-): void => {
+): unknown => {
     if (props.interactive === false) return;
     const action = props.node.events?.[event];
     if (!action) return;
-    props.onEvent({
+    return props.onEvent({
         protocolVersion: SURFACE_PROTOCOL_VERSION,
         instanceId: props.snapshot.instanceId,
         attachmentId: props.snapshot.attachmentId,
@@ -167,45 +168,38 @@ const accessibleProps = (node: SurfaceNode): Pick<JSX.HTMLAttributes<HTMLElement
     };
 };
 
-const SurfaceChildren: Component<NodeProps> = (props) => (
-    <For each={props.node.children ?? []}>
-        {(child) => <SurfaceNodeView {...props} node={child} />}
-    </For>
-);
+const SurfaceChildren: Component<NodeProps> = (props) => {
+    const children = createMemo(() => new Map((props.node.children ?? []).map((child) => [child.id, child])));
+    return <For each={[...children().keys()]}>
+        {(id) => <Show when={children().get(id)}>{(child) => <SurfaceNodeView {...props} node={child()} />}</Show>}
+    </For>;
+};
 
 const SurfaceTextInput: Component<NodeProps & { type: "text" | "number" }> = (props) => {
     const values = () => asRecord(props.node.props);
-    const [value, setValue] = createSignal(stringProp(values(), "value"));
-    createEffect(() => {
-        const next = stringProp(values(), "value");
-        setValue(next);
-        props.updateSurfaceValue(props.node.id, next);
-    });
+    const draft = createSurfaceInputDraft(
+        () => JSON.stringify([props.snapshot.instanceId, props.snapshot.attachmentId, props.node.id]),
+        () => stringProp(values(), "value"), (next) => props.updateSurfaceValue(props.node.id, next),
+    );
     return (
         <input
             class="surface-control surface-input"
             data-surface-node-id={props.node.id}
             type={props.type}
-            value={value()}
+            value={draft.value()}
             placeholder={stringProp(values(), "placeholder")}
             disabled={booleanProp(values(), "disabled") || props.interactive === false}
             min={props.type === "number" ? numberProp(values(), "min") : undefined}
             max={props.type === "number" ? numberProp(values(), "max") : undefined}
             step={props.type === "number" ? numberProp(values(), "step", 1) : undefined}
             onInput={(event) => {
-                setValue(event.currentTarget.value);
-                props.updateSurfaceValue(props.node.id, event.currentTarget.value);
-                emitNodeEvent(props, "input", {
-                    value: props.type === "number"
-                        ? event.currentTarget.valueAsNumber
-                        : event.currentTarget.value,
-                });
+                const value = props.type === "number" ? event.currentTarget.valueAsNumber : event.currentTarget.value;
+                draft.dispatch(event.currentTarget.value, () => emitNodeEvent(props, "input", { value }));
             }}
-            onChange={(event) => emitNodeEvent(props, "change", {
-                value: props.type === "number"
-                    ? event.currentTarget.valueAsNumber
-                    : event.currentTarget.value,
-            })}
+            onChange={(event) => {
+                const value = props.type === "number" ? event.currentTarget.valueAsNumber : event.currentTarget.value;
+                draft.dispatch(event.currentTarget.value, () => emitNodeEvent(props, "change", { value }));
+            }}
             {...accessibleProps(props.node)}
         />
     );
@@ -392,12 +386,10 @@ const SurfaceNodeView: Component<NodeProps> = (props) => {
 
 const SurfaceTextArea: Component<NodeProps> = (props) => {
     const values = () => asRecord(props.node.props);
-    const [value, setValue] = createSignal(stringProp(values(), "value"));
-    createEffect(() => {
-        const next = stringProp(values(), "value");
-        setValue(next);
-        props.updateSurfaceValue(props.node.id, next);
-    });
+    const draft = createSurfaceInputDraft(
+        () => JSON.stringify([props.snapshot.instanceId, props.snapshot.attachmentId, props.node.id]),
+        () => stringProp(values(), "value"), (next) => props.updateSurfaceValue(props.node.id, next),
+    );
     const rows = () => Math.trunc(Math.min(20, Math.max(1, numberProp(values(), "rows", 3))));
     const maxLength = () => Math.trunc(Math.min(
         MAX_SURFACE_DRAFT_CHARACTERS,
@@ -408,7 +400,7 @@ const SurfaceTextArea: Component<NodeProps> = (props) => {
             class="surface-control surface-textarea"
             data-surface-node-id={props.node.id}
             data-surface-selectable-text="true"
-            value={value()}
+            value={draft.value()}
             rows={rows()}
             maxLength={maxLength()}
             placeholder={stringProp(values(), "placeholder")}
@@ -421,11 +413,9 @@ const SurfaceTextArea: Component<NodeProps> = (props) => {
             }}
             onInput={(event) => {
                 const next = event.currentTarget.value;
-                setValue(next);
-                props.updateSurfaceValue(props.node.id, next);
-                emitNodeEvent(props, "input", { value: next });
+                draft.dispatch(next, () => emitNodeEvent(props, "input", { value: next }));
             }}
-            onChange={(event) => emitNodeEvent(props, "change", { value: event.currentTarget.value })}
+            onChange={(event) => draft.dispatch(event.currentTarget.value, () => emitNodeEvent(props, "change", { value: event.currentTarget.value }))}
             onWheel={(event) => event.stopPropagation()}
             {...accessibleProps(props.node)}
         />

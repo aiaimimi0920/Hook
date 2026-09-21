@@ -142,11 +142,13 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            wall_client::wall_request,
             capture::capture_region,
             list_capture_window_targets,
             get_capture_cursor_position,
             update_pin_rects,
             set_mouse_monitor_active,
+            restore_overlay_text_cursor,
             begin_sticker_native_file_drag,
             begin_sticker_native_file_drag_from_path,
             save_sticker_image,
