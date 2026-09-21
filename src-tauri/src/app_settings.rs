@@ -268,6 +268,10 @@ fn remove_corrupted_settings_source_if_unchanged(
                 }
             },
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            // Windows can deny opens while another backup has the source pending deletion.
+            Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied && attempt < 3 => {
+                std::thread::sleep(Duration::from_millis(5));
+            }
             Err(error) => {
                 return Err(format!(
                     "Failed to verify corrupt settings source after backup: {error}"
