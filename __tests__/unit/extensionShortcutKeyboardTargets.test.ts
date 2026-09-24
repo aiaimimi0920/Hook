@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { extensionCommandRouter } from "../../src/services/extensionCommandRouter";
 import { parseContributionSnapshot } from "../../src/services/extensionProtocol";
 import { ExtensionShortcutRegistry } from "../../src/services/extensionShortcutRegistry";
+import { translationSnapshot, translator } from "../fixtures/translation";
 
 vi.mock("../../src/services/extensionCommandRouter", () => ({
     extensionCommandRouter: { execute: vi.fn().mockResolvedValue(undefined) },
@@ -84,5 +85,14 @@ describe("extension shortcut event target boundary", () => {
         createRegistry().handleKeyDown(event);
         expect(event.defaultPrevented).toBe(false);
         expect(extensionCommandRouter.execute).not.toHaveBeenCalled();
+    });
+
+    it("dispatches translation visibility on Alt+5", () => {
+        const registry = new ExtensionShortcutRegistry();
+        expect(registry.applySnapshot(translationSnapshot())).toEqual([]);
+        const event = new KeyboardEvent("keydown", { key: "5", code: "Digit5", altKey: true, cancelable: true });
+        registry.handleKeyDown(event);
+        expect(event.defaultPrevented).toBe(true);
+        expect(extensionCommandRouter.execute).toHaveBeenCalledExactlyOnceWith(`${translator}.toggle-overlay`);
     });
 });

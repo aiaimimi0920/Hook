@@ -347,6 +347,14 @@ transform.
 Package Arts are forwarded to Loom through `loom.hook.v1`. Hook does not maintain
 per-Art command executors in the frontend or Rust host.
 
+`extensionOverlayVisibility.ts` owns cached OCR-context overlay presentation.
+Each attachment can retain a host-owned `overlayVisible` preference outside its
+capability payload. Toggling visibility preserves the result revision and digest;
+only a real result update goes through attachment CAS. The preference is persisted
+with the unit but is omitted from capability command inputs. A replacement renderer
+suppresses its source without changing that source's preference, and source identity
+guards continue rejecting translation after a real OCR or image refresh.
+
 Loom OCR blocks may carry additive `rawText` correction evidence,
 `lineGeometry`, and CTC-timestep-aligned `characterSpans`/`wordSpans`. Hook
 accepts only the named geometry sources, bounds list sizes and coordinates,

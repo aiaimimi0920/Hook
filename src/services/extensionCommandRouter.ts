@@ -8,9 +8,11 @@ import { extensionNoticeRegistry } from "./extensionNoticeRegistry";
 import { removeUnitAttachment, upsertUnitAttachment } from "./unitAttachmentStore";
 import { parseUnitImageDataUrl, resolveUnitImageDataUrl } from "./unitImageSource";
 import { isDirectSurfaceClick, normalizeExternalHttpsUrl } from "./externalUrlEffect";
+import { prepareOcrTextCommandInput } from "./ocrTextCommandInput";
+import { cachedOverlayCommand, OCR_RECOGNIZE_COMMAND, toggleCachedUnitOverlay } from "./extensionOverlayVisibility";
 
 type CommandHandler = () => void | Promise<void>;
-type EffectContext = { directSurfaceClick?: boolean };
+type EffectContext = { directSurfaceClick?: boolean; assertCurrent?: () => void };
 const MAX_EXTENSION_IMAGE_BYTES = 16 * 1024 * 1024;
 const COMMAND_TIMEOUT_MARGIN_MS = 10_000;
 const IMAGE_READ_PERMISSION = "hook.unit.image.read";
@@ -56,7 +58,7 @@ export const applyExtensionEffect = async (
         return;
     }
     if (effect.type === "attachment.upsert") {
-        await upsertUnitAttachment(scopeId, unitId, expectedTargetRevision, payload);
+        await upsertUnitAttachment(scopeId, unitId, expectedTargetRevision, payload, context.assertCurrent);
         return;
     }
     if (effect.type === "attachment.remove") {
@@ -139,8 +141,7 @@ const resolveCommandUnitAttachments = (
     if (!permissions.has(ATTACHMENT_READ_PERMISSION)) return [];
     const unit = currentExtensionUnit();
     if (!unit || unit.id !== target.unitId) throw new Error("extension attachment target is stale");
-    // v1 exposes only the invoking plugin's opaque state. Cross-plugin data
-    // sharing requires a future, explicitly declared compatibility contract.
+    // Opaque state remains owner-scoped. Named input contexts are normalized separately.
     return (unit.data.extensionState?.attachments ?? [])
         .filter((attachment) => attachment.pluginId === pluginId)
         .map((attachment) => ({
@@ -183,6 +184,7 @@ const reportExtensionEffectFailures = (
 
 export class ExtensionCommandRouter {
     private readonly coreCommands = new Map<string, CommandHandler>();
+    private readonly pendingContexts = new Map<string, { cancelled: boolean }>();
 
     registerCore(commandId: string, handler: CommandHandler): () => void {
         if (this.coreCommands.has(commandId)) throw new Error(`core command ${commandId} is already registered`);
@@ -203,42 +205,89 @@ export class ExtensionCommandRouter {
         const target = currentExtensionTarget();
         if (!target) throw new Error("extension command requires a selected unit");
         const payload = extensionContributionPayload(contribution);
-        const permissions = contributionPermissions(payload);
-        const resourceUploads = await resolveCommandResourceUploads(permissions, target);
-        const unitAttachments = resolveCommandUnitAttachments(permissions, target, contribution.pluginId);
-        const result = await extensionBridgeClient.invoke({
-            pluginId: contribution.pluginId,
-            commandId,
-            target,
-            input,
-            resourceUploads,
-            unitAttachments,
-            userGestureToken: requiresUserGesture(payload) ? gestureToken() : undefined,
-            timeoutMs: commandTimeoutMs(payload),
-        });
-        if (result.status === "failed") {
-            throw new Error(result.error?.message ?? "extension command failed");
-        }
-        // Effects are independent of one another: an OCR run emits an attachment
-        // upsert, a clipboard write and a notice together. Attempt all effects so a
-        // stale attachment CAS does not also discard clipboard output, then reject
-        // once so command callers cannot mistake a partially applied result for
-        // complete success.
-        const failures: string[] = [];
-        for (const effect of result.effects) {
-            try {
-                await applyExtensionEffect(contribution.scopeId, target.unitId, effect, target.revision, {
-                    directSurfaceClick: isDirectSurfaceClick(input, commandId),
-                });
-            } catch (error) {
-                failures.push(error instanceof Error ? error.message : String(error));
+
+        const overlay = cachedOverlayCommand(commandId);
+        if (overlay) {
+            const permissions = contributionPermissions(payload);
+            if (!permissions.has(ATTACHMENT_READ_PERMISSION) || !permissions.has("hook.unit.attachments.write")) {
+                throw new Error("overlay toggle requires attachment read and write permissions");
             }
+            if (toggleCachedUnitOverlay(contribution.scopeId, target, overlay.typeIds)) return null;
+            return this.execute(overlay.fallbackCommand);
         }
-        if (failures.length > 0) {
-            reportExtensionEffectFailures(contribution.scopeId, target.unitId, failures);
-            throw new Error(`${failures.length} extension effect(s) failed`);
+        const usesContext = payload.inputContext !== undefined;
+        const key = `${target.unitId}:${contribution.pluginId}:${usesContext ? payload.inputContext : commandId}`;
+        const pending = this.pendingContexts.get(key);
+        if (pending) {
+            if (!payload.toggleAttachmentType) throw new Error("context command is already running");
+            pending.cancelled = true;
+            return null;
         }
-        return result;
+        const context = { cancelled: false };
+        if (usesContext || commandId === OCR_RECOGNIZE_COMMAND) {
+            if (this.pendingContexts.size >= 32) throw new Error("too many pending context commands");
+            this.pendingContexts.set(key, context);
+        }
+        try {
+            let commandInput = input;
+            let assertCurrent: (() => void) | undefined;
+            if (usesContext) {
+                if (payload.inputContext !== "ocr-text.v1") throw new Error("unsupported command input context");
+                const permissions = contributionPermissions(payload);
+                if (!permissions.has(ATTACHMENT_READ_PERMISSION)) throw new Error("context requires attachment read permission");
+                if (typeof payload.toggleAttachmentType === "string") {
+                    if (!permissions.has("hook.unit.attachments.write")) throw new Error("toggle requires attachment write permission");
+                    if (toggleCachedUnitOverlay(contribution.scopeId, target, [payload.toggleAttachmentType])) return null;
+                }
+                const prepared = await prepareOcrTextCommandInput(target, (id) => this.execute(id));
+                commandInput = prepared.input;
+                assertCurrent = () => {
+                    if (context.cancelled) throw new Error("context command was cancelled");
+                    prepared.assertCurrent();
+                };
+                if (context.cancelled) return null;
+                assertCurrent();
+            }
+            const permissions = contributionPermissions(payload);
+            const resourceUploads = await resolveCommandResourceUploads(permissions, target);
+            const unitAttachments = resolveCommandUnitAttachments(permissions, target, contribution.pluginId);
+            assertCurrent?.();
+            const result = await extensionBridgeClient.invoke({
+                pluginId: contribution.pluginId,
+                commandId,
+                target,
+                input: commandInput,
+                resourceUploads,
+                unitAttachments,
+                userGestureToken: requiresUserGesture(payload) ? gestureToken() : undefined,
+                timeoutMs: commandTimeoutMs(payload),
+            });
+            if (context.cancelled) return null;
+            assertCurrent?.();
+            if (result.status === "failed") {
+                throw new Error(result.error?.message ?? "extension command failed");
+            }
+            // Attempt independent effects, but report any failed CAS to the caller.
+            const failures: string[] = [];
+            for (const effect of result.effects) {
+                try {
+                    assertCurrent?.();
+                    await applyExtensionEffect(contribution.scopeId, target.unitId, effect, target.revision, {
+                        directSurfaceClick: isDirectSurfaceClick(input, commandId),
+                        assertCurrent,
+                    });
+                } catch (error) {
+                    failures.push(error instanceof Error ? error.message : String(error));
+                }
+            }
+            if (failures.length > 0) {
+                reportExtensionEffectFailures(contribution.scopeId, target.unitId, failures);
+                throw new Error(`${failures.length} extension effect(s) failed`);
+            }
+            return result;
+        } finally {
+            if (this.pendingContexts.get(key) === context) this.pendingContexts.delete(key);
+        }
     }
 }
 

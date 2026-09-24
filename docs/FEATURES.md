@@ -46,7 +46,9 @@ cancel/delete semantics.
 | `Tab` | selected unit | Toggle the parameter panel. |
 | `Ctrl+E` | canvas/overlay | Toggle the selected unit's sticker editing toolbar. Generic plugin menus are rendered only from active contributions. |
 | `Ctrl+4` | selected unit | Not registered by Hook core. The official OCR Capability Plugin contributes re-recognition and complete-result copying while enabled. |
-| `Alt+4` | selected unit | Not registered by Hook core. The official OCR Capability Plugin contributes overlay visibility and block interaction while enabled. |
+| `Alt+4` | selected unit | The enabled official OCR plugin contributes this shortcut. Toggle cached OCR overlays; recognize and show them if no result exists. |
+| `Ctrl+5` | selected image unit | The enabled translation plugin translates from cached OCR, recognizing first when needed. Repeated use refreshes translation while preserving OCR content. |
+| `Alt+5` | selected image unit | Toggle cached translation without a model request; produce OCR and translation on first use. |
 | `Ctrl+Shift+4` | canvas | Toggle clean view. |
 | `Q` / `W` / `E` / `R` | selected unit or sticker editing | Select the annotation transform mode: select, move, rotate, or scale. |
 
@@ -58,6 +60,17 @@ OCR text overlays preserve native substring selection. A plain block click copie
 that block; `Shift+click` toggles bounded multi-block selection without moving the
 sticker. The contributed OCR toolbar can copy cached full text, reconstruct relative
 layout, or copy selected blocks in reading order. Re-running OCR clears the selection.
+
+OCR and translation use separate attachments and mutually exclusive overlays.
+Showing translation suppresses OCR without changing the OCR visibility preference.
+Hiding translation restores OCR unless the user explicitly hid it. `Alt+4` while
+translation is visible selects OCR and hides translation; a second `Alt+4` hides
+OCR too. Visibility changes preserve attachment revisions, digests, text, and
+geometry. Re-recognizing the image invalidates the older translation.
+
+The focused `ocrTranslationVisibility.test.tsx` regression drives command and
+shortcut dispatch into the real attachment store and rendered overlay, including
+first use, repeated toggles, persistence, and an in-flight translation.
 
 QR/barcode recognition is a child capability of the installed official OCR
 Capability Plugin. `Ctrl+4` performs text and code recognition together; the

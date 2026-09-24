@@ -251,7 +251,7 @@ export class ExtensionBridgeClient {
                 hookSessionId,
                 ...extensionProtocolIdentity,
                 requiredFeatures: ["contribution.snapshot", "command.invoke"],
-                optionalFeatures: ["shortcut.registry", "menu.registry", "notice.effects"],
+                optionalFeatures: ["shortcut.registry", "menu.registry", "notice.effects", "ocr-text.v1"],
             },
         });
     }

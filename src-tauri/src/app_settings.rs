@@ -59,6 +59,8 @@ pub struct AppSettings {
     pub schema_version: u32,
     pub file_naming: FileNamingSettings,
     pub cache: CacheSettings,
+    pub translation_target_language: String,
+    pub translation_provider_mode: String,
 }
 
 impl Default for AppSettings {
@@ -67,7 +69,25 @@ impl Default for AppSettings {
             schema_version: APP_SETTINGS_SCHEMA_VERSION,
             file_naming: FileNamingSettings::default(),
             cache: CacheSettings::default(),
+            translation_target_language: String::new(),
+            translation_provider_mode: "auto".to_string(),
         }
+    }
+}
+
+fn validate_translation_target_language(value: &str) -> Result<(), String> {
+    if value.is_empty() || value == "zh-CN" || value == "en" {
+        Ok(())
+    } else {
+        Err("Translation target language must be empty, zh-CN, or en".to_string())
+    }
+}
+
+fn validate_translation_provider_mode(value: &str) -> Result<(), String> {
+    if matches!(value, "auto" | "local" | "gateway") {
+        Ok(())
+    } else {
+        Err("Translation provider mode must be auto, local, or gateway".to_string())
     }
 }
 
@@ -103,6 +123,24 @@ fn load_app_settings_unlocked(app_data_dir: &Path) -> Result<AppSettings, String
                 })?;
                 return Ok(AppSettings::default());
             }
+            if let Err(error) =
+                validate_translation_target_language(&settings.translation_target_language)
+            {
+                backup_corrupted_settings(app_data_dir, &path, &bytes).map_err(|backup_error| {
+                    format!("App settings are invalid ({error}) and could not be backed up: {backup_error}")
+                })?;
+                return Ok(AppSettings::default());
+            }
+            if let Err(error) =
+                validate_translation_provider_mode(&settings.translation_provider_mode)
+            {
+                backup_corrupted_settings(app_data_dir, &path, &bytes).map_err(|backup_error| {
+                    format!(
+                        "App settings are invalid ({error}) and could not be backed up: {backup_error}"
+                    )
+                })?;
+                return Ok(AppSettings::default());
+            }
             settings.file_naming = normalize_file_naming_settings(settings.file_naming);
             Ok(settings)
         }
@@ -134,6 +172,8 @@ fn save_app_settings_unlocked(
     settings.schema_version = APP_SETTINGS_SCHEMA_VERSION;
     validate_file_naming_settings(&settings.file_naming)?;
     validate_cache_settings(&settings.cache)?;
+    validate_translation_target_language(&settings.translation_target_language)?;
+    validate_translation_provider_mode(&settings.translation_provider_mode)?;
     settings.file_naming = normalize_file_naming_settings(settings.file_naming);
     std::fs::create_dir_all(app_data_dir)
         .map_err(|error| format!("Failed to create app settings directory: {error}"))?;
@@ -349,6 +389,8 @@ mod tests {
         settings.file_naming.drag_export_pattern = "{label}_{unitId}".to_string();
         settings.cache.recycle_bin_max_entries = 0;
         settings.cache.temp_cache_max_bytes = 0;
+        settings.translation_target_language = "zh-CN".to_string();
+        settings.translation_provider_mode = "local".to_string();
         let saved = save_app_settings(&root, settings.clone()).unwrap();
         assert_eq!(saved, settings);
         assert_eq!(load_app_settings(&root).unwrap(), settings);
@@ -359,6 +401,22 @@ mod tests {
             .to_string_lossy()
             .ends_with(".tmp")));
         let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn translation_language_accepts_empty_and_supported_values_only() {
+        for value in ["", "zh-CN", "en"] {
+            assert!(validate_translation_target_language(value).is_ok());
+        }
+        assert!(validate_translation_target_language("fr").is_err());
+    }
+
+    #[test]
+    fn translation_provider_mode_accepts_supported_values_only() {
+        for value in ["auto", "local", "gateway"] {
+            assert!(validate_translation_provider_mode(value).is_ok());
+        }
+        assert!(validate_translation_provider_mode("remote").is_err());
     }
 
     #[test]

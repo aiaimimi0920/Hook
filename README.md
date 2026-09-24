@@ -109,6 +109,11 @@ connected to local Art/Loom workflows without leaving the application.
   business branch; the official OCR package contributes its own `Ctrl+4`,
   `Alt+4`, cached full/layout copy, click-to-copy, and Shift+click multi-block
   selection behavior only while installed and enabled;
+- OCR and translation keep independent cached results: `Ctrl+4` re-recognizes,
+  `Ctrl+5` translates using existing OCR or recognizes first, and `Alt+4` / `Alt+5`
+  toggle cached overlays or produce the missing result on first use. The overlays
+  are mutually exclusive; hiding translation restores OCR only when it was not
+  explicitly hidden. Visibility changes do not repeat OCR or model requests;
 - all sticker and Art notices stay bound to their owning unit, stack in its upper-right corner, and can be dismissed one at a time;
 - the official OCR package automatically performs bounded local QR/barcode
   decoding during `Ctrl+4`, then contributes generic result attachments, green hit markers, and
