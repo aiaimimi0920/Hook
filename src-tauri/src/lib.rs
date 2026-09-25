@@ -376,6 +376,7 @@ include!("native/rdev_input_listener.rs");
 
 include!("native/app_setup.rs");
 
+mod bridge_csp;
 include!("native/app_runtime.rs");
 
 #[cfg(test)]
