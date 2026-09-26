@@ -173,7 +173,7 @@ export function useAppStartupLifecycle(dependencies: AppStartupLifecycleDependen
         if (dependencies.tauriRuntime) {
             // Register before handshake/session restore so no initial workflow
             // broadcast can race ahead of the frontend listeners.
-            await registerExtensionLifecycle(cleanups, dependencies.tauriRuntime);
+            await registerExtensionLifecycle(cleanups, dependencies.tauriRuntime, bootProfile?.loomHookWsUrl);
             await registerAppCommandListeners({
                 registry: cleanups,
                 ...dependencies.registerAppCommandListeners,

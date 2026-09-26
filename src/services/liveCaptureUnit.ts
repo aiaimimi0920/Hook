@@ -18,6 +18,7 @@ type LiveUnitBinding = {
 // Only explicit snapshot boundaries copy media into graph data. Streaming bytes
 // and session capabilities never become serialized Unit fields.
 const bindings = new Map<string, LiveUnitBinding>();
+export const isLiveCaptureUnit = (unitId: string): boolean => bindings.has(unitId);
 
 export function attachLiveCaptureUnit(
     view: LiveCaptureView,

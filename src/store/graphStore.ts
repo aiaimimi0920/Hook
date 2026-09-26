@@ -29,6 +29,9 @@ import {
 } from "../services/syncImageCache";
 import { surfaceStore } from "./surfaceStore";
 import { surfaceAttachmentRequests } from "../services/surfaceAttachmentRequests";
+import { invalidateProjectionUnit, invalidateProjectionWorkspace } from "../services/qrProjectionLifecycle";
+import { queueProjectionUnlink } from "../services/qrProjectionCleanup";
+import { sanitizeProjectionLink } from "../services/qrProjectionProtocol";
 
 // Core Data Stores
 const [units, setUnits] = createStore<Unit[]>([]);
@@ -51,6 +54,7 @@ const addUnit = (unit: Unit) => {
         ...unit,
         data: {
             ...unit.data,
+            qrProjection: sanitizeProjectionLink(unit.data.qrProjection, unit.id),
             executionConfig,
         },
     };
@@ -61,6 +65,9 @@ const addUnit = (unit: Unit) => {
 };
 
 const removeUnit = (id: string) => {
+    const projection = units.find((unit) => unit.id === id)?.data.qrProjection;
+    if (projection?.localUnitId === id && !projection.stopped) queueProjectionUnlink(projection.envelope);
+    invalidateProjectionUnit(id);
     shaderCache.disposeUnit(id);
     surfaceStore.actions.clear(id);
     surfaceAttachmentRequests.clear(id);
@@ -75,6 +82,7 @@ const removeUnit = (id: string) => {
 };
 
 const replaceUnits = (nextUnits: Unit[]) => {
+    invalidateProjectionWorkspace();
     clearAllImageSearchPrefetchGenerations();
     clearAllSyncImageCaches();
     surfaceStore.actions.clearAll();

@@ -22,6 +22,7 @@ import { graphStore } from "../store/graphStore";
 import { selectionActions, uiActions } from "../store/uiStore";
 import { StickerContextMenuPanel } from "./StickerContextMenuPanel";
 import { StickerSnapshotListPanel } from "./StickerSnapshotListPanel";
+import { openProjection } from "../store/qrProjectionStore";
 
 const CONTEXT_MENU_RECT_ID = "sticker-context-menu-root";
 const CONTEXT_MENU_RECT_NAME = "STICKER_CONTEXT_MENU_ROOT";
@@ -316,6 +317,7 @@ export const StickerContextMenuLayer = () => {
                             referenceActionLabel={referenceActionLabel()}
                             onCloseSticker={handleCloseSticker}
                             onSave={() => void handleSave()}
+                            onProjection={() => { const unit = targetSticker(); closeMenu(); if (unit) openProjection(unit.id); }}
                             onClearRecycleBin={handleClearRecycleBin}
                             onToggleReference={handleToggleReference}
                             onClearReferenceLibrary={handleClearReferenceLibrary}

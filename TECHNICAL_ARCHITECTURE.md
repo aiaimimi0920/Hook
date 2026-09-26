@@ -347,6 +347,13 @@ transform.
 Package Arts are forwarded to Loom through `loom.hook.v1`. Hook does not maintain
 per-Art command executors in the frontend or Rust host.
 
+The extension lifecycle uses the native boot profile's `loomHookWsUrl`, including
+for reconnects, so custom bridge ports serve both Art and capability extensions.
+Disposing the App mount closes that connection and cancels its reconnect timer.
+The native context adds only that configured loopback WebSocket origin to
+`connect-src`. Other origins and ports, credentials, paths, and CSP directive
+injection cannot expand this grant; the static script/frame policies remain intact.
+
 `extensionOverlayVisibility.ts` owns cached OCR-context overlay presentation.
 Each attachment can retain a host-owned `overlayVisible` preference outside its
 capability payload. Toggling visibility preserves the result revision and digest;

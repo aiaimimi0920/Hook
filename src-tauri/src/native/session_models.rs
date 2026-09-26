@@ -52,6 +52,7 @@ pub struct StickerData {
     pub barcode_result: Option<serde_json::Value>,
     #[serde(rename = "extensionState")]
     pub extension_state: Option<serde_json::Value>,
+    pub qr_projection: Option<serde_json::Value>,
     #[serde(rename = "originWorkflowId")]
     pub origin_workflow_id: Option<String>,
     #[serde(rename = "originNodeId")]

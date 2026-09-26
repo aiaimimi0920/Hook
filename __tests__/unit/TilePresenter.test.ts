@@ -20,9 +20,11 @@ async function fixture() {
         clear: vi.fn(), status: vi.fn() };
     return { api, host, endpoint, state };
 }
-// Native WebCrypto completion is an actual async boundary even under fake timers.
+const realSetTimeout = globalThis.setTimeout;
+// Wait for native WebCrypto without advancing the presenter's fake lease clock.
 async function eventually(check: () => boolean) {
-    for (let i = 0; i < 100 && !check(); i++) await new Promise<void>((resolve) => setImmediate(resolve));
+    const deadline = Date.now() + 2000;
+    while (!check() && Date.now() < deadline) await new Promise<void>((resolve) => realSetTimeout(resolve, 10));
     expect(check()).toBe(true);
 }
 describe('tile presenter resource ownership', () => {

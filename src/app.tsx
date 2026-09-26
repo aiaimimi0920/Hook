@@ -34,6 +34,7 @@ import { AppSettingsDialog } from "./components/AppSettingsDialog";
 import { SurfaceConfirmationDialog } from "./components/SurfaceConfirmationDialog";
 import { ExtensionCommandPalette } from "./components/ExtensionCommandPalette";
 import { LiveFeatures } from "./components/LiveFeatures";
+import { QrProjectionFeatures } from "./components/QrProjectionFeatures";
 
 // Stores & Services
 import { graphStore } from "./store/graphStore";
@@ -495,6 +496,7 @@ export default function App() {
         />
 
         <LiveFeatures />
+        <QrProjectionFeatures />
 
         {/* Layer 3: Selection Overlay */}
         <CanvasSelection />

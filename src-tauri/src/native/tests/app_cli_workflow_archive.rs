@@ -146,6 +146,7 @@
             ocr_result: None,
             barcode_result: None,
             extension_state: None,
+            qr_projection: None,
             origin_workflow_id: None,
             origin_node_id: None,
             execution_config: None,

@@ -100,6 +100,17 @@ pub(crate) fn append_runtime_log_line(message: &str) {
     let _ = runtime_log_sender().try_send(line);
 }
 
+// Exit evidence must survive a full log queue and immediate process teardown.
+fn record_process_exit_event(source: &str, code: Option<i32>) {
+    append_runtime_log_line_sync(&format!(
+        "[{}] process_exit_event :: pid={} source={} code={:?}",
+        runtime_log_timestamp(),
+        std::process::id(),
+        source,
+        code
+    ));
+}
+
 // Install a process-wide panic hook that records the panic message, location,
 // and thread name to the runtime log BEFORE the runtime aborts. The release
 // profile is `panic = "abort"` with `strip = true` and no symbols, so a panic
@@ -110,7 +121,6 @@ pub(crate) fn append_runtime_log_line(message: &str) {
 fn install_panic_logger() {
     let _ = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        prepare_for_hook_process_exit("panic");
         let location = info
             .location()
             .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
@@ -133,6 +143,8 @@ fn install_panic_logger() {
         );
         // Synchronous write so the record survives the imminent abort.
         append_runtime_log_line_sync(&line);
+        // Cleanup can re-enter native window code; preserve the original panic first.
+        prepare_for_hook_process_exit("panic");
         console_error_line!("{line}");
     }));
 }

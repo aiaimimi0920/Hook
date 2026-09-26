@@ -36,8 +36,11 @@ function openMenu() {
     disposeMenu = render(() => <StickerContextMenuLayer />, host);
     menu.openForSticker(id, { x: 10, y: 20 });
 }
-function clickMenu(index: number) {
-    document.querySelectorAll<HTMLButtonElement>(".hook-context-menu-item")[index].click();
+function clickMenu(label: string) {
+    const button = [...document.querySelectorAll<HTMLButtonElement>(".hook-context-menu-item")]
+        .find((item) => item.textContent?.trim() === label);
+    if (!button) throw new Error(`Missing context-menu action: ${label}`);
+    button.click();
 }
 beforeEach(() => {
     uiActions.hideStickerToolbar();
@@ -162,17 +165,17 @@ describe("Live snapshot action boundaries", () => {
     });
     it("captures current pixels for both context-menu reference and close", async () => {
         openMenu();
-        clickMenu(4);
+        clickMenu("设置参考");
         await vi.waitFor(() => expect(graphStore.referenceLibrary[0]?.snapshot.src).toBe(png));
         menu.openForSticker(id, { x: 10, y: 20 });
-        clickMenu(0);
+        clickMenu("关闭");
         await vi.waitFor(() => expect(graphStore.recycleBin[0]?.snapshot.src).toBe(png));
         expect(graphStore.units).toHaveLength(0);
     });
     it("does not complete a menu action after the menu is dismissed", async () => {
         const resolve = pendingSnapshot();
         openMenu();
-        clickMenu(0);
+        clickMenu("关闭");
         menu.close();
         resolve();
         await vi.waitFor(() => expect(graphStore.units[0].data.src).toBe(png));

@@ -28,6 +28,10 @@ Hook combines a transparent desktop capture surface with a persistent sticker
 workspace. Captures can remain on the desktop, be edited and annotated, or be
 connected to local Art/Loom workflows without leaving the application.
 
+[QR projection](docs/QR_PROJECTION.md) links a sticker or formal Art image to
+another Windows Hook device through a shared HTTPS Loom service, with automatic
+content updates and independent receiver layout. Real two-device acceptance is pending.
+
 ## Core capabilities
 
 ### Capture

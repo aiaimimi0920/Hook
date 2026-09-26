@@ -136,6 +136,13 @@ pub fn run() {
                 }
             }
             if let WindowEvent::CloseRequested { api, .. } = event {
+                append_runtime_log_line_sync(&format!(
+                    "[{}] window_close_event :: pid={} label={} close_to_tray={}",
+                    runtime_log_timestamp(),
+                    std::process::id(),
+                    window.label(),
+                    shortcut_config::close_to_tray_enabled()
+                ));
                 if shortcut_config::close_to_tray_enabled() {
                     api.prevent_close();
                     append_runtime_log_line("window_close_requested :: action=tray");
@@ -148,6 +155,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             wall_client::wall_request,
+            qr_projection::projection_request,
+            qr_projection::v2::projection_v2_request,
             capture::capture_region,
             list_capture_window_targets,
             get_capture_cursor_position,
@@ -250,18 +259,21 @@ pub fn run() {
         .build(context)
         .expect("error while building tauri application");
     let exit_code = app.run_return(|app_handle, event| match event {
-        tauri::RunEvent::ExitRequested { .. } => {
+        tauri::RunEvent::ExitRequested { code, .. } => {
+            record_process_exit_event("tauri_exit_requested", code);
             shutdown_live_relay_sessions(app_handle);
             shutdown_live_capture_sessions(app_handle);
             prepare_for_hook_process_exit("tauri_exit_requested");
         }
         tauri::RunEvent::Exit => {
+            record_process_exit_event("tauri_exit", None);
             shutdown_live_relay_sessions(app_handle);
             shutdown_live_capture_sessions(app_handle);
             prepare_for_hook_process_exit("tauri_exit");
         }
         _ => {}
     });
+    record_process_exit_event("tauri_run_returned", Some(exit_code));
     prepare_for_hook_process_exit("tauri_run_returned");
     std::process::exit(exit_code);
 }

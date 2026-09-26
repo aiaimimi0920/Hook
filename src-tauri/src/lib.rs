@@ -31,6 +31,7 @@ pub mod loom_connector;
 mod loom_hook;
 mod mouse_monitor;
 mod network_proxy;
+mod qr_projection;
 mod screenshot;
 mod shortcut_config;
 mod single_instance;

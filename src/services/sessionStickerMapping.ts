@@ -18,6 +18,7 @@ import { findArtCapability } from "./artCapabilityLookup";
 import { sanitizePersistedUnitExtensionState } from "./unitExtensionValidation";
 import { migrateLegacyOcrResultToAttachment } from "./legacyOcrAttachmentMigration";
 import { migrateLegacyBarcodeResultToAttachment } from "./legacyBarcodeAttachmentMigration";
+import { sanitizeProjectionLink } from "./qrProjectionProtocol";
 
 export interface SessionStickerMappingDeps {
     /** Art capabilities used to resolve node ports and execution defaults. */
@@ -116,6 +117,7 @@ export const mapSessionStickerToUnit = (
             ocrResult: ocrMigration.ocrResult,
             barcodeResult: barcodeMigration.barcodeResult,
             extensionState: barcodeMigration.extensionState,
+            qrProjection: sanitizeProjectionLink(sticker.qrProjection, sticker.id),
             originWorkflowId: sticker.originWorkflowId || undefined,
             originNodeId: sticker.originNodeId || undefined,
             executionConfig,
@@ -154,6 +156,7 @@ const KNOWN_SESSION_STICKER_KEYS = {
     ocrResult: true,
     barcodeResult: true,
     extensionState: true,
+    qrProjection: true,
     originWorkflowId: true,
     originNodeId: true,
     executionConfig: true,
