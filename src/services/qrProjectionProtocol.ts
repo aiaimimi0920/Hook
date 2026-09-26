@@ -49,12 +49,14 @@ export function parseProjectionInvitation(text: string): ProjectionEnvelope {
 }
 
 export function parseProjectionResponse(value: unknown): ProjectionResponse {
-    if (!record(value)) throw new Error("projection_invalid_response");
+    if (!record(value) || value.offlineTransport !== undefined) throw new Error("projection_invalid_response");
     const envelope = parseProjectionEnvelope(value.envelope);
     if (!revision(value.revision) || value.revision < envelope.source.revision || !digest(value.digest) || typeof value.linked !== "boolean"
         || (value.receiverDeviceId !== null && !identifier(value.receiverDeviceId))
         || (value.receiverUnitId !== null && !identifier(value.receiverUnitId))) throw new Error("projection_invalid_response");
     if (value.snapshot != null) parseProjectionSnapshot(value.snapshot);
+    if (value.delivery != null && (!record(value.delivery) || !identifier(value.delivery.targetDeviceId)
+        || !["awaiting_confirmation", "accepted", "displayed", "rejected"].includes(String(value.delivery.status)))) throw new Error("projection_invalid_response");
     if (value.transport != null && !["direct", "relay", "offline", "reconnecting"].includes(String(value.transport))) throw new Error("projection_invalid_response");
     return { ...value, envelope } as unknown as ProjectionResponse;
 }
@@ -67,13 +69,21 @@ export function parseProjectionSnapshot(value: unknown): ProjectionSnapshot {
     return value as unknown as ProjectionSnapshot;
 }
 
+export function parseOfflineTransport(value: unknown): { origin: string } {
+    if (!record(value) || typeof value.origin !== "string") throw new Error("projection_invalid_origin");
+    return { origin: projectionOrigin(value.origin) };
+}
+
 export function sanitizeProjectionLink(value: unknown, unitId: string): QrProjectionLink | undefined {
     try {
         if (!record(value) || !["source", "receiver"].includes(String(value.role)) || value.localUnitId !== unitId
             || !revision(value.revision) || !digest(value.digest) || typeof value.linked !== "boolean") return undefined;
         const envelope = parseProjectionEnvelope(value.envelope);
         if (value.role === "source" && envelope.source.unitId !== unitId) return undefined;
+        const offlineTransport = value.offlineTransport === undefined ? undefined : parseOfflineTransport(value.offlineTransport);
+        if (offlineTransport && envelope.protocol !== "neuro.qr-projection.v1") return undefined;
         return { role: value.role as QrProjectionLink["role"], localUnitId: unitId, envelope,
+            ...(offlineTransport ? { offlineTransport } : {}),
             revision: value.revision, digest: value.digest, linked: value.linked, stopPending: value.stopPending === true,
             stopped: value.stopped === true,
             stopReason: typeof value.stopReason === "string" && /^projection_[a-z_]{1,50}$/.test(value.stopReason) ? value.stopReason : undefined };
@@ -84,6 +94,11 @@ export const projectionError = (error: unknown): string => {
     const code = error instanceof Error ? error.message : String(error);
     const messages: Record<string, string> = {
         projection_pairing_required: "请在目标 Loom 的设备管理中批准本机，然后重试。",
+        projection_target_offline: "接收设备已离线或关闭投送，请刷新设备列表。",
+        projection_target_unavailable: "接收设备不可用，请检查设备配对。",
+        projection_rejected: "接收端已拒绝此次投送。",
+        projection_display_pending: "已接受，正在等待本机图像显示。",
+        projection_workspace_changed: "工作区已切换，请重新保存接收设置以恢复设备投送。",
         projection_invalid_invitation: "邀请内容无效，请重新读取投射二维码。",
         projection_invalid_origin: "请输入有效的 HTTPS 服务地址。",
         projection_invitation_expired: "二维码已过期，请在发送端重新生成。",
@@ -94,6 +109,7 @@ export const projectionError = (error: unknown): string => {
         projection_no_image: "此图块尚无可投射的正式图像。",
         projection_live_unsupported: "实时采集请使用屏幕墙发布；二维码投射用于正式图像。",
         projection_source_revoked: "发送设备的授权已撤销，投射已停止。",
+        projection_peer_revoked: "Loom 互信配置已变更，投送已停止，请重新发起。",
         projection_unlinked: "投射已停止，保留最后收到的内容。",
         projection_source_limit: "已达到本机投射数量上限，请停止已有投射。",
         projection_same_device: "请在另一台设备上接收此投射。",

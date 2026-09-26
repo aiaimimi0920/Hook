@@ -9,7 +9,9 @@ export const openProjection = (unitId: string) => setProjectionDialog({ unitId }
 export const openProjectionReceiver = (invitationText = "") => setProjectionDialog({ invitationText });
 export const closeProjectionDialog = () => setProjectionDialog(undefined);
 
-export const projectionStatusLabel = (status: ProjectionSyncStatus | undefined): string => status?.phase === "connected" && status.transport
+export const projectionStatusLabel = (status: ProjectionSyncStatus | undefined): string => status?.phase === "connected" && status.delivery
+    ? status.delivery.status === "displayed" ? "接收端已显示 · 自动同步" : "接收端已接受 · 等待显示回执"
+    : status?.phase === "connected" && status.transport
     ? `${status.transport === "direct" ? "直连" : "加密中继"} · 自动同步`
     : ({
     waiting: "等待另一台设备接收", connected: "已连接 · 自动同步", syncing: "正在同步图像",

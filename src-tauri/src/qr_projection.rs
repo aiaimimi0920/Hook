@@ -1,5 +1,7 @@
 //! Fixed-route projection bridge. Pairing credentials and source signing keys stay native.
 mod client;
+mod delivery;
+mod offline;
 pub(crate) mod protocol;
 pub(crate) mod v2;
 mod v2_protocol;
@@ -21,10 +23,19 @@ use serde_json::{json, Value};
 )]
 pub(crate) enum ProjectionOperation {
     Context,
+    Targets,
+    Inbox {
+        policy: delivery::ReceivePolicy,
+    },
+    Receipt {
+        projection_id: String,
+        status: delivery::ReceiptStatus,
+    },
     Create {
         unit_id: String,
         content_kind: String,
         snapshot: ProjectionSnapshot,
+        target_device_id: Option<String>,
     },
     Inspect {
         envelope: ProjectionEnvelope,
@@ -60,31 +71,43 @@ pub(crate) async fn projection_request(
     app: tauri::AppHandle,
     operation: ProjectionOperation,
     server_origin: Option<String>,
+    offline_route: Option<offline::OfflineRoute>,
 ) -> Result<Value, String> {
     static REQUEST: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
     let permit = REQUEST.try_acquire().map_err(|_| "projection_busy")?;
     if let ProjectionOperation::Code { envelope } = &operation {
         return Ok(json!({ "qrDataUrl": protocol::qr_data_url(envelope)? }));
     }
-    let origin = match &operation {
-        ProjectionOperation::Inspect { envelope }
-        | ProjectionOperation::Accept { envelope, .. } => {
-            envelope.validate()?;
-            envelope.server_origin.clone()
-        }
-        ProjectionOperation::Context | ProjectionOperation::Create { .. } => {
-            let configured = server_origin.or_else(|| {
-                crate::loom_connector::read_default_loom_manifest()
-                    .ok()
-                    .map(|manifest| manifest.transport.base_url)
-            });
-            protocol::normalize_origin(configured.as_deref().ok_or("projection_loom_unavailable")?)?
-        }
-        _ => protocol::normalize_origin(
+    let offline = offline_route.is_some();
+    let origin = if offline {
+        protocol::normalize_origin(
             server_origin
                 .as_deref()
                 .ok_or("projection_invalid_origin")?,
-        )?,
+        )?
+    } else {
+        match &operation {
+            ProjectionOperation::Inspect { envelope }
+            | ProjectionOperation::Accept { envelope, .. } => {
+                envelope.validate()?;
+                envelope.server_origin.clone()
+            }
+            ProjectionOperation::Context | ProjectionOperation::Create { .. } => {
+                let configured = server_origin.or_else(|| {
+                    crate::loom_connector::read_default_loom_manifest()
+                        .ok()
+                        .map(|manifest| manifest.transport.base_url)
+                });
+                protocol::normalize_origin(
+                    configured.as_deref().ok_or("projection_loom_unavailable")?,
+                )?
+            }
+            _ => protocol::normalize_origin(
+                server_origin
+                    .as_deref()
+                    .ok_or("projection_invalid_origin")?,
+            )?,
+        }
     };
     if matches!(operation, ProjectionOperation::Context) {
         return Ok(json!({ "serverOrigin": origin }));
@@ -100,15 +123,21 @@ pub(crate) async fn projection_request(
     })
     .await
     .map_err(|_| "projection_prepare_failed")??;
-    let context = response::ResponseContext::new(path, &origin, &body);
-    let mut response = client::send(&origin, &authorization, path, body).await?;
+    let context = response::ResponseContext::new(path, &origin, &body).offline(offline);
+    let mut body = body;
+    let network_path = if let Some(route) = offline_route {
+        offline::prepare(path, &mut body, route)?
+    } else {
+        path
+    };
+    let mut response = client::send(&origin, &authorization, network_path, body).await?;
     response = tauri::async_runtime::spawn_blocking(move || {
         let _permit = permit;
         response::validate(response, &context)
     })
     .await
     .map_err(|_| "projection_decode_failed")??;
-    if let Some(qr) = qr {
+    if let Some(qr) = qr.filter(|_| !offline) {
         response["qrDataUrl"] = json!(qr);
     }
     Ok(response)
@@ -125,6 +154,7 @@ fn prepare(
             unit_id,
             content_kind,
             snapshot,
+            target_device_id,
         } => {
             if !protocol::identifier(&unit_id)
                 || !matches!(content_kind.as_str(), "sticker" | "art")
@@ -132,6 +162,12 @@ fn prepare(
                 return Err("projection_invalid_source".to_owned());
             }
             let digest = protocol::validate_snapshot(&snapshot)?;
+            if target_device_id
+                .as_deref()
+                .is_some_and(|id| !protocol::identifier(id))
+            {
+                return Err("projection_invalid_target".to_owned());
+            }
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_err(|_| "projection_clock_invalid")?
@@ -150,7 +186,8 @@ fn prepare(
                     kind: content_kind,
                     digest,
                 },
-                expires_at_ms: now + 300_000,
+                // Leave 30 seconds for a sender clock ahead of the shared Loom.
+                expires_at_ms: now + 270_000,
                 nonce: uuid::Uuid::new_v4().simple().to_string(),
                 signature: ProjectionSignature {
                     algorithm: "ed25519".to_owned(),
@@ -161,11 +198,11 @@ fn prepare(
             envelope.signature.value =
                 crate::device_session::sign_projection_invitation(app, &envelope)?;
             let qr = protocol::qr_data_url(&envelope)?;
-            (
-                "/v1/projections/create",
-                json!({ "envelope": envelope, "snapshot": snapshot }),
-                Some(qr),
-            )
+            let mut body = json!({ "envelope": envelope, "snapshot": snapshot });
+            if let Some(target) = target_device_id {
+                body["targetDeviceId"] = json!(target);
+            }
+            ("/v1/projections/create", body, Some(qr))
         }
         ProjectionOperation::Inspect { envelope } => {
             envelope.validate()?;
@@ -235,6 +272,23 @@ fn prepare(
             (
                 "/v1/projections/unlink",
                 json!({ "projectionId": projection_id }),
+                None,
+            )
+        }
+        ProjectionOperation::Targets => ("/v1/projections/targets", json!({}), None),
+        ProjectionOperation::Inbox { policy } => {
+            ("/v1/projections/inbox", json!({ "policy": policy }), None)
+        }
+        ProjectionOperation::Receipt {
+            projection_id,
+            status,
+        } => {
+            if !protocol::projection_id(&projection_id) {
+                return Err("projection_invalid_request".to_owned());
+            }
+            (
+                "/v1/projections/receipt",
+                json!({ "projectionId": projection_id, "status": status }),
                 None,
             )
         }

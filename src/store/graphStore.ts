@@ -66,7 +66,7 @@ const addUnit = (unit: Unit) => {
 
 const removeUnit = (id: string) => {
     const projection = units.find((unit) => unit.id === id)?.data.qrProjection;
-    if (projection?.localUnitId === id && !projection.stopped) queueProjectionUnlink(projection.envelope);
+    if (projection?.localUnitId === id && !projection.stopped) queueProjectionUnlink(projection.envelope, projection.offlineTransport);
     invalidateProjectionUnit(id);
     shaderCache.disposeUnit(id);
     surfaceStore.actions.clear(id);

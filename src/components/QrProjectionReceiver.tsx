@@ -8,6 +8,7 @@ import { recognizedProjectionInvitations } from "../services/qrProjectionInvitat
 import { projectionWorkspaceGeneration } from "../services/qrProjectionLifecycle";
 import { isProjectionLoopback, parseProjectionInvitation, projectionError } from "../services/qrProjectionProtocol";
 import { attachProjectionReceiver } from "../services/qrProjectionSession";
+import { ProjectionReceiveSettings } from "./ProjectionReceiveSettings";
 
 export const QrProjectionReceiver = (props: { initialText: string }) => {
     const [text, setText] = createSignal(props.initialText);
@@ -61,6 +62,7 @@ export const QrProjectionReceiver = (props: { initialText: string }) => {
         } finally { if (alive) setBusy(false); }
     };
     return <>
+        <ProjectionReceiveSettings />
         <p>粘贴发送端复制的邀请内容，或选择已识别的二维码。接收后会在本机创建关联贴图。</p>
         <label class="qr-projection-field">邀请内容
             <textarea rows={4} value={text()} maxLength={4096} disabled={busy() || acceptanceStarted()} spellcheck={false}

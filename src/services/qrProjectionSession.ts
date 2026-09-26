@@ -9,6 +9,7 @@ import { syncService } from "./syncService";
 export const projectionLinkFromResponse = (role: QrProjectionLink["role"], unitId: string, response: ProjectionResponse): QrProjectionLink => ({
     role, localUnitId: unitId, envelope: response.envelope, revision: response.revision,
     digest: response.digest, linked: response.receiverDeviceId !== null,
+    ...(response.offlineTransport ? { offlineTransport: response.offlineTransport } : {}),
 });
 
 export function patchProjection(unitId: string, link: QrProjectionLink | undefined, imageBase64?: string): void {

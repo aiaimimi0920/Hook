@@ -1,4 +1,4 @@
-import { onCleanup, onMount, Show } from "solid-js";
+import { createEffect, onCleanup, onMount, Show, untrack } from "solid-js";
 import { unwrap } from "solid-js/store";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { graphStore } from "../store/graphStore";
@@ -11,6 +11,8 @@ import { projectionContentSignature, renderProjectionFrame } from "../services/q
 import { createProjectionSync } from "../services/qrProjectionSync";
 import { QrProjectionDialog } from "./QrProjectionDialog";
 import { createProjectionCleanup } from "../services/qrProjectionCleanup";
+import { createDeliveryReceiver } from "../services/projectionDeliveryReceiver";
+import { startupSessionReady } from "../services/appStartupState";
 
 export const QrProjectionFeatures = () => {
     const cleanup = createProjectionCleanup();
@@ -23,6 +25,12 @@ export const QrProjectionFeatures = () => {
     });
     let disposed = false;
     let unlisten: UnlistenFn | undefined;
+    createEffect(() => {
+        if (!startupSessionReady() || !isTauriRuntimeAvailable()) return;
+        // Polling reads must not make busy/settings changes dispose an in-flight receiver.
+        const receiver = untrack(createDeliveryReceiver);
+        onCleanup(() => receiver.dispose());
+    });
     onMount(() => {
         if (!isTauriRuntimeAvailable()) return;
         void listen("trigger-receive-projection", () => openProjectionReceiver()).then((stop) => {

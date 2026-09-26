@@ -24,7 +24,8 @@ import {
     extensionPresentationStore,
     visibleExtensionToolbarSlots,
 } from "../services/extensionPresentationStore";
-import type { TopStripOpenMenu } from "./stickerTopStripChrome";
+import { toolbarButtonLeftBorderClass, type TopStripOpenMenu } from "./stickerTopStripChrome";
+import { openProjection } from "../store/qrProjectionStore";
 import { buildStickerTopStripInteractiveRect } from "./stickerTopStripInteractiveRect";
 import {
     computeStickerTopStripLayout,
@@ -526,6 +527,10 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             setOpenMenu(null);
                         }}
                     />
+                    <button type="button" class={toolbarButtonLeftBorderClass + " hook-toolbar-idle shrink-0"}
+                        aria-label="投射贴图" title="投射贴图（邀请关联）"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={() => { setOpenMenu(null); openProjection(props.unitId); }}>投射</button>
                     <ExtensionToolbarItems
                         open={openMenu() === "extension"}
                         onOpenChange={(open) => setOpenMenu(open ? "extension" : null)}

@@ -25,6 +25,154 @@ fn reply() -> Value {
 }
 
 #[test]
+fn offline_routes_preserve_signed_envelope_and_require_bound_target() {
+    use sha2::{Digest, Sha256};
+    let envelope = reply()["envelope"].clone();
+    let peer = format!("loom-{}", "a".repeat(64));
+    let target = format!(
+        "peer-target:{:x}",
+        Sha256::digest(format!("{peer}\nremote"))
+    );
+    let route = json!({"peerId": peer, "remoteDeviceId": "remote"});
+    let mut body = json!({"envelope": envelope, "targetDeviceId": target});
+    assert_eq!(
+        super::offline::prepare(
+            "/v1/projections/create",
+            &mut body,
+            serde_json::from_value(route.clone()).unwrap()
+        )
+        .unwrap(),
+        "/v1/offline-projections/create"
+    );
+    assert_eq!(body["envelope"], envelope);
+    body["targetDeviceId"] = json!("local-device");
+    assert!(super::offline::prepare(
+        "/v1/projections/create",
+        &mut body,
+        serde_json::from_value(route.clone()).unwrap()
+    )
+    .is_err());
+    assert!(super::offline::prepare(
+        "/v1/projections/read",
+        &mut body,
+        serde_json::from_value(route).unwrap()
+    )
+    .is_err());
+    assert!(super::offline::prepare(
+        "/v1/projections/targets",
+        &mut body,
+        serde_json::from_value(json!({})).unwrap()
+    )
+    .is_err());
+}
+
+#[test]
+fn foreign_response_requires_explicit_route_and_keeps_integrity_checks() {
+    let mut value = reply();
+    value["route"] = json!("offline_peer");
+    let body = json!({"envelope": value["envelope"], "receiverUnitId": "receiver"});
+    let context = response::ResponseContext::new(
+        "/v1/projections/accept",
+        "https://receiver.example.test",
+        &body,
+    );
+    assert!(response::validate(value.clone(), &context).is_err());
+    let context = context.offline(true);
+    assert!(response::validate(value.clone(), &context).is_ok());
+    for (field, wrong) in [
+        ("route", json!("shared_loom")),
+        ("receiverUnitId", json!("other")),
+        ("digest", json!("0".repeat(64))),
+    ] {
+        let mut invalid = value.clone();
+        invalid[field] = wrong;
+        assert!(response::validate(invalid, &context).is_err());
+    }
+    value["envelope"]["source"]["deviceId"] = json!("forged");
+    assert!(response::validate(value, &context).is_err());
+}
+
+#[test]
+fn projection_delivery_metadata_is_bounded_and_origin_bound() {
+    let valid = json!({"targets": [{"deviceId": "b", "name": "PC 3", "policy": "auto", "route": "shared_loom"}]});
+    assert!(super::delivery::validate(
+        valid.clone(),
+        "/v1/projections/targets",
+        "https://loom.example.test"
+    )
+    .is_ok());
+    let mut invalid = valid.clone();
+    invalid["targets"][0]["route"] = json!("official_relay");
+    assert!(super::delivery::validate(
+        invalid,
+        "/v1/projections/targets",
+        "https://loom.example.test"
+    )
+    .is_err());
+    let huge = json!({"targets": vec![valid["targets"][0].clone(); 65]});
+    assert!(super::delivery::validate(
+        huge,
+        "/v1/projections/targets",
+        "https://loom.example.test"
+    )
+    .is_err());
+    let mut entry = reply();
+    entry["delivery"] = json!({"status": "accepted"});
+    let inbox = json!({"invitations": [entry]});
+    assert!(super::delivery::validate(
+        inbox.clone(),
+        "/v1/projections/inbox",
+        "https://loom.example.test"
+    )
+    .is_ok());
+    assert!(super::delivery::validate(
+        inbox,
+        "/v1/projections/inbox",
+        "https://other.example.test"
+    )
+    .is_err());
+    let value = reply();
+    let body = json!({"envelope": value["envelope"], "targetDeviceId": "b"});
+    let context = response::ResponseContext::new(
+        "/v1/projections/create",
+        "https://loom.example.test",
+        &body,
+    );
+    assert!(response::validate(value, &context).is_err());
+}
+
+#[test]
+fn projection_offline_target_cannot_be_misrepresented_as_sendable_or_local() {
+    use sha2::{Digest, Sha256};
+    let peer = format!("loom-{}", "a".repeat(64));
+    let id = format!(
+        "peer-target:{:x}",
+        Sha256::digest(format!("{peer}\nremote-b"))
+    );
+    let target = json!({"deviceId": id, "name": "Remote", "policy": "auto", "route": "offline_peer",
+        "peerId": peer, "remoteDeviceId": "remote-b", "peerName": "Loom B", "deliveryAvailable": false,
+        "unavailableReason": "offline_peer_delivery_not_implemented"});
+    let validate = |item| {
+        super::delivery::validate(
+            json!({"targets": [item]}),
+            "/v1/projections/targets",
+            "https://loom.example.test",
+        )
+    };
+    assert!(validate(target.clone()).is_ok());
+    for (field, value) in [
+        ("deliveryAvailable", json!(true)),
+        ("route", json!("shared_loom")),
+        ("deviceId", json!("local-device")),
+        ("remoteDeviceId", json!("other-device")),
+    ] {
+        let mut invalid = target.clone();
+        invalid[field] = value;
+        assert!(validate(invalid).is_err());
+    }
+}
+
+#[test]
 fn projection_reply_checks_signed_identity_target_and_png_digest() {
     let value = reply();
     let body =

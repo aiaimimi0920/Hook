@@ -429,6 +429,7 @@ const scheduler = new SyncScheduler(executeSyncCycle);
 
 
 export const syncService = {
+    persistPendingChanges: () => scheduler.scheduleAndWait(),
     updateBackendRects: requestBackendRectSync,
 
     restoreSession: async (

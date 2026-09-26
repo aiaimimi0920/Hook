@@ -1,12 +1,13 @@
 import type { Unit } from "../types/unit";
-import type { ProjectionEnvelope, ProjectionProtocol, ProjectionResponse, QrProjectionLink } from "../types/qrProjection";
-import type { requestProjection } from "./qrProjectionApi";
+import type { ProjectionEnvelope, ProjectionResponse, QrProjectionLink } from "../types/qrProjection";
+import type { requestProjection, unlinkProjection } from "./qrProjectionApi";
 import type { ProjectionFrame } from "./qrProjectionSnapshot";
 
 export interface ProjectionSyncStatus {
     phase: "waiting" | "connected" | "syncing" | "retrying" | "stopping" | "stopped";
     error?: string;
     transport?: ProjectionResponse["transport"];
+    delivery?: ProjectionResponse["delivery"];
 }
 export interface ProjectionSyncDependencies {
     units: () => readonly Unit[];
@@ -15,7 +16,7 @@ export interface ProjectionSyncDependencies {
     signature: (unit: Unit) => string;
     render: (unit: Unit) => Promise<ProjectionFrame>;
     request: typeof requestProjection;
-    unlink: (id: string, origin: string, protocol?: ProjectionProtocol) => Promise<void>;
+    unlink: typeof unlinkProjection;
     patch: (unitId: string, link: QrProjectionLink | undefined, imageBase64?: string) => void;
     status: (unitId: string, status: ProjectionSyncStatus | undefined) => void;
     now?: () => number;
@@ -31,7 +32,7 @@ interface Work {
 
 const terminalErrors = new Set([
     "projection_unlinked", "projection_invitation_expired", "projection_source_revoked",
-    "projection_access_denied", "projection_not_found", "projection_source_mismatch",
+    "projection_access_denied", "projection_not_found", "projection_source_mismatch", "projection_rejected", "projection_peer_revoked",
 ]);
 const errorCode = (error: unknown) => error instanceof Error ? error.message : String(error);
 const identity = (value: ProjectionEnvelope) => JSON.stringify([
@@ -72,14 +73,14 @@ export function createProjectionSync(deps: ProjectionSyncDependencies) {
         try {
             if (stopping) {
                 deps.status(unit.id, { phase: "stopping" });
-                await deps.unlink(job.id, link.envelope.serverOrigin, link.envelope.protocol);
+                await deps.unlink(job.id, link.envelope.serverOrigin, link.envelope.protocol, ...(link.offlineTransport ? [link.offlineTransport] as const : []));
                 if (valid()) {
                     deps.patch(unit.id, undefined);
                     deps.status(unit.id, { phase: "stopped" });
                 }
                 return;
             }
-            let response = await deps.request({ kind: "read", projectionId: job.id, knownRevision: link.revision }, link.envelope.serverOrigin, link.envelope.protocol);
+            let response = await deps.request({ kind: "read", projectionId: job.id, knownRevision: link.revision }, link.envelope.serverOrigin, link.envelope.protocol, ...(link.offlineTransport ? [link.offlineTransport] as const : []));
             if (!valid()) return;
             validateLinkedResponse(link, response);
             if (!response.linked) throw new Error("projection_unlinked");
@@ -103,7 +104,7 @@ export function createProjectionSync(deps: ProjectionSyncDependencies) {
                     if (frame.digest !== response.digest) {
                         response = await deps.request({ kind: "update", projectionId: job.id,
                             sourceSessionId: link.envelope.source.sessionId, priorRevision: response.revision,
-                            revision: response.revision + 1, snapshot: frame.snapshot }, link.envelope.serverOrigin, link.envelope.protocol);
+                            revision: response.revision + 1, snapshot: frame.snapshot }, link.envelope.serverOrigin, link.envelope.protocol, ...(link.offlineTransport ? [link.offlineTransport] as const : []));
                         if (!valid()) return;
                         validateLinkedResponse(link, response);
                         if (response.digest !== frame.digest) throw new Error("projection_invalid_response");
@@ -118,7 +119,7 @@ export function createProjectionSync(deps: ProjectionSyncDependencies) {
             job.failures = 0;
             deps.status(unit.id, { phase: response.receiverDeviceId === null ? "waiting"
                 : response.transport === "offline" || response.transport === "reconnecting" ? "retrying" : "connected",
-                transport: response.transport, error: response.error });
+                transport: response.transport, error: response.error, delivery: response.delivery });
         } catch (error) {
             if (!valid()) return;
             const code = errorCode(error);

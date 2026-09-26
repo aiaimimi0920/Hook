@@ -16,7 +16,10 @@ export type ProjectionProtocol = ProjectionEnvelope["protocol"];
 export interface ProjectionAccountContext { origin: string; accountId: string; deviceId: string; deviceName: string }
 
 export interface ProjectionSnapshot { imageBase64: string; width: number; height: number }
+export interface OfflineProjectionTransport { origin: string }
+export interface OfflineProjectionTarget { peerId: string; remoteDeviceId: string }
 export interface ProjectionResponse {
+    offlineTransport?: OfflineProjectionTransport;
     envelope: ProjectionEnvelope;
     revision: number;
     digest: string;
@@ -28,9 +31,11 @@ export interface ProjectionResponse {
     qrDataUrl?: string;
     transport?: "direct" | "relay" | "offline" | "reconnecting";
     error?: string;
+    delivery?: { targetDeviceId: string; status: "awaiting_confirmation" | "accepted" | "displayed" | "rejected" } | null;
 }
 
 export interface QrProjectionLink {
+    offlineTransport?: OfflineProjectionTransport;
     role: "source" | "receiver";
     localUnitId: string;
     envelope: ProjectionEnvelope;
@@ -44,7 +49,7 @@ export interface QrProjectionLink {
 
 export type ProjectionOperation =
     | { kind: "context" }
-    | { kind: "create"; unitId: string; contentKind: "sticker" | "art"; snapshot: ProjectionSnapshot }
+    | { kind: "create"; unitId: string; contentKind: "sticker" | "art"; snapshot: ProjectionSnapshot; targetDeviceId?: string }
     | { kind: "inspect"; envelope: ProjectionEnvelope }
     | { kind: "accept"; envelope: ProjectionEnvelope; expectedRevision: number; expectedDigest: string; receiverUnitId: string; confirmed: true }
     | { kind: "update"; projectionId: string; sourceSessionId: string; priorRevision: number; revision: number; snapshot: ProjectionSnapshot }

@@ -4,19 +4,26 @@ use serde_json::Value;
 
 pub(super) struct ResponseContext {
     path: &'static str,
+    offline: bool,
     origin: String,
     projection_id: Value,
     envelope: Value,
     receiver_unit_id: Value,
+    target_device_id: Value,
     known_revision: u64,
     expected_revision: Option<u64>,
     expected_digest: Option<String>,
 }
 
 impl ResponseContext {
+    pub(super) fn offline(mut self, enabled: bool) -> Self {
+        self.offline = enabled;
+        self
+    }
     pub(super) fn new(path: &'static str, origin: &str, body: &Value) -> Self {
         Self {
             path,
+            offline: false,
             origin: origin.to_owned(),
             projection_id: body
                 .get("projectionId")
@@ -24,6 +31,7 @@ impl ResponseContext {
                 .clone(),
             envelope: body["envelope"].clone(),
             receiver_unit_id: body["receiverUnitId"].clone(),
+            target_device_id: body["targetDeviceId"].clone(),
             known_revision: body["knownRevision"]
                 .as_u64()
                 .or(body["expectedRevision"].as_u64())
@@ -46,6 +54,16 @@ impl ResponseContext {
 }
 
 pub(super) fn validate(value: Value, context: &ResponseContext) -> Result<Value, String> {
+    if matches!(
+        context.path,
+        "/v1/projections/targets" | "/v1/projections/inbox" | "/v1/projections/receipt"
+    ) {
+        return if context.offline {
+            super::delivery::validate_mode(value, context.path, &context.origin, true)
+        } else {
+            super::delivery::validate(value, context.path, &context.origin)
+        };
+    }
     if context.path == "/v1/projections/unlink" {
         return if value.get("unlinked") == Some(&Value::Bool(true)) {
             Ok(value)
@@ -56,11 +74,14 @@ pub(super) fn validate(value: Value, context: &ResponseContext) -> Result<Value,
     let envelope: ProjectionEnvelope = serde_json::from_value(value["envelope"].clone())
         .map_err(|_| "projection_invalid_response")?;
     envelope.validate()?;
-    if envelope.server_origin != context.origin
+    if (!context.offline && envelope.server_origin != context.origin)
+        || (context.offline && value["route"] != "offline_peer")
         || value["envelope"]["projectionId"] != context.projection_id
         || (!context.envelope.is_null() && value["envelope"] != context.envelope)
         || (!context.receiver_unit_id.is_null()
             && value["receiverUnitId"] != context.receiver_unit_id)
+        || (!context.target_device_id.is_null()
+            && value["delivery"]["targetDeviceId"] != context.target_device_id)
     {
         return Err("projection_response_mismatch".to_owned());
     }

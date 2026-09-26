@@ -54,4 +54,5 @@
 .qr-projection-details dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
 .qr-projection-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .qr-projection-dialog .hook-terminal-btn { min-height: 36px; padding: 8px 14px; }
+.qr-projection-dialog .hook-terminal-btn[aria-pressed="true"] { border-color: var(--theme-signal); }
 .qr-projection-dialog footer { padding: 14px 20px; border-top: 1px solid var(--theme-border); color: var(--theme-text-secondary); font-size: 12px; line-height: 1.6; }
