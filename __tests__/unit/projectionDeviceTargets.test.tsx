@@ -34,4 +34,3 @@ it.each([{ deliveryAvailable: true }, { route: "shared_loom" }, { peerId: "inval
         vi.mocked(safeInvoke).mockResolvedValue({ targets: [{ ...remote, ...change }] });
         await expect(deliveryTargets("https://loom.example.test")).rejects.toThrow("projection_invalid_response");
     });
-
