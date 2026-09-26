@@ -1,8 +1,9 @@
 [CmdletBinding()]
-param([string]$RepoRoot = (Join-Path $PSScriptRoot ".."))
+param([string]$RepoRoot)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+if (-not $RepoRoot) { $RepoRoot = Join-Path $PSScriptRoot ".." }
 . (Join-Path $PSScriptRoot "version-identity.ps1")
 $root = [IO.Path]::GetFullPath($RepoRoot)
 $path = Join-Path $root "version-state.json"

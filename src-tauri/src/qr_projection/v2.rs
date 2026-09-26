@@ -1,5 +1,5 @@
 //! Native client for Loom-owned account projection operations.
-use super::{client, protocol, v2_protocol};
+use super::{client, protocol, v2_protocol, v2_work};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -52,12 +52,23 @@ pub(crate) async fn projection_v2_request(
     app: tauri::AppHandle,
     operation: ProjectionV2Operation,
 ) -> Result<Value, String> {
-    validate_operation(&operation)?;
-    let body = serde_json::to_value(&operation).map_err(|_| "projection_invalid_request")?;
-    if let ProjectionV2Operation::Code { envelope } = &operation {
-        return Ok(
-            serde_json::json!({"qrDataUrl":qr_data_url(&serde_json::to_value(envelope).map_err(|_| "projection_invalid_invitation")?)?}),
-        );
+    let permit = v2_work::acquire()?;
+    let ((body, code), permit) = v2_work::run(permit, "projection_prepare_failed", move || {
+        validate_operation(&operation)?;
+        let body = serde_json::to_value(&operation).map_err(|_| "projection_invalid_request")?;
+        let code = if let ProjectionV2Operation::Code { envelope } = &operation {
+            Some(
+                serde_json::json!({"qrDataUrl":qr_data_url(&serde_json::to_value(envelope)
+                .map_err(|_| "projection_invalid_invitation")?)?}),
+            )
+        } else {
+            None
+        };
+        Ok((body, code))
+    })
+    .await?;
+    if let Some(code) = code {
+        return Ok(code);
     }
     // A QR origin is never a network destination for Hook v2. Only the local Loom is contacted.
     let manifest = crate::loom_connector::read_default_loom_manifest()
@@ -80,16 +91,24 @@ pub(crate) async fn projection_v2_request(
         "/v1/projections/v2/{}",
         body["kind"].as_str().ok_or("projection_invalid_request")?
     );
-    let mut response = client::send(&origin, &authorization, &path, body.clone()).await?;
-    if matches!(operation, ProjectionV2Operation::Context {}) {
+    let response = client::send(&origin, &authorization, &path, body.clone()).await?;
+    let (response, _permit) = v2_work::run(permit, "projection_decode_failed", move || {
+        validate_response(response, &body)
+    })
+    .await?;
+    Ok(response)
+}
+
+fn validate_response(mut response: Value, body: &Value) -> Result<Value, String> {
+    if body["kind"] == "context" {
         validate_context(&response)?;
-    } else if matches!(operation, ProjectionV2Operation::Unlink { .. }) {
+    } else if body["kind"] == "unlink" {
         if response["unlinked"] != true {
             return Err("projection_invalid_response".to_owned());
         }
     } else {
-        v2_protocol::validate_response(&response, &body)?;
-        if matches!(operation, ProjectionV2Operation::Create { .. }) {
+        v2_protocol::validate_response(&response, body)?;
+        if body["kind"] == "create" {
             response["qrDataUrl"] = Value::String(qr_data_url(&response["envelope"])?);
         }
     }

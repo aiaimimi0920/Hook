@@ -3,6 +3,7 @@ mod client;
 pub(crate) mod protocol;
 pub(crate) mod v2;
 mod v2_protocol;
+mod v2_work;
 
 use protocol::{
     ProjectionContent, ProjectionEnvelope, ProjectionSignature, ProjectionSnapshot,
