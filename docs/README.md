@@ -43,6 +43,8 @@ tests remain the source of truth.
 ## Project policy
 
 - [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md)
+- [`SECURITY_BOUNDARIES.md`](SECURITY_BOUNDARIES.md) - identity storage, remote-image
+  destination enforcement and native input lifecycle limits.
 - [`../SECURITY.md`](../SECURITY.md)
 - [`../GOVERNANCE.md`](../GOVERNANCE.md)
 - [`../THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md)
