@@ -33,6 +33,7 @@ pub(super) fn prepare(
         return Err("projection_invalid_request".into());
     }
     match path {
+        "/v1/projections/edit" => Ok("/v1/offline-projections/edit"),
         "/v1/projections/create" => Ok("/v1/offline-projections/create"),
         "/v1/projections/inbox" => Ok("/v1/offline-projections/inbox"),
         "/v1/projections/inspect" => Ok("/v1/offline-projections/inspect"),

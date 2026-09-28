@@ -10,6 +10,7 @@
 // than read from the store, keeping this a pure function.
 
 import type { Unit, SessionSticker } from "../types/unit";
+import { sanitizeProjectionSenders } from "./projectionSenderBindings";
 import type { ArtCapability } from "./protocol";
 import { getCapabilityInputsForPorts } from "./artPorts";
 import { stripNonPersistableArtParams } from "./artParamSecurity";
@@ -118,6 +119,7 @@ export const mapSessionStickerToUnit = (
             barcodeResult: barcodeMigration.barcodeResult,
             extensionState: barcodeMigration.extensionState,
             qrProjection: sanitizeProjectionLink(sticker.qrProjection, sticker.id),
+            projectionSenders: sanitizeProjectionSenders(sticker.projectionSenders, sticker.id),
             originWorkflowId: sticker.originWorkflowId || undefined,
             originNodeId: sticker.originNodeId || undefined,
             executionConfig,
@@ -157,6 +159,7 @@ const KNOWN_SESSION_STICKER_KEYS = {
     barcodeResult: true,
     extensionState: true,
     qrProjection: true,
+    projectionSenders: true,
     originWorkflowId: true,
     originNodeId: true,
     executionConfig: true,

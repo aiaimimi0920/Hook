@@ -1,6 +1,7 @@
 //! Fixed-route projection bridge. Pairing credentials and source signing keys stay native.
 mod client;
 mod delivery;
+mod edit;
 mod offline;
 pub(crate) mod protocol;
 pub(crate) mod v2;
@@ -23,6 +24,9 @@ use serde_json::{json, Value};
 )]
 pub(crate) enum ProjectionOperation {
     Context,
+    Edit {
+        request: edit::Request,
+    },
     Targets,
     Inbox {
         policy: delivery::ReceivePolicy,
@@ -39,6 +43,17 @@ pub(crate) enum ProjectionOperation {
     },
     Inspect {
         envelope: ProjectionEnvelope,
+    },
+    PrepareCreate {
+        unit_id: String,
+        content_kind: String,
+        snapshot: ProjectionSnapshot,
+        target_device_id: Option<String>,
+    },
+    CreatePrepared {
+        envelope: ProjectionEnvelope,
+        snapshot: ProjectionSnapshot,
+        target_device_id: Option<String>,
     },
     Accept {
         envelope: ProjectionEnvelope,
@@ -73,8 +88,6 @@ pub(crate) async fn projection_request(
     server_origin: Option<String>,
     offline_route: Option<offline::OfflineRoute>,
 ) -> Result<Value, String> {
-    static REQUEST: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
-    let permit = REQUEST.try_acquire().map_err(|_| "projection_busy")?;
     if let ProjectionOperation::Code { envelope } = &operation {
         return Ok(json!({ "qrDataUrl": protocol::qr_data_url(envelope)? }));
     }
@@ -112,10 +125,13 @@ pub(crate) async fn projection_request(
     if matches!(operation, ProjectionOperation::Context) {
         return Ok(json!({ "serverOrigin": origin }));
     }
+    // Local context and QR encoding must not wait behind remote device approval.
+    let permit = client::request_permit(&origin)?;
     let authorization = crate::device_session::authorize_projection_request(&app, &origin)
         .await
         .map_err(|_| "projection_pairing_required")?;
     let actor = authorization.device_id.clone();
+    let prepare_only = matches!(&operation, ProjectionOperation::PrepareCreate { .. });
     let request_origin = origin.clone();
     // Decoding is blocking work; its permit survives cancellation of the IPC future.
     let ((path, body, qr), permit) = tauri::async_runtime::spawn_blocking(move || {
@@ -123,6 +139,10 @@ pub(crate) async fn projection_request(
     })
     .await
     .map_err(|_| "projection_prepare_failed")??;
+    if prepare_only {
+        // No network side effect: Hook must durably save this identity before publishing.
+        return Ok(json!({"envelope": body["envelope"]}));
+    }
     let context = response::ResponseContext::new(path, &origin, &body).offline(offline);
     let mut body = body;
     let network_path = if let Some(route) = offline_route {
@@ -149,8 +169,16 @@ fn prepare(
     actor: &str,
     origin: &str,
 ) -> Result<(&'static str, Value, Option<String>), String> {
+    let prepare_only = matches!(&operation, ProjectionOperation::PrepareCreate { .. });
     Ok(match operation {
+        ProjectionOperation::Edit { request } => ("/v1/projections/edit", request.prepare()?, None),
         ProjectionOperation::Create {
+            unit_id,
+            content_kind,
+            snapshot,
+            target_device_id,
+        }
+        | ProjectionOperation::PrepareCreate {
             unit_id,
             content_kind,
             snapshot,
@@ -197,12 +225,30 @@ fn prepare(
             };
             envelope.signature.value =
                 crate::device_session::sign_projection_invitation(app, &envelope)?;
-            let qr = protocol::qr_data_url(&envelope)?;
+            let qr = if prepare_only {
+                None
+            } else {
+                Some(protocol::qr_data_url(&envelope)?)
+            };
             let mut body = json!({ "envelope": envelope, "snapshot": snapshot });
             if let Some(target) = target_device_id {
                 body["targetDeviceId"] = json!(target);
             }
-            ("/v1/projections/create", body, Some(qr))
+            ("/v1/projections/create", body, qr)
+        }
+        ProjectionOperation::CreatePrepared {
+            envelope,
+            snapshot,
+            target_device_id,
+        } => {
+            let body = prepared_create::prepared_create_body(
+                envelope,
+                snapshot,
+                target_device_id,
+                actor,
+                origin,
+            )?;
+            ("/v1/projections/create", body, None)
         }
         ProjectionOperation::Inspect { envelope } => {
             envelope.validate()?;
@@ -298,6 +344,7 @@ fn prepare(
     })
 }
 
+mod prepared_create;
 mod response;
 #[cfg(test)]
 mod tests;

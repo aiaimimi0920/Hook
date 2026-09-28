@@ -53,6 +53,28 @@ Hook/
 └── docs/                       current feature, HDR, release, and policy docs
 ```
 
+## Projection editing ownership
+
+`useProjectionTargetControls.ts` owns secondary-toolbar checkbox intent, fresh
+directory validation and per-target operation feedback. It reuses the durable
+create journal and batch sender; cancellation persists `stopPending` on saved
+bindings and waits for the existing sync owner's unlink result. Uncertain creates
+are cancelled in the journal before unlink. `projectionTargetStatus.ts` distinguishes
+invitation creation from receiver display and aggregates group results. Sync status
+snapshots replace earlier fields, so recovery cannot retain an obsolete error.
+The full projection management dialog retains its separate batch-selection flow.
+
+`projectionEditEngine.ts` serializes each Unit's editing operations and fences
+workspace changes, removal and delayed responses. `projectionEditSession.ts` binds
+that engine to graph actions, native transport and the existing projection poller.
+`projectionEditJournal.ts` owns bounded IndexedDB records with transaction-complete
+durability and revision compare-and-set; ordinary workflow saving does not replace
+this request journal. Geometry, validation and concurrent-view merging have separate
+modules. Hook owns original annotations and base-image rasterization; Loom owns
+authenticated bindings, shared revisions, mode authority and checkpoint fences.
+The native `qr_projection/edit.rs` boundary validates typed requests and documents
+before routing through the paired local or offline-peer projection endpoint.
+
 ## 3. Frontend architecture
 
 ### 3.1 Integration entry

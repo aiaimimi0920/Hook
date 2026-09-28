@@ -8,6 +8,12 @@ vi.mock("../../src/services/apiTransport", () => ({ safeInvoke: vi.fn() }));
 afterEach(() => vi.resetAllMocks());
 
 describe("projection version routing", () => {
+    it.each(["neuro.qr-projection.v1", "neuro.qr-projection.v2"] as const)("preserves native string errors for %s recovery", async (protocol) => {
+        vi.mocked(safeInvoke).mockRejectedValueOnce("projection_not_found");
+        await expect(requestProjection({ kind: "read", projectionId: projectionEnvelope().projectionId, knownRevision: 0 },
+            projectionEnvelope().serverOrigin, protocol)).rejects.toThrow("projection_not_found");
+    });
+
     it("routes a foreign signed invitation and cleanup through the paired Loom", async () => {
         const envelope = projectionEnvelope();
         const transport = { origin: "https://receiver.example.test" };

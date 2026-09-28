@@ -102,6 +102,7 @@ export interface UnitData {
     barcodeResult?: BarcodeScanResult;
     translationResult?: TranslationResult;
     qrProjection?: QrProjectionLink;
+    projectionSenders?: import("../services/projectionSenderBindings").ProjectionSenderBinding[];
     extensionState?: UnitExtensionState;
 
     // Art Specific
@@ -259,6 +260,7 @@ export interface SessionSticker {
     barcodeResult?: BarcodeScanResult | null;
     extensionState?: UnitExtensionState | null;
     qrProjection?: QrProjectionLink | null;
+    projectionSenders?: UnitData["projectionSenders"] | null;
     originWorkflowId?: string | null;
     originNodeId?: string | null;
     executionConfig?: NodeExecutionConfig | null;

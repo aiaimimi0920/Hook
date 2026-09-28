@@ -19,6 +19,7 @@ export interface ProjectionSnapshot { imageBase64: string; width: number; height
 export interface OfflineProjectionTransport { origin: string }
 export interface OfflineProjectionTarget { peerId: string; remoteDeviceId: string }
 export interface ProjectionResponse {
+    editing?: import("./projectionEdit").ProjectionEditDocument;
     offlineTransport?: OfflineProjectionTransport;
     envelope: ProjectionEnvelope;
     revision: number;
@@ -35,6 +36,7 @@ export interface ProjectionResponse {
 }
 
 export interface QrProjectionLink {
+    sourceName?: string;
     offlineTransport?: OfflineProjectionTransport;
     role: "source" | "receiver";
     localUnitId: string;
@@ -50,6 +52,8 @@ export interface QrProjectionLink {
 export type ProjectionOperation =
     | { kind: "context" }
     | { kind: "create"; unitId: string; contentKind: "sticker" | "art"; snapshot: ProjectionSnapshot; targetDeviceId?: string }
+    | { kind: "prepare_create"; unitId: string; contentKind: "sticker" | "art"; snapshot: ProjectionSnapshot; targetDeviceId?: string }
+    | { kind: "create_prepared"; envelope: ProjectionEnvelope; snapshot: ProjectionSnapshot; targetDeviceId?: string }
     | { kind: "inspect"; envelope: ProjectionEnvelope }
     | { kind: "accept"; envelope: ProjectionEnvelope; expectedRevision: number; expectedDigest: string; receiverUnitId: string; confirmed: true }
     | { kind: "update"; projectionId: string; sourceSessionId: string; priorRevision: number; revision: number; snapshot: ProjectionSnapshot }

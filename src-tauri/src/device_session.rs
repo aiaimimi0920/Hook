@@ -10,6 +10,8 @@ mod identity;
 #[cfg(feature = "remote-surface")]
 mod identity_protection;
 #[cfg(feature = "remote-surface")]
+mod local_projection;
+#[cfg(feature = "remote-surface")]
 mod pairing;
 #[cfg(feature = "remote-surface")]
 mod projection;

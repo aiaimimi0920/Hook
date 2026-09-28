@@ -1,6 +1,7 @@
 import type { OfflineProjectionTransport, ProjectionEnvelope } from "../types/qrProjection";
 import { unlinkProjection } from "./qrProjectionApi";
 import { parseProjectionEnvelope, parseOfflineTransport } from "./qrProjectionProtocol";
+import { forgetPreparedProjection, loadCancelledCreates } from "./projectionCreateJournal";
 
 const STORAGE_KEY = "hook.qr-projection.pending-unlinks.v1";
 const MAX_PENDING = 128;
@@ -34,13 +35,23 @@ function persist(): void {
 }
 
 export function queueProjectionUnlink(envelope: ProjectionEnvelope, transport?: OfflineProjectionTransport): void {
+    queueProjectionUnlinks([{ envelope, offlineTransport: transport }]);
+}
+
+export function queueProjectionUnlinks(entries: { envelope: ProjectionEnvelope; offlineTransport?: OfflineProjectionTransport }[]): void {
     load();
-    const offlineTransport = transport ? parseOfflineTransport(transport) : undefined;
-    if (offlineTransport && envelope.protocol !== "neuro.qr-projection.v1") throw new Error("projection_invalid_request");
-    const key = `${offlineTransport?.origin ?? envelope.serverOrigin}/${offlineTransport ? "offline/" : ""}${envelope.projectionId}`;
-    if (!pending.has(key) && pending.size >= MAX_PENDING) throw new Error("projection_cleanup_limit");
-    // Replacing the entry also invalidates a cleanup reply that preceded a late acceptance.
-    pending.set(key, { envelope: parseProjectionEnvelope(envelope), offlineTransport, nextAt: 0, failures: 0 });
+    if (entries.length > MAX_PENDING) throw new Error("projection_cleanup_limit");
+    const additions = new Map<string, Pending>();
+    for (const entry of entries) {
+        const envelope = parseProjectionEnvelope(entry.envelope);
+        const offlineTransport = entry.offlineTransport ? parseOfflineTransport(entry.offlineTransport) : undefined;
+        if (offlineTransport && envelope.protocol !== "neuro.qr-projection.v1") throw new Error("projection_invalid_request");
+        const key = `${offlineTransport?.origin ?? envelope.serverOrigin}/${offlineTransport ? "offline/" : ""}${envelope.projectionId}`;
+        additions.set(key, { envelope, offlineTransport, nextAt: 0, failures: 0 });
+    }
+    if (new Set([...pending.keys(), ...additions.keys()]).size > MAX_PENDING) throw new Error("projection_cleanup_limit");
+    // Enqueue all targets or none: failed deletion must not unlink part of a still-live unit.
+    for (const [key, entry] of additions) pending.set(key, entry);
     persist();
 }
 
@@ -48,8 +59,22 @@ export function createProjectionCleanup(unlink = unlinkProjection) {
     load();
     let disposed = false;
     let busy = false;
+    let recoverAt = 0;
     const tick = async () => {
         if (disposed || busy) return;
+        if (pending.size < MAX_PENDING && recoverAt <= Date.now()) {
+            busy = true;
+            recoverAt = Date.now() + 5000;
+            try {
+                const cancelled = await loadCancelledCreates();
+                if (disposed) return;
+                const missing = cancelled.filter((entry) => !pending.has(`${entry.origin}/${entry.target ? "offline/" : ""}${entry.envelope.projectionId}`));
+                queueProjectionUnlinks(missing.slice(0, MAX_PENDING - pending.size).map((entry) => ({ envelope: entry.envelope,
+                    ...(entry.target ? { offlineTransport: { origin: entry.origin } } : {}) })));
+            } catch { /* Durable cancellation remains available for the next tick. */ }
+            finally { busy = false; }
+            if (disposed) return;
+        }
         const next = [...pending.entries()].find(([, entry]) => entry.nextAt <= Date.now());
         if (!next) return;
         const [key, entry] = next;
@@ -64,7 +89,12 @@ export function createProjectionCleanup(unlink = unlinkProjection) {
             entry.failures = Math.min(6, entry.failures + 1);
             entry.nextAt = Date.now() + Math.min(30_000, 1000 * 2 ** entry.failures);
         } finally {
-            if (!disposed && pending.get(key) === entry && complete) { pending.delete(key); persist(); }
+            if (!disposed && pending.get(key) === entry && complete) {
+                try {
+                    await forgetPreparedProjection(entry.offlineTransport?.origin ?? entry.envelope.serverOrigin, entry.envelope.projectionId);
+                    if (!disposed && pending.get(key) === entry) { pending.delete(key); persist(); }
+                } catch { entry.nextAt = Date.now() + 5000; }
+            }
             busy = false;
         }
     };

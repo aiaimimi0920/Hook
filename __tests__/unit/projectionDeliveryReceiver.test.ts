@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createDeliveryReceiver, decideDelivery, receiveDelivery } from "../../src/services/projectionDeliveryReceiver";
 import { deliveryInbox, deliveryReceipt, type DeliveryInvitation } from "../../src/services/projectionDeliveryApi";
 import { deliveryPending, deliverySettings, saveDeliverySettings, setDeliveryBusy } from "../../src/store/projectionDeliveryStore";
-import { requestProjection } from "../../src/services/qrProjectionApi";
+import { requestProjection, projectionContext } from "../../src/services/qrProjectionApi";
 import { attachProjectionReceiver } from "../../src/services/qrProjectionSession";
 import { queueProjectionUnlink } from "../../src/services/qrProjectionCleanup";
 import { invalidateProjectionUnit, invalidateProjectionWorkspace } from "../../src/services/qrProjectionLifecycle";
@@ -15,12 +15,13 @@ import { render } from "solid-js/web";
 import { QrProjectionFeatures } from "../../src/components/QrProjectionFeatures";
 
 vi.mock("../../src/services/projectionDeliveryApi", () => ({ deliveryInbox: vi.fn(), deliveryReceipt: vi.fn() }));
-vi.mock("../../src/services/qrProjectionApi", () => ({ requestProjection: vi.fn(), unlinkProjection: vi.fn() }));
+vi.mock("../../src/services/qrProjectionApi", () => ({ requestProjection: vi.fn(), unlinkProjection: vi.fn(), projectionContext: vi.fn() }));
 vi.mock("../../src/services/qrProjectionSession", () => ({ attachProjectionReceiver: vi.fn(), patchProjection: vi.fn() }));
-vi.mock("../../src/services/qrProjectionCleanup", () => ({ queueProjectionUnlink: vi.fn(), createProjectionCleanup: () => ({ dispose: vi.fn() }) }));
+vi.mock("../../src/services/qrProjectionCleanup", () => ({ queueProjectionUnlinks: vi.fn(), queueProjectionUnlink: vi.fn(), createProjectionCleanup: () => ({ dispose: vi.fn() }) }));
 vi.mock("../../src/services/qrProjectionSync", () => ({ createProjectionSync: () => ({ dispose: vi.fn(), retry: vi.fn() }) }));
 vi.mock("../../src/services/qrProjectionSnapshot", () => ({ projectionContentSignature: vi.fn(), renderProjectionFrame: vi.fn() }));
 vi.mock("../../src/services/apiTransport", () => ({ isTauriRuntimeAvailable: () => true }));
+vi.mock("../../src/components/ProjectionDeliveryPrompt", () => ({ ProjectionDeliveryPrompt: () => null }));
 vi.mock("../../src/services/appStartupState", () => ({ startupSessionReady: () => true }));
 vi.mock("../../src/components/QrProjectionDialog", () => ({ QrProjectionDialog: () => null }));
 vi.mock("../../src/store/graphStore", () => ({ graphStore: { units: [] as Unit[] } }));
@@ -36,6 +37,7 @@ beforeEach(() => {
     vi.mocked(deliveryReceipt).mockResolvedValue(undefined);
     vi.mocked(syncService.persistPendingChanges).mockResolvedValue(undefined);
     vi.mocked(requestProjection).mockResolvedValue(projectionResponse());
+    vi.mocked(projectionContext).mockResolvedValue("https://loom.example.test");
     vi.mocked(attachProjectionReceiver).mockImplementation((id, response) => {
         const unit = projectionUnit("receiver"); unit.id = id;
         unit.data.src = "data:image/png;base64," + response.snapshot!.imageBase64;
@@ -53,7 +55,7 @@ afterEach(() => { receiver?.dispose(); receiver = undefined; vi.useRealTimers();
 
 it("prompts in confirm mode without accepting, then rejects only the selected delivery", async () => {
     receiver = createDeliveryReceiver(); await vi.advanceTimersByTimeAsync(0);
-    expect(projectionDialog()).toEqual({ invitationText: "" });
+    expect(projectionDialog()).toBeUndefined();
     expect(requestProjection).not.toHaveBeenCalled(); expect(deliveryPending()).toHaveLength(1);
     await decideDelivery(invitation(), false);
     expect(deliveryReceipt).toHaveBeenCalledWith(deliverySettings().origin, invitation().envelope.projectionId, "rejected");
@@ -96,13 +98,40 @@ it("disabled receiver never polls", async () => {
     await vi.advanceTimersByTimeAsync(30_000); expect(deliveryInbox).not.toHaveBeenCalled();
 });
 
+it("Loom confirm overrides legacy Hook auto while Loom whitelist auto overrides local confirm", async () => {
+    saveDeliverySettings(deliverySettings().origin, "auto");
+    vi.mocked(deliveryInbox).mockResolvedValue([{ ...invitation(), receivePolicy: "confirm" }]);
+    receiver = createDeliveryReceiver(); await vi.advanceTimersByTimeAsync(0);
+    expect(requestProjection).not.toHaveBeenCalled(); expect(deliveryPending()).toHaveLength(1);
+    receiver.dispose();
+    saveDeliverySettings(deliverySettings().origin, "confirm");
+    vi.mocked(deliveryInbox).mockResolvedValue([{ ...invitation(), receivePolicy: "auto" }]);
+    receiver = createDeliveryReceiver(); await vi.advanceTimersByTimeAsync(0);
+    expect(attachProjectionReceiver).toHaveBeenCalledTimes(1);
+    expect(deliveryReceipt).toHaveBeenCalledWith(deliverySettings().origin, invitation().envelope.projectionId, "displayed");
+});
+
+it("refuses a visible stale invitation immediately after workspace replacement, before the next poll", async () => {
+    receiver = createDeliveryReceiver(); await vi.advanceTimersByTimeAsync(0);
+    invalidateProjectionWorkspace();
+    await decideDelivery(invitation(), true);
+    expect(requestProjection).not.toHaveBeenCalled();
+    expect(deliveryReceipt).not.toHaveBeenCalled();
+    expect(deliveryPending()).toHaveLength(0);
+});
+
 it("keeps the mounted receiver alive while auto acceptance changes busy state", async () => {
     saveDeliverySettings(deliverySettings().origin, "auto");
-    vi.mocked(deliveryInbox).mockResolvedValue([]).mockResolvedValueOnce([invitation()]);
+    vi.mocked(deliveryInbox).mockResolvedValue([]).mockResolvedValueOnce([{ ...invitation(), receivePolicy: "auto" }]);
     const host = document.createElement("div"); document.body.append(host);
     const dispose = render(QrProjectionFeatures, host);
     try {
-        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(projectionContext).toHaveBeenCalled();
+        expect(deliverySettings().policy).toBe("confirm");
+        expect(deliveryInbox).toHaveBeenCalled();
+        expect(deliveryPending().map((item) => item.receivePolicy)).toEqual(["auto"]);
+        expect(requestProjection).toHaveBeenCalled();
         expect(attachProjectionReceiver).toHaveBeenCalledTimes(1);
         expect(deliveryReceipt).toHaveBeenCalledWith(deliverySettings().origin, invitation().envelope.projectionId, "displayed");
         expect(queueProjectionUnlink).not.toHaveBeenCalled();

@@ -1,14 +1,15 @@
 import type { OfflineProjectionTransport, OfflineProjectionTarget, ProjectionAccountContext, ProjectionEnvelope, ProjectionOperation, ProjectionProtocol, ProjectionResponse } from "../types/qrProjection";
-import { safeInvoke } from "./apiTransport";
-import { parseProjectionResponse, parseOfflineTransport, projectionOrigin } from "./qrProjectionProtocol";
+import { projectionInvoke } from "./projectionInvoke";
+import { forgetPreparedProjection } from "./projectionCreateJournal";
+import { parseProjectionEnvelope, parseProjectionResponse, parseOfflineTransport, projectionOrigin } from "./qrProjectionProtocol";
 
-type ContentOperation = Exclude<ProjectionOperation, { kind: "context" | "code" | "unlink" }>;
-const invoke = (operation: ProjectionOperation, serverOrigin?: string, protocol: ProjectionProtocol = "neuro.qr-projection.v1", offlineRoute?: Partial<OfflineProjectionTarget>) => {
+type ContentOperation = Exclude<ProjectionOperation, { kind: "context" | "code" | "unlink" | "prepare_create" }>;
+const invoke = async (operation: ProjectionOperation, serverOrigin?: string, protocol: ProjectionProtocol = "neuro.qr-projection.v1", offlineRoute?: Partial<OfflineProjectionTarget>) => {
     const version = "envelope" in operation ? operation.envelope.protocol : protocol;
     if (offlineRoute && version !== "neuro.qr-projection.v1") throw new Error("projection_invalid_request");
     return version === "neuro.qr-projection.v2"
-        ? safeInvoke<unknown>("projection_v2_request", { operation })
-        : safeInvoke<unknown>("projection_request", { operation, serverOrigin, ...(offlineRoute ? { offlineRoute } : {}) });
+        ? projectionInvoke("projection_v2_request", { operation })
+        : projectionInvoke("projection_request", { operation, serverOrigin, ...(offlineRoute ? { offlineRoute } : {}) });
 };
 
 export const requestProjection = async (operation: ContentOperation, serverOrigin?: string, protocol?: ProjectionProtocol,
@@ -17,6 +18,16 @@ export const requestProjection = async (operation: ContentOperation, serverOrigi
     const result = parseProjectionResponse(await invoke(operation, route?.origin ?? serverOrigin, protocol, route ? (target ?? {}) : undefined));
     return route ? { ...result, offlineTransport: route } : result;
 };
+
+export async function prepareProjectionCreate(operation: Extract<ProjectionOperation, { kind: "prepare_create" }>, origin: string): Promise<ProjectionEnvelope> {
+    const value = await invoke(operation, projectionOrigin(origin));
+    if (!value || typeof value !== "object" || !("envelope" in value)) throw new Error("projection_invalid_response");
+    const envelope = parseProjectionEnvelope(value.envelope);
+    if (envelope.protocol !== "neuro.qr-projection.v1" || envelope.serverOrigin !== origin || envelope.source.unitId !== operation.unitId) {
+        throw new Error("projection_invalid_response");
+    }
+    return envelope;
+}
 
 export async function projectionAccountContext(): Promise<ProjectionAccountContext> {
     const value = await invoke({ kind: "context" }, undefined, "neuro.qr-projection.v2");
@@ -49,4 +60,5 @@ export async function unlinkProjection(projectionId: string, serverOrigin: strin
     if (!result || typeof result !== "object" || !("unlinked" in result) || result.unlinked !== true) {
         throw new Error("projection_invalid_response");
     }
+    if (!protocol || protocol === "neuro.qr-projection.v1") await forgetPreparedProjection(route?.origin ?? serverOrigin, projectionId);
 }

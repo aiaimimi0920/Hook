@@ -2,7 +2,9 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { render } from "solid-js/web";
 import { createStore } from "solid-js/store";
 import { QrProjectionSender } from "../../src/components/QrProjectionSender";
-import { projectionAccountContext, projectionContext, requestProjection } from "../../src/services/qrProjectionApi";
+import { projectionAccountContext, projectionContext, requestProjection, projectionCode } from "../../src/services/qrProjectionApi";
+import { api } from "../../src/services/api";
+import { parseProjectionInvitation } from "../../src/services/qrProjectionProtocol";
 import { graphStore } from "../../src/store/graphStore";
 import { projectionEnvelopeV2, projectionResponse, projectionUnit } from "../fixtures/qrProjection";
 import type { Unit } from "../../src/types/unit";
@@ -10,35 +12,60 @@ import { invalidateProjectionUnit } from "../../src/services/qrProjectionLifecyc
 import { renderProjectionFrame } from "../../src/services/qrProjectionSnapshot";
 import { queueProjectionUnlink } from "../../src/services/qrProjectionCleanup";
 import { patchProjection } from "../../src/services/qrProjectionSession";
-import { deliveryTargets } from "../../src/services/projectionDeliveryApi";
+import { projectionDialog } from "../../src/store/qrProjectionStore";
 
 vi.mock("../../src/store/graphStore", () => ({ graphStore: { units: [] as Unit[] } }));
 vi.mock("../../src/services/qrProjectionApi", () => ({ projectionContext: vi.fn(), projectionAccountContext: vi.fn(), requestProjection: vi.fn(), projectionCode: vi.fn() }));
 vi.mock("../../src/services/qrProjectionSession", () => ({ patchProjection: vi.fn(), projectionLinkFromResponse: vi.fn() }));
-vi.mock("../../src/services/qrProjectionCleanup", () => ({ queueProjectionUnlink: vi.fn() }));
+vi.mock("../../src/services/qrProjectionCleanup", () => ({ queueProjectionUnlinks: vi.fn(), queueProjectionUnlink: vi.fn() }));
 vi.mock("../../src/services/qrProjectionSnapshot", () => ({ renderProjectionFrame: vi.fn() }));
-vi.mock("../../src/services/projectionDeliveryApi", () => ({ deliveryTargets: vi.fn() }));
+vi.mock("../../src/services/projectionEditJournal", () => ({
+    loadProjectionEdit: async () => undefined, saveProjectionEdit: vi.fn(), forgetProjectionEdit: async () => undefined,
+}));
 
 let dispose: (() => void) | undefined;
 let container: HTMLDivElement;
-it("selects an advertised shared Loom device and creates an atomic targeted invitation", async () => {
+it("opens the dedicated multi-target selection from the general projection panel", async () => {
     const unit = projectionUnit(); unit.data.qrProjection = undefined;
     graphStore.units.splice(0, graphStore.units.length, unit);
-    vi.mocked(deliveryTargets).mockResolvedValue({ status: "complete", targets: [{ deviceId: "device:pc3", name: "PC 3", policy: "confirm", route: "shared_loom" }] });
     vi.mocked(renderProjectionFrame).mockResolvedValue({ snapshot: { imageBase64: btoa("a"), width: 1, height: 1 }, digest: "a".repeat(64) });
     vi.mocked(requestProjection).mockResolvedValue(projectionResponse());
     container = document.createElement("div"); document.body.append(container);
     dispose = render(() => <QrProjectionSender unitId={unit.id} retry={vi.fn()} />, container);
     const button = (text: string) => [...container.querySelectorAll("button")].find((item) => item.textContent?.includes(text))!;
-    await vi.waitFor(() => expect(button("刷新可接收设备").disabled).toBe(false));
-    button("刷新可接收设备").click();
-    await vi.waitFor(() => expect(button("投送到 PC 3")).toBeDefined());
-    button("投送到 PC 3").click();
-    await vi.waitFor(() => expect(requestProjection).toHaveBeenCalledWith(expect.objectContaining({ targetDeviceId: "device:pc3" }),
-        "https://loom.example.test", "neuro.qr-projection.v1"));
+    button("选择设备与设备组").click();
+    expect(projectionDialog()).toEqual({ unitId: unit.id, shareAction: "targets" });
+    expect(requestProjection).not.toHaveBeenCalled();
 });
 beforeEach(() => { vi.mocked(projectionContext).mockResolvedValue("https://loom.example.test"); });
 afterEach(() => { dispose?.(); container.remove(); vi.resetAllMocks(); });
+
+it.each(["qr", "link"] as const)("generates a %s invitation directly from the secondary button using configured Loom", async (shareAction) => {
+    const unit = projectionUnit(); unit.data.qrProjection = undefined;
+    graphStore.units.splice(0, graphStore.units.length, unit);
+    vi.mocked(renderProjectionFrame).mockResolvedValue({ snapshot: { imageBase64: btoa("a"), width: 1, height: 1 }, digest: "a".repeat(64) });
+    vi.mocked(requestProjection).mockResolvedValue(projectionResponse());
+    container = document.createElement("div"); document.body.append(container);
+    dispose = render(() => <QrProjectionSender unitId={unit.id} retry={vi.fn()} shareAction={shareAction} />, container);
+    await vi.waitFor(() => expect(requestProjection).toHaveBeenCalledTimes(1));
+    expect(container.querySelector("input")).toBeNull();
+    expect(projectionAccountContext).not.toHaveBeenCalled();
+});
+
+it("displays and copies the same versioned link without generating a QR or a second invitation", async () => {
+    const source = projectionUnit(); source.data.qrProjection!.linked = false;
+    source.data.qrProjection!.envelope.expiresAtMs = Date.now() + 60_000;
+    graphStore.units.splice(0, graphStore.units.length, source);
+    const copy = vi.spyOn(api, "copyTextToClipboard").mockResolvedValue(true);
+    container = document.createElement("div"); document.body.append(container);
+    dispose = render(() => <QrProjectionSender unitId={source.id} retry={vi.fn()} shareAction="link" />, container);
+    const text = container.querySelector("textarea")!.value;
+    expect(parseProjectionInvitation(text)).toEqual(source.data.qrProjection!.envelope);
+    button("复制链接").click();
+    await vi.waitFor(() => expect(copy).toHaveBeenCalledWith(text));
+    expect(requestProjection).not.toHaveBeenCalled(); expect(projectionCode).not.toHaveBeenCalled();
+    copy.mockRestore();
+});
 
 it("requires the local Loom account before creating a new invitation and refreshes after login", async () => {
     const unit = projectionUnit();
@@ -167,4 +194,21 @@ it("keeps saved shared associations pinned without re-reading account or configu
     expect(container.textContent).toContain(source.data.qrProjection!.envelope.serverOrigin);
     expect(projectionContext).not.toHaveBeenCalled();
     expect(projectionAccountContext).not.toHaveBeenCalled();
+});
+it("shows only the QR and selectable invitation link in compact sharing mode", async () => {
+    const source = projectionUnit(); source.data.qrProjection!.linked = false;
+    source.data.qrProjection!.envelope.expiresAtMs = Date.now() + 60_000;
+    graphStore.units.splice(0, graphStore.units.length, source);
+    vi.mocked(projectionCode).mockResolvedValue("data:image/svg+xml;base64,PHN2Zy8+");
+    const copy = vi.spyOn(api, "copyTextToClipboard").mockResolvedValue(true);
+    container = document.createElement("div"); document.body.append(container);
+    dispose = render(() => <QrProjectionSender unitId={source.id} retry={vi.fn()} shareAction="qr" />, container);
+    await vi.waitFor(() => expect(container.querySelector("img")?.getAttribute("src")).toContain("data:image/svg+xml"));
+    expect(container.querySelectorAll("button, p")).toHaveLength(0);
+    const input = container.querySelector<HTMLInputElement>('input[aria-label="投射链接"]')!;
+    expect(parseProjectionInvitation(input.value)).toEqual(source.data.qrProjection!.envelope);
+    input.click();
+    await vi.waitFor(() => expect(copy).toHaveBeenCalledWith(input.value));
+    expect(input.selectionEnd).toBe(input.value.length);
+    expect(requestProjection).not.toHaveBeenCalled();
 });

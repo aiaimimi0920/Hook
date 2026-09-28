@@ -33,8 +33,27 @@ links a sticker or formal Art image to another Windows Hook. Choose a shared
 HTTPS Loom with device pairing and no official login, or the existing Loom
 account mode. Receiver layout stays independent. Shared Loom supports online-device
 selection and continuous delivery with receiver confirmation or automatic display.
-Manually trusted offline Loom peers also support delivery. Official premium relay
+Confirmation uses a compact upper-center desktop prompt with accept, reject,
+and defer actions. Manually trusted offline Loom peers also support delivery. Official premium relay
 remains reserved. Native PC1/PC3 acceptance passed using pinned SSH forwarding.
+
+The projection secondary toolbar uses device/group checkboxes to start or cancel
+projection directly, with per-row pending/success/failure markers and safe retry.
+Success follows receiver display or remote cancellation acknowledgement.
+The receive toolbar displays data flow as a read-only indicator. Its single import
+compact, sticker-anchored dialog accepts a QR PNG or projection link without explanatory
+labels and receives content after an explicit
+Import action; the sender identifier remains visible without a revision button.
+Count-free device/group/user icons open dropdowns; target rows show IDs and checkboxes. Long target
+and font lists support wheel scrolling and draggable scrollbars in the overlay.
+The user dropdown reports the unavailable account service. This UI increment has
+focused and browser coverage. Isolated candidates have also passed PC1/PC3
+shared/cross-Loom policy, editing, batch-binding and stop checks over pinned SSH
+forwarding; the batch check used two Loom identities on one physical receiver.
+Shared and trusted cross-Loom v1 links also support opt-in two-way annotation
+editing, source-controlled direction, durable retries and explicit conflict choices.
+The base image stays fixed during an editing session; account-mode v2 and unsupported
+annotation effects do not expose this editing capability.
 
 ## Core capabilities
 

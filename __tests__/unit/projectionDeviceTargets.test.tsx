@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { render } from "solid-js/web";
-import { ProjectionDeviceTargets } from "../../src/components/ProjectionDeviceTargets";
+import { ProjectionTargetPicker } from "../../src/components/ProjectionTargetPicker";
 import { deliveryTargets } from "../../src/services/projectionDeliveryApi";
 import { safeInvoke } from "../../src/services/apiTransport";
 
@@ -15,18 +15,17 @@ afterEach(() => { dispose?.(); document.body.replaceChildren(); vi.resetAllMocks
 it("keeps remote directory entries non-sendable while local delivery remains available", async () => {
     vi.mocked(safeInvoke).mockResolvedValue({ peerDirectory: { status: "partial" }, targets: [remote,
         { deviceId: "device:local", name: "Local", policy: "auto", route: "shared_loom" }] });
-    const send = vi.fn();
-    dispose = render(() => <ProjectionDeviceTargets origin="https://loom.example.test" busy={false} send={send} />, document.body);
-    const button = (label: string) => [...document.querySelectorAll("button")].find((item) => item.textContent?.includes(label))!;
-    button("刷新").click();
-    await vi.waitFor(() => expect(button("远端设备")).toBeDefined());
-    expect(button("远端设备").disabled).toBe(true);
-    button("远端设备").click();
-    expect(send).not.toHaveBeenCalled();
-    expect(document.body.textContent).toContain("来自 Remote Loom");
+    const change = vi.fn();
+    const directory = await deliveryTargets("https://loom.example.test");
+    dispose = render(() => <ProjectionTargetPicker directory={directory} disabled={false} selection={{ devices: [], groups: [] }} change={change} />, document.body);
+    const inputs = document.querySelectorAll<HTMLInputElement>("input");
+    expect(inputs[0].disabled).toBe(true);
+    inputs[0].click();
+    expect(change).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("Remote Loom");
     expect(document.querySelector('[role="status"]')).not.toBeNull();
-    button("投送到 Local").click();
-    expect(send).toHaveBeenCalledWith("device:local");
+    inputs[1].click();
+    expect(change).toHaveBeenCalledWith({ devices: ["device:local"], groups: [] });
 });
 
 it.each([{ deliveryAvailable: true }, { route: "shared_loom" }, { peerId: "invalid" }])(

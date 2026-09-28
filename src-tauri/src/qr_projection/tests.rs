@@ -25,6 +25,34 @@ fn reply() -> Value {
 }
 
 #[test]
+fn prepared_create_retains_signed_identity_and_checks_actor_origin_and_pixels() {
+    let value = reply();
+    let body = |value: &Value, actor: &str, origin: &str| {
+        super::prepared_create::prepared_create_body(
+            serde_json::from_value(value["envelope"].clone()).unwrap(),
+            serde_json::from_value(value["snapshot"].clone()).unwrap(),
+            Some("b".to_owned()),
+            actor,
+            origin,
+        )
+    };
+    let first = body(&value, "a", "https://loom.example.test").unwrap();
+    assert_eq!(first["envelope"], value["envelope"]);
+    assert_eq!(
+        first,
+        body(&value, "a", "https://loom.example.test").unwrap()
+    );
+    assert!(body(&value, "other", "https://loom.example.test").is_err());
+    assert!(body(&value, "a", "https://other.example.test").is_err());
+    let mut mismatch = value.clone();
+    mismatch["envelope"]["content"]["digest"] = json!("0".repeat(64));
+    assert_eq!(
+        body(&mismatch, "a", "https://loom.example.test").unwrap_err(),
+        "projection_content_changed"
+    );
+}
+
+#[test]
 fn offline_routes_preserve_signed_envelope_and_require_bound_target() {
     use sha2::{Digest, Sha256};
     let envelope = reply()["envelope"].clone();

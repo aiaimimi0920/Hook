@@ -30,8 +30,9 @@ import {
 import { surfaceStore } from "./surfaceStore";
 import { surfaceAttachmentRequests } from "../services/surfaceAttachmentRequests";
 import { invalidateProjectionUnit, invalidateProjectionWorkspace } from "../services/qrProjectionLifecycle";
-import { queueProjectionUnlink } from "../services/qrProjectionCleanup";
+import { queueProjectionUnlinks } from "../services/qrProjectionCleanup";
 import { sanitizeProjectionLink } from "../services/qrProjectionProtocol";
+import { projectionAssociations, sanitizeProjectionSenders } from "../services/projectionSenderBindings";
 
 // Core Data Stores
 const [units, setUnits] = createStore<Unit[]>([]);
@@ -55,6 +56,7 @@ const addUnit = (unit: Unit) => {
         data: {
             ...unit.data,
             qrProjection: sanitizeProjectionLink(unit.data.qrProjection, unit.id),
+            projectionSenders: sanitizeProjectionSenders(unit.data.projectionSenders, unit.id),
             executionConfig,
         },
     };
@@ -65,8 +67,9 @@ const addUnit = (unit: Unit) => {
 };
 
 const removeUnit = (id: string) => {
-    const projection = units.find((unit) => unit.id === id)?.data.qrProjection;
-    if (projection?.localUnitId === id && !projection.stopped) queueProjectionUnlink(projection.envelope, projection.offlineTransport);
+    const unit = units.find((item) => item.id === id);
+    const projections = (unit ? projectionAssociations(unit) : []).filter(({ link }) => !link.stopped);
+    if (projections.length) queueProjectionUnlinks(projections.map(({ link }) => ({ envelope: link.envelope, offlineTransport: link.offlineTransport })));
     invalidateProjectionUnit(id);
     shaderCache.disposeUnit(id);
     surfaceStore.actions.clear(id);

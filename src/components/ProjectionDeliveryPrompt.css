@@ -1,0 +1,31 @@
+.projection-delivery-prompt-host {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483645;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: clamp(16px, 8vh, 80px) 16px 16px;
+    pointer-events: none;
+}
+.projection-delivery-prompt {
+    box-sizing: border-box;
+    width: min(420px, 100%);
+    max-height: 80vh;
+    overflow: auto;
+    pointer-events: auto;
+    color: var(--theme-text);
+    background: var(--neuro-panel);
+    border: 1px solid var(--theme-border);
+    border-top: 3px solid var(--theme-signal);
+    box-shadow: var(--shadow-float);
+    padding: 12px 16px;
+}
+.projection-delivery-prompt header,
+.projection-delivery-prompt-actions { display: flex; align-items: center; gap: 12px; }
+.projection-delivery-prompt header strong { flex: 1; }
+.projection-delivery-prompt header span { font-variant-numeric: tabular-nums; }
+.projection-delivery-prompt p { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.projection-delivery-prompt .hook-terminal-btn { min-height: 36px; padding: 6px 12px; }
+.projection-delivery-prompt :focus-visible { outline: 2px solid var(--theme-signal); outline-offset: 2px; }
+.projection-delivery-prompt [role="alert"] { color: var(--theme-signal-text); }

@@ -9,6 +9,7 @@ export type TopStripOpenMenu =
     | "rasterize"
     | "extension"
     | "view"
+    | "projection"
     | null;
 
 export const toolbarButtonClass =

@@ -5,14 +5,24 @@ import type { Unit } from "../types/unit";
 import { clearSyncImageCachesForUnit } from "./syncImageCache";
 import { shaderCache } from "./shaderCache";
 import { syncService } from "./syncService";
+import { projectionBindingKey, type ProjectionSenderBinding } from "./projectionSenderBindings";
 
 export const projectionLinkFromResponse = (role: QrProjectionLink["role"], unitId: string, response: ProjectionResponse): QrProjectionLink => ({
     role, localUnitId: unitId, envelope: response.envelope, revision: response.revision,
     digest: response.digest, linked: response.receiverDeviceId !== null,
+    ...(response.sourceName ? { sourceName: response.sourceName.slice(0, 1024) } : {}),
     ...(response.offlineTransport ? { offlineTransport: response.offlineTransport } : {}),
 });
 
-export function patchProjection(unitId: string, link: QrProjectionLink | undefined, imageBase64?: string): void {
+export function patchProjection(unitId: string, link: QrProjectionLink | undefined, imageBase64?: string, bindingKey?: string): void {
+    if (bindingKey !== undefined) {
+        const unit = graphStore.units.find((item) => item.id === unitId);
+        if (!unit) return;
+        const bindings = (unit.data.projectionSenders ?? []).flatMap((binding) =>
+            projectionBindingKey(binding.link) !== bindingKey ? [binding] : link ? [{ ...binding, link }] : []);
+        saveProjectionSenders(unitId, bindings);
+        return;
+    }
     if (!graphStore.units.some((unit) => unit.id === unitId)) return;
     if (imageBase64) {
         clearSyncImageCachesForUnit(unitId);
@@ -24,6 +34,11 @@ export function patchProjection(unitId: string, link: QrProjectionLink | undefin
         ...(imageBase64 ? { src: `data:image/png;base64,${imageBase64}`, filePath: undefined,
             previewSrc: undefined, outputs: undefined, restoredPreviewLocked: false } : {}),
     });
+    void syncService.performWorkflowSync();
+}
+
+export function saveProjectionSenders(unitId: string, bindings: ProjectionSenderBinding[]): void {
+    graphStore.actions.updateUnitData(unitId, { projectionSenders: bindings.length ? bindings : undefined });
     void syncService.performWorkflowSync();
 }
 

@@ -4,7 +4,7 @@ import { createProjectionSync, type ProjectionSyncDependencies } from "../../src
 import { onProjectionUnitRemoved, projectionWorkspaceGeneration } from "../../src/services/qrProjectionLifecycle";
 import { projectionResponse, projectionUnit } from "../fixtures/qrProjection";
 
-vi.mock("../../src/services/qrProjectionCleanup", () => ({ queueProjectionUnlink: vi.fn() }));
+vi.mock("../../src/services/qrProjectionCleanup", () => ({ queueProjectionUnlinks: vi.fn(), queueProjectionUnlink: vi.fn() }));
 const disposals: (() => void)[] = [];
 function setup(role: "source" | "receiver" = "source", pending = false) {
     const unit = projectionUnit(role);
