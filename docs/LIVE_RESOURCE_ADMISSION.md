@@ -62,8 +62,9 @@ There is deliberately no universal "remaining sticker count": the next full 4K
 source and the next small crop have different costs.
 
 Resource refusals use bounded fixed codes. After capture input has been cleaned
-up, Hook explains a refusal on the most recent Live Unit's notice stack, or in a
-dialog when no Live Unit exists. It does not silently swallow a resource refusal.
+up, Hook explains a refusal through the Unit notice stack. An unbound refusal uses
+the last remaining ordinary sticker when one exists; without a suitable host no
+global dialog is created. See [failure notice routing](LIVE_CAPTURE.md#failure-notices).
 
 ## Limitations
 
