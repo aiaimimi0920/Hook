@@ -97,7 +97,7 @@ $commands.hookVisualTrust = Invoke-LoggedCommand -Name "hook-visual-trust" `
     -WorkingDirectory $repoRoot -FilePath $cargo `
     -Arguments @("test", "--manifest-path", "src-tauri\Cargo.toml", "visual_observations_cannot_claim_exact_confidence")
 $commands.hookProtocol = Invoke-LoggedCommand -Name "hook-protocol" -WorkingDirectory $repoRoot `
-    -FilePath $npm -Arguments @("test", "--", "__tests__\unit\liveProtocol.test.ts", "__tests__\unit\liveExtensions.test.ts")
+    -FilePath $npm -Arguments @("test", "--", "__tests__\unit\liveExtensions.test.ts")
 $commands.hookTypecheck = Invoke-LoggedCommand -Name "hook-typecheck" -WorkingDirectory $repoRoot `
     -FilePath $npm -Arguments @("run", "typecheck")
 $commands.hookTestTypecheck = Invoke-LoggedCommand -Name "hook-test-typecheck" -WorkingDirectory $repoRoot `

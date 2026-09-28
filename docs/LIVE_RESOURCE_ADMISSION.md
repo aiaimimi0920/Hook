@@ -81,12 +81,8 @@ dialog when no Live Unit exists. It does not silently swallow a resource refusal
 - Workload changes after admission (video starts, effects enable, other software
   consumes resources) can still lower performance. Pressure mitigation is bounded
   throttling and refusal, not transparent eviction or an arbitrary-app FPS promise.
-- Browser tab/DOM binding is not installed by this change. The isolated
-  `scripts/tests/live-browser-binding-probe.ts` evaluates CDP target screenshots,
-  offscreen document-region refresh and an ordinary DOM button only. It does not
-  advertise an available adapter, bypass Loom package trust, or change Ctrl+2's
-  window-pixel binding. Browser permission, adapter packaging, actual Live Unit
-  transport/input and arbitrary-page/video acceptance remain separate work.
+- Browser windows use native window-pixel capture. Preserving a document across
+  scrolling or tab changes is outside the product scope; see [Live capture](LIVE_CAPTURE.md).
 
 ## Verification
 
@@ -96,7 +92,6 @@ npx vitest run __tests__/unit/liveCaptureAdmissionFeedback.test.ts
 $env:HOOK_BROWSER_VIDEO_MULTI = "1"
 $env:HOOK_BROWSER_VIDEO_COUNT = "6"
 node --experimental-strip-types scripts/tests/live-browser-video-probe.ts artifacts/six-live-owned-probe
-node --experimental-strip-types scripts/tests/live-browser-binding-probe.ts artifacts/browser-binding-owned-probe
 ```
 
 The video probe creates only an owned browser/profile and source/output windows;
@@ -106,5 +101,4 @@ establish six real graph Units or monitor FPS. The packaged real-Unit probe rema
 required for placement, drag, editing, shortcuts and interaction.
 
 API references: [DXGI memory info](https://learn.microsoft.com/en-us/windows/win32/api/dxgi1_4/ns-dxgi1_4-dxgi_query_video_memory_info),
-[GetSystemTimes](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getsystemtimes),
-[CDP region screenshots](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-captureScreenshot).
+[GetSystemTimes](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getsystemtimes).
