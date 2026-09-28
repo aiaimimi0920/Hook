@@ -4,7 +4,7 @@ Status: geometry, validated control transport, independent terminal entry and
 empty-wall test-pattern, immutable images, Live media and endpoint-scoped Live
 input and declarative Art views/actions are implemented. See [TILE_TERMINAL.md](./TILE_TERMINAL.md) for launch
 commands and limits. Final multi-terminal acceptance remains in
-Loom's `docs/TILE_WALL_IMPLEMENTATION_PLAN.md`; this is an internal
+Loom's [wall guide](../../Loom/docs/TILE_WALL.md); this is an internal
 development slice, not the completed interactive-wall product.
 
 The public wire contracts are Loom's `protocol/WALL_PROTOCOL.md`,
