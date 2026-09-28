@@ -30,6 +30,8 @@ is created, and existing diagnostic reporting remains available.
 delivered through `uiActions.showEnhancementNotice`. The standard host owns
 dismissal, timeout and its bounded queue. Native unknown-error text is sanitized.
 `liveCaptureAdmissionFeedback.ts` uses this path rather than a global alert.
+Capture status failures use `liveCaptureStatusFeedback.ts`; the controller keeps
+the message tied to the affected Unit rather than introducing a global Live panel.
 
 ## Runtime boundaries and verification
 

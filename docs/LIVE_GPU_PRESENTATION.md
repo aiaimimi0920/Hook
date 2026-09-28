@@ -81,9 +81,11 @@ claimed. The native branch still uses supported Windows graphics APIs.
   native plane even if the frontend stops renewing it.
 - Device, format or budget errors latch the session into JPEG fallback. There is
   no automatic retry storm; stop/create a new Live session to probe again.
-- Source-worker exit removes the corresponding GPU slot. App exit joins the
-  compositor thread and releases its visuals. A disable request for a missing
-  slot does not allocate a new slot.
+- Source-worker exit removes the corresponding GPU slot. Removing the last slot
+  retires and joins the compositor outside the service/slot locks; removing one
+  of several slots preserves the shared compositor for its siblings. App exit
+  also joins the compositor and releases its visuals. A disable request for a
+  missing slot does not allocate a new slot.
 - Disabled/expired slots retain bounded owned textures until source rebuild/stop
   so a static source can restore fresh fallback without a new capture callback.
   A capture-owner readback happens only if that texture is newer than its last

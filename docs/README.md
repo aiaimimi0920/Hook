@@ -19,6 +19,8 @@ tests remain the source of truth.
 - [`LIVE_GPU_PRESENTATION.md`](LIVE_GPU_PRESENTATION.md) - GPU presentation and fallback.
 - [`LIVE_SHARED_SOURCE_CAPTURE.md`](LIVE_SHARED_SOURCE_CAPTURE.md) - shared window capture ownership.
 - [`QR_PROJECTION.md`](QR_PROJECTION.md) - projection, receiving, and two-way editing.
+- [`QR_BARCODE_RECOGNITION.md`](QR_BARCODE_RECOGNITION.md) - optional OCR package
+  code recognition, gestures, attachments, and safe URL handling.
 - [`TILE_TERMINAL.md`](TILE_TERMINAL.md) - terminal startup and its acceptance boundary.
 - [`LIVE_SCREENSHOT_COMPATIBILITY_BASELINE.md`](LIVE_SCREENSHOT_COMPATIBILITY_BASELINE.md) -
   measured Phase 0 evidence and the current G0 decision.
