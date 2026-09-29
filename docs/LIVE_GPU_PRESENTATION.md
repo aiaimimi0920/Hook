@@ -76,9 +76,9 @@ claimed. The native branch still uses supported Windows graphics APIs.
   256 MiB if unavailable). It estimates three input textures and two swapchain
   buffers per source, not measured total VRAM. The separate source reservation
   also charges WGC pools and crop/fallback allowances; see `LIVE_RESOURCE_ADMISSION.md`.
-- Layout renewal is serialized, normally every 80 ms. Resize/scroll and shared
-  UI state changes request earlier updates. A 350 ms expired lease hides the
-  native plane even if the frontend stops renewing it.
+- Layout checks share an 80 ms clock. An unchanged acknowledged layout sends a
+  serialized native heartbeat every 160 ms; geometry, visibility and composition
+  changes request earlier updates. A 350 ms expired native lease hides the plane.
 - Device, format or budget errors latch the session into JPEG fallback. There is
   no automatic retry storm; stop/create a new Live session to probe again.
 - Source-worker exit removes the corresponding GPU slot. Removing the last slot
@@ -98,6 +98,24 @@ prepares a transient PNG, decodes it and gives the DOM a bounded paint opportuni
 before disable. Faults and lease loss can hide the plane sooner; the capture owner
 independently restores a retained frame. Unregistered overlays remain an integration
 risk and each new overlay must register its occlusion/hit rectangle.
+
+## Status polling and lease lifetime
+
+`liveCapturePollCadence.ts` maintains a per-session frontend lease. Only a
+successful native configuration with an active layout, `presenting=true` and no
+error acknowledges presentation. Healthy presentation uses 250 ms status polls;
+capture FPS and GPU submission cadence are independent of this status interval.
+
+The frontend lease expires after 500 ms. Disable, handoff, binding changes,
+configuration errors and cleanup clear acknowledgement and wake a waiting poll.
+An already-running poll is not overlapped; its completion selects the next
+cadence. This does not impose a new timeout on a stalled IPC/decode operation.
+Before acknowledgement, first-frame and JPEG polling retain their normal pacing.
+Stop/dispose remove registrations, and updates to unregistered sessions are ignored.
+
+Deferred layout checks do not renew either lease. Scheduling tests establish
+poll/configuration call bounds, not whole-PC CPU/GPU savings or display FPS.
+Per-crop copies, swapchains, locking, fallback and native wakeups remain costs.
 
 ## Explicit snapshot contract
 

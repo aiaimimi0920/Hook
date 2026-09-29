@@ -39,6 +39,7 @@ the message tied to the affected Unit rather than introducing a global Live pane
 - [Shared source capture](LIVE_SHARED_SOURCE_CAPTURE.md): WGC pool ownership and independent crops.
 - [Shared work budget](LIVE_SHARED_SOURCE_WORK_BUDGET.md): aggregate capture and CPU fallback limits.
 - [GPU presentation](LIVE_GPU_PRESENTATION.md): native texture route and compatibility fallback.
+- [Video diagnostics](LIVE_VIDEO_CAPTURE_DIAGNOSTICS.md): controlled probes and capture/presentation evidence boundaries.
 - [Protocol](LIVE_SCREENSHOT_PROTOCOL.md): native/Loom transport and authorization.
 - [Features](FEATURES.md): shortcuts and manual regression matrix.
 
