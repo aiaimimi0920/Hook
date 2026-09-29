@@ -59,16 +59,12 @@ export type NumericToolSettingKey = keyof Pick<
     | "effectBrushSize"
     | "contentEraserSize"
 >;
-export type ActiveColorPopoverSlot = { key: ShapeColorSettingKey; label: string };
 export const TRANSFORM_MODE_BUTTONS: StickerTransformModeButton[] = [
     { mode: "select", label: "选择", shortcut: "Q" },
     { mode: "move", label: "移动", shortcut: "W" },
     { mode: "rotate", label: "旋转", shortcut: "E" },
     { mode: "scale", label: "缩放", shortcut: "R" },
 ];
-
-export const isShapeFillMode = (mode: StickerCreateTool | null) =>
-    mode === "shape-rect" || mode === "shape-round-rect" || mode === "shape-ellipse" || mode === "shape-triangle" || mode === "shape-polygon";
 
 export const PAINT_COLOR_SETTING_KEYS: ShapeColorSettingKey[] = [
     "textColor",

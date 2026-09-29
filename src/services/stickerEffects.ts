@@ -14,28 +14,6 @@ export type EffectSourceProjection = {
     destH: number;
 };
 
-export type MosaicPreviewCanvasSize = {
-    width: number;
-    height: number;
-    scale: number;
-};
-
-export type PrivacyMosaicTile = {
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-    fill: string;
-};
-
-const PRIVACY_MOSAIC_COLORS = [
-    "rgb(15, 23, 42)",
-    "rgb(30, 41, 59)",
-    "rgb(51, 65, 85)",
-    "rgb(71, 85, 105)",
-    "rgb(100, 116, 139)",
-];
-
 export const BLUR_EFFECT_OVERLAY_FILL = "rgba(255,255,255,0.08)";
 
 // Decorative mosaic palette. The mosaic is a grid of square cells, but it NEVER
@@ -141,64 +119,6 @@ export const buildMosaicTextureDataUrl = (
     return canvas.toDataURL("image/png");
 };
 
-const normalizePrivacyMosaicTileSize = (strength: number) =>
-    Math.max(8, Math.round(strength || 12));
-
-const privacyMosaicColorIndex = (column: number, row: number, colorCount: number) => {
-    const hash =
-        Math.imul(column + 17, 73856093) +
-        Math.imul(row + 31, 19349663) +
-        Math.imul((column + 1) * (row + 1), 83492791);
-    return Math.abs(hash) % colorCount;
-};
-
-export const buildPrivacyMosaicTiles = (
-    rect: Rect,
-    strength: number,
-    colors = PRIVACY_MOSAIC_COLORS,
-): PrivacyMosaicTile[] => {
-    const tileSize = normalizePrivacyMosaicTileSize(strength);
-    const width = Math.max(0, Math.ceil(rect.w));
-    const height = Math.max(0, Math.ceil(rect.h));
-    const palette = colors.length > 0 ? colors : PRIVACY_MOSAIC_COLORS;
-    const tiles: PrivacyMosaicTile[] = [];
-
-    for (let y = 0; y < height; y += tileSize) {
-        for (let x = 0; x < width; x += tileSize) {
-            const column = Math.floor(x / tileSize);
-            const row = Math.floor(y / tileSize);
-            tiles.push({
-                x: rect.x + x,
-                y: rect.y + y,
-                w: Math.min(tileSize, width - x),
-                h: Math.min(tileSize, height - y),
-                fill: palette[privacyMosaicColorIndex(column, row, palette.length)],
-            });
-        }
-    }
-
-    return tiles;
-};
-
-export const computeMosaicPreviewCanvasSize = (
-    size: Size,
-    maxDimension = 512,
-): MosaicPreviewCanvasSize => {
-    const width = Math.max(1, Math.round(size.w));
-    const height = Math.max(1, Math.round(size.h));
-    const maxSize = Math.max(width, height);
-    if (maxSize <= maxDimension) {
-        return { width, height, scale: 1 };
-    }
-
-    const scale = maxDimension / maxSize;
-    return {
-        width: Math.max(1, Math.round(width * scale)),
-        height: Math.max(1, Math.round(height * scale)),
-        scale,
-    };
-};
-
 const clampRectToBounds = (rect: Rect, bounds: Size): Rect | null => {
     const left = Math.max(0, rect.x);
     const top = Math.max(0, rect.y);
@@ -268,33 +188,6 @@ export const computeEffectSourceProjection = (
     };
 };
 
-export const renderMosaicToCanvas = (
-    context: CanvasRenderingContext2D,
-    _source: CanvasImageSource,
-    projection: EffectSourceProjection,
-    strength: number,
-    colors?: string[],
-) => {
-    const rect = {
-        x: projection.destX,
-        y: projection.destY,
-        w: projection.destW,
-        h: projection.destH,
-    };
-
-    context.save();
-    context.beginPath();
-    context.rect(rect.x, rect.y, rect.w, rect.h);
-    context.clip();
-
-    for (const tile of buildPrivacyMosaicTiles(rect, strength, colors)) {
-        context.fillStyle = tile.fill;
-        context.fillRect(tile.x, tile.y, tile.w, tile.h);
-    }
-
-    context.restore();
-};
-
 export const renderBlurToCanvas = (
     context: CanvasRenderingContext2D,
     source: CanvasImageSource,
@@ -320,47 +213,4 @@ export const renderBlurToCanvas = (
         projection.destH,
     );
     context.restore();
-};
-
-export const buildMosaicPreviewDataUrl = (params: {
-    image: HTMLImageElement;
-    effectRect: Rect;
-    stickerSize: Size;
-    imageEditState: Pick<StickerImageEditState, "cropRect" | "sourceSize"> | undefined;
-    strength: number;
-    maxPreviewDimension?: number;
-}) => {
-    const sourceWidth = params.image.naturalWidth || params.image.width;
-    const sourceHeight = params.image.naturalHeight || params.image.height;
-    const projection = computeEffectSourceProjection(
-        params.effectRect,
-        params.stickerSize,
-        { w: sourceWidth, h: sourceHeight },
-        params.imageEditState,
-    );
-    if (!projection) return null;
-
-    const previewSize = computeMosaicPreviewCanvasSize(
-        { w: params.effectRect.w, h: params.effectRect.h },
-        params.maxPreviewDimension ?? 512,
-    );
-    const canvas = document.createElement("canvas");
-    canvas.width = previewSize.width;
-    canvas.height = previewSize.height;
-    const context = canvas.getContext("2d");
-    if (!context) return null;
-
-    renderMosaicToCanvas(
-        context,
-        params.image,
-        {
-            ...projection,
-            destX: projection.destX * previewSize.scale,
-            destY: projection.destY * previewSize.scale,
-            destW: projection.destW * previewSize.scale,
-            destH: projection.destH * previewSize.scale,
-        },
-        Math.max(1, params.strength * previewSize.scale),
-    );
-    return canvas.toDataURL("image/png");
 };
