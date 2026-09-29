@@ -6,7 +6,6 @@ import { readWallMedia, type WallMediaFormat, type WallMediaInfo } from './wallM
 
 export interface WallLiveBinding { endpointId: string; leaseId: string; revision: number; sessionId: string; format: WallMediaFormat }
 export interface WallLiveFrame extends TileBitmap { media: WallMediaInfo }
-export interface WallLiveStats { activeStreams: number; receivedFrames: number; receivedBytes: number; readFrames: number; replacedFrames: number }
 export const wallLiveApi = {
     open: (request: WallLiveBinding) => safeInvoke<string>('wall_live_open', { request }),
     close: (streamId: string) => safeInvoke<void>('wall_live_close', { streamId }),
