@@ -117,6 +117,24 @@ Deferred layout checks do not renew either lease. Scheduling tests establish
 poll/configuration call bounds, not whole-PC CPU/GPU savings or display FPS.
 Per-crop copies, swapchains, locking, fallback and native wakeups remain costs.
 
+## Native compositor scheduling
+
+The compositor waits for a frame/control event or the earliest active lease
+deadline. Busy-present retries retain a 16 ms ceiling; frame arrivals wake the
+owner immediately, and channel disconnection interrupts shutdown.
+
+An unchanged healthy configuration renews its 350 ms lease without waking the
+owner. Layout changes, expired-surface reactivation and capture budget/copy
+errors wake it. After presenting outside the slot lock, the owner rechecks
+previously active IDs so lease or fault changes are handled immediately.
+
+`src-tauri/src/live_gpu/worker_schedule.rs` owns the timing policy. Its static
+presentation test with 160 ms heartbeats bounds idle deadline checks to four per
+second. This measures control-loop work, not whole-process CPU/GPU usage;
+dynamic video still requires per-crop copies and swapchain presentation.
+Tests also cover renewal/reactivation, earliest expiry, hidden/faulted slots,
+busy retries and cleanup. Texture ownership and generation barriers are unchanged.
+
 ## Explicit snapshot contract
 
 `read_live_gpu_snapshot` accepts an active session ID from the main WebView. It
