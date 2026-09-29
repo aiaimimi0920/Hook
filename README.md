@@ -221,16 +221,11 @@ only the current app-data identity, publisher-qualified packages, and formal
 `loom.hook.v1`/`loom.surface.v1` contracts. Obsolete compatibility paths are not
 part of acceptance.
 
-The acceptance scripts fail closed on SHA-256. Their defaults identify the
-current image-search runtime-fix R18/R28 pair; when validating any other path, pass
-the matching expected digest explicitly rather than omitting the hash.
-
-The last completed Phase 71 native acceptance remains the historical
-`artifacts/runtime-performance/hook-loom-surface-candidate/20260813-205423-hook-loom-surface-b89e7c2bd751/summary.json`:
-R14/R23 passed the 600-second soak (402 process-tree samples, 2.476% private-byte
-growth, no violations), formal Surface action/resource delivery, clean exit,
-and same-instance restart recovery (`revision 1 -> 4 -> 8`). R18/R28 must produce
-its own 600-second evidence before it replaces that historical acceptance record.
+The acceptance scripts fail closed on SHA-256. Pass the candidate's matching
+expected digest explicitly; historical script defaults do not identify the
+current build. Each candidate needs its own 600-second soak, formal Surface
+action/resource delivery, clean exit and restart-recovery evidence. Older
+acceptance summaries remain in Git history and do not certify a later binary.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `

@@ -77,8 +77,8 @@ UIPI; an elevated Hook does not require an ordinary source to be elevated.
 Source titles, pixels, UIA text, keyboard data, and OCR text are
 sensitive and must not be written to normal logs.
 
-See `docs/LIVE_SCREENSHOT_COMPATIBILITY_BASELINE.md` for the locked Phase 0
-support declaration. The contract intentionally contains capabilities for later
+See [Live compatibility](LIVE_CAPTURE.md#compatibility-and-validation) for the
+controlled support declaration. The contract intentionally contains capabilities for later
 phases without claiming they are currently implemented.
 
 ## Phase 6 observation behavior

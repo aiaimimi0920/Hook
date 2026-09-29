@@ -22,8 +22,8 @@ tests remain the source of truth.
 - [`QR_BARCODE_RECOGNITION.md`](QR_BARCODE_RECOGNITION.md) - optional OCR package
   code recognition, gestures, attachments, and safe URL handling.
 - [`TILE_TERMINAL.md`](TILE_TERMINAL.md) - terminal startup and its acceptance boundary.
-- [`LIVE_SCREENSHOT_COMPATIBILITY_BASELINE.md`](LIVE_SCREENSHOT_COMPATIBILITY_BASELINE.md) -
-  measured Phase 0 evidence and the current G0 decision.
+- [Live compatibility and validation](LIVE_CAPTURE.md#compatibility-and-validation) -
+  controlled support matrix, native probes and evidence limits.
 - [`LIVE_SCREENSHOT_PROTOCOL.md`](LIVE_SCREENSHOT_PROTOCOL.md) - `loom.live.v1`
   source/viewer, ordering, binary-media, and security boundaries.
 - [`ASSET_LIBRARY_INTEGRATION.md`](ASSET_LIBRARY_INTEGRATION.md) - target

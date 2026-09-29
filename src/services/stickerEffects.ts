@@ -295,15 +295,6 @@ export const renderMosaicToCanvas = (
     context.restore();
 };
 
-export const translateEffectProjection = (
-    projection: EffectSourceProjection,
-    offset: { x: number; y: number },
-): EffectSourceProjection => ({
-    ...projection,
-    destX: projection.destX + offset.x,
-    destY: projection.destY + offset.y,
-});
-
 export const renderBlurToCanvas = (
     context: CanvasRenderingContext2D,
     source: CanvasImageSource,

@@ -13,7 +13,10 @@ const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/St
 const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarSections.tsx");
 const propertyBarSectionsSource = existsSync(propertyBarSectionsPath) ? readFileSync(propertyBarSectionsPath, "utf8") : "";
 const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
-const toolbarModelSource = readFileSync(resolve(process.cwd(), "src/components/stickerToolbarModel.ts"), "utf8");
+const topStripCreateToolsSource = readFileSync(
+    resolve(process.cwd(), "src/components/StickerTopStripCreateTools.tsx"),
+    "utf8",
+);
 const annotationLayerSource = readFileSync(resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"), "utf8");
 const pointerDownSource = readFileSync(
     resolve(process.cwd(), "src/components/stickerAnnotationPointerDownController.ts"),
@@ -105,8 +108,9 @@ describe("Hook sticker transform modes contract", () => {
     });
 
     it("keeps highlighter as a brush property instead of a parallel create-tool button", () => {
-        expect(toolbarModelSource).toContain('{ mode: "brush", label: "画笔" }');
-        expect(toolbarModelSource).not.toContain('{ mode: "highlighter", label: "荧光" }');
+        expect(topStripCreateToolsSource).toContain('aria-label="画笔工具"');
+        expect(topStripCreateToolsSource).toContain('onClick={() => props.onCreateTool("brush")}');
+        expect(topStripCreateToolsSource).not.toContain('props.onCreateTool("highlighter")');
         expect(propertyBarRenderSource).toContain("brushHighlighterEnabled");
     });
 
