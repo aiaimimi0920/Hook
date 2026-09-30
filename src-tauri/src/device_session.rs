@@ -10,7 +10,11 @@ mod identity;
 #[cfg(feature = "remote-surface")]
 mod identity_protection;
 #[cfg(feature = "remote-surface")]
+mod local_projection;
+#[cfg(feature = "remote-surface")]
 mod pairing;
+#[cfg(feature = "remote-surface")]
+mod projection;
 #[cfg(feature = "remote-surface")]
 mod session_attempt;
 
@@ -56,6 +60,22 @@ impl fmt::Debug for DeviceSessionAuthorization {
 }
 
 impl DeviceSessionAuthorization {
+    #[cfg(test)]
+    pub(crate) fn none_for_test(device_id: &str) -> Self {
+        Self {
+            device_id: device_id.to_owned(),
+            credential: SurfaceRequestCredential::None,
+        }
+    }
+
+    #[cfg(all(test, feature = "remote-surface"))]
+    pub(crate) fn device_for_test(device_id: &str, token: &str) -> Self {
+        Self {
+            device_id: device_id.to_owned(),
+            credential: SurfaceRequestCredential::Device(token.to_owned()),
+        }
+    }
+
     pub(crate) fn apply(&self, request: RequestBuilder) -> RequestBuilder {
         match &self.credential {
             SurfaceRequestCredential::None => request,
@@ -65,6 +85,50 @@ impl DeviceSessionAuthorization {
                 .header("Authorization", format!("Device {token}"))
                 .header("X-Loom-Device-Nonce", random_url_safe(24)),
         }
+    }
+
+    pub(crate) fn apply_blocking(
+        &self,
+        request: reqwest::blocking::RequestBuilder,
+    ) -> reqwest::blocking::RequestBuilder {
+        match &self.credential {
+            SurfaceRequestCredential::None => request,
+            SurfaceRequestCredential::Bearer(token) => request.bearer_auth(token),
+            #[cfg(feature = "remote-surface")]
+            SurfaceRequestCredential::Device(token) => request
+                .header("Authorization", format!("Device {token}"))
+                .header("X-Loom-Device-Nonce", random_url_safe(24)),
+        }
+    }
+
+    pub(crate) fn apply_websocket(
+        &self,
+        request: &mut tungstenite::http::Request<()>,
+    ) -> Result<(), String> {
+        use tungstenite::http::{header::AUTHORIZATION, HeaderName, HeaderValue};
+
+        let authorization = match &self.credential {
+            SurfaceRequestCredential::None => None,
+            SurfaceRequestCredential::Bearer(token) => Some(format!("Bearer {token}")),
+            #[cfg(feature = "remote-surface")]
+            SurfaceRequestCredential::Device(token) => Some(format!("Device {token}")),
+        };
+        if let Some(value) = authorization {
+            request.headers_mut().insert(
+                AUTHORIZATION,
+                HeaderValue::from_str(&value)
+                    .map_err(|_| "Loom authorization header is invalid".to_owned())?,
+            );
+        }
+        #[cfg(feature = "remote-surface")]
+        if matches!(&self.credential, SurfaceRequestCredential::Device(_)) {
+            request.headers_mut().insert(
+                HeaderName::from_static("x-loom-device-nonce"),
+                HeaderValue::from_str(&random_url_safe(24))
+                    .map_err(|_| "Loom device nonce header is invalid".to_owned())?,
+            );
+        }
+        Ok(())
     }
 }
 
@@ -97,6 +161,24 @@ fn disabled_remote_surface_error(base_url: &str) -> String {
         "cross-device Loom Surface support is disabled in this build: `{base_url}` is not a \
          loopback transport (rebuild with Hook's default features or `--features remote-surface`)"
     )
+}
+
+/// Tile presenters always use their paired identity, including on loopback.
+/// A local administrator bearer cannot own a remote-input or presentation lease.
+#[cfg_attr(not(feature = "remote-surface"), allow(clippy::unused_async))]
+pub(crate) async fn authorize_tile_request(
+    app: &AppHandle,
+    manifest: &crate::loom_connector::LoomManifest,
+) -> Result<DeviceSessionAuthorization, String> {
+    #[cfg(feature = "remote-surface")]
+    {
+        remote_surface_authorization(app, manifest).await
+    }
+    #[cfg(not(feature = "remote-surface"))]
+    {
+        let _ = (app, manifest);
+        Err("tile presentation requires the remote-surface build feature".to_owned())
+    }
 }
 
 #[cfg(feature = "remote-surface")]
@@ -185,3 +267,39 @@ pub(crate) fn invalidate_surface_sessions(base_url: &str) {
 
 #[cfg(test)]
 mod tests;
+
+pub(crate) fn sign_projection_invitation(
+    app: &AppHandle,
+    envelope: &crate::qr_projection::protocol::ProjectionEnvelope,
+) -> Result<String, String> {
+    envelope.validate()?;
+    #[cfg(feature = "remote-surface")]
+    {
+        use base64::Engine;
+        use ed25519_dalek::Signer;
+        let identity = load_or_create_device_identity(app)?;
+        let key = identity::decode_signing_key(&identity.private_key)?;
+        Ok(base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(key.sign(envelope.signature_message().as_bytes()).to_bytes()))
+    }
+    #[cfg(not(feature = "remote-surface"))]
+    {
+        let _ = app;
+        Err("projection_pairing_unavailable".to_owned())
+    }
+}
+
+pub(crate) async fn authorize_projection_request(
+    app: &AppHandle,
+    base_url: &str,
+) -> Result<DeviceSessionAuthorization, String> {
+    #[cfg(feature = "remote-surface")]
+    {
+        projection::authorize(app, base_url).await
+    }
+    #[cfg(not(feature = "remote-surface"))]
+    {
+        let _ = (app, base_url);
+        Err("projection_pairing_unavailable".to_owned())
+    }
+}

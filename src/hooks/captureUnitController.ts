@@ -26,10 +26,22 @@ const resolveCaptureResponseSrc = (response: ManualLongCaptureFrame) => {
 
 /** Restores normal overlay hit testing after every capture exit path. */
 export const restorePostCaptureInteractivity = async () => {
-    await api.setOverlayClickThrough(true);
+    try {
+        await api.setOverlayClickThrough(true);
+    } catch {
+        console.error("[Hook] capture interactivity restore failed (click-through)");
+    }
     if (graphStore.units.length > 0) {
-        await api.setMouseMonitorActive(true);
-        await syncService.updateBackendRects();
+        try {
+            await api.setMouseMonitorActive(true);
+        } catch {
+            console.error("[Hook] capture interactivity restore failed (mouse-monitor)");
+        }
+        try {
+            await syncService.updateBackendRects();
+        } catch {
+            console.error("[Hook] capture interactivity restore failed (backend-rects)");
+        }
     }
 };
 

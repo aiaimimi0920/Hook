@@ -11,7 +11,7 @@ use super::identity_protection::PROTECTED_IDENTITY_SCHEMA_VERSION;
 #[cfg(feature = "remote-surface")]
 use super::session_attempt::{device_session_signature_message, is_pending_device_approval};
 
-fn loom_manifest(
+pub(super) fn loom_manifest(
     base_url: &str,
     auth: Option<&str>,
     auth_token: Option<&str>,

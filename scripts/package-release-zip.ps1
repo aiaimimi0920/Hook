@@ -10,6 +10,8 @@ param(
     [ValidatePattern('^V\d+\.\d+\.\d+$')]
     [string]$Tag,
 
+    [string]$ExtensionCompatibilityPath = "",
+
     [switch]$Force,
     [switch]$DryRun
 )
@@ -31,6 +33,10 @@ $dragMitLicensePath = Join-Path $repoRoot "src-tauri\crates\drag\LICENSE_MIT"
 $assetName = "hook-windows-x64-$Tag.zip"
 $zipPath = Join-Path $resolvedOutputDir $assetName
 $provenancePath = Join-Path (Split-Path -Parent $resolvedExePath) "build-provenance.json"
+$resolvedCompatibilityPath = $null
+if (-not [string]::IsNullOrWhiteSpace($ExtensionCompatibilityPath)) {
+    $resolvedCompatibilityPath = [System.IO.Path]::GetFullPath($ExtensionCompatibilityPath)
+}
 
 if ($DryRun) {
     [ordered]@{
@@ -46,6 +52,12 @@ if (-not (Test-Path -LiteralPath $resolvedExePath -PathType Leaf)) {
     throw "Missing Hook executable for release packaging: $resolvedExePath"
 }
 $resolvedExePath = Assert-HookAbsolutePathNoReparsePoints -Path $resolvedExePath -TrustedRootPath (Split-Path -Parent $resolvedExePath)
+if ($null -ne $resolvedCompatibilityPath) {
+    if (-not (Test-Path -LiteralPath $resolvedCompatibilityPath -PathType Leaf)) {
+        throw "Missing extension compatibility evidence: $resolvedCompatibilityPath"
+    }
+    [void](Assert-HookAbsolutePathNoReparsePoints -Path $resolvedCompatibilityPath -TrustedRootPath (Split-Path -Parent $resolvedCompatibilityPath))
+}
 
 if (-not (Test-Path -LiteralPath $provenancePath -PathType Leaf)) {
     throw "Missing Hook build provenance beside executable: $provenancePath"
@@ -97,6 +109,9 @@ try {
     Assert-HookAbsolutePathNoReparsePoints -Path $stagingThirdPartyRoot -TrustedRootPath $stagingRoot | Out-Null
     Copy-Item -LiteralPath $resolvedExePath -Destination $stagingFile -Force
     Copy-Item -LiteralPath $provenancePath -Destination (Join-Path $stagingRoot "build-provenance.json") -Force
+    if ($null -ne $resolvedCompatibilityPath) {
+        Copy-Item -LiteralPath $resolvedCompatibilityPath -Destination (Join-Path $stagingRoot "extension-compatibility.json") -Force
+    }
     Copy-Item -LiteralPath $projectLicensePath -Destination (Join-Path $stagingRoot "LICENSE.txt") -Force
     Copy-Item -LiteralPath $thirdPartyNoticesPath -Destination (Join-Path $stagingRoot "THIRD_PARTY_NOTICES.md") -Force
     Copy-Item -LiteralPath $capLicensePath -Destination (Join-Path $stagingThirdPartyRoot "CAP_SCAP_MIT.txt") -Force

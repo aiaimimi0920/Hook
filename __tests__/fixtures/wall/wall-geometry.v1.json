@@ -1,0 +1,60 @@
+{
+  "layout": {
+    "protocolVersion": "loom.wall.v1",
+    "wallId": "living-room",
+    "revision": 7,
+    "bounds": { "x": -100, "y": -50, "width": 200, "height": 100 },
+    "tiles": [
+      {
+        "tileId": "left", "endpointId": "endpoint-left",
+        "rect": { "x": -100, "y": -50, "width": 100, "height": 100 },
+        "rotation": "deg0"
+      },
+      {
+        "tileId": "right", "endpointId": "endpoint-right",
+        "rect": { "x": 0, "y": -50, "width": 100, "height": 100 },
+        "rotation": "deg90"
+      }
+    ],
+    "placements": [
+      {
+        "placementId": "application",
+        "source": { "kind": "live", "id": "live-1" },
+        "rect": { "x": -100, "y": -50, "width": 200, "height": 100 },
+        "sourceCrop": { "x": 0.1, "y": 0.2, "width": 0.8, "height": 0.6 },
+        "zIndex": 0, "interactive": true
+      }
+    ]
+  },
+  "endpoints": [
+    {
+      "protocolVersion": "loom.wall.v1", "endpointId": "endpoint-left",
+      "deviceId": "computer-a", "outputId": "display-1",
+      "pixelSize": { "width": 100, "height": 100 },
+      "renderModes": ["raw_bgra", "image"], "inputCapabilities": ["pointer", "keyboard"]
+    },
+    {
+      "protocolVersion": "loom.wall.v1", "endpointId": "endpoint-right",
+      "deviceId": "computer-b", "outputId": "display-1",
+      "pixelSize": { "width": 100, "height": 200 },
+      "renderModes": ["h264"], "inputCapabilities": ["pointer"]
+    }
+  ],
+  "cases": [
+    { "tileId": "left", "pixel": { "x": 0, "y": 0 }, "wall": { "x": -99.5, "y": -49.5 }, "source": { "x": 0.102, "y": 0.203 } },
+    { "tileId": "left", "pixel": { "x": 99, "y": 99 }, "wall": { "x": -0.5, "y": 49.5 }, "source": { "x": 0.498, "y": 0.797 } },
+    { "tileId": "right", "pixel": { "x": 0, "y": 0 }, "wall": { "x": 99.75, "y": -49.5 }, "source": { "x": 0.899, "y": 0.203 } },
+    { "tileId": "right", "pixel": { "x": 99, "y": 199 }, "wall": { "x": 0.25, "y": 49.5 }, "source": { "x": 0.501, "y": 0.797 } },
+    { "tileId": "right", "pixel": { "x": 50, "y": 100 }, "wall": { "x": 49.75, "y": 0.5 }, "source": { "x": 0.699, "y": 0.503 } }
+  ],
+  "projections": [
+    {
+      "tileId": "left", "sourceCrop": { "x": 0.1, "y": 0.2, "width": 0.4, "height": 0.6 },
+      "outputQuad": [{ "x": 0, "y": 0 }, { "x": 1, "y": 0 }, { "x": 1, "y": 1 }, { "x": 0, "y": 1 }]
+    },
+    {
+      "tileId": "right", "sourceCrop": { "x": 0.5, "y": 0.2, "width": 0.4, "height": 0.6 },
+      "outputQuad": [{ "x": 0, "y": 1 }, { "x": 0, "y": 0 }, { "x": 1, "y": 0 }, { "x": 1, "y": 1 }]
+    }
+  ]
+}

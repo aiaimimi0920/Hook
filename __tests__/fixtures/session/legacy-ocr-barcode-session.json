@@ -1,0 +1,74 @@
+{
+  "stickers": [
+    {
+      "id": "legacy-mixed-1",
+      "type": "sticker",
+      "src": "data:image/png;base64,iVBORw0KGgo=",
+      "x": 24,
+      "y": 36,
+      "w": 640,
+      "h": 480,
+      "ocrResult": {
+        "fullText": "Order #A-17\nhttps://example.com/hook",
+        "width": 640,
+        "height": 480,
+        "scaleFactor": 1,
+        "textBlocks": [
+          {
+            "text": "Order #A-17",
+            "boxPoints": [
+              { "x": 20, "y": 24 },
+              { "x": 220, "y": 24 },
+              { "x": 220, "y": 60 },
+              { "x": 20, "y": 60 }
+            ],
+            "boxScore": 0.98,
+            "textScore": 0.97,
+            "colorHex": "#f5f5f5",
+            "bgColorHex": "#171717",
+            "rawText": "Order #A-17"
+          },
+          {
+            "text": "https://example.com/hook",
+            "boxPoints": [
+              { "x": 20, "y": 72 },
+              { "x": 360, "y": 72 },
+              { "x": 360, "y": 108 },
+              { "x": 20, "y": 108 }
+            ],
+            "boxScore": 0.96,
+            "textScore": 0.95,
+            "colorHex": "#f5f5f5",
+            "bgColorHex": "#171717",
+            "rawText": "https://example.com/hook"
+          }
+        ]
+      },
+      "barcodeResult": {
+        "width": 640,
+        "height": 480,
+        "selectedId": "legacy-code-1",
+        "results": [
+          {
+            "id": "legacy-code-1",
+            "format": "QR_CODE",
+            "text": "https://example.com/hook",
+            "url": "https://example.com/hook",
+            "points": [
+              { "x": 420, "y": 220 },
+              { "x": 560, "y": 220 },
+              { "x": 560, "y": 360 },
+              { "x": 420, "y": 360 }
+            ],
+            "bounds": { "left": 420, "top": 220, "right": 560, "bottom": 360 }
+          }
+        ]
+      }
+    }
+  ],
+  "links": [],
+  "groups": [],
+  "recycleBin": [],
+  "referenceLibrary": [],
+  "workflowAssetArchiveIndex": { "version": 1, "workflows": {} }
+}

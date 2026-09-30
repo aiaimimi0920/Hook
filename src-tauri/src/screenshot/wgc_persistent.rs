@@ -262,3 +262,7 @@ pub(super) fn try_fast_capture(
         Some(image)
     })
 }
+
+#[cfg(all(test, target_os = "windows"))]
+#[path = "wgc_persistent/live_probe_tests.rs"]
+mod live_probe_tests;

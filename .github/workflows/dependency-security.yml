@@ -26,7 +26,7 @@ permissions:
 jobs:
   osv:
     name: Scan committed dependency locks
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@0c58c542420dfd23fcac08dd9c8ca3cca9c36f1a
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@ffa0a5f39214d80778c9b494822d94d0d9668458
     with:
       ref: ${{ inputs.checkout-ref || github.ref }}
       scan-args: |-

@@ -1,0 +1,14 @@
+.tile-art-plane { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+.tile-art-clip { position: absolute; inset: 0; pointer-events: none; }
+.tile-art-viewport { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; font: 14px/1.5 system-ui, sans-serif; }
+.tile-art-viewport .declarative-surface { pointer-events: auto; }
+.tile-clip-definitions { position: absolute; width: 0; height: 0; pointer-events: none; }
+.tile-output .tile-media-plane { position: absolute; inset: 0; z-index: 2; }
+.tile-output-reason { z-index: 4; }
+.tile-input-status { z-index: 3; }
+.tile-art-actions { position: absolute; top: 12px; right: 12px; max-width: 40vw; z-index: 3; display: grid; gap: 6px; }
+.tile-art-actions:empty { display: none; }
+.tile-art-actions button, .tile-art-actions p { margin: 0; padding: 6px 10px; border: 1px solid var(--theme-border); background: var(--neuro-bg); color: var(--theme-text); font: 14px/1.5 system-ui, sans-serif; overflow-wrap: anywhere; }
+.tile-art-actions button { cursor: pointer; }
+.tile-art-actions button:focus-visible { outline: 2px solid var(--theme-signal); }
+.tile-art-actions button:disabled { opacity: 0.6; cursor: default; }

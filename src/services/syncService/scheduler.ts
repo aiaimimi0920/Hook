@@ -7,6 +7,7 @@ export class SyncScheduler {
     private retryCount = 0;
     private hasPendingSync = false;
     private disposed = false;
+    private waiters = new Set<{ resolve: () => void; reject: (error: unknown) => void }>();
     private readonly MAX_RETRIES = 5;
     private readonly DEBOUNCE_MS = 50;
 
@@ -28,6 +29,21 @@ export class SyncScheduler {
         this.hasPendingSync = false;
         this.clearDebounceTimer();
         this.clearRetryTimer();
+        for (const waiter of this.waiters) waiter.reject(new Error("sync_disposed"));
+        this.waiters.clear();
+    }
+
+    public scheduleAndWait(): Promise<void> {
+        if (this.disposed || this.waiters.size >= 16) return Promise.reject(new Error("sync_unavailable"));
+        return new Promise((resolve, reject) => {
+            const waiter = {
+                resolve: () => { clearTimeout(timer); this.waiters.delete(waiter); resolve(); },
+                reject: (error: unknown) => { clearTimeout(timer); this.waiters.delete(waiter); reject(error); },
+            };
+            const timer = setTimeout(() => waiter.reject(new Error("sync_timeout")), 15_000);
+            this.waiters.add(waiter);
+            this.schedule();
+        });
     }
 
     private clearDebounceTimer(): void {
@@ -49,10 +65,14 @@ export class SyncScheduler {
 
         this.isSyncing = true;
         this.hasPendingSync = false;
+        // Waiters added during an in-flight save belong to the next snapshot.
+        const completing = [...this.waiters];
         try {
             await this.doSync();
             this.retryCount = 0;
+            for (const waiter of completing) waiter.resolve();
         } catch (error) {
+            for (const waiter of completing) waiter.reject(error);
             console.error("Sync cycle failed", error);
             if (!this.disposed && this.retryCount < this.MAX_RETRIES) {
                 this.retryCount += 1;

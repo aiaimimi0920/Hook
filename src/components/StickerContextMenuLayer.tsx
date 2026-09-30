@@ -1,8 +1,10 @@
-import { Show, createEffect, createMemo, onCleanup } from "solid-js";
+import { Show, createEffect, createMemo, onCleanup, untrack } from "solid-js";
 import { Portal } from "solid-js/web";
 import { api } from "../services/api";
 import { renderStickerComposite } from "../services/stickerExport";
 import { buildUnitFileNamingContext } from "../services/fileNaming";
+import { commitLiveCaptureUnitFrame } from "../services/liveCaptureUnit";
+import { runWithLiveCaptureSnapshots } from "../services/liveCaptureSnapshotAction";
 import {
     addRecycleBinEntry,
     cancelReferenceEntry,
@@ -20,6 +22,7 @@ import { graphStore } from "../store/graphStore";
 import { selectionActions, uiActions } from "../store/uiStore";
 import { StickerContextMenuPanel } from "./StickerContextMenuPanel";
 import { StickerSnapshotListPanel } from "./StickerSnapshotListPanel";
+import { openProjection } from "../store/qrProjectionStore";
 
 const CONTEXT_MENU_RECT_ID = "sticker-context-menu-root";
 const CONTEXT_MENU_RECT_NAME = "STICKER_CONTEXT_MENU_ROOT";
@@ -83,15 +86,19 @@ export const StickerContextMenuLayer = () => {
             return;
         }
 
-        graphStore.setRecycleBin(addRecycleBinEntry(graphStore.recycleBin, captureFrozenStickerSnapshot(target)));
-        graphStore.actions.removeUnit(target.id);
-        uiActions.clearStickerHistory(target.id);
-        uiActions.clearUnitUiState(target.id);
-        uiActions.dismissEnhancementNotice(target.id);
-        selectionActions.clear();
-        uiActions.hideStickerToolbar();
-        closeMenu();
-        persistLayoutAndSession();
+        return runWithLiveCaptureSnapshots([target.id], () => untrack(() => {
+            const current = targetSticker();
+            if (!stickerContextMenuController.state.isOpen || current?.id !== target.id) return;
+            graphStore.setRecycleBin(addRecycleBinEntry(graphStore.recycleBin, captureFrozenStickerSnapshot(current)));
+            graphStore.actions.removeUnit(target.id);
+            uiActions.clearStickerHistory(target.id);
+            uiActions.clearUnitUiState(target.id);
+            uiActions.dismissEnhancementNotice(target.id);
+            selectionActions.clear();
+            uiActions.hideStickerToolbar();
+            closeMenu();
+            persistLayoutAndSession();
+        }));
     };
 
     const handleSave = async () => {
@@ -102,6 +109,7 @@ export const StickerContextMenuLayer = () => {
         }
 
         try {
+            commitLiveCaptureUnitFrame(target.id);
             const exportBase64 = await renderStickerComposite(target);
             const centerX = target.x + target.w / 2;
             const centerY = target.y + target.h / 2;
@@ -133,14 +141,19 @@ export const StickerContextMenuLayer = () => {
 
         if (graphStore.referenceLibrary.some((entry) => entry.sourceStickerId === target.id)) {
             graphStore.setReferenceLibrary(cancelReferenceEntry(graphStore.referenceLibrary, target.id));
-        } else {
-            graphStore.setReferenceLibrary(
-                setReferenceEntry(graphStore.referenceLibrary, captureFrozenStickerSnapshot(target)),
-            );
+            closeMenu();
+            persistSession();
+            return;
         }
-
-        closeMenu();
-        persistSession();
+        return runWithLiveCaptureSnapshots([target.id], () => untrack(() => {
+            const current = targetSticker();
+            if (!stickerContextMenuController.state.isOpen || current?.id !== target.id) return;
+            graphStore.setReferenceLibrary(
+                setReferenceEntry(graphStore.referenceLibrary, captureFrozenStickerSnapshot(current)),
+            );
+            closeMenu();
+            persistSession();
+        }));
     };
 
     const handleClearReferenceLibrary = () => {
@@ -304,6 +317,7 @@ export const StickerContextMenuLayer = () => {
                             referenceActionLabel={referenceActionLabel()}
                             onCloseSticker={handleCloseSticker}
                             onSave={() => void handleSave()}
+                            onProjection={() => { const unit = targetSticker(); closeMenu(); if (unit) openProjection(unit.id); }}
                             onClearRecycleBin={handleClearRecycleBin}
                             onToggleReference={handleToggleReference}
                             onClearReferenceLibrary={handleClearReferenceLibrary}

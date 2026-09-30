@@ -38,4 +38,12 @@ describe("sticker edit mode switching contract", () => {
     expect(guardSource).toContain('stickerToolSettings.domain === "create"');
     expect(guardSource).toContain('stickerToolSettings.activeCanvasTool !== "idle"');
   });
+
+  it("gives the active sticker editor priority over extension overlay pointer input", () => {
+    const unitViewSource = readSource("src/components/UnitView.tsx");
+
+    expect(unitViewSource).toContain(
+      "editorOwnsPointerInput={props.isSelected && activeStickerEditTargetId() === props.unit.id}",
+    );
+  });
 });

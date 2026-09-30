@@ -1,6 +1,11 @@
 import { setLongCaptureSession } from "../store/uiStore";
 import { api } from "../services/api";
 import {
+    activateAutoLongCaptureSession,
+    disableAutoLongCaptureInput,
+    restoreAutoLongCaptureExclusion,
+} from "./autoLongCaptureActivation";
+import {
     createAutoLongCaptureOptions,
     resolveAutoLongCaptureBurstBudget,
     resolveAutoLongCaptureBurstPollInterval,
@@ -44,7 +49,8 @@ export function createAutoLongCaptureController(
     let busySessionId: number | null = null;
     let sessionId = 0;
     let finishing = false;
-    let finishPromise: Promise<boolean> | null = null;
+    let teardownPromise: Promise<boolean> | null = null;
+    let activationPromise: Promise<void> | null = null;
     let backendSessionId: string | null = null;
     let backendFrameCount = 0;
     let backendDuplicateCount = 0;
@@ -303,10 +309,18 @@ export function createAutoLongCaptureController(
         rect: CaptureRect,
         origin: { x: number; y: number },
     ) => {
-        const pendingFinish = finishPromise;
-        if (pendingFinish) {
+        const pendingActivation = activationPromise;
+        if (pendingActivation) {
             try {
-                await pendingFinish;
+                await pendingActivation;
+            } catch {
+                // A failed transaction performs its own rollback before settling.
+            }
+        }
+        const pendingTeardown = teardownPromise;
+        if (pendingTeardown) {
+            try {
+                await pendingTeardown;
             } catch {
                 // A new session may start after the previous teardown settles,
                 // even if a best-effort cleanup API failed.
@@ -334,40 +348,29 @@ export function createAutoLongCaptureController(
         backendFrameCount = 0;
         backendDuplicateCount = 0;
 
-        dependencies.resetSelection();
-        setLongCaptureSession({
-            active: true,
+        const activation = activateAutoLongCaptureSession({
             rect,
-            frameCount: 0,
-            duplicateCount: 0,
-            status: "capturing",
-            lastMessage: "请滚动目标页面，Hook 会高频采集非重复画面并在结束时统一拼接",
+            axis,
+            sessionIsCurrent: () => currentSessionId === sessionId,
+            invalidateSession: () => {
+                sessionId += 1;
+                stopTimer();
+            },
+            resetControllerState: resetState,
+            resetSelection: dependencies.resetSelection,
+            clearCaptureHover: dependencies.clearCaptureHover,
+            restorePostCaptureInteractivity: dependencies.restorePostCaptureInteractivity,
+            setBackendSessionId: (value) => {
+                backendSessionId = value;
+            },
+            sampleInitialFrame: () => sampleAutoLongCaptureFrame(currentSessionId),
         });
-        await api.debugLogEvent("auto-long-capture-start", `x=${rect.x} y=${rect.y} w=${rect.w} h=${rect.h}`);
-        await api.setMouseMonitorActive(false);
-        await api.setOverlayClickThrough(true);
+        activationPromise = activation;
         try {
-            await api.setOverlayCaptureExclusion(true);
-        } catch (error) {
-            await api.debugLogEvent(
-                "auto-long-capture-overlay-exclusion-failed",
-                error instanceof Error ? error.message : String(error),
-            );
+            await activation;
+        } finally {
+            if (activationPromise === activation) activationPromise = null;
         }
-        try {
-            backendSessionId = await api.startLongCaptureSession(rect, axis);
-            await api.debugLogEvent(
-                "auto-long-capture-backend-start",
-                `session=${backendSessionId} x=${rect.x} y=${rect.y} w=${rect.w} h=${rect.h} axis=${axis ?? "auto"}`,
-            );
-        } catch (error) {
-            backendSessionId = null;
-            await api.debugLogEvent(
-                "auto-long-capture-backend-start-failed",
-                error instanceof Error ? error.message : String(error),
-            );
-        }
-        await sampleAutoLongCaptureFrame(currentSessionId);
     };
 
     const resetState = () => {
@@ -391,29 +394,22 @@ export function createAutoLongCaptureController(
         backendDuplicateCount = 0;
     };
 
-    const restoreOverlayExclusion = async () => {
-        try {
-            await api.setOverlayCaptureExclusion(false);
-        } catch (error) {
-            await api.debugLogEvent(
-                "auto-long-capture-overlay-exclusion-restore-failed",
-                error instanceof Error ? error.message : String(error),
-            );
-        }
+    // Finish and cancel both own native input restoration until all cleanup settles.
+    const trackTeardown = (task: Promise<boolean>) => {
+        teardownPromise = task;
+        const clearTeardownPromise = () => {
+            if (teardownPromise === task) teardownPromise = null;
+        };
+        void task.then(clearTeardownPromise, clearTeardownPromise);
+        return task;
     };
 
     const finishAutoLongCaptureSession = () => {
-        if (finishPromise) return finishPromise;
+        if (teardownPromise) return teardownPromise;
+        if (activationPromise) return cancelAutoLongCaptureSession();
 
         const task = (async () => {
-            try {
-                await api.setCaptureInputActive(false);
-            } catch (error) {
-                await api.debugLogEvent(
-                    "auto-long-capture-input-disable-failed",
-                    error instanceof Error ? error.message : String(error),
-                );
-            }
+            await disableAutoLongCaptureInput();
             dependencies.clearCaptureHover();
             if (finishing || !captureRect || !captureOrigin || !options) return false;
             const currentSessionId = sessionId;
@@ -469,48 +465,49 @@ export function createAutoLongCaptureController(
                     resetState();
                     setLongCaptureSession(null);
                     dependencies.resetSelection();
-                    await restoreOverlayExclusion();
+                    await restoreAutoLongCaptureExclusion();
                     await dependencies.restorePostCaptureInteractivity();
                 }
             }
             return true;
         })();
 
-        finishPromise = task;
-        const clearFinishPromise = () => {
-            if (finishPromise === task) finishPromise = null;
-        };
-        void task.then(clearFinishPromise, clearFinishPromise);
-        return task;
+        return trackTeardown(task);
     };
 
-    const cancelAutoLongCaptureSession = async () => {
-        if (finishPromise) return finishPromise;
-        await api.setCaptureInputActive(false);
-        dependencies.clearCaptureHover();
-        if (!captureRect) return false;
-        sessionId += 1;
-        stopTimer();
-        const currentBackendSessionId = backendSessionId;
-        // Invalidate public state before awaiting backend cancellation so a
-        // second cancel cannot race and dispatch a duplicate request.
-        resetState();
-        if (currentBackendSessionId) {
-            try {
-                await api.cancelLongCaptureSession(currentBackendSessionId);
-            } catch (error) {
-                await api.debugLogEvent(
-                    "auto-long-capture-backend-cancel-failed",
-                    error instanceof Error ? error.message : String(error),
-                );
+    const cancelAutoLongCaptureSession = () => {
+        if (teardownPromise) return teardownPromise;
+        const task = (async () => {
+            const hadCaptureSession = captureRect !== null;
+            const currentBackendSessionId = backendSessionId;
+            if (hadCaptureSession) {
+                // Invalidate before the first await so an in-flight activation sees
+                // stale ownership at its next native boundary.
+                sessionId += 1;
+                stopTimer();
+                resetState();
+                setLongCaptureSession(null);
+                dependencies.resetSelection();
             }
-        }
-        setLongCaptureSession(null);
-        dependencies.resetSelection();
-        await api.debugLogEvent("auto-long-capture-cancel");
-        await restoreOverlayExclusion();
-        await dependencies.restorePostCaptureInteractivity();
-        return true;
+            await disableAutoLongCaptureInput();
+            dependencies.clearCaptureHover();
+            if (!hadCaptureSession) return false;
+            if (currentBackendSessionId) {
+                try {
+                    await api.cancelLongCaptureSession(currentBackendSessionId);
+                } catch (error) {
+                    void api.debugLogEvent(
+                        "auto-long-capture-backend-cancel-failed",
+                        error instanceof Error ? error.message : String(error),
+                    );
+                }
+            }
+            void api.debugLogEvent("auto-long-capture-cancel");
+            await restoreAutoLongCaptureExclusion();
+            await dependencies.restorePostCaptureInteractivity();
+            return true;
+        })();
+        return trackTeardown(task);
     };
 
     return {

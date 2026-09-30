@@ -1,11 +1,14 @@
 // Stable public API facade. Domain clients own command routing and resource-specific fallbacks.
 import { bootSettingsApi } from "./apiBootSettings";
 import { captureApi } from "./apiCapture";
+import { externalUrlApi } from "./apiExternalUrl";
 import { imageResourceApi } from "./apiImageResource";
+import { liveCaptureApi } from "./apiLiveCapture";
+import { liveRelayApi } from "./apiLiveRelay";
 import {
-    loomEnhancementApi,
     loomPlanningApi,
     loomProtocolApi,
+    loomShaderApi,
 } from "./apiLoomSurface";
 import { overlayWindowApi } from "./apiOverlayWindow";
 import { sessionHistoryApi } from "./apiSessionHistory";
@@ -17,11 +20,9 @@ export { isTauriRuntimeAvailable } from "./apiTransport";
 export type {
     CaptureRegionOptions,
     CaptureResponse,
-    EnhancementCapabilities,
     LoomBrainPlanRequest,
     LoomBrainPlanResult,
     LoomInvokeErrorPayload,
-    OcrResult,
     PinRect,
     PreciseSelectionResult,
     ScreenColorSample,
@@ -46,7 +47,10 @@ export const api = {
     ...loomProtocolApi,
     ...sessionHistoryApi,
     ...overlayWindowApi,
-    ...loomEnhancementApi,
+    ...loomShaderApi,
     ...captureApi,
+    ...externalUrlApi,
     ...imageResourceApi,
+    ...liveCaptureApi,
+    ...liveRelayApi,
 };
