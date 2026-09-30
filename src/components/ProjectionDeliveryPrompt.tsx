@@ -78,7 +78,7 @@ const DeliveryPromptCard = (props: { invitation: DeliveryInvitation; count: numb
         });
     });
     return <Portal><div class="projection-delivery-prompt-host">
-        <section ref={panel} class="projection-delivery-prompt" role="dialog" aria-modal="false"
+        <section ref={(el) => { panel = el; }} class="projection-delivery-prompt" role="dialog" aria-modal="false"
             aria-label="接收投射确认" aria-busy={deliveryBusy()} data-overlay-synthetic-target="direct"
             on:pointerdown={focus} on:mousedown={focus} on:mouseup={(event) => event.stopPropagation()}
             on:click={(event) => event.stopPropagation()} on:wheel={(event) => event.stopPropagation()}

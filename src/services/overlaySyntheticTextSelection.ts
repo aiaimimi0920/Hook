@@ -267,7 +267,7 @@ export const createOverlaySyntheticTextSelection = (
         // Keep the mirror out of ordinary hit testing. It owns the point only
         // for this synchronous caret query, then immediately releases it.
         mirror.element.style.pointerEvents = "auto";
-        let position: TextPosition | null = null;
+        let position: TextPosition | null;
         try {
             position = resolveCaret(doc, clampedX, clampedY);
         } finally {

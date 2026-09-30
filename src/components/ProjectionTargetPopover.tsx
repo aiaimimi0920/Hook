@@ -69,7 +69,7 @@ export const ProjectionTargetPopover = (props: {
         });
     });
     const focus = (event: MouseEvent | PointerEvent) => { event.stopPropagation(); void api.focusOverlayWindow(); };
-    return <Portal><div ref={panel} role="dialog" aria-label={props.label} tabIndex={-1}
+    return <Portal><div ref={(el) => { panel = el; }} role="dialog" aria-label={props.label} tabIndex={-1}
         data-top-strip-menu="true" data-top-strip-property-popup="true"
         class={`hook-toolbar-menu pointer-events-auto fixed z-[1305] overscroll-contain text-xs ${props.list ? "flex flex-col overflow-hidden py-1" : "overflow-y-auto"} ${props.compact ? "py-1" : props.list ? "" : "p-2"}`}
         onPointerDown={focus} onMouseDown={focus} onPointerMove={(event) => event.stopPropagation()}

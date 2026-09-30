@@ -121,7 +121,7 @@ export const SurfaceConfirmationDialog: Component<Props> = (props) => {
 
                         <footer class="surface-confirmation-actions">
                             <button
-                                ref={rejectButton}
+                                ref={(el) => { rejectButton = el; }}
                                 type="button"
                                 class="surface-confirmation-button surface-confirmation-button--reject"
                                 disabled={props.submitting}

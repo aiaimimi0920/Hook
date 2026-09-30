@@ -106,7 +106,7 @@ export const UnitEnhancementNotices: Component<UnitEnhancementNoticesProps> = (p
                 }}
               >
               <div
-                  ref={stackElement}
+                  ref={(el) => { stackElement = el; }}
                   data-hook-unit-notice-layer="true"
                   class="hook-enhancement-notice-stack absolute right-2 top-2 flex flex-col items-end gap-2"
                   style={{

@@ -117,12 +117,12 @@ export default function TileTerminal() {
         <main class="tile-output" data-media-mode={format()} data-media-stats={mediaStats()}>
             <div class="tile-output-content" inert={marker() !== null}>
             <div style={{ display: 'contents', visibility: visible() ? 'visible' : 'hidden' }} inert={!visible()}>
-            <canvas ref={canvas} tabIndex={0} aria-label="交互屏幕墙" style={{ 'touch-action': 'none' }} />
+            <canvas ref={(el) => { canvas = el; }} tabIndex={0} aria-label="交互屏幕墙" style={{ 'touch-action': 'none' }} />
             <TileSurfaceLayers model={surfaceModel()} controller={surfaces} canvas={() => canvas} />
             <svg class="tile-clip-definitions" aria-hidden="true"><defs><clipPath id="tile-media-clip" clipPathUnits="objectBoundingBox">
                 <For each={[...surfaceModel().mediaClips.values()].flat()}>{(rect) => <rect x={rect.x} y={rect.y} width={rect.width} height={rect.height} />}</For>
             </clipPath></defs></svg>
-            <canvas ref={media} class="tile-media-plane" tabIndex={0} aria-label="上层交互画面" style={{ 'touch-action': 'none', 'clip-path': 'url(#tile-media-clip)' }} />
+            <canvas ref={(el) => { media = el; }} class="tile-media-plane" tabIndex={0} aria-label="上层交互画面" style={{ 'touch-action': 'none', 'clip-path': 'url(#tile-media-clip)' }} />
             </div>
             <Show when={reason()}><p class="tile-output-reason" role="status">{reason()}</p></Show>
             <Show when={!reason() && inputStatus()}><p class="tile-input-status" role="status">{inputStatus()}</p></Show>

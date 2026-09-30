@@ -12,7 +12,7 @@ export const ProjectionTargetControlList = (props: { rows: ProjectionTargetRow[]
             return <div class="hook-toolbar-menu-item flex min-h-8 items-center gap-2 px-2 py-1" data-projection-target={row().id}>
                 <label class="flex min-w-0 flex-1 items-center justify-between gap-3" title={row().title}>
                     <span class="min-w-0 truncate">{row().id}</span>
-                    <input ref={checkbox} type="checkbox" class="h-3.5 w-3.5 shrink-0 accent-[var(--theme-signal)]"
+                    <input ref={(el) => { checkbox = el; }} type="checkbox" class="h-3.5 w-3.5 shrink-0 accent-[var(--theme-signal)]"
                         aria-label={`${row().id} 投射开关`} checked={row().checked} aria-checked={row().mixed ? "mixed" : row().checked}
                         disabled={row().disabled} onChange={(event) => row().change(event.currentTarget.checked)} />
                 </label>

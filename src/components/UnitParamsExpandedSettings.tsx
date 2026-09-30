@@ -152,7 +152,7 @@ export const UnitParamsExpandedSettings: Component<UnitParamsExpandedSettingsPro
     return (
         <Show when={props.expanded}>
             <div
-                ref={settingsPanelRef}
+                ref={(el) => { settingsPanelRef = el; }}
                 class="hook-terminal-shell hook-terminal-shell--strong absolute z-[101] pointer-events-auto animate-in fade-in slide-in-from-left-2 duration-200"
                 style={{
                     position: "absolute",

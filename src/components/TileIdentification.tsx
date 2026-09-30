@@ -17,7 +17,7 @@ export function TileIdentification(props: { marker: TileIdentificationMarker; di
             });
         });
     });
-    return <div class="tile-identification" ref={panel} tabIndex={-1} role="dialog" aria-modal="true" aria-label="识别物理屏幕"
+    return <div class="tile-identification" ref={(el) => { panel = el; }} tabIndex={-1} role="dialog" aria-modal="true" aria-label="识别物理屏幕"
         onKeyDown={(event) => { if (event.key === 'Tab') { event.preventDefault(); panel.querySelector('button')?.focus(); } }}>
         <section>
             <p class="tile-identification-kicker">Hook · 物理显示输出</p>

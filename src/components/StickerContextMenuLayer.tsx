@@ -299,7 +299,7 @@ export const StickerContextMenuLayer = () => {
             <Show when={stickerContextMenuController.state.isOpen && stickerContextMenuController.state.targetStickerId}>
                 <div class="pointer-events-none fixed inset-0 z-[1400]">
                     <div
-                        ref={menuRootRef}
+                        ref={(el) => { menuRootRef = el; }}
                         class="pointer-events-auto fixed flex items-start gap-0"
                         style={{
                             left: `${stickerContextMenuController.state.mouseX}px`,

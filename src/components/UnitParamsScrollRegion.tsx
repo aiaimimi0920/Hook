@@ -277,7 +277,7 @@ export const UnitParamsScrollRegion: Component<UnitParamsScrollRegionProps> = (p
                 </div>
             </div>
             <div
-                ref={scrollTrackRef}
+                ref={(el) => { scrollTrackRef = el; }}
                 data-param-scrollbar-track
                 class="param-scrollbar-track absolute bottom-3 right-1 top-3"
                 style={{ width: "8px", opacity: hasScrollableOverflow() ? 1 : 0.35 }}

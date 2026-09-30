@@ -76,7 +76,7 @@ export const QrProjectionDialog = (props: { target: ProjectionDialogTarget; retr
         });
     });
     return <Portal><div class="qr-projection-backdrop" classList={{ "qr-projection-backdrop--share": compact() }} role="presentation">
-        <section ref={dialog} class="qr-projection-dialog" classList={{ "qr-projection-dialog--share": compact(), "qr-projection-dialog--import": importing() }} role="dialog"
+        <section ref={(el) => { dialog = el; }} class="qr-projection-dialog" classList={{ "qr-projection-dialog--share": compact(), "qr-projection-dialog--import": importing() }} role="dialog"
             aria-modal={!compact()} aria-label={compact() ? importing() ? "导入投射" : "投射二维码" : undefined} aria-labelledby={compact() ? undefined : "qr-projection-title"}
             data-overlay-synthetic-target="direct" onPointerDown={(event) => event.stopPropagation()}
             onMouseDown={(event) => event.stopPropagation()} onMouseUp={(event) => event.stopPropagation()}
@@ -84,7 +84,7 @@ export const QrProjectionDialog = (props: { target: ProjectionDialogTarget; retr
             <header><Show when={!compact()}><h2 id="qr-projection-title">{props.target.unitId
                 ? props.target.shareAction === "link" ? "投射链接" : props.target.shareAction === "targets" ? "选择投射设备" : "二维码投射"
                 : props.target.importKind === "combined" ? "导入投射" : props.target.importKind === "link" ? "链接导入" : props.target.importKind === "qr" ? "二维码导入" : "接收二维码投射"}</h2></Show>
-                <button ref={closeButton} type="button" class="hook-terminal-btn" aria-label="关闭投射面板" title="关闭" onClick={closeProjectionDialog}>{compact() ? "×" : "关闭"}</button></header>
+                <button ref={(el) => { closeButton = el; }} type="button" class="hook-terminal-btn" aria-label="关闭投射面板" title="关闭" onClick={closeProjectionDialog}>{compact() ? "×" : "关闭"}</button></header>
             <div class="qr-projection-content">
                 <Show when={props.target.unitId} fallback={<QrProjectionReceiver initialText={props.target.invitationText ?? ""} importKind={props.target.importKind} />}>
                     {(unitId) => <Show when={props.target.shareAction === "targets"} fallback={<QrProjectionSender unitId={unitId()} retry={props.retry} shareAction={props.target.shareAction} />}>

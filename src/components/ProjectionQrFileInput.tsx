@@ -26,7 +26,7 @@ export const ProjectionQrFileInput = (props: { disabled: boolean; imported: (tex
         <Show when={props.compact}><button type="button" class="hook-terminal-btn min-w-0 truncate" title={filename() || "选择 PNG 图片"}
             disabled={props.disabled || busy()} onClick={() => input.click()}>{busy() ? "识别中…" : filename() || "选择图片"}</button></Show>
         <label class={props.compact ? "hidden" : "qr-projection-field"}><Show when={!props.compact}>导入二维码图片（PNG）</Show>
-            <input ref={input} type="file" accept="image/png,.png" disabled={props.disabled || busy()} aria-label="导入二维码图片"
+            <input ref={(el) => { input = el; }} type="file" accept="image/png,.png" disabled={props.disabled || busy()} aria-label="导入二维码图片"
                 onChange={(event) => { void load(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
         </label>
         <Show when={busy() && !props.compact}><p role="status">正在本地识别二维码…</p></Show>

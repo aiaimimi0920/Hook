@@ -479,7 +479,7 @@ export const ShaderPreview: Component<Props> = (props) => {
             </Show>
             <canvas
                 id={`shader-canvas-${props.unitId}`}
-                ref={canvasRef!}
+                ref={(el) => { canvasRef = el; }}
                 style={{
                     position: "absolute",
                     display: "block",

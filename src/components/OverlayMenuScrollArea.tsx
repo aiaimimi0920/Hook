@@ -69,13 +69,13 @@ export const OverlayMenuScrollArea = (props: { children: JSX.Element; maxHeight?
         onCleanup(() => { observer.disconnect(); cancelAnimationFrame(frame); endDrag?.(); });
     });
     return <div class="relative flex min-h-0 flex-col overflow-hidden" style={{ "max-height": props.maxHeight ?? "220px" }}>
-        <div ref={viewport} id={contentId} data-overlay-menu-scroll
+        <div ref={(el) => { viewport = el; }} id={contentId} data-overlay-menu-scroll
             class="param-scroll-container min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain"
             style={{ "padding-right": maximum() > 0 ? "12px" : "0" }} onScroll={sync} onWheel={wheel}>
-            <div ref={content}>{props.children}</div>
+            <div ref={(el) => { content = el; }}>{props.children}</div>
         </div>
         <Show when={maximum() > 0}>
-            <div ref={track} class="param-scrollbar-track absolute right-1 top-0 w-2" style={{ height: `${metrics().height}px` }}
+            <div ref={(el) => { track = el; }} class="param-scrollbar-track absolute right-1 top-0 w-2" style={{ height: `${metrics().height}px` }}
                 onMouseDown={jump} onWheel={wheel}>
                 <div role="scrollbar" tabIndex={0} aria-label={props.label} aria-controls={contentId} aria-orientation="vertical"
                     aria-valuemin={0} aria-valuemax={Math.round(maximum())} aria-valuenow={Math.round(metrics().top)}
