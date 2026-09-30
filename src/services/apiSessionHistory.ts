@@ -12,6 +12,7 @@ import {
 } from "./apiBrowserSession";
 import { safeInvoke } from "./apiTransport";
 import type { SessionData, SessionSaveResult } from "./apiTypes";
+import { sessionAssetReferences } from "./sessionAssetReferences";
 
 export const sessionHistoryApi = {
     loadSession: (): Promise<SessionData> =>
@@ -26,16 +27,17 @@ export const sessionHistoryApi = {
         workflowAssetArchiveHints: WorkflowAssetArchiveHints = { workflows: {} },
         expectedDocumentRevision?: number,
     ): Promise<SessionSaveResult> =>
-        safeInvoke(
+        sessionAssetReferences.save(stickers, (persistedStickers, managedAssetPaths) => safeInvoke(
             "save_session",
             {
-                stickers,
+                stickers: persistedStickers,
                 links,
                 groups,
                 recycleBin,
                 referenceLibrary,
                 workflowAssetArchiveHints,
                 expectedDocumentRevision,
+                managedAssetPaths,
             },
             () =>
                 saveBrowserPreviewSession(
@@ -49,7 +51,7 @@ export const sessionHistoryApi = {
                     expectedDocumentRevision,
                 ),
             false,
-        ),
+        )),
 
     loadHistory: (): Promise<{ colors: unknown[]; screenshots: unknown[] }> =>
         safeInvoke("load_history", undefined, () => ({ colors: [], screenshots: [] }), false),

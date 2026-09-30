@@ -184,7 +184,7 @@ fn rollback_ocr_attachment_migration_file(
     journal.target_revision = Some(backup.document_revision);
     journal.status = "rolledBack".to_string();
     write_migration_journal(&journal_path, &journal)?;
-    Ok(SessionSaveResult { document_revision: backup.document_revision })
+    Ok(SessionSaveResult { document_revision: backup.document_revision, image_assets: Vec::new() })
 }
 
 #[tauri::command]

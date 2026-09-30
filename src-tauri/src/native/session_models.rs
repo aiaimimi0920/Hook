@@ -169,8 +169,20 @@ const SESSION_FILE_LOCK_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct SessionImageAsset {
+    id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    src: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    preview_src: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SessionSaveResult {
     document_revision: u64,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    image_assets: Vec<SessionImageAsset>,
 }
 
 #[cfg(test)]

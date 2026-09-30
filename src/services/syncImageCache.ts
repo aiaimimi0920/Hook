@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import type { Unit } from "../types/unit";
 import { buildSyncedImageSignature } from "./syncedImagePayload";
+import { sessionAssetReferences } from "./sessionAssetReferences";
 
 export const lastSyncedImageSignatures = new Map<string, string>();
 type BakedSyncPreviewCacheEntry = { signature: string; src: string };
@@ -73,6 +74,7 @@ export const isSyncImageCacheTokenCurrent = (
 ) => workspaceGeneration === token.workspaceGeneration && unitTokens.get(unitId) === token;
 
 export const clearSyncImageCachesForUnit = (unitId: string) => {
+    sessionAssetReferences.clear(unitId);
     unitTokens.delete(unitId);
     for (const key of lastSyncedImageSignatures.keys()) {
         if (key.endsWith(`:${unitId}`)) {
@@ -83,6 +85,7 @@ export const clearSyncImageCachesForUnit = (unitId: string) => {
 };
 
 export const clearAllSyncImageCaches = () => {
+    sessionAssetReferences.clear();
     workspaceGeneration += 1;
     unitTokens.clear();
     lastSyncedImageSignatures.clear();

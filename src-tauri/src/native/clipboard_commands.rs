@@ -54,10 +54,7 @@ fn copy_sticker_image_to_smart_clipboard(
 ) -> Result<String, String> {
     // Publish both clipboard representations from one command:
     // browsers/rich editors read the image formats, Explorer reads CF_HDROP.
-    let image_data = decode_base64_image_data(&base64_image)?;
-
-    let img =
-        image::load_from_memory(&image_data).map_err(|e| format!("Image load failed: {}", e))?;
+    let (image_data, img) = decode_base64_image_with_pixels(&base64_image)?;
 
     let cache_dir = ensure_clipboard_cache_dir()?;
 
@@ -119,11 +116,7 @@ fn copy_sticker_image_to_smart_clipboard(
 
 #[tauri::command]
 fn copy_to_clipboard(base64_image: String) -> Result<(), String> {
-    let image_bytes = decode_base64_image_data(&base64_image)?;
-
-    // 3. Load Image to identify format/dimensions
-    let img =
-        image::load_from_memory(&image_bytes).map_err(|e| format!("Image load failed: {}", e))?;
+    let (_, img) = decode_base64_image_with_pixels(&base64_image)?;
 
     let rgba = img.to_rgba8();
     let width = rgba.width() as usize;

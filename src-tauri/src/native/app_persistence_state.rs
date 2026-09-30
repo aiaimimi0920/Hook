@@ -93,9 +93,13 @@ fn current_file_naming_settings(app: &tauri::AppHandle) -> Result<FileNamingSett
 }
 
 fn image_dimensions_from_bytes(image_data: &[u8]) -> Result<(u32, u32), String> {
-    let image = image::load_from_memory(image_data)
-        .map_err(|error| format!("Image load failed while preparing filename: {error}"))?;
-    Ok((image.width(), image.height()))
+    // All callers already performed a full validated decode. File naming only
+    // needs header dimensions and must not allocate/decode the pixels again.
+    image::ImageReader::new(std::io::Cursor::new(image_data))
+        .with_guessed_format()
+        .map_err(|error| format!("Image load failed while preparing filename: {error}"))?
+        .into_dimensions()
+        .map_err(|error| format!("Image load failed while preparing filename: {error}"))
 }
 
 fn prepare_file_naming_context(

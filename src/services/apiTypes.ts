@@ -106,8 +106,15 @@ export interface SessionData {
     workflowAssetArchiveIndex?: WorkflowAssetArchiveIndex;
 }
 
+export interface SessionImageAsset {
+    id: string;
+    src?: string;
+    previewSrc?: string;
+}
+
 export interface SessionSaveResult {
     documentRevision: number;
+    imageAssets?: SessionImageAsset[];
 }
 
 export interface PreciseSelectionResult {

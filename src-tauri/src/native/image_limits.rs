@@ -46,6 +46,11 @@ const CLIPBOARD_CACHE_MAX_AGE_SECS: u64 = 7 * 24 * 60 * 60;
 const SESSION_IMAGE_ASSET_RETENTION_SECS: u64 = 30 * 24 * 60 * 60;
 
 fn decode_base64_image_data(base64_image: &str) -> Result<Vec<u8>, String> {
+    decode_base64_image_with_pixels(base64_image).map(|(bytes, _)| bytes)
+}
+
+// Retain the validated decode for clipboard consumers instead of decoding twice.
+fn decode_base64_image_with_pixels(base64_image: &str) -> Result<(Vec<u8>, image::DynamicImage), String> {
     let base64_data = base64_image.split(",").last().unwrap_or(base64_image);
     if base64_data.len() > MAX_BASE64_IMAGE_ENCODED_BYTES {
         return Err(format!(
@@ -58,11 +63,15 @@ fn decode_base64_image_data(base64_image: &str) -> Result<Vec<u8>, String> {
     let image_data = base64::engine::general_purpose::STANDARD
         .decode(base64_data)
         .map_err(|e| format!("Base64 decode failed: {}", e))?;
-    validate_image_data_limits(&image_data)?;
-    Ok(image_data)
+    let image = decode_validated_image(&image_data)?;
+    Ok((image_data, image))
 }
 
 fn validate_image_data_limits(image_data: &[u8]) -> Result<(), String> {
+    decode_validated_image(image_data).map(|_| ())
+}
+
+fn decode_validated_image(image_data: &[u8]) -> Result<image::DynamicImage, String> {
     let reader = image::ImageReader::new(std::io::Cursor::new(image_data))
         .with_guessed_format()
         .map_err(|e| format!("Image load failed: {}", e))?;
@@ -71,8 +80,7 @@ fn validate_image_data_limits(image_data: &[u8]) -> Result<(), String> {
         .map_err(|e| format!("Image load failed: {}", e))?;
     validate_image_dimensions(u64::from(dimensions.0), u64::from(dimensions.1))?;
 
-    image::load_from_memory(image_data).map_err(|e| format!("Image load failed: {}", e))?;
-    Ok(())
+    image::load_from_memory(image_data).map_err(|e| format!("Image load failed: {}", e))
 }
 
 fn validate_image_dimensions(width: u64, height: u64) -> Result<(), String> {
