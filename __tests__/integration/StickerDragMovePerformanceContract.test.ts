@@ -102,37 +102,38 @@ describe("sticker drag move performance contract", () => {
       "const applyDragMoveSnapshot =",
       "const flushPendingDragMove =",
     );
-    const renderPathsBlock = sourceBetween(
+    const linkTopologyBlock = sourceBetween(
       linksSource,
-      "const renderPaths = createMemo(() => {",
+      "const linkById = createMemo(",
       "const selectedOverlayLinks = createMemo",
     );
 
     expect(applyBlock).toContain("graphStore.links.length > 0");
     expect(applyBlock).toContain("LINK_PREVIEW_INTERVAL_MS");
     expect(applyBlock).toContain("setMultiDragPositions(nextPositions);");
-    expect(renderPathsBlock).toContain("if (currentLinks.length === 0) {");
-    expect(renderPathsBlock.indexOf("if (currentLinks.length === 0) {")).toBeLessThan(
-      renderPathsBlock.indexOf("const dPositions = multiDragPositions();"),
-    );
+    expect(linkTopologyBlock).toContain("graphStore.links.map");
+    expect(linkTopologyBlock).not.toContain("multiDragPositions()");
+    expect(linksSource).toContain("<For each={[...linkById().keys()]}>");
   });
 
-  it("indexes units and shared layout reads once before rebuilding links", () => {
+  it("keeps topology indexing independent of per-link reactive geometry", () => {
     const linksSource = readSource("src/components/CanvasLinks.tsx");
-    const renderPathsBlock = sourceBetween(
+    const linkTopologyBlock = sourceBetween(
       linksSource,
-      "const renderPaths = createMemo(() => {",
+      "const linkById = createMemo(",
       "const selectedOverlayLinks = createMemo",
     );
 
     expect(linksSource).toContain("const unitById = createMemo(");
-    expect(renderPathsBlock).toContain("const currentUnitById = unitById();");
-    expect(renderPathsBlock).not.toContain("new Map(");
-    expect(renderPathsBlock).toContain("const allOffsets = portOffsets();");
-    expect(renderPathsBlock).toContain("const cleanView = isCleanView();");
-    expect(renderPathsBlock).not.toContain("list.find(");
-    expect(renderPathsBlock).not.toContain("{ ...sFrom");
-    expect(renderPathsBlock).not.toContain("{ ...sTo");
+    expect(linkTopologyBlock).not.toContain("portOffsets()");
+    expect(linkTopologyBlock).not.toContain("isCleanView()");
+    const graphLinkSource = readSource("src/components/CanvasGraphLink.tsx");
+    expect(graphLinkSource).toContain("props.unitById.get(link.fromUnitId)");
+    expect(graphLinkSource).toContain("props.unitById.get(link.toUnitId)");
+    expect(graphLinkSource).not.toContain("new Map(");
+    expect(graphLinkSource).not.toContain(".find(");
+    expect(graphLinkSource).toContain("const dragPositions = multiDragPositions();");
+    expect(graphLinkSource).toContain("layoutTick();");
   });
 
   it("reuses the unit lookup memo for selected and hover overlays", () => {

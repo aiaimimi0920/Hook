@@ -6,22 +6,10 @@ import {
     hoveringLink,
     selectedStickerId,
     multiDragPositions,
-    unitUiState,
-    layoutTick,
     isCleanView
 } from "../store/uiStore";
-import { portOffsets } from "../services/uiRegistry";
-import { calculatePortY } from "../utils/graphUtils";
+import { CanvasGraphLink } from "./CanvasGraphLink";
 import type { Unit } from "../types/unit";
-
-type LinkRenderPath = {
-    x1: number;
-    y1: number;
-    x2: number;
-    y2: number;
-    dashed: boolean;
-    color: string;
-};
 
 type OverlayLinkHighlight = {
     source: {
@@ -56,96 +44,11 @@ export const CanvasLinks: Component = () => {
         () => new Map(graphStore.units.map((unit) => [unit.id, unit])),
     );
 
-    // Computations
-    const renderPaths = createMemo(() => {
-        // Dependency: Force re-calc on layout tick
-        layoutTick();
-
-        const currentLinks = graphStore.links;
-        if (currentLinks.length === 0) {
-            return [];
-        }
-
-        const capabilities = graphStore.capabilities; // For port calculation
-        const dPositions = multiDragPositions();
-        const currentUnitById = unitById();
-        const allOffsets = portOffsets();
-        const cleanView = isCleanView();
-
-        const getPanelPortPos = (uId: string, portName: string, uX: number, uY: number) => {
-            const uOff = allOffsets[uId];
-            if (uOff && uOff[portName]) {
-                return { x: uX + uOff[portName].x, y: uY + uOff[portName].y };
-            }
-            return null;
-        };
-
-        return currentLinks.flatMap(link => {
-             const sFrom = currentUnitById.get(link.fromUnitId);
-             const sTo = currentUnitById.get(link.toUnitId);
-
-             if (!sFrom || !sTo) return [];
-
-             const paths: LinkRenderPath[] = [];
-
-             // TRANSIENT DRAG STATE OVERRIDE
-             const fromDragPosition = dPositions?.[sFrom.id];
-             const toDragPosition = dPositions?.[sTo.id];
-             const fromX = fromDragPosition?.x ?? sFrom.x;
-             const fromY = fromDragPosition?.y ?? sFrom.y;
-             const toX = toDragPosition?.x ?? sTo.x;
-             const toY = toDragPosition?.y ?? sTo.y;
-
-             // --- 1. BODY LINK (Solid) ---
-             // Always calculated from Body Ports
-             const bodyY1 = calculatePortY(sFrom, link.fromPortId, false, capabilities, fromY);
-             const bodyY2 = calculatePortY(sTo, link.toPortId, true, capabilities, toY);
-             const bodyX1 = fromX + sFrom.w + (sFrom.data.minified ? 4 : 6);
-             const bodyX2 = toX - (sTo.data.minified ? 4 : 6);
-
-             // Rule: Body Link exists in Normal View, Hidden in Clean View
-             if (!cleanView) {
-                 paths.push({
-                     x1: bodyX1, y1: bodyY1, x2: bodyX2, y2: bodyY2,
-                     dashed: false, color: "var(--theme-text-muted)"
-                 });
-             }
-
-             // Check if "Panel" is actually visible (Params enabled AND Not Minified)
-             const showFrom = unitUiState[sFrom.id]?.showParams && !sFrom.data.minified;
-             const showTo = unitUiState[sTo.id]?.showParams && !sTo.data.minified;
-
-             // Determine Effective Endpoints for the Dashed Line
-             // If panel is open -> use panel coords. If closed -> fallback to body coords.
-             let pX1 = bodyX1, pY1 = bodyY1;
-             let pX2 = bodyX2, pY2 = bodyY2;
-
-             if (showFrom) {
-                 const p1 = getPanelPortPos(sFrom.id, link.fromPortId, fromX, fromY);
-                 if (p1) { pX1 = p1.x; pY1 = p1.y; }
-             }
-             if (showTo) {
-                 const p2 = getPanelPortPos(sTo.id, link.toPortId, toX, toY);
-                 if (p2) { pX2 = p2.x; pY2 = p2.y; }
-             }
-
-             // Rule: Visibility of Dashed Link
-             // - Clean View: visible ONLY if BOTH ends are Panels
-             // - Normal View: visible if AT LEAST ONE end is a Panel
-             const showDashed = cleanView
-                 ? (showFrom && showTo)
-                 : (showFrom || showTo);
-
-             if (showDashed) {
-                 paths.push({
-                     x1: pX1, y1: pY1, x2: pX2, y2: pY2,
-                     dashed: true, color: "var(--theme-text-muted)"
-                 });
-             }
-
-             return paths;
-        });
-    });
+    // IDs survive coordinate changes, graph reorder, and same-ID replacements.
+    // The lookup tracks topology only; each mounted link owns reactive geometry.
+    const linkById = createMemo(
+        () => new Map(graphStore.links.map((link) => [link.id, link])),
+    );
 
     const selectedOverlayLinks = createMemo<OverlayLinkHighlight[]>(() => {
         if (isCleanView()) {
@@ -225,17 +128,8 @@ export const CanvasLinks: Component = () => {
         </Show>
 
         {/* EXISTING LINKS */}
-        <For each={renderPaths()}>
-            {(coords) => (
-                <path
-                    d={`M ${coords.x1} ${coords.y1} C ${coords.x1 + 50} ${coords.y1}, ${coords.x2 - 50} ${coords.y2}, ${coords.x2} ${coords.y2}`}
-                    fill="none"
-                    stroke={coords.color}
-                    stroke-width="2"
-                    stroke-dasharray={coords.dashed ? "5,5" : "none"}
-                    marker-end="url(#arrowhead)"
-                />
-            )}
+        <For each={[...linkById().keys()]}>
+            {(id) => <CanvasGraphLink link={linkById().get(id)} unitById={unitById()} />}
         </For>
 
         {/* SELECTED UNIT LINKS OVERLAY */}
