@@ -8,7 +8,7 @@ gate; it is not proof that unknown vulnerabilities do not exist.
 
 - Dependabot checks Cargo, npm, and GitHub Actions weekly with bounded routine
   update groups. Security updates are not delayed by those grouping limits.
-- OSV-Scanner 2.5.0 scans the exact committed lockfiles on pull requests,
+- OSV-Scanner 2.5.1 scans the exact committed lockfiles on pull requests,
   `main`, a weekly schedule, manual dispatch, and the exact release tag/ref.
 - CodeQL runs extended Rust, JavaScript/TypeScript, and Actions queries.
 - Formal release builds generate and verify CycloneDX 1.6 and SPDX 2.3 SBOMs,
