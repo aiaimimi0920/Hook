@@ -3,6 +3,7 @@ import { unwrap } from "solid-js/store";
 import { graphStore } from "../store/graphStore";
 import type { UnitAttachment, UnitExtensionState } from "../types/unitExtension";
 import { extensionRegistry } from "./extensionRegistry";
+import { syncService } from "./syncService";
 import {
     MAX_ATTACHMENTS_PER_UNIT,
     boundedExtensionString as boundedString,
@@ -22,7 +23,10 @@ const withUnitAttachmentMutation = async <T>(unitId: string, operation: () => Pr
     attachmentMutationTails.set(unitId, tail);
     await previous.catch(() => undefined);
     try {
-        return await operation();
+        const result = await operation();
+        // Persist successful attachment edits without scheduling failed CAS writes.
+        void syncService.performWorkflowSync();
+        return result;
     } finally {
         release();
         if (attachmentMutationTails.get(unitId) === tail) attachmentMutationTails.delete(unitId);
@@ -83,7 +87,9 @@ const upsertUnitAttachmentUnlocked = async (
     unitId: string,
     expectedTargetRevision: number,
     value: unknown,
+    assertCurrent?: () => void,
 ): Promise<void> => {
+    assertCurrent?.();
     if (currentTargetRevision(unitId) !== expectedTargetRevision) throw new Error("extension target is stale");
     const plugin = activePlugin(scopeId);
     const source = record(value, "attachment.upsert payload");
@@ -102,6 +108,7 @@ const upsertUnitAttachmentUnlocked = async (
     const resourceRefs = parseResourceRefs(source.resourceRefs);
     if (payload === undefined && resourceRefs.length === 0) throw new Error("attachment requires payload or resourceRefs");
     const payloadDigest = payload === undefined ? undefined : await sha256(payload);
+    assertCurrent?.();
     const currentPlugin = activePlugin(scopeId);
     if (currentPlugin.id !== plugin.id || currentPlugin.version !== plugin.version) {
         throw new Error("extension attachment owner changed during update");
@@ -162,9 +169,10 @@ export const upsertUnitAttachment = (
     unitId: string,
     expectedTargetRevision: number,
     value: unknown,
+    assertCurrent?: () => void,
 ): Promise<void> => withUnitAttachmentMutation(
     unitId,
-    () => upsertUnitAttachmentUnlocked(scopeId, unitId, expectedTargetRevision, value),
+    () => upsertUnitAttachmentUnlocked(scopeId, unitId, expectedTargetRevision, value, assertCurrent),
 );
 
 export const removeUnitAttachment = (

@@ -29,6 +29,10 @@ import {
 } from "../services/syncImageCache";
 import { surfaceStore } from "./surfaceStore";
 import { surfaceAttachmentRequests } from "../services/surfaceAttachmentRequests";
+import { invalidateProjectionUnit, invalidateProjectionWorkspace } from "../services/qrProjectionLifecycle";
+import { queueProjectionUnlinks } from "../services/qrProjectionCleanup";
+import { sanitizeProjectionLink } from "../services/qrProjectionProtocol";
+import { projectionAssociations, sanitizeProjectionSenders } from "../services/projectionSenderBindings";
 
 // Core Data Stores
 const [units, setUnits] = createStore<Unit[]>([]);
@@ -51,6 +55,8 @@ const addUnit = (unit: Unit) => {
         ...unit,
         data: {
             ...unit.data,
+            qrProjection: sanitizeProjectionLink(unit.data.qrProjection, unit.id),
+            projectionSenders: sanitizeProjectionSenders(unit.data.projectionSenders, unit.id),
             executionConfig,
         },
     };
@@ -61,6 +67,10 @@ const addUnit = (unit: Unit) => {
 };
 
 const removeUnit = (id: string) => {
+    const unit = units.find((item) => item.id === id);
+    const projections = (unit ? projectionAssociations(unit) : []).filter(({ link }) => !link.stopped);
+    if (projections.length) queueProjectionUnlinks(projections.map(({ link }) => ({ envelope: link.envelope, offlineTransport: link.offlineTransport })));
+    invalidateProjectionUnit(id);
     shaderCache.disposeUnit(id);
     surfaceStore.actions.clear(id);
     surfaceAttachmentRequests.clear(id);
@@ -75,6 +85,7 @@ const removeUnit = (id: string) => {
 };
 
 const replaceUnits = (nextUnits: Unit[]) => {
+    invalidateProjectionWorkspace();
     clearAllImageSearchPrefetchGenerations();
     clearAllSyncImageCaches();
     surfaceStore.actions.clearAll();

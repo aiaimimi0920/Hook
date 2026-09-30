@@ -76,14 +76,16 @@ claimed. The native branch still uses supported Windows graphics APIs.
   256 MiB if unavailable). It estimates three input textures and two swapchain
   buffers per source, not measured total VRAM. The separate source reservation
   also charges WGC pools and crop/fallback allowances; see `LIVE_RESOURCE_ADMISSION.md`.
-- Layout renewal is serialized, normally every 80 ms. Resize/scroll and shared
-  UI state changes request earlier updates. A 350 ms expired lease hides the
-  native plane even if the frontend stops renewing it.
+- Layout checks share an 80 ms clock. An unchanged acknowledged layout sends a
+  serialized native heartbeat every 160 ms; geometry, visibility and composition
+  changes request earlier updates. A 350 ms expired native lease hides the plane.
 - Device, format or budget errors latch the session into JPEG fallback. There is
   no automatic retry storm; stop/create a new Live session to probe again.
-- Source-worker exit removes the corresponding GPU slot. App exit joins the
-  compositor thread and releases its visuals. A disable request for a missing
-  slot does not allocate a new slot.
+- Source-worker exit removes the corresponding GPU slot. Removing the last slot
+  retires and joins the compositor outside the service/slot locks; removing one
+  of several slots preserves the shared compositor for its siblings. App exit
+  also joins the compositor and releases its visuals. A disable request for a
+  missing slot does not allocate a new slot.
 - Disabled/expired slots retain bounded owned textures until source rebuild/stop
   so a static source can restore fresh fallback without a new capture callback.
   A capture-owner readback happens only if that texture is newer than its last
@@ -96,6 +98,42 @@ prepares a transient PNG, decodes it and gives the DOM a bounded paint opportuni
 before disable. Faults and lease loss can hide the plane sooner; the capture owner
 independently restores a retained frame. Unregistered overlays remain an integration
 risk and each new overlay must register its occlusion/hit rectangle.
+
+## Status polling and lease lifetime
+
+`liveCapturePollCadence.ts` maintains a per-session frontend lease. Only a
+successful native configuration with an active layout, `presenting=true` and no
+error acknowledges presentation. Healthy presentation uses 250 ms status polls;
+capture FPS and GPU submission cadence are independent of this status interval.
+
+The frontend lease expires after 500 ms. Disable, handoff, binding changes,
+configuration errors and cleanup clear acknowledgement and wake a waiting poll.
+An already-running poll is not overlapped; its completion selects the next
+cadence. This does not impose a new timeout on a stalled IPC/decode operation.
+Before acknowledgement, first-frame and JPEG polling retain their normal pacing.
+Stop/dispose remove registrations, and updates to unregistered sessions are ignored.
+
+Deferred layout checks do not renew either lease. Scheduling tests establish
+poll/configuration call bounds, not whole-PC CPU/GPU savings or display FPS.
+Per-crop copies, swapchains, locking, fallback and native wakeups remain costs.
+
+## Native compositor scheduling
+
+The compositor waits for a frame/control event or the earliest active lease
+deadline. Busy-present retries retain a 16 ms ceiling; frame arrivals wake the
+owner immediately, and channel disconnection interrupts shutdown.
+
+An unchanged healthy configuration renews its 350 ms lease without waking the
+owner. Layout changes, expired-surface reactivation and capture budget/copy
+errors wake it. After presenting outside the slot lock, the owner rechecks
+previously active IDs so lease or fault changes are handled immediately.
+
+`src-tauri/src/live_gpu/worker_schedule.rs` owns the timing policy. Its static
+presentation test with 160 ms heartbeats bounds idle deadline checks to four per
+second. This measures control-loop work, not whole-process CPU/GPU usage;
+dynamic video still requires per-crop copies and swapchain presentation.
+Tests also cover renewal/reactivation, earliest expiry, hidden/faulted slots,
+busy retries and cleanup. Texture ownership and generation barriers are unchanged.
 
 ## Explicit snapshot contract
 

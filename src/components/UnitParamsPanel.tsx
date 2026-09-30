@@ -5,6 +5,7 @@ import { ArtCapability, ArtParam } from "../services/protocol";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import { UnitActionsMenu } from "./UnitActionsMenu";
 import { UnitLivePublication } from "./UnitLivePublication";
+import { openProjection } from "../store/qrProjectionStore";
 import { UnitParamControl } from "./params/UnitParamControl";
 import { UnitParamsCandidateResults } from "./UnitParamsCandidateResults";
 import {
@@ -342,6 +343,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
         </Show>
 
         <UnitLivePublication unitId={props.unit.id} />
+        <button type="button" class="hook-terminal-btn" onClick={() => openProjection(props.unit.id)}>二维码投射</button>
 
         <UnitParamsPortRows
             unit={props.unit}

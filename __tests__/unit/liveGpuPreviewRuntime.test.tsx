@@ -89,7 +89,7 @@ describe("GPU mirror Unit lifecycle", () => {
             await vi.advanceTimersByTimeAsync(480);
             expect(finish).toBeDefined();
             expect(presenting).toHaveBeenCalledTimes(1);
-            expect(cadence.delay("live-test", 60, 0)).toBeCloseTo(1000 / 60);
+            expect(cadence.delay("live-test", 60, 0)).toBe(50);
         } finally {
             finish?.({ ...status, presenting: false });
             await flush();

@@ -35,6 +35,8 @@ export interface ExtensionVisualDescriptor {
     bounds: ExtensionVisualBounds;
     scene?: SurfaceNode;
     attachmentScenePath?: string[];
+    sourceContext?: "ocr-text.v1";
+    replacesSource?: boolean;
     generation: number;
 }
 
@@ -188,6 +190,9 @@ const parseVisual = (
         (item.commandId ?? item.id) === commandId)) return null;
     const attachmentScenePath = parseAttachmentScenePath(payload.attachmentScenePath);
     if (payload.attachmentScenePath !== undefined && !attachmentScenePath) return null;
+    if (payload.sourceContext !== undefined && payload.sourceContext !== "ocr-text.v1") return null;
+    if (payload.replacesSource !== undefined
+        && (typeof payload.replacesSource !== "boolean" || !payload.sourceContext)) return null;
     const scene = payload.scene === undefined
         ? undefined
         : sanitizeScene(payload.scene, commandId) ?? undefined;
@@ -203,6 +208,8 @@ const parseVisual = (
         bounds,
         scene,
         attachmentScenePath,
+        sourceContext: payload.sourceContext,
+        replacesSource: payload.replacesSource as boolean | undefined,
         generation: snapshot.generation,
     };
 };
@@ -251,8 +258,7 @@ export const extensionVisualRegistry = {
         visualState().activePluginIds.has(attachment.pluginId) &&
         visualState().dataTypeIds.has(attachment.typeId),
     sceneFor: (descriptor: ExtensionVisualDescriptor, attachment: UnitAttachment) => {
-        if (!descriptor.attachmentScenePath) return descriptor.scene;
-        return sanitizeScene(
+        const scene = !descriptor.attachmentScenePath ? descriptor.scene : sanitizeScene(
             valueAtPath(attachment.payload, descriptor.attachmentScenePath),
             descriptor.commandId,
             {
@@ -261,6 +267,11 @@ export const extensionVisualRegistry = {
                 bytes: MAX_ATTACHMENT_SCENE_BYTES,
             },
         ) ?? descriptor.scene;
+        // Cached payloads may carry a hidden root. Override only the rendered
+        // copy so showing an overlay cannot invalidate its content identity.
+        return scene && attachment.overlayVisible !== undefined
+            ? { ...scene, props: { ...record(scene.props), visible: attachment.overlayVisible } }
+            : scene;
     },
     diagnostics: () => ({
         dataTypes: visualState().dataTypeIds.size,

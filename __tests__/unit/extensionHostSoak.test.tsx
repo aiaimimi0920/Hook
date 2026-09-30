@@ -3,12 +3,28 @@ import { createSignal } from "solid-js";
 import { render } from "solid-js/web";
 
 import { ExtensionUnitOverlayLayer } from "../../src/components/ExtensionUnitOverlayLayer";
+import { AppListenerRegistry } from "../../src/services/appListenerRegistry";
+import { extensionBridgeClient } from "../../src/services/extensionBridgeClient";
 import { extensionCommandRouter } from "../../src/services/extensionCommandRouter";
-import { extensionHostDiagnostics } from "../../src/services/extensionHostDiagnostics";
-import { applyExtensionVisualSnapshot } from "../../src/services/extensionVisualRegistry";
+import { extensionRegistry } from "../../src/services/extensionRegistry";
+import { extensionSurfaceDiagnostics } from "../../src/services/extensionSurfaceDiagnostics";
+import { applyExtensionVisualSnapshot, extensionVisualRegistry } from "../../src/services/extensionVisualRegistry";
 import { parseContributionSnapshot } from "../../src/services/extensionProtocol";
 import { extraRects, removeRect } from "../../src/services/uiRegistry";
+import { surfaceStore } from "../../src/store/surfaceStore";
 import type { Unit } from "../../src/types/unit";
+
+const extensionHostDiagnostics = () => {
+    const bridge = extensionBridgeClient.diagnostics();
+    const extensionSurfaces = extensionSurfaceDiagnostics();
+    return {
+        visuals: extensionVisualRegistry.diagnostics(),
+        surfaceInstances: Object.keys(surfaceStore.byUnit).length + extensionSurfaces.mountedInstances,
+        extensionSurfaceInstances: extensionSurfaces.mountedInstances,
+        listeners: AppListenerRegistry.diagnostics().activeDisposers + extensionRegistry.diagnostics().listeners,
+        timers: bridge.pendingRequests + bridge.reconnectTimers,
+    };
+};
 
 const contribution = (id: string, extra: Record<string, unknown> = {}) => ({
     id,

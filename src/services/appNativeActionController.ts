@@ -21,6 +21,7 @@ import {
 } from "./editableFocus";
 import type { OverlaySyntheticDispatcher } from "./overlaySyntheticEvents";
 import { syncService } from "./syncService";
+import { closeProjectionDialog, projectionDialog } from "../store/qrProjectionStore";
 
 type AppNativeActionControllerDependencies = {
     activeBootProfile: Accessor<BootProfile | null>;
@@ -144,6 +145,7 @@ export function createAppNativeActionController(
             dependencies.setAppSettingsOpen(false);
             return;
         }
+        if (projectionDialog()) { closeProjectionDialog(); return; }
         if (hasFocusedDomShortcutOwner()) return;
         if (longCaptureSession()?.active) {
             runBackgroundTask("long capture cancellation", dependencies.cancelAutoLongCaptureSession());
@@ -164,6 +166,7 @@ export function createAppNativeActionController(
         if (dependencies.activeBootProfile()?.nativeAcceptance || hasFocusedDomShortcutOwner()) return;
         if (
             dependencies.appSettingsOpen()
+            || projectionDialog()
             || dependencies.surfaceConfirmationCount() > 0
             || longCaptureSession()?.active
             || isSelecting()

@@ -6,6 +6,8 @@ import {
 } from "../../src/services/extensionVisualRegistry";
 import { parseContributionSnapshot } from "../../src/services/extensionProtocol";
 import type { UnitAttachment } from "../../src/types/unitExtension";
+import type { Unit } from "../../src/types/unit";
+import { unitExtensionVisuals } from "../../src/services/extensionVisualSources";
 
 const scene = {
     id: "root",
@@ -199,5 +201,61 @@ describe("extension visual registry", () => {
         expect(codeScene?.children?.[1].children?.slice(1).map((node) => (
             (node.props as { eventPayload: { operation: string } }).eventPayload.operation
         ))).toEqual(["copy", "open"]);
+    });
+
+    it("keeps an OCR scene visible while a refreshed renderer snapshot is arriving", () => {
+        const ocrSnapshot = parseContributionSnapshot({
+            protocol: "loom.extension.v1",
+            apiVersion: "1.0",
+            generation: 8,
+            plugins: [{
+                id: "neuro.official/ocr",
+                version: "1.3.1",
+                packageDigest: "d".repeat(64),
+                trustStatus: "trusted",
+                permissionGrantDigest: "e".repeat(64),
+                scopeId: "scope-ocr",
+            }],
+            contributions: {
+                commands: [{
+                    id: "neuro.official/ocr.copy-block",
+                    pluginId: "neuro.official/ocr",
+                    scopeId: "scope-ocr",
+                    commandId: "neuro.official/ocr.copy-block",
+                }],
+                shortcuts: [], menus: [], settings: [],
+                dataTypes: [{
+                    id: "neuro.official/ocr.result.v1",
+                    pluginId: "neuro.official/ocr",
+                    scopeId: "scope-ocr",
+                }],
+                renderers: [], unitOverlays: [], backgroundTasks: [],
+                resourceProviders: [], diagnostics: [], eventSubscriptions: [],
+            },
+        });
+        applyExtensionVisualSnapshot(ocrSnapshot);
+        const ocrAttachment = {
+            attachmentId: "neuro.official/ocr.result",
+            typeId: "neuro.official/ocr.result.v1",
+            schemaVersion: "1",
+            revision: 1,
+            pluginId: "neuro.official/ocr",
+            pluginVersion: "1.3.1",
+            payload: {
+                fullText: "visible OCR",
+                surfaceScene: { id: "ocr-overlay-root", type: "stack", children: [] },
+            },
+            payloadDigest: "f".repeat(64),
+            resourceRefs: [],
+        } satisfies UnitAttachment;
+        const unit = {
+            id: "unit-ocr",
+            w: 640,
+            h: 480,
+            data: { extensionState: { schemaVersion: 1, revision: 1, attachments: [ocrAttachment] } },
+        } as unknown as Unit;
+
+        expect(unitExtensionVisuals(unit)).toHaveLength(1);
+        expect(unitExtensionVisuals(unit)[0]?.descriptor.typeId).toBe("neuro.official/ocr.result.v1");
     });
 });

@@ -70,6 +70,8 @@ const cloneSettings = (settings: AppSettings): AppSettings => ({
     schemaVersion: settings.schemaVersion,
     fileNaming: { ...settings.fileNaming },
     cache: { ...settings.cache },
+    translationTargetLanguage: settings.translationTargetLanguage,
+    translationProviderMode: settings.translationProviderMode,
 });
 
 export const AppSettingsDialog: Component<Props> = (props) => {
@@ -238,6 +240,42 @@ export const AppSettingsDialog: Component<Props> = (props) => {
                                 </For>
                             </div>
                         </div>
+
+                        <label class="hook-settings-field hook-settings-field--compact">
+                            <span class="hook-settings-field-title">翻译目标语言</span>
+                            <span class="hook-settings-field-copy">Ctrl+5 使用此语言；跟随显示语言会按当前界面语言选择。</span>
+                            <select
+                                class="hook-terminal-input"
+                                value={draft().translationTargetLanguage}
+                                onChange={(event) => {
+                                    const value = event.currentTarget.value as AppSettings["translationTargetLanguage"];
+                                    setDraft((current) => ({ ...current, translationTargetLanguage: value }));
+                                    setSaveError(null);
+                                }}
+                            >
+                                <option value="">跟随显示语言</option>
+                                <option value="zh-CN">简体中文</option>
+                                <option value="en">English</option>
+                            </select>
+                        </label>
+
+                        <label class="hook-settings-field hook-settings-field--compact">
+                            <span class="hook-settings-field-title">翻译引擎模式</span>
+                            <span class="hook-settings-field-copy">本机翻译服务需另行安装；自动模式在本地不可用时回退 Gateway。</span>
+                            <select
+                                class="hook-terminal-input"
+                                value={draft().translationProviderMode}
+                                onChange={(event) => {
+                                    const value = event.currentTarget.value as AppSettings["translationProviderMode"];
+                                    setDraft((current) => ({ ...current, translationProviderMode: value }));
+                                    setSaveError(null);
+                                }}
+                            >
+                                <option value="auto">自动（本地优先）</option>
+                                <option value="local">仅本地</option>
+                                <option value="gateway">仅 Gateway</option>
+                            </select>
+                        </label>
 
                         <div class="hook-settings-policy">
                             冲突策略固定为 <code>name.png → name_2.png → name_3.png</code>，并使用

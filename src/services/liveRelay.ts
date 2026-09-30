@@ -1,4 +1,4 @@
-import type { LiveCaptureInputPayload, LiveCaptureView } from "./liveCapture";
+import type { LiveCaptureView } from "./liveCapture";
 import type { LiveTriggerCondition } from "./liveProtocol";
 
 export type LiveRelayConnectionState = "connecting" | "connected" | "recovering" | "closed";
@@ -183,8 +183,6 @@ export interface LiveRelayView {
     zIndex: number;
     controlError?: string;
 }
-
-export type LiveRelayInputPayload = LiveCaptureInputPayload;
 
 export const relayGeometry = (
     source: { width: number; height: number },

@@ -35,7 +35,7 @@ const response = (frameId: number) => ({
 });
 
 describe("Live controller video cadence and cancellation", () => {
-    it("keeps one poll in flight and includes work in, rather than after, its frame budget", async () => {
+    it("keeps one poll in flight and includes work within the 20 FPS JPEG fallback budget", async () => {
         const times: number[] = [];
         let inFlight = 0;
         let maxInFlight = 0;
@@ -47,9 +47,8 @@ describe("Live controller video cadence and cancellation", () => {
         });
         await start();
         await vi.advanceTimersByTimeAsync(100);
-        expect(times.length).toBeGreaterThanOrEqual(6);
-        expect(times.length).toBeLessThanOrEqual(7);
-        expect(times[1] - times[0]).toBeLessThanOrEqual(17);
+        expect(times.length).toBe(3);
+        expect(times[1] - times[0]).toBe(50);
         expect(maxInFlight).toBe(1);
     });
 
@@ -57,13 +56,13 @@ describe("Live controller video cadence and cancellation", () => {
         const times: number[] = [];
         mocks.poll.mockImplementation(async () => {
             times.push(performance.now());
-            await new Promise<void>((resolve) => setTimeout(resolve, 30));
+            await new Promise<void>((resolve) => setTimeout(resolve, 70));
             return response(times.length);
         });
         await start();
         await vi.advanceTimersByTimeAsync(100);
-        expect(times.length).toBe(4);
-        expect(times[1] - times[0]).toBeGreaterThanOrEqual(31);
+        expect(times.length).toBe(2);
+        expect(times[1] - times[0]).toBeGreaterThanOrEqual(71);
     });
 
     it("releases a late decoded URL and does not publish or restart after stop", async () => {

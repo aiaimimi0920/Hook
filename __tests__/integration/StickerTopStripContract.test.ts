@@ -84,7 +84,9 @@ describe("Hook sticker top strip contract", () => {
         expect(topStripSource).toContain("export const StickerTopStrip");
         expect(topStripSource).toContain("computeStickerTopStripLayout");
         expect(layoutSource).toContain("STICKER_TOP_STRIP_SLOT_WIDTH = 50");
-        expect(layoutSource).toContain("STICKER_TOP_STRIP_SLOT_COUNT = 10");
+        expect(layoutSource).toContain("STICKER_TOP_STRIP_SLOT_COUNT = 11");
+        expect(topStripSource).toContain("<ProjectionToolbar");
+        expect(topStripSource).toContain("<ProjectionPropertyBar");
         expect(layoutSource).toContain("STICKER_TOP_STRIP_MIN_WIDTH = STICKER_TOP_STRIP_SLOT_WIDTH * STICKER_TOP_STRIP_SLOT_COUNT");
         expect(layoutSource).toContain("STICKER_TOP_STRIP_HEIGHT = 50");
         expect(layoutSource).toContain("STICKER_TOP_STRIP_PROPERTY_BAR_HEIGHT = 40");
@@ -113,7 +115,7 @@ describe("Hook sticker top strip contract", () => {
         expect(topStripInteractiveRectSource).toContain('name: "STICKER_TOP_STRIP"');
         expect(topStripSource).toContain("buildStickerTopStripInteractiveRect");
         expect(topStripSource).toContain('pointer-events-none fixed z-[1210]');
-        expect(topStripSource).toContain('class="pointer-events-auto flex items-stretch"');
+        expect(topStripSource).toContain('class="pointer-events-auto flex flex-wrap content-start items-stretch [&>*]:shrink-0"');
         expect(topStripSource).toContain('onMouseDown={(event) => event.stopPropagation()}');
         expect(createToolsSource).toContain("TRANSFORM_MODE_BUTTONS");
         expect(topStripSource).toContain("uiActions.setStickerTransformMode");

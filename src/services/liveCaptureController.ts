@@ -398,5 +398,3 @@ export function createLiveCaptureController(api: LiveCaptureBackend = nativeApi)
 
     return { start, stop, dispose, setSourceHidden, setInteractionEnabled, sendInput, reclaim };
 }
-
-export type LiveCaptureController = ReturnType<typeof createLiveCaptureController>;

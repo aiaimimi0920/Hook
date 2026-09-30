@@ -2,6 +2,7 @@ import { setLongCaptureSession } from "../store/uiStore";
 import { api } from "../services/api";
 import {
     activateAutoLongCaptureSession,
+    disableAutoLongCaptureInput,
     restoreAutoLongCaptureExclusion,
 } from "./autoLongCaptureActivation";
 import {
@@ -48,7 +49,7 @@ export function createAutoLongCaptureController(
     let busySessionId: number | null = null;
     let sessionId = 0;
     let finishing = false;
-    let finishPromise: Promise<boolean> | null = null;
+    let teardownPromise: Promise<boolean> | null = null;
     let activationPromise: Promise<void> | null = null;
     let backendSessionId: string | null = null;
     let backendFrameCount = 0;
@@ -316,10 +317,10 @@ export function createAutoLongCaptureController(
                 // A failed transaction performs its own rollback before settling.
             }
         }
-        const pendingFinish = finishPromise;
-        if (pendingFinish) {
+        const pendingTeardown = teardownPromise;
+        if (pendingTeardown) {
             try {
-                await pendingFinish;
+                await pendingTeardown;
             } catch {
                 // A new session may start after the previous teardown settles,
                 // even if a best-effort cleanup API failed.
@@ -393,19 +394,22 @@ export function createAutoLongCaptureController(
         backendDuplicateCount = 0;
     };
 
+    // Finish and cancel both own native input restoration until all cleanup settles.
+    const trackTeardown = (task: Promise<boolean>) => {
+        teardownPromise = task;
+        const clearTeardownPromise = () => {
+            if (teardownPromise === task) teardownPromise = null;
+        };
+        void task.then(clearTeardownPromise, clearTeardownPromise);
+        return task;
+    };
+
     const finishAutoLongCaptureSession = () => {
-        if (finishPromise) return finishPromise;
+        if (teardownPromise) return teardownPromise;
+        if (activationPromise) return cancelAutoLongCaptureSession();
 
         const task = (async () => {
-            if (activationPromise) return cancelAutoLongCaptureSession();
-            try {
-                await api.setCaptureInputActive(false);
-            } catch (error) {
-                void api.debugLogEvent(
-                    "auto-long-capture-input-disable-failed",
-                    error instanceof Error ? error.message : String(error),
-                );
-            }
+            await disableAutoLongCaptureInput();
             dependencies.clearCaptureHover();
             if (finishing || !captureRect || !captureOrigin || !options) return false;
             const currentSessionId = sessionId;
@@ -468,51 +472,42 @@ export function createAutoLongCaptureController(
             return true;
         })();
 
-        finishPromise = task;
-        const clearFinishPromise = () => {
-            if (finishPromise === task) finishPromise = null;
-        };
-        void task.then(clearFinishPromise, clearFinishPromise);
-        return task;
+        return trackTeardown(task);
     };
 
-    const cancelAutoLongCaptureSession = async () => {
-        if (finishPromise) return finishPromise;
-        const hadCaptureSession = captureRect !== null;
-        const currentBackendSessionId = backendSessionId;
-        if (hadCaptureSession) {
-            // Invalidate before the first await so an in-flight activation sees
-            // stale ownership at its next native boundary.
-            sessionId += 1;
-            stopTimer();
-            resetState();
-            setLongCaptureSession(null);
-            dependencies.resetSelection();
-        }
-        try {
-            await api.setCaptureInputActive(false);
-        } catch (error) {
-            void api.debugLogEvent(
-                "auto-long-capture-input-disable-failed",
-                error instanceof Error ? error.message : String(error),
-            );
-        }
-        dependencies.clearCaptureHover();
-        if (!hadCaptureSession) return false;
-        if (currentBackendSessionId) {
-            try {
-                await api.cancelLongCaptureSession(currentBackendSessionId);
-            } catch (error) {
-                void api.debugLogEvent(
-                    "auto-long-capture-backend-cancel-failed",
-                    error instanceof Error ? error.message : String(error),
-                );
+    const cancelAutoLongCaptureSession = () => {
+        if (teardownPromise) return teardownPromise;
+        const task = (async () => {
+            const hadCaptureSession = captureRect !== null;
+            const currentBackendSessionId = backendSessionId;
+            if (hadCaptureSession) {
+                // Invalidate before the first await so an in-flight activation sees
+                // stale ownership at its next native boundary.
+                sessionId += 1;
+                stopTimer();
+                resetState();
+                setLongCaptureSession(null);
+                dependencies.resetSelection();
             }
-        }
-        void api.debugLogEvent("auto-long-capture-cancel");
-        await restoreAutoLongCaptureExclusion();
-        await dependencies.restorePostCaptureInteractivity();
-        return true;
+            await disableAutoLongCaptureInput();
+            dependencies.clearCaptureHover();
+            if (!hadCaptureSession) return false;
+            if (currentBackendSessionId) {
+                try {
+                    await api.cancelLongCaptureSession(currentBackendSessionId);
+                } catch (error) {
+                    void api.debugLogEvent(
+                        "auto-long-capture-backend-cancel-failed",
+                        error instanceof Error ? error.message : String(error),
+                    );
+                }
+            }
+            void api.debugLogEvent("auto-long-capture-cancel");
+            await restoreAutoLongCaptureExclusion();
+            await dependencies.restorePostCaptureInteractivity();
+            return true;
+        })();
+        return trackTeardown(task);
     };
 
     return {

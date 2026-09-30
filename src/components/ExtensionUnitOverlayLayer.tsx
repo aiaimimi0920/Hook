@@ -8,6 +8,7 @@ import {
 } from "../services/extensionVisualRegistry";
 import { SURFACE_PROTOCOL_VERSION, type SurfaceEvent, type SurfaceSnapshot } from "../services/surfaceProtocol";
 import { registerExtensionSurfaceInstance } from "../services/extensionSurfaceDiagnostics";
+import { unitExtensionVisuals } from "../services/extensionVisualSources";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import type { Unit } from "../types/unit";
 import type { UnitAttachment } from "../types/unitExtension";
@@ -25,8 +26,6 @@ interface SurfaceHostProps extends Props {
     attachment: UnitAttachment;
     descriptor: ExtensionVisualDescriptor;
 }
-
-const MAX_EXTENSION_VISUALS_PER_UNIT = 32;
 
 const clippedBounds = (unit: Unit, bounds: ExtensionVisualBounds) => {
     const left = Math.min(Math.max(bounds.x, 0), unit.w);
@@ -131,13 +130,14 @@ const ExtensionSurfaceHost: Component<SurfaceHostProps> = (props) => {
 /** Renders only bounded declarative extension visuals inside the owning unit clip. */
 export const ExtensionUnitOverlayLayer: Component<Props> = (props) => {
     const attachments = () => props.unit.data.extensionState?.attachments ?? [];
-    const visuals = () => attachments().flatMap((attachment) => {
-        const renderer = extensionVisualRegistry.rendererFor(attachment);
-        const overlays = extensionVisualRegistry.overlaysFor(attachment);
-        return [...(renderer ? [renderer] : []), ...overlays].map((descriptor) => ({ attachment, descriptor }));
-    }).slice(0, MAX_EXTENSION_VISUALS_PER_UNIT);
-    const unavailable = () => attachments().filter((attachment) =>
-        !extensionVisualRegistry.attachmentAvailable(attachment) || !extensionVisualRegistry.rendererFor(attachment));
+    const visuals = () => unitExtensionVisuals(props.unit);
+    const unavailable = () => {
+        const renderedAttachmentIds = new Set(visuals().map(({ attachment }) => attachment.attachmentId));
+        return attachments().filter((attachment) =>
+            !renderedAttachmentIds.has(attachment.attachmentId)
+            && (!extensionVisualRegistry.attachmentAvailable(attachment)
+                || !extensionVisualRegistry.rendererFor(attachment)));
+    };
 
     return (
         <>

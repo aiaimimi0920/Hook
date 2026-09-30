@@ -1,18 +1,13 @@
 # Shared Live window capture
 
-## Incremental scope
+## Scope
 
-This slice removes duplicate WGC sessions for multiple Live crops of the same
-window. Browser document/tab binding remains a separate, verified Loom capability
-package integration; it is not implemented by sharing a window capture.
+Multiple Live crops of the same window share one WGC source. Browser windows use
+the same native capture path; document/tab pinning experiments are retired. See
+[Live capture](LIVE_CAPTURE.md) for the current product boundary.
 
 `get_live_resource_status.sharedWindowCapturePools` exposes the actual window
 pool count separately from conservative per-Unit `activeSources` reservations.
-
-The V0.2.21 packaged single-Unit gate passed on 2026-09-07: Ctrl+2 placement at
-150% DPI, corner drag/release, source button and slider input, source movement,
-Tab, Ctrl+E snapshot/edit and GPU suspension. Shift+1 dispatch was exercised with
-Loom disabled; actual connected Art creation was not established by that run.
 
 ## Ownership and stop condition
 
@@ -32,9 +27,33 @@ Loom disabled; actual connected Art creation was not established by that run.
   cache or continuous full-window copy added solely for late subscribers.
 - Source dimensions remain part of the key: existing per-Unit resize validation,
   identity checks, resource admission and epoch transitions stay authoritative.
-- Resource admission deliberately retains conservative per-Unit full-source
-  reservations for this slice. Sharing must first be proven before reducing those
-  reservations or increasing aggregate throughput budgets.
+- Resource admission retains conservative per-Unit full-source reservations.
+  Reducing them requires a separate ownership-aware review.
+
+## Shared work accounting
+
+`src-tauri/src/live_gpu/work_budget.rs` accounts acquisition and output separately:
+
+- Group acquisition by the actual source key, including dimensions. Private
+  display captures never alias a shared key, even when their text IDs match.
+- Charge full-source pixels once at the fastest subscriber's requested rate.
+  Hidden subscribers request one frame per second.
+- Charge each output ROI at its own rate. Six large crops still incur six copies.
+- Scale cadence against all three ceilings: 120 source frames/s, 124,416,000
+  source pixels/s, and 124,416,000 output pixels/s. Apply dynamic resource pressure
+  after that calculation.
+- CPU readback/JPEG work uses one fair, leased permit, with ceilings of 30 frames/s
+  and 24,000,000 pixels/s. Hold it through encoding; cooldown also accounts for
+  the measured processing time. Hidden subscribers cannot take a permit.
+- Derive groups from live demands. Resize changes the source identity; dropping
+  the last demand leaves no additional accounting registry behind.
+
+Six 100x100 crops from one 1920x1080 source requesting 60 FPS therefore account
+for 124,416,000 acquisition pixels/s and 3,600,000 output pixels/s. Six full-size
+crops account for their output independently and receive a 100 ms base interval.
+These are scheduler calculations, not measured display FPS or latency.
+
+## Verification
 
 Acceptance requires: one live WGC owner for six same-window crops, distinct valid
 ROI output, unchanged GPU/fallback delivery, independent visibility and stop,
@@ -46,23 +65,19 @@ identity, share independent source windows, or change the existing source-window
 input/hide ownership model. Joining a new crop may briefly interrupt source frame
 arrival while its single shared pool refreshes; existing Unit pixels are retained.
 
-## Verification recorded on 2026-09-07
+Focused `live_gpu::work_budget` tests cover shared/private identities, independent
+ROI costs, mixed rates, hidden/removed subscribers, CPU permits and rebinding.
+Owned-window native tests cover static late join, distinct lossless crop colors,
+sibling stop, resize, source close and zero pools/reservations at teardown.
+Multi-video probes compare actual central pixels in GPU snapshots; advancing
+counters alone do not prove visible motion. See [video diagnostics](LIVE_VIDEO_CAPTURE_DIAGNOSTICS.md)
+for controlled fixtures and capture/presentation evidence boundaries.
 
-- Three owned-window native tests passed, including static late join without a
-  repaint, distinct lossless crop colors, sibling stop, resize epoch, source close
-  and zero pools/reservations at teardown.
-- The six-source video probe passed with both the previous video fixture and the
-  new independently qualified fixture. All six same-window subscribers used one
-  active WGC pool. GPU, fallback, visibility and survivor updates were preserved.
-- Native multi-video acceptance now compares actual central pixels in two GPU
-  snapshots per crop, rather than treating advancing frame counters as motion.
-- `live-video-fixture.ts` validates all 480 decoded fixture frames and nine sample
-  regions per frame before the native probe starts. The generated moving gradient
-  had at least 41 quantized colors in those regions, above the unchanged native
-  threshold of 12. Black/solid-color and integer-floor quantization unit tests pass.
-  This removes the fixture's dependency on a moving testsrc2 detail intersecting
-  one sampling region; it does not retroactively prove the cause of an unsaved
-  historical failed frame or erase its failure record.
+Historical candidate timings, test counts and GUI release-edge investigations
+are available at `cleanup-base-20260928:docs/LIVE_SHARED_SOURCE_WORK_BUDGET.md`.
+They do not establish acceptance or an unresolved failure in a later package.
+Timed per-Unit cadence and latency require a comparable-load runtime measurement;
+shared-source memory reservations remain conservative until separately reviewed.
 
 The source pool count is an ownership fact, not total driver memory or a monitor
 FPS measurement. Final candidate GUI and package evidence belongs in its release

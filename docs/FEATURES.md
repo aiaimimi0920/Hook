@@ -1,5 +1,20 @@
 # Hook Features and Manual Regression Matrix
 
+Projection target dropdowns use count-free device/group/user icons with chevrons.
+Available targets show one ID and checkbox per row; checking starts projection,
+unchecking cancels it. Per-row markers distinguish pending, success and failure;
+success requires receiver display or a confirmed remote unlink. Retry failed
+operations inline. Group checkboxes aggregate member state and indicate partial
+selection; stopping a group updates the same device rows, including overlaps.
+Check long device/group and font lists with both the mouse wheel and scrollbar
+drag, including the last row, Escape dismissal and restored trigger focus.
+The user dropdown reports that user projection is not yet available.
+
+The receive toolbar has a read-only flow indicator and one import button. Verify
+both QR PNG and projection-link input in its compact sticker-anchored dialog, explicit Import confirmation,
+error/retry feedback, Escape and focus restoration. The sender identifier remains;
+the revision-number management button is removed.
+
 This document records currently implemented user-facing controls. It is a manual
 verification guide, not an implementation specification. When behavior changes,
 verify the code first and update this file with the same change.
@@ -14,7 +29,7 @@ another application has focus.
 | `Ctrl+1` | Enter region/window capture mode. Hovering a valid visible window highlights it; double-click captures the revalidated window target. | Test empty desktop, ordinary windows, overlapping windows, secondary monitors, and cancel with `Escape`. |
 | `Ctrl+2` | Enter live region/window capture mode. Double-click chooses a revalidated full window. A drag fully contained by one valid program window binds a fixed window-local pixel region; other drags use a screen region. | Select a 50×50 area at offset (100,100), move the source window, and confirm the view still shows that same UI area. |
 | `Ctrl+3` | Enter vertical long-capture mode. | Capture a scrollable page, then cancel and retry to confirm session cleanup. |
-| `Ctrl+E` | Toggle the selected sticker's editing toolbar. Enabled Capability Plugins may contribute namespaced menus and actions; no OCR menu is built into Hook core. | Toggle with no plugins installed, then enable OCR and confirm its contributed menu appears without restarting Hook and disappears on disable. |
+| `Ctrl+E` | Toggle sticker editing, including projection invitations, device/group multiselect and opt-in two-way v1 annotation editing. Enabled Capability Plugins may contribute namespaced menus and actions. | Select overlapping targets, retry partial sends, switch source-only direction, merge separate objects and explicitly resolve same-object conflicts. Check durable restart, Escape focus and native popup clicks. Shared Loom needs no official login; account mode keeps its login requirement and does not support two-way editing. |
 | `Ctrl+Alt+Space` | Toggle the configured Talk voice session between start and stop. | Verify both edges and confirm dictated text is inserted only after a completed session. |
 | Double `Escape` within 400 ms | Emergency exit. The main process and independent watchdog both observe distinct key presses. | Verify exit from canvas, capture, overlay, and a conflicting fullscreen application. |
 | `Ctrl+Alt+Shift+F12` | Backup emergency-exit chord handled by the watchdog. | Verify it terminates Hook and restores cursor/input state. |
@@ -25,6 +40,11 @@ selection surface: double-click selects a revalidated full window, while a drag
 inside one valid window creates a window-relative region. A drag not fully
 contained by one valid window creates a display-region source. The settings dialog remains implemented, but
 its tray entry is temporarily hidden.
+
+Device delivery confirmation uses an upper-center desktop prompt with accept,
+reject and defer actions. Deferred invitations remain available in the receiver
+panel; polling does not repeatedly reopen the same deferred prompt. Native hit
+rectangles and direct synthetic input handling keep the prompt interactive.
 
 ## 2. Frontend shortcuts
 
@@ -46,7 +66,9 @@ cancel/delete semantics.
 | `Tab` | selected unit | Toggle the parameter panel. |
 | `Ctrl+E` | canvas/overlay | Toggle the selected unit's sticker editing toolbar. Generic plugin menus are rendered only from active contributions. |
 | `Ctrl+4` | selected unit | Not registered by Hook core. The official OCR Capability Plugin contributes re-recognition and complete-result copying while enabled. |
-| `Alt+4` | selected unit | Not registered by Hook core. The official OCR Capability Plugin contributes overlay visibility and block interaction while enabled. |
+| `Alt+4` | selected unit | The enabled official OCR plugin contributes this shortcut. Toggle cached OCR overlays; recognize and show them if no result exists. |
+| `Ctrl+5` | selected image unit | The enabled translation plugin translates from cached OCR, recognizing first when needed. Repeated use refreshes translation while preserving OCR content. |
+| `Alt+5` | selected image unit | Toggle cached translation without a model request; produce OCR and translation on first use. |
 | `Ctrl+Shift+4` | canvas | Toggle clean view. |
 | `Q` / `W` / `E` / `R` | selected unit or sticker editing | Select the annotation transform mode: select, move, rotate, or scale. |
 
@@ -58,6 +80,17 @@ OCR text overlays preserve native substring selection. A plain block click copie
 that block; `Shift+click` toggles bounded multi-block selection without moving the
 sticker. The contributed OCR toolbar can copy cached full text, reconstruct relative
 layout, or copy selected blocks in reading order. Re-running OCR clears the selection.
+
+OCR and translation use separate attachments and mutually exclusive overlays.
+Showing translation suppresses OCR without changing the OCR visibility preference.
+Hiding translation restores OCR unless the user explicitly hid it. `Alt+4` while
+translation is visible selects OCR and hides translation; a second `Alt+4` hides
+OCR too. Visibility changes preserve attachment revisions, digests, text, and
+geometry. Re-recognizing the image invalidates the older translation.
+
+The focused `ocrTranslationVisibility.test.tsx` regression drives command and
+shortcut dispatch into the real attachment store and rendered overlay, including
+first use, repeated toggles, persistence, and an in-flight translation.
 
 QR/barcode recognition is a child capability of the installed official OCR
 Capability Plugin. `Ctrl+4` performs text and code recognition together; the

@@ -24,11 +24,12 @@ import {
     extensionPresentationStore,
     visibleExtensionToolbarSlots,
 } from "../services/extensionPresentationStore";
-import type { TopStripOpenMenu } from "./stickerTopStripChrome";
+import { type TopStripOpenMenu } from "./stickerTopStripChrome";
+import { ProjectionToolbar, createProjectionToolbarState } from "./ProjectionToolbar";
+import { ProjectionPropertyBar } from "./ProjectionPropertyBar";
 import { buildStickerTopStripInteractiveRect } from "./stickerTopStripInteractiveRect";
 import {
     computeStickerTopStripLayout,
-    STICKER_TOP_STRIP_HEIGHT,
 } from "../services/stickerTopStripLayout";
 import { graphStore } from "../store/graphStore";
 import { captureStickerEditSnapshot } from "../services/stickerHistory";
@@ -81,6 +82,8 @@ const getViewportSize = () => {
 export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
     const [viewport, setViewport] = createSignal(getViewportSize());
     const [openMenu, setOpenMenu] = createSignal<TopStripOpenMenu>(null);
+    const { direction: projectionDirection, setDirection: setProjectionDirection,
+        tab: projectionTab, setTab: setProjectionTab } = createProjectionToolbarState(() => props.unitId);
     const [currentShapeTool, setCurrentShapeTool] = createSignal<ShapeCreateTool>("shape-rect");
     const [currentLabelTool, setCurrentLabelTool] = createSignal<LabelCreateTool>("text");
     const [currentEffectTool, setCurrentEffectTool] = createSignal<EffectCreateTool>("mosaic");
@@ -289,7 +292,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
             },
             viewport().width,
             viewport().height,
-            !!propertyBarTool(),
+            !!projectionTab() || !!propertyBarTool(),
             extensionToolbarSlots().length,
         ),
     );
@@ -312,11 +315,13 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
     };
 
     const applyTransformMode = (mode: StickerTransformMode) => {
+        setProjectionTab(undefined);
         uiActions.setStickerTransformMode(mode);
         setOpenMenu(null);
     };
 
     const applyCreateTool = (mode: TopStripCreateTool) => {
+        setProjectionTab(undefined);
         if (isShapeTool(mode)) {
             setCurrentShapeTool(mode);
         }
@@ -331,6 +336,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
     };
 
     const applyTopStripTool = (mode: TopStripCreateTool | TopStripCanvasTool) => {
+        setProjectionTab(undefined);
         if (mode === "content-eraser" || mode === "crop") {
             uiActions.setStickerEditMode(mode);
             setOpenMenu(null);
@@ -460,14 +466,16 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                     height: `${layout().container.height}px`,
                 }}
             >
-                <Show when={propertyBarTool()}>
+                <Show when={projectionTab()} fallback={<Show when={propertyBarTool()}>
                     {(tool) => <StickerTopStripPropertyBar unitId={props.unitId} tool={tool()} />}
+                </Show>}>
+                    {(mode) => <ProjectionPropertyBar unitId={props.unitId} mode={mode()} />}
                 </Show>
 
                 <div
-                    class="pointer-events-auto flex items-stretch"
+                    class="pointer-events-auto flex flex-wrap content-start items-stretch [&>*]:shrink-0"
                     style={{
-                        height: `${STICKER_TOP_STRIP_HEIGHT}px`,
+                        height: `${layout().mainBar.height}px`,
                     }}
                     onMouseDown={(event) => event.stopPropagation()}
                 >
@@ -477,12 +485,12 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                         currentShapeTool={currentShapeTool()}
                         currentLabelTool={currentLabelTool()}
                         currentEffectTool={currentEffectTool()}
-                        isModeSelected={isModeSelected()}
-                        isShapeSelected={isShapeSelected()}
-                        isLineSelected={isLineSelected()}
-                        isBrushSelected={isBrushSelected()}
-                        isLabelSelected={isLabelSelected()}
-                        isEffectSelected={isEffectSelected()}
+                        isModeSelected={!projectionTab() && isModeSelected()}
+                        isShapeSelected={!projectionTab() && isShapeSelected()}
+                        isLineSelected={!projectionTab() && isLineSelected()}
+                        isBrushSelected={!projectionTab() && isBrushSelected()}
+                        isLabelSelected={!projectionTab() && isLabelSelected()}
+                        isEffectSelected={!projectionTab() && isEffectSelected()}
                         supportsBitmapTools={props.supportsBitmapTools !== false}
                         onToggleMenu={toggleMenu}
                         onTransformMode={applyTransformMode}
@@ -492,8 +500,8 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                         openMenu={openMenu()}
                         supportsBitmapTools={props.supportsBitmapTools !== false}
                         isArt={props.isArt === true}
-                        isEraserSelected={isEraserSelected()}
-                        isCropSelected={isCropSelected()}
+                        isEraserSelected={!projectionTab() && isEraserSelected()}
+                        isCropSelected={!projectionTab() && isCropSelected()}
                         currentHistoryAction={currentHistoryAction()}
                         isHistoryEnabled={isHistoryEnabled()}
                         canUndo={!historyActionPending() && canUndo()}
@@ -526,6 +534,10 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             setOpenMenu(null);
                         }}
                     />
+                    <ProjectionToolbar mode={projectionDirection()} active={!!projectionTab()} menuOpen={openMenu() === "projection"}
+                        toggleMenu={() => toggleMenu("projection")}
+                        selectMode={(mode) => { setProjectionDirection(mode); setProjectionTab(mode); setOpenMenu(null); }}
+                        activate={() => { setOpenMenu(null); setProjectionTab((current) => current ? undefined : projectionDirection()); }} />
                     <ExtensionToolbarItems
                         open={openMenu() === "extension"}
                         onOpenChange={(open) => setOpenMenu(open ? "extension" : null)}

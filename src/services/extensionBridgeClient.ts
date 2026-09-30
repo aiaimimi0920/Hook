@@ -49,14 +49,18 @@ export class ExtensionBridgeClient {
     private extensionSessionId: string | null = null;
     private extensionHandshakeRequestId: string | null = null;
     private readonly pending = new Map<string, PendingRequest>();
+    private connectionEndpoint: string;
 
     constructor(
         private readonly createWebSocket: WebSocketFactory = (url) => new WebSocket(url),
         private readonly endpoint = "ws://127.0.0.1:19820",
-    ) {}
+    ) {
+        this.connectionEndpoint = endpoint;
+    }
 
-    start(): () => void {
+    start(endpoint = this.endpoint): () => void {
         if (!this.stopped) return () => this.stop();
+        this.connectionEndpoint = endpoint;
         this.stopped = false;
         this.connect();
         return () => this.stop();
@@ -139,7 +143,7 @@ export class ExtensionBridgeClient {
         if (this.stopped) return;
         let socket: WebSocket;
         try {
-            socket = this.createWebSocket(this.endpoint);
+            socket = this.createWebSocket(this.connectionEndpoint);
         } catch {
             this.scheduleReconnect();
             return;
@@ -251,7 +255,7 @@ export class ExtensionBridgeClient {
                 hookSessionId,
                 ...extensionProtocolIdentity,
                 requiredFeatures: ["contribution.snapshot", "command.invoke"],
-                optionalFeatures: ["shortcut.registry", "menu.registry", "notice.effects"],
+                optionalFeatures: ["shortcut.registry", "menu.registry", "notice.effects", "ocr-text.v1"],
             },
         });
     }

@@ -20,6 +20,8 @@ export interface UnitAttachment {
     payload?: unknown;
     payloadDigest?: string;
     resourceRefs: UnitAttachmentResourceRef[];
+    /** Host presentation preference; never part of the capability payload or its revision/digest. */
+    overlayVisible?: boolean;
 }
 
 /** Versioned, host-owned envelope for all capability data attached to one unit. */

@@ -31,6 +31,7 @@ pub mod loom_connector;
 mod loom_hook;
 mod mouse_monitor;
 mod network_proxy;
+mod qr_projection;
 mod screenshot;
 mod shortcut_config;
 mod single_instance;
@@ -376,6 +377,7 @@ include!("native/rdev_input_listener.rs");
 
 include!("native/app_setup.rs");
 
+mod bridge_csp;
 include!("native/app_runtime.rs");
 
 #[cfg(test)]
