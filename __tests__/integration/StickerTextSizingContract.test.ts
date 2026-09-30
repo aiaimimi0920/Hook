@@ -84,6 +84,24 @@ describe("Hook sticker text sizing contract", () => {
         expect(annotationLayerSource).not.toContain('window.prompt("输入标注文本"');
     });
 
+    it("restores native overlay focus before opening a text editor", () => {
+        const textToolStart = pointerDownSource.indexOf('if (activeTool === "text") {');
+        const serialToolStart = pointerDownSource.indexOf('if (activeTool === "serial")', textToolStart);
+        const textToolBlock = pointerDownSource.slice(textToolStart, serialToolStart);
+        const textFocusIndex = textToolBlock.indexOf("api.focusOverlayWindow()");
+        const textInputIndex = textToolBlock.indexOf("beginPendingTextInput(point)");
+        expect(textFocusIndex).toBeGreaterThanOrEqual(0);
+        expect(textInputIndex).toBeGreaterThan(textFocusIndex);
+
+        const doubleClickStart = pointerDownSource.indexOf("const onDoubleClick = async");
+        const returnStart = pointerDownSource.indexOf("    return { beginDirectTransform", doubleClickStart);
+        const doubleClickBlock = pointerDownSource.slice(doubleClickStart, returnStart);
+        const editFocusIndex = doubleClickBlock.indexOf("api.focusOverlayWindow()");
+        const editInputIndex = doubleClickBlock.indexOf("beginPendingTextInput({ x: hit.x, y: hit.y }, hit)");
+        expect(editFocusIndex).toBeGreaterThanOrEqual(0);
+        expect(editInputIndex).toBeGreaterThan(editFocusIndex);
+    });
+
     it("renders the text draft through the same SVG text renderer while the user types", () => {
         expect(annotationLayerSource).toContain("pendingTextPreviewAnnotation");
         expect(annotationLayerSource).toContain("<Show when={pendingTextPreviewAnnotation()}");

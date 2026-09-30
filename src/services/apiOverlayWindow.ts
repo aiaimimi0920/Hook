@@ -50,4 +50,7 @@ export const overlayWindowApi = {
 
     setMouseMonitorActive: (active: boolean): Promise<void> =>
         safeInvoke("set_mouse_monitor_active", { active }, () => undefined, false),
+
+    restoreOverlayTextCursor: (): Promise<void> =>
+        safeInvoke("restore_overlay_text_cursor", undefined, () => undefined, false),
 };

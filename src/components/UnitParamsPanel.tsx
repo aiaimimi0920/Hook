@@ -4,6 +4,8 @@ import { Unit, Link, NodeExecutionConfig } from "../types/unit";
 import { ArtCapability, ArtParam } from "../services/protocol";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import { UnitActionsMenu } from "./UnitActionsMenu";
+import { UnitLivePublication } from "./UnitLivePublication";
+import { openProjection } from "../store/qrProjectionStore";
 import { UnitParamControl } from "./params/UnitParamControl";
 import { UnitParamsCandidateResults } from "./UnitParamsCandidateResults";
 import {
@@ -288,7 +290,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
   return (
     <>
     <div
-        ref={paramContainerRef}
+        ref={(el) => { paramContainerRef = el; }}
         id={`params-panel-${props.unit.id}`}
         class="absolute flex flex-col z-[100] pointer-events-auto"
         style={{
@@ -339,6 +341,9 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                 onParamChange={props.onParamChange}
             />
         </Show>
+
+        <UnitLivePublication unitId={props.unit.id} />
+        <button type="button" class="hook-terminal-btn" onClick={() => openProjection(props.unit.id)}>二维码投射</button>
 
         <UnitParamsPortRows
             unit={props.unit}

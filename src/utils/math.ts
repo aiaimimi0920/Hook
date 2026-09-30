@@ -19,11 +19,6 @@ export const clampOptional = (value: number, min?: number, max?: number): number
 };
 
 /**
- * Linear interpolation between two values.
- */
-export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
-
-/**
  * Normalize floating-point precision artifacts.
  */
 export const normalizePrecision = (value: number): number => Number(value.toFixed(10));

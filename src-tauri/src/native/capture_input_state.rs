@@ -7,7 +7,7 @@ enum OverlayKeyboardHookEvent {
     Delete,
     Copy,
     Paste,
-    // A sticker-selected DOM shortcut (Tab, Shift+1, Alt+2, ...) captured while
+    // A sticker-selected DOM shortcut (Tab, Shift+1, Alt+4, ...) captured while
     // the webview lacks OS keyboard focus, forwarded so the frontend can run it
     // without the overlay having to steal foreground focus from video below.
     Shortcut {

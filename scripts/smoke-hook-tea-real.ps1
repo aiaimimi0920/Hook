@@ -245,10 +245,11 @@ function Invoke-TeaText {
 }
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$repoRoot = Split-Path -Parent $scriptRoot
+$hookRoot = Split-Path -Parent $scriptRoot
+$repoRoot = Split-Path -Parent $hookRoot
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $runId = "$timestamp-$(([guid]::NewGuid()).ToString("N").Substring(0, 8))"
-$artifactRoot = Join-Path $repoRoot ".tmp\tea-smoke\hook-tea-real-$runId"
+$artifactRoot = Join-Path $hookRoot ".tmp\tea-smoke\hook-tea-real-$runId"
 $storePath = Join-Path $artifactRoot "tea-smoke.sqlite"
 $stdoutPath = Join-Path $artifactRoot "tea-daemon.stdout.log"
 $stderrPath = Join-Path $artifactRoot "tea-daemon.stderr.log"

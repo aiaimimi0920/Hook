@@ -24,7 +24,11 @@ start-hook.bat
   -> Rust boot-profile parsing
 ```
 
-The tray currently exposes capture, long capture, open-image, and quit actions.
+The tray currently exposes capture, live capture, long capture, open-image, and quit actions.
+Live capture uses the native backend directly for every application, including
+browsers. It binds window-local pixels, not webpage elements. The browser
+extension shortcut relay, document provider, and import lifecycle were removed;
+the generic Loom extension bridge remains independent of Live capture.
 The app-settings command and dialog remain implemented, but their tray entry is
 temporarily hidden.
 
@@ -49,6 +53,28 @@ Hook/
 └── docs/                       current feature, HDR, release, and policy docs
 ```
 
+## Projection editing ownership
+
+`useProjectionTargetControls.ts` owns secondary-toolbar checkbox intent, fresh
+directory validation and per-target operation feedback. It reuses the durable
+create journal and batch sender; cancellation persists `stopPending` on saved
+bindings and waits for the existing sync owner's unlink result. Uncertain creates
+are cancelled in the journal before unlink. `projectionTargetStatus.ts` distinguishes
+invitation creation from receiver display and aggregates group results. Sync status
+snapshots replace earlier fields, so recovery cannot retain an obsolete error.
+The full projection management dialog retains its separate batch-selection flow.
+
+`projectionEditEngine.ts` serializes each Unit's editing operations and fences
+workspace changes, removal and delayed responses. `projectionEditSession.ts` binds
+that engine to graph actions, native transport and the existing projection poller.
+`projectionEditJournal.ts` owns bounded IndexedDB records with transaction-complete
+durability and revision compare-and-set; ordinary workflow saving does not replace
+this request journal. Geometry, validation and concurrent-view merging have separate
+modules. Hook owns original annotations and base-image rasterization; Loom owns
+authenticated bindings, shared revisions, mode authority and checkpoint fences.
+The native `qr_projection/edit.rs` boundary validates typed requests and documents
+before routing through the paired local or offline-peer projection endpoint.
+
 ## 3. Frontend architecture
 
 ### 3.1 Integration entry
@@ -72,6 +98,10 @@ in a focused service or hook.
   recycle bin, reference library, parameters, and persistence-facing mutations.
 - `src/store/uiStore.ts` owns transient interaction state: selection, active edit
   target, panels, tool modes, capture UI, drag previews, and temporary notices.
+- `src/services/enhancementNoticeQueue.ts` owns notice identity and bounded FIFO
+  transformations; `UnitVisualOverlays.tsx` renders each unit's notices in a
+  right-aligned, dismissible stack so messages never leak across sticker/Art
+  boundaries.
 
 Persistent edits should pass through `graphStore.actions`. Transient high-rate
 interaction state should not be written into the persisted graph on every input
@@ -79,7 +109,9 @@ sample.
 
 ### 3.3 Interaction hooks
 
-- `useSelection.ts` — region/window/long-capture frontend lifecycle;
+- `useSelection.ts` — region/window/long/live-capture frontend lifecycle;
+- `liveCaptureController.ts` and `liveCaptureStore.ts` — transient local live
+  presentation, binary-frame polling, object-URL ownership, and view geometry;
 - `useDraggable.ts` — sticker/unit drag sessions, compositor transforms, snapping,
   link previews, GPU warming, and final position commits;
 - `useClipboard.ts` — internal units, system images, file payloads, and cascading
@@ -129,10 +161,30 @@ they must not be unified as a cosmetic refactor without behavior tests.
 
 ## 4. Native backend architecture
 
+The independent tile path uses `TileTerminal.tsx`, `tilePresenter.ts`, bounded
+image/Live caches, and the shared `wallGeometry.ts` mapping. Its serial input
+controller owns one bounded queue and one endpoint control lease. A separate
+500 ms output monitor invalidates late control results after geometry or display
+loss; six seconds without renewed authorization clears even static content.
+Input feedback is a noninteractive badge, separate from full-screen error state.
+
+Art has a separate `tileSurfaceController.ts` action owner, serial state cache
+and bounded resource cache. `TileSurfaceLayers.tsx` composes existing declarative
+controls with media using the shared crop/rotation mapping. Stable node IDs and
+`surfaceInputDraft.ts` preserve local edits until an outcome read completes.
+Loom owns the ephemeral view, event identity, confirmation and execution state;
+the terminal never launches Art code. Layout and connection teardown release
+only presentation grants, leaving the source and its formal output intact.
+
 ### 4.1 Entry and command surface
 
 - `src-tauri/src/main.rs` handles process-only CLI modes such as `--version`,
   `--self-check`, smoke helpers, and the emergency watchdog child process.
+- `tile_terminal.rs` handles `--tile` / `--tile-output`, owns one mutex per physical
+  output and registers only terminal commands. It does not install capture hooks
+  or start the ordinary Hook workspace. `tile_outputs.rs` owns stable Windows
+  output identities and physical/DPI geometry; `wall_client.rs` and `wall_live.rs`
+  keep device credentials and network media outside the frontend.
 - `src-tauri/src/lib.rs` registers Tauri commands, initializes the runtime,
   installs global input handling, owns overlay/tray transitions, and connects the
   frontend to native services.
@@ -166,6 +218,17 @@ must be made conservatively because event ordering is load-bearing.
   frame waits and unusable-frame rejection;
 - `screenshot/wgc_persistent.rs` — opt-in thread-affine persistent WGC session,
   cached-frame validation, timeout fallback, and CPU crop ownership.
+- `screenshot/live_capture.rs` — product live-session delivery owner, fresh-frame
+  callback slot, JPEG presentation encoding, resize recovery, and source identity;
+- `native/live_capture_types.rs` and `native/live_capture_commands.rs` — bounded
+  session/frame ownership and Tauri lifecycle/raw-binary IPC commands;
+- `native/live_source_window.rs`, `native/live_source_input.rs`, and
+  `native/live_source_recovery.rs` — reversible source-window state, ordered
+  same-user, no-upward-integrity window-message input, target identity checks, and a content-free
+  atomic watchdog journal;
+- `native/live_source_security.rs` checks the active desktop, session, owned token
+  user SID, and UIPI direction. `services/liveCaptureFeedback.ts` exposes bounded,
+  fixed-text Unit notices and code-only diagnostics when input is unavailable;
 - `capture_coords.rs` — physical/global/logical coordinate normalization;
 - `capture_windows.rs` — visible window enumeration, target filtering, and
   top-to-bottom z-order ranks used by protected-region composition;
@@ -175,12 +238,91 @@ Ordinary region capture can return a file-backed PNG plus metadata. HDR output
 uses 16-bit BT.2020/PQ when appropriate; SDR output uses 8-bit sRGB. Long capture
 remains SDR by design.
 
-Rectangular region drags intentionally use the visible display composition rather
-than an HWND-only surface, even when the rectangle happens to fit inside one
-window. This preserves every window that overlaps the selection. HWND-backed
-capture remains reserved for an explicitly confirmed full-window double click;
-protected-window auto composition is still applied when a region drag intersects
-an affinity-protected target.
+Single-device live capture is a separate session path rather than a loop added to
+`capture_region`. Each session owns one delivery worker, one replaceable callback slot,
+and at most three encoded frames. `read_live_capture_frame` returns raw IPC bytes;
+the Solid controller owns and revokes short-lived object URLs. JPEG is only the
+local WebView presentation transport and is not the `loom.live.v1` network media
+codec. Capture/control state never enters `loom.surface.v1` as frame payloads.
+The local maximum request is 60 FPS, reduced by `live_gpu/work_budget.rs` using
+full-source pixel demand and total requested cadence. Unit demand updates every
+250 ms; the shared source owner folds the minimum within its 100 ms control loop.
+`screenshot/live_capture_producer.rs` attaches window Units through
+`live_shared_source.rs` to one thread-affine owner in `live_shared_source_worker.rs`,
+keyed by HWND/process/dimensions. The WGC pool has two buffers. Independent display
+capture stays private. A new subscriber refreshes the pool for static initial
+pixels, with old callbacks excluded by the source generation and subscriber lock.
+Owned ROI copies happen before the source callback returns, without CPU readback.
+`live_resources` owns process-wide source reservations before worker/pool creation,
+cached OS CPU/RAM/DXGI sampling, upward allocation-growth estimates and hysteresis.
+Source geometry is rechecked against its reservation before every pool rebuild.
+The hard ceiling is 16; actual admission depends on estimated marginal cost and
+runtime headroom. Pressure slows source cadence without deleting graph Units.
+See `docs/LIVE_RESOURCE_ADMISSION.md` for telemetry and estimation boundaries.
+A capacity-one callback notification wakes the worker;
+there is no full-frame sleep after encoding. `live_frame_wic.rs` uses the built-in
+Windows JPEG codec with scoped COM ownership, full dimensions, quality 0.82 and
+4:4:4 chroma. A one-time diagnostic identifies software-codec fallback. Capture
+timestamps precede CPU conversion; encode timestamps indicate completed encoding.
+`liveCapturePresentation.ts` pre-decodes JPEGs before URL publication and keeps
+one in-flight poll/read/decode chain, subtracting its cost from the frame interval.
+Late decoded frames are revoked on stop, and slow consumers still skip old frames.
+The automatic route B renderer in `src-tauri/src/live_gpu/` copies a bounded owned
+BGRA8 texture before CPU conversion, then submits it on one compositor thread to
+per-Unit DXGI swapchains. No WGC frame-pool texture crosses the callback lifetime.
+`liveGpuPreview.ts` supplies physical DOM bounds and a renewable visibility lease;
+Unit state and input ownership remain unchanged. `live_gpu/snapshot.rs` owns
+bounded one-shot staging readback and PNG encoding on blocking workers;
+`liveGpuSnapshot.ts` validates binary delivery and `liveCaptureUnit.ts` commits
+explicit copy/save/drag snapshots with timestamp ordering and lifecycle guards.
+`live_frame_handoff.rs` owns a latest GPU mailbox, a reusable spare and the arrival
+clock. Callbacks never Map or encode; contended native submissions retain one
+owned texture and transfer it later without overwriting a newer native frame.
+Startup/fault/unsupported-layout fallback acquires one process-wide CPU permit
+before staging/Map and holds it through JPEG. The permit imposes pixel/rate and
+measured wall-time cooldown budgets. Hidden/offscreen consumers retain source
+health at 1 FPS without JPEG production. `liveGpuPreviewScheduler.ts` supplies one
+layout lease clock and a lazy shared geometry sample; CPU compatibility and GPU
+fault modes continue publishing visibility demand.
+Retained textures restore a static source even without another WGC update.
+`liveCaptureHandoff.ts` coalesces transient PNG handoffs and waits for decode/paint
+before normal native disable. Capture timestamps order handoffs and in-flight JPEGs;
+PNG wins an equal-timestamp tie. These transitions do not commit streaming graph data.
+Set `HOOK_LIVE_GPU_PREVIEW=0` to force compatibility. The Windows backend does not
+use DWM thumbnails. See `docs/LIVE_GPU_PRESENTATION.md` for composition and acceptance boundaries.
+When a live drag is fully contained by one enumerated program window, the frontend
+stores the rectangle relative to that window. Rust converts it once to a physical
+WGC surface crop; source movement does not alter that crop. The same local region
+is translated through the window's current bounds for ordered input, so capture
+and interaction remain aligned after the program moves. Session status keeps
+logical WebView dimensions for its entire lifetime; physical WGC dimensions live
+only in frame descriptors and never resize the local view implicitly.
+
+Logical hide is capability-scoped to a live HWND session. The source remains a
+near-transparent, non-activating compositor window so WGC continues receiving
+fresh frames; original placement, extended style, topmost state, and layered
+attributes are restored exactly. Cached child input targets are accepted only
+while their HWND remains in the selected source subtree and the target process
+passes the same-session/equal-integrity preflight; this supports legitimate
+cross-thread and helper-process controls without relaxing UIPI. If a deepest
+child becomes invalid, input falls back to the nearest valid ancestor instead of
+disabling the whole session. `SendMessageTimeoutW` provides bounded delivery.
+This does not emulate hardware input, secure desktop, or native minimization.
+
+`native/live_source_button.rs` tracks a bounded push-button gesture for WinForms
+controls whose ordinary mouse-up Click is suppressed by occlusion. Only an
+explicit, un-dragged release at the same validated, enabled control may complete
+the standard parent `BN_CLICKED` notification. Cleanup never runs this action.
+Ordinary discrete input delivery allows 250 ms for cold control handlers; move
+samples and cleanup releases retain their 50 ms bound. Unknown completion is not
+retried. Existing user/session, UIPI and child-HWND checks remain in force.
+
+Static rectangular region drags intentionally use the visible display composition
+to preserve every window that overlaps the selection. Live drags are program-first:
+a rectangle fully contained by one valid top-level window uses that HWND plus a
+fixed window-local crop; a rectangle spanning windows or desktop remains a screen
+region. Full-window double click and protected-window static composition keep their
+existing paths.
 
 The live protected-window probes are local-only ignored Rust tests. They accept
 any visible protected HWND through `HOOK_PROTECTED_WINDOW_HWND`; production code
@@ -227,9 +369,37 @@ transform.
 Package Arts are forwarded to Loom through `loom.hook.v1`. Hook does not maintain
 per-Art command executors in the frontend or Rust host.
 
+The extension lifecycle uses the native boot profile's `loomHookWsUrl`, including
+for reconnects, so custom bridge ports serve both Art and capability extensions.
+Disposing the App mount closes that connection and cancels its reconnect timer.
+The native context adds only that configured loopback WebSocket origin to
+`connect-src`. Other origins and ports, credentials, paths, and CSP directive
+injection cannot expand this grant; the static script/frame policies remain intact.
+
+`extensionOverlayVisibility.ts` owns cached OCR-context overlay presentation.
+Each attachment can retain a host-owned `overlayVisible` preference outside its
+capability payload. Toggling visibility preserves the result revision and digest;
+only a real result update goes through attachment CAS. The preference is persisted
+with the unit but is omitted from capability command inputs. A replacement renderer
+suppresses its source without changing that source's preference, and source identity
+guards continue rejecting translation after a real OCR or image refresh.
+
+Loom OCR blocks may carry additive `rawText` correction evidence,
+`lineGeometry`, and CTC-timestep-aligned `characterSpans`/`wordSpans`. Hook
+accepts only the named geometry sources, bounds list sizes and coordinates,
+requires span text to match the displayed non-translated row, and retains valid
+span extents as recognition evidence without replacing the detector row used for
+whole-line typography. CTC timesteps are not pixel-level glyph segmentation, so
+using their union as the presentation box can invent gaps or shrink a row.
+Estimated baselines are accepted only at a safe angle and only when the rotated
+text remains inside the screenshot frame. Missing, mismatched, or malformed
+geometry follows the axis-aligned line box path, preserving mixed-version
+Hook/Loom operation.
+
 ## 5. Capture and window targeting
 
-Capture starts from `Ctrl+1` or the tray. The native target enumerator excludes
+Static capture starts from `Ctrl+1` or the tray; live capture starts from `Ctrl+2`
+or its dedicated tray entry. The native target enumerator excludes
 desktop/taskbar/hidden/tool windows and returns visible client/window bounds. The
 frontend may highlight a hovered target; final capture revalidates the selected
 window instead of trusting an old hover rectangle.
@@ -291,6 +461,9 @@ transport files, logs, and caches do not use the visible naming templates.
 The public bundle identity and canonical automatic data root are
 `com.yamiyu.hook`. Tests and isolated launches can override the data root with
 `HOOK_APPDATA_DIR`; the runtime does not scan or migrate obsolete identities.
+Startup grants the WebView asset protocol access to image files directly inside
+that effective data root's `images` directory so persisted stickers can render
+after restart. The grant does not expose session/settings files or the whole data root.
 
 Phase 71 enforces the same canonical-only rule across the active Art boundary:
 current schemas, package layouts, and app-data identities are accepted;

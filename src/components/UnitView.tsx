@@ -36,9 +36,13 @@ import { createUnitNativeStickerDragController } from "./unitNativeStickerDragCo
 import { UnitStickerImageContent } from "./UnitStickerImageContent";
 import { UnitSurfaceContent } from "./UnitSurfaceContent";
 import { UnitSelectionBorder, UnitVisualOverlays } from "./UnitVisualOverlays";
+import { UnitEnhancementNotices } from "./UnitEnhancementNotices";
 import { createUnitPortRegistryController } from "./unitPortRegistryController";
 import { createUnitImageModel } from "./unitImageModel";
 import { createUnitSurfaceController } from "./unitSurfaceController";
+import { ExtensionUnitOverlayLayer } from "./ExtensionUnitOverlayLayer";
+import { UnitLiveCaptureInput } from "./UnitLiveCaptureInput";
+import { liveCaptureViews } from "../store/liveCaptureStore";
 
 // Editing panels are not needed for the normal canvas path. Their component
 // lifetimes were already conditional, so lazy loading preserves mount semantics.
@@ -77,6 +81,7 @@ interface Props {
   connectedPorts?: string[]; // List of connected INPUT ports
   connectedLinks?: Link[]; // NEW: Full Links for resolving upstream units
   portsLayer?: HTMLElement; // NEW: Global Layer for Z-independent ports
+  noticesLayer?: HTMLElement;
 }
 
 export const UnitView: Component<Props> = (props) => {
@@ -417,8 +422,27 @@ export const UnitView: Component<Props> = (props) => {
                 displaySrc={image.displaySrc()}
                 artErrorMessage={surface.artErrorMessage()}
             />
+            <ExtensionUnitOverlayLayer
+                unit={props.unit}
+                isMinified={isMinified()}
+                editorOwnsPointerInput={props.isSelected && activeStickerEditTargetId() === props.unit.id}
+                onActivate={activateUnit}
+            />
 
         </div>
+
+        <Show when={liveCaptureViews.some((view) => view.sessionId === props.unit.id)}>
+            <UnitLiveCaptureInput unit={props.unit} element={unitElement()} onMouseDown={props.onMouseDown} />
+        </Show>
+
+        <UnitEnhancementNotices
+            unitId={props.unit.id}
+            unitX={props.unit.x}
+            unitY={props.unit.y}
+            unitWidth={props.unit.w}
+            unitHeight={props.unit.h}
+            noticesLayer={props.noticesLayer}
+        />
 
         <Show when={!isMinified() && !isCleanView()}>
             <Show when={props.isSelected && activeStickerEditTargetId() === props.unit.id}>

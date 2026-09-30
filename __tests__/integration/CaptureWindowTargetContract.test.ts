@@ -27,16 +27,17 @@ describe("capture window target contract", () => {
     expect(libSource).toContain("fn get_capture_cursor_position(");
   });
 
-  it("loads targets before capture input activation and updates hover without requiring a pressed button", () => {
+  it("starts target discovery without blocking capture activation and updates hover without a pressed button", () => {
     const nativeActionSource = readSource("src/services/appNativeActionController.ts");
     const pointerListenerSource = readSource("src/services/appPointerListeners.ts");
     const selectionSource = readSource("src/hooks/useSelection.ts");
 
     const prepareIndex = nativeActionSource.indexOf("await dependencies.prepareCaptureWindowTargets(initialCapturePoint);");
-    const captureInputIndex = nativeActionSource.indexOf("await api.setCaptureInputActive(true);", prepareIndex);
+    const captureInputIndex = nativeActionSource.indexOf("await api.setCaptureInputActive(true);");
     expect(prepareIndex).toBeGreaterThan(-1);
     expect(nativeActionSource).toContain("api.getCaptureCursorPosition()");
-    expect(captureInputIndex).toBeGreaterThan(prepareIndex);
+    expect(nativeActionSource).toContain('runBackgroundTask("capture window target preparation"');
+    expect(captureInputIndex).toBeGreaterThan(-1);
     expect(pointerListenerSource).toContain("if (!isSelecting()) return;");
     expect(selectionSource).toContain("findCaptureWindowTargetAtPoint");
     expect(selectionSource).toContain("updateCaptureWindowHover(e.clientX, e.clientY)");
@@ -71,7 +72,7 @@ describe("capture window target contract", () => {
     expect(canvasSource).toContain("拖动可自由框选");
   });
 
-  it("uses HWND capture only for confirmed full-window clicks while region drags preserve visible stacking", () => {
+  it("keeps static region stacking while live drags retain a window-relative HWND anchor", () => {
     const selectionSource = readSource("src/hooks/useSelection.ts");
     const apiSource = readSource("src/services/apiCapture.ts");
     const typesSource = readSource("src/services/apiTypes.ts");
@@ -91,12 +92,10 @@ describe("capture window target contract", () => {
     expect(selectionSource).toContain(
       "captureWindowSurfaceTargetId = clickedCaptureWindowTarget.id;",
     );
-    expect(selectionSource).not.toContain(
-      "captureWindowSurfaceTargetId = draggedCaptureWindowTarget.id;",
-    );
-    expect(selectionSource).not.toContain(
-      "captureWindowSurfaceTargetId = centerTarget.id;",
-    );
+    expect(selectionSource).toContain('activeCaptureMode === "live"');
+    expect(selectionSource).toContain("findCaptureWindowTargetForRegion");
+    expect(selectionSource).toContain("captureWindowRegion = regionTarget.region;");
+    expect(selectionSource).toContain("windowRegion: captureWindowRegion");
     expect(apiSource).toContain("captureWindowId: options?.captureWindowId");
     expect(typesSource).toContain("captureWindowId?: string");
     expect(rustSource).toContain("capture_window_id: Option<String>");

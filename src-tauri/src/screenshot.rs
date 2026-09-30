@@ -11,6 +11,12 @@ mod hdr_analysis;
 #[cfg(target_os = "windows")]
 mod hdr_display;
 #[cfg(target_os = "windows")]
+mod live_capture;
+#[cfg(all(test, target_os = "windows"))]
+mod live_capture_tests;
+#[cfg(all(test, target_os = "windows"))]
+mod live_source_phase3_tests;
+#[cfg(target_os = "windows")]
 mod protected_region;
 #[cfg(target_os = "windows")]
 mod wgc_frame_policy;
@@ -30,6 +36,8 @@ pub use dispatch::{
 #[cfg(target_os = "windows")]
 pub use dwm_shared_surface::window_display_affinity;
 use image::RgbImage;
+#[cfg(target_os = "windows")]
+pub(crate) use live_capture::{live_shared_pool_count, spawn_live_capture_worker};
 #[cfg(target_os = "windows")]
 pub(crate) use protected_region::capture_region_with_protected_window;
 

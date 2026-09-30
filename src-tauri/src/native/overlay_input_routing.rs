@@ -11,6 +11,28 @@ fn is_sticker_body_synthetic_rect(rect: &mouse_monitor::Rect) -> bool {
 }
 
 #[cfg(target_os = "windows")]
+fn restore_sticker_body_cursor(rects: &[mouse_monitor::Rect], x: f64, y: f64) {
+    if !OVERLAY_MOUSE_HIT_MAP_ACTIVE.load(Ordering::SeqCst) {
+        return;
+    }
+    let over_sticker_body = rects.iter().any(|rect| {
+        is_sticker_body_synthetic_rect(rect) && rect.contains(x, y)
+    });
+    let over_overlay_ui = rects.iter().any(|rect| {
+        is_overlay_ui_synthetic_rect(rect) && rect.contains(x, y)
+    });
+    if !over_sticker_body || over_overlay_ui {
+        return;
+    }
+    if let Ok(cursor) = unsafe { LoadCursorW(None, IDC_ARROW) } {
+        let _ = unsafe { SetCursor(Some(cursor)) };
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn restore_sticker_body_cursor(_rects: &[mouse_monitor::Rect], _x: f64, _y: f64) {}
+
+#[cfg(target_os = "windows")]
 fn is_overlay_ui_synthetic_rect(rect: &mouse_monitor::Rect) -> bool {
     matches!(
         rect.name.as_str(),
@@ -140,6 +162,7 @@ fn refresh_overlay_interactivity_from_runtime_state(
     if let Some((cursor_x, cursor_y)) = current_cursor_position_physical() {
         let should_ignore = should_overlay_window_ignore_cursor_events(&rects, cursor_x, cursor_y);
         set_overlay_click_through_impl(window, should_ignore);
+        restore_sticker_body_cursor(&rects, cursor_x, cursor_y);
         append_runtime_log_line(&format!(
             "refresh_overlay_interactivity_runtime_state :: cursor_x={} cursor_y={} should_ignore={}",
             cursor_x, cursor_y, should_ignore

@@ -27,7 +27,7 @@ interface StickerAnnotationElementsProps {
 // Preserve the committed SVG z-order: erase traces, one highlighter wash, then
 // rank-sorted ordinary annotations. Selection and drafts remain parent-owned.
 export const StickerAnnotationElements: Component<StickerAnnotationElementsProps> = (props) => (
-    <>
+    <g style={{ "pointer-events": "none", cursor: "default" }}>
         <For each={props.contentEraseStrokes}>
             {(stroke) => (
                 <path
@@ -73,5 +73,5 @@ export const StickerAnnotationElements: Component<StickerAnnotationElementsProps
                 </g>
             )}
         </For>
-    </>
+    </g>
 );

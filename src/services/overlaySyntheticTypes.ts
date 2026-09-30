@@ -49,6 +49,8 @@ export interface OverlaySyntheticDispatcher {
     clearHover: () => void;
     reset: () => void;
     readonly moveRelayActive: boolean;
+    /** True while a shielded OCR span or textarea owns a drag-selection gesture. */
+    readonly textSelectionActive: boolean;
 }
 
 export const OVERLAY_SYNTHETIC_CLICK_MAX_DISTANCE = 4;

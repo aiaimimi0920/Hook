@@ -36,6 +36,10 @@ fn save_session(
     let next_revision = current_revision
         .checked_add(1)
         .ok_or_else(|| "SESSION_REVISION_EXHAUSTED Hook session revision overflow".to_string())?;
+    let prepared_ocr_migration = match existing_session.as_ref() {
+        Some(existing) => prepare_ocr_migration_backup(&app_dir, existing, &stickers)?,
+        None => false,
+    };
     let existing_archive_index = existing_session
         .map(|session| session.workflow_asset_archive_index)
         .unwrap_or_default();
@@ -78,6 +82,11 @@ fn save_session(
         workflow_asset_archive_index,
     };
     write_session_document_atomically(&session_file, &session_data)?;
+    if prepared_ocr_migration {
+        if let Err(error) = finalize_ocr_migration_backup(&app_dir, next_revision) {
+            console_line!("Warning: OCR migration journal remained prepared: {}", error);
+        }
+    }
 
     if let Err(error) =
         cleanup_unreferenced_session_image_assets(&images_dir, &session_data, SystemTime::now())

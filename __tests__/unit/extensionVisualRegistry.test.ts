@@ -1,0 +1,261 @@
+import { afterEach, describe, expect, it } from "vitest";
+
+import {
+    applyExtensionVisualSnapshot,
+    extensionVisualRegistry,
+} from "../../src/services/extensionVisualRegistry";
+import { parseContributionSnapshot } from "../../src/services/extensionProtocol";
+import type { UnitAttachment } from "../../src/types/unitExtension";
+import type { Unit } from "../../src/types/unit";
+import { unitExtensionVisuals } from "../../src/services/extensionVisualSources";
+
+const scene = {
+    id: "root",
+    type: "column",
+    children: [{
+        id: "copy",
+        type: "button",
+        props: { label: "Copy" },
+        events: { click: "publisher.example/demo.copy" },
+    }],
+};
+
+const contribution = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    pluginId: "publisher.example/demo",
+    scopeId: "scope-demo",
+    ...extra,
+});
+
+const snapshot = (overrideScene: unknown = scene) => parseContributionSnapshot({
+    protocol: "loom.extension.v1",
+    apiVersion: "1.0",
+    generation: 4,
+    plugins: [{
+        id: "publisher.example/demo",
+        version: "1.0.0",
+        packageDigest: "a".repeat(64),
+        trustStatus: "trusted",
+        permissionGrantDigest: "b".repeat(64),
+        scopeId: "scope-demo",
+    }],
+    contributions: {
+        commands: [contribution("publisher.example/demo.copy", {
+            commandId: "publisher.example/demo.copy",
+            title: "Copy",
+        })],
+        shortcuts: [], menus: [], settings: [],
+        dataTypes: [contribution("publisher.example/demo.result.v1")],
+        renderers: [contribution("publisher.example/demo.renderer", {
+            commandId: "publisher.example/demo.copy",
+            payload: {
+                schema: "renderer.v1",
+                payload: {
+                    typeId: "publisher.example/demo.result.v1",
+                    bounds: { x: 4, y: 6, width: 80, height: 28 },
+                    scene: overrideScene,
+                },
+            },
+        })],
+        unitOverlays: [contribution("publisher.example/demo.overlay", {
+            commandId: "publisher.example/demo.copy",
+            payload: {
+                schema: "unit-overlay.v1",
+                payload: {
+                    typeId: "publisher.example/demo.result.v1",
+                    bounds: { x: 0, y: 0, width: 100, height: 40 },
+                    scene,
+                },
+            },
+        })],
+        backgroundTasks: [], resourceProviders: [], diagnostics: [], eventSubscriptions: [],
+    },
+});
+
+const attachment: UnitAttachment = {
+    attachmentId: "publisher.example/demo.result",
+    typeId: "publisher.example/demo.result.v1",
+    schemaVersion: "1.0",
+    revision: 1,
+    pluginId: "publisher.example/demo",
+    pluginVersion: "1.0.0",
+    rendererId: "publisher.example/demo.renderer",
+    payload: { text: "hello" },
+    payloadDigest: "c".repeat(64),
+    resourceRefs: [],
+};
+
+describe("extension visual registry", () => {
+    afterEach(() => applyExtensionVisualSnapshot(null));
+
+    it("registers declared data types, bounded renderers, and interactive overlays", () => {
+        applyExtensionVisualSnapshot(snapshot());
+
+        expect(extensionVisualRegistry.attachmentAvailable(attachment)).toBe(true);
+        expect(extensionVisualRegistry.rendererFor(attachment)).toMatchObject({
+            id: "publisher.example/demo.renderer",
+            typeId: attachment.typeId,
+        });
+        expect(extensionVisualRegistry.overlaysFor(attachment)).toHaveLength(1);
+        expect(extensionVisualRegistry.rendererFor(attachment)?.scene?.children?.[0].events).toEqual({
+            click: "publisher.example/demo.copy",
+        });
+        expect(extensionVisualRegistry.diagnostics()).toEqual({
+            dataTypes: 1,
+            renderers: 1,
+            unitOverlays: 1,
+            rejectedContributions: 0,
+        });
+    });
+
+    it("rejects unsafe scene node types and atomically clears disconnected registrations", () => {
+        applyExtensionVisualSnapshot(snapshot({ id: "root", type: "html", props: { html: "<script>" } }));
+        expect(extensionVisualRegistry.rendererFor(attachment)).toBeUndefined();
+        expect(extensionVisualRegistry.diagnostics().rejectedContributions).toBe(1);
+
+        applyExtensionVisualSnapshot(null);
+        expect(extensionVisualRegistry.attachmentAvailable(attachment)).toBe(false);
+        expect(extensionVisualRegistry.diagnostics()).toEqual({
+            dataTypes: 0,
+            renderers: 0,
+            unitOverlays: 0,
+            rejectedContributions: 0,
+        });
+    });
+
+    it("sanitizes an attachment-owned scene instead of trusting persisted payload markup", () => {
+        const dynamic = snapshot({ id: "fallback", type: "text", props: { text: "Unavailable" } });
+        const renderer = dynamic.contributions.renderers[0]!;
+        const payload = renderer.payload as { payload: Record<string, unknown> };
+        payload.payload.attachmentScenePath = "/surfaceScene";
+        applyExtensionVisualSnapshot(dynamic);
+        const descriptor = extensionVisualRegistry.rendererFor(attachment)!;
+
+        expect(extensionVisualRegistry.sceneFor(descriptor, {
+            ...attachment,
+            payload: {
+                surfaceScene: {
+                    id: "copy-dynamic",
+                    type: "button",
+                    props: { label: "Copy", eventPayload: { blockIndex: 2 } },
+                    events: { click: "publisher.example/demo.copy", input: "process.launch" },
+                },
+            },
+        })).toMatchObject({
+            id: "copy-dynamic",
+            type: "button",
+            events: { click: "publisher.example/demo.copy" },
+        });
+
+        expect(extensionVisualRegistry.sceneFor(descriptor, {
+            ...attachment,
+            payload: { surfaceScene: { id: "unsafe", type: "html", props: { html: "<script>" } } },
+        })).toMatchObject({ id: "fallback", type: "text" });
+    });
+
+    it("preserves multiple same-command actions in a code-result popup", () => {
+        const dynamic = snapshot({ id: "fallback", type: "text", props: { text: "Unavailable" } });
+        const renderer = dynamic.contributions.renderers[0]!;
+        const payload = renderer.payload as { payload: Record<string, unknown> };
+        payload.payload.attachmentScenePath = "/surfaceScene";
+        applyExtensionVisualSnapshot(dynamic);
+        const descriptor = extensionVisualRegistry.rendererFor(attachment)!;
+        const action = (id: string, operation: string) => ({
+            id,
+            type: "button",
+            props: { label: operation, eventPayload: { operation, resultId: "code-1" } },
+            events: { click: "publisher.example/demo.copy" },
+        });
+
+        const codeScene = extensionVisualRegistry.sceneFor(descriptor, {
+            ...attachment,
+            payload: {
+                surfaceScene: {
+                    id: "codes",
+                    type: "stack",
+                    children: [
+                        action("center", "select"),
+                        {
+                            id: "popup",
+                            type: "column",
+                            children: [
+                                {
+                                    id: "code-editor",
+                                    type: "textarea",
+                                    props: { value: "https://example.com", rows: 3 },
+                                },
+                                action("copy-code", "copy"),
+                                action("open-code", "open"),
+                            ],
+                        },
+                    ],
+                },
+            },
+        });
+        expect(codeScene?.children?.[0].events?.click).toBe("publisher.example/demo.copy");
+        expect(codeScene?.children?.[1].children?.[0]).toMatchObject({
+            id: "code-editor",
+            type: "textarea",
+            props: { rows: 3 },
+        });
+        expect(codeScene?.children?.[1].children?.slice(1).map((node) => (
+            (node.props as { eventPayload: { operation: string } }).eventPayload.operation
+        ))).toEqual(["copy", "open"]);
+    });
+
+    it("keeps an OCR scene visible while a refreshed renderer snapshot is arriving", () => {
+        const ocrSnapshot = parseContributionSnapshot({
+            protocol: "loom.extension.v1",
+            apiVersion: "1.0",
+            generation: 8,
+            plugins: [{
+                id: "neuro.official/ocr",
+                version: "1.3.1",
+                packageDigest: "d".repeat(64),
+                trustStatus: "trusted",
+                permissionGrantDigest: "e".repeat(64),
+                scopeId: "scope-ocr",
+            }],
+            contributions: {
+                commands: [{
+                    id: "neuro.official/ocr.copy-block",
+                    pluginId: "neuro.official/ocr",
+                    scopeId: "scope-ocr",
+                    commandId: "neuro.official/ocr.copy-block",
+                }],
+                shortcuts: [], menus: [], settings: [],
+                dataTypes: [{
+                    id: "neuro.official/ocr.result.v1",
+                    pluginId: "neuro.official/ocr",
+                    scopeId: "scope-ocr",
+                }],
+                renderers: [], unitOverlays: [], backgroundTasks: [],
+                resourceProviders: [], diagnostics: [], eventSubscriptions: [],
+            },
+        });
+        applyExtensionVisualSnapshot(ocrSnapshot);
+        const ocrAttachment = {
+            attachmentId: "neuro.official/ocr.result",
+            typeId: "neuro.official/ocr.result.v1",
+            schemaVersion: "1",
+            revision: 1,
+            pluginId: "neuro.official/ocr",
+            pluginVersion: "1.3.1",
+            payload: {
+                fullText: "visible OCR",
+                surfaceScene: { id: "ocr-overlay-root", type: "stack", children: [] },
+            },
+            payloadDigest: "f".repeat(64),
+            resourceRefs: [],
+        } satisfies UnitAttachment;
+        const unit = {
+            id: "unit-ocr",
+            w: 640,
+            h: 480,
+            data: { extensionState: { schemaVersion: 1, revision: 1, attachments: [ocrAttachment] } },
+        } as unknown as Unit;
+
+        expect(unitExtensionVisuals(unit)).toHaveLength(1);
+        expect(unitExtensionVisuals(unit)[0]?.descriptor.typeId).toBe("neuro.official/ocr.result.v1");
+    });
+});

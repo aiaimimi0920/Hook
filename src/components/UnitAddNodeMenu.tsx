@@ -421,7 +421,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                         <div class="hook-add-art-header flex flex-shrink-0 items-center gap-1.5 border-b p-2">
                             <div class="relative min-w-0 flex-1">
                                 <input
-                                    ref={searchInputRef}
+                                    ref={(el) => { searchInputRef = el; }}
                                     data-add-art-search
                                     type="text"
                                     value={searchQuery()}
@@ -469,7 +469,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
 
                         <div class="relative flex flex-1 min-h-0 w-full">
                             <div
-                                ref={scrollContainerRef}
+                                ref={(el) => { scrollContainerRef = el; }}
                                 data-add-art-scroll-container
                                 class="hook-add-art-scroll-container flex-1 overflow-y-auto overflow-x-hidden bg-transparent p-2 pr-4"
                                 onScroll={syncScrollMetrics}
@@ -509,7 +509,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                                 </div>
                             </div>
                             <div
-                                ref={scrollTrackRef}
+                                ref={(el) => { scrollTrackRef = el; }}
                                 data-add-art-scrollbar-track
                                 class="param-scrollbar-track absolute bottom-2 right-1 top-2"
                                 style={{

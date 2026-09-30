@@ -25,9 +25,10 @@ export const calculatePortY = (
              if (ports) count = ports.length || 1;
          }
     } else {
-         // Stickers: Single Input/Output (Index 0)
-         index = 0;
-         count = 1;
+         const outputs = [{ name: "output_image" }];
+         const found = isInput ? 0 : outputs.findIndex((port) => port.name === portName);
+         index = found >= 0 ? found : 0;
+         count = isInput ? 1 : outputs.length;
     }
 
     // Formulae
