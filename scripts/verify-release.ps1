@@ -13,6 +13,7 @@ $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 . (Join-Path $PSScriptRoot "file-hash.ps1")
 . (Join-Path $PSScriptRoot "release\PathSafety.ps1")
 . (Join-Path $PSScriptRoot "release\Manifest.ps1")
+. (Join-Path $PSScriptRoot "release\ExtensionCompatibility.ps1")
 
 function Assert-ReleaseCondition {
     param([bool]$Condition, [string]$Message)
@@ -95,11 +96,23 @@ foreach ($file in $hashedFiles) {
 }
 
 $zipPath = Resolve-HookReleasePath -RootPath $releaseRoot -RelativePath "packages\$zipName"
+$compatibilityRecord = if ($null -ne $manifest.PSObject.Properties["extensionCompatibility"]) {
+    $manifest.extensionCompatibility
+} else { $null }
 $expectedZipEntries = @(
     "build-provenance.json", "hook.exe", "LICENSE.txt", "THIRD_PARTY_NOTICES.md",
     "third-party-licenses\CAP_SCAP_MIT.txt", "third-party-licenses\DRAG_APACHE-2.0.txt",
     "third-party-licenses\DRAG_MIT.txt"
 )
+if ($null -ne $compatibilityRecord) {
+    $expectedZipEntries += "extension-compatibility.json"
+    $compatibilityPath = Resolve-HookReleasePath -RootPath $releaseRoot -RelativePath ([string]$compatibilityRecord.path)
+    $compatibility = Read-HookExtensionCompatibility -Path $compatibilityPath
+    Assert-HookExtensionCompatibility -Document $compatibility -GitHead ([string]$manifest.gitHead) -ExecutablePath (Join-Path $releaseRoot "portable\hook.exe")
+    $compatibilityDigest = Get-HookReleaseDigest -Path $compatibilityPath
+    $embeddedCompatibilityDigest = Get-HookArchiveEntryDigest -ZipPath $zipPath -EntryName "extension-compatibility.json"
+    Assert-ReleaseCondition ($compatibilityDigest.bytes -eq $embeddedCompatibilityDigest.bytes -and $compatibilityDigest.sha256 -ceq $embeddedCompatibilityDigest.sha256) "Embedded extension compatibility evidence does not match the release record."
+}
 $zipEntries = @(Get-HookArchiveEntries -ZipPath $zipPath)
 Assert-ReleaseCondition (($zipEntries -join "`n") -ceq (($expectedZipEntries | Sort-Object) -join "`n")) "Hook portable ZIP payload is not exact."
 $portableExe = Resolve-HookReleasePath -RootPath $releaseRoot -RelativePath "portable\hook.exe"
@@ -107,6 +120,8 @@ $portableDigest = Get-HookReleaseDigest -Path $portableExe
 $zipExeDigest = Get-HookArchiveEntryDigest -ZipPath $zipPath -EntryName "hook.exe"
 Assert-ReleaseCondition ($portableDigest.bytes -eq $zipExeDigest.bytes -and $portableDigest.sha256 -ceq $zipExeDigest.sha256) "Packaged hook.exe does not match the verified portable executable."
 $embeddedProvenance = Read-HookArchiveEntryText -ZipPath $zipPath -EntryName "build-provenance.json" -MaxBytes 1MB | ConvertFrom-Json
+. (Join-Path $PSScriptRoot "version-identity.ps1")
+Assert-HookPublicBuildIdentity -Provenance $embeddedProvenance -ProductVersion $versionId.Substring(1)
 Assert-ReleaseCondition ([int]$embeddedProvenance.schemaVersion -eq 1 -and [string]$embeddedProvenance.app -eq "Hook") "Embedded Hook build provenance is unsupported."
 Assert-ReleaseCondition ([string]$embeddedProvenance.gitHead -ceq [string]$manifest.gitHead -and $embeddedProvenance.gitDirty -eq $false) "Embedded Hook build provenance does not match the formal source commit."
 Assert-ReleaseCondition ([string]$embeddedProvenance.productVersion -ceq $versionId.Substring(1)) "Embedded Hook build provenance has the wrong product version."
@@ -122,6 +137,10 @@ $provenance = Read-HookBoundedText -Path $provenancePath -MaxBytes 1MB | Convert
 Assert-ReleaseCondition ([string]$provenance.gitHead -ceq [string]$manifest.gitHead -and $provenance.gitDirty -eq $false) "Hook build provenance does not match the manifest."
 $subjects = @($provenance.subjects | Where-Object { [string]$_.name -ceq $zipName })
 Assert-ReleaseCondition ($subjects.Count -eq 1 -and [string]$subjects[0].sha256 -ceq $zipDigest.sha256 -and [int64]$subjects[0].bytes -eq $zipDigest.bytes) "Hook provenance subject does not match the portable ZIP."
+if ($null -ne $compatibilityRecord) {
+    $compatibilitySubjects = @($provenance.subjects | Where-Object { [string]$_.name -ceq "extension-compatibility.json" })
+    Assert-ReleaseCondition ($compatibilitySubjects.Count -eq 1 -and [string]$compatibilitySubjects[0].sha256 -ceq [string]$compatibilityRecord.sha256 -and [int64]$compatibilitySubjects[0].bytes -eq [int64]$compatibilityRecord.bytes) "Hook provenance does not cover extension compatibility evidence."
+}
 
 $cyclone = Read-HookBoundedText -Path (Join-Path $releaseRoot "sbom\Hook-$versionId.cdx.json") -MaxBytes 16MB | ConvertFrom-Json
 $spdx = Read-HookBoundedText -Path (Join-Path $releaseRoot "sbom\Hook-$versionId.spdx.json") -MaxBytes 16MB | ConvertFrom-Json

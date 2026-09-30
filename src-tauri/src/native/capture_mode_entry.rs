@@ -18,6 +18,24 @@ fn enter_capture_mode(window: &tauri::WebviewWindow) {
     }
 }
 
+fn enter_live_capture_mode(window: &tauri::WebviewWindow) {
+    append_runtime_log_line("enter_live_capture_mode");
+    if !try_begin_capture_input_runtime() {
+        append_runtime_log_line("enter_live_capture_mode_ignored_active");
+        return;
+    }
+    show_overlay_host_impl(window, true);
+
+    if let Err(error) = window.emit("trigger-live-capture", ()) {
+        append_runtime_log_line(&format!(
+            "enter_live_capture_mode emit_failed :: {error}"
+        ));
+        set_capture_input_runtime_active(false);
+    } else {
+        append_runtime_log_line("enter_live_capture_mode emitted_trigger_live_capture");
+    }
+}
+
 fn enter_long_capture_mode(window: &tauri::WebviewWindow) {
     append_runtime_log_line("enter_long_capture_mode");
     if !try_begin_capture_input_runtime() {

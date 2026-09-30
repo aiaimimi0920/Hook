@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { renderStickerTransparentAnnotationLayer } from "../../src/services/stickerExport";
+import {
+    renderStickerComposite,
+    renderStickerTransparentAnnotationLayer,
+} from "../../src/services/stickerExport";
 import type { Unit } from "../../src/types/unit";
 
 // Brush-stroke mosaic/blur: the effect stores stroke points + a brush width and a
@@ -58,6 +61,7 @@ describe("sticker effect export rasterization", () => {
         const context = {
             save: () => calls.push(["save"]),
             restore: () => calls.push(["restore"]),
+            scale: (...args: number[]) => calls.push(["scale", ...args]),
             beginPath: () => calls.push(["beginPath"]),
             rect: (...args: number[]) => calls.push(["rect", ...args]),
             clip: () => calls.push(["clip"]),
@@ -112,17 +116,19 @@ describe("sticker effect export rasterization", () => {
             },
         } satisfies Partial<CanvasRenderingContext2D>;
 
-        const canvas = {
-            width: 0,
-            height: 0,
-            // Cast for the same reason as `createImageData`: only the "2d" overload is stubbed.
-            getContext: (() => context) as unknown as HTMLCanvasElement["getContext"],
-            toDataURL: () => "data:image/png;base64,LAYER",
-        } satisfies Partial<HTMLCanvasElement>;
+        const canvases: Array<{ width: number; height: number }> = [];
 
         vi.stubGlobal("document", {
             createElement: (tagName: string) => {
                 expect(tagName).toBe("canvas");
+                const canvas = {
+                    width: 0,
+                    height: 0,
+                    // Cast for the same reason as `createImageData`: only the "2d" overload is stubbed.
+                    getContext: (() => context) as unknown as HTMLCanvasElement["getContext"],
+                    toDataURL: () => "data:image/png;base64,LAYER",
+                } satisfies Partial<HTMLCanvasElement>;
+                canvases.push(canvas);
                 return canvas;
             },
         });
@@ -140,11 +146,11 @@ describe("sticker effect export rasterization", () => {
         }
         vi.stubGlobal("Image", FakeImage);
 
-        return calls;
+        return { calls, canvases };
     };
 
     it("paints a non-repeating mosaic grid, masks it to the stroke, and composites at the box origin", async () => {
-        const calls = installCanvas();
+        const { calls } = installCanvas();
 
         await renderStickerTransparentAnnotationLayer(makeEffectUnit("mosaic"), ["mosaic-1"]);
 
@@ -165,7 +171,7 @@ describe("sticker effect export rasterization", () => {
     });
 
     it("blurs source pixels, keeps the overlay tint, masks the stroke, and drops the border", async () => {
-        const calls = installCanvas();
+        const { calls } = installCanvas();
 
         await renderStickerTransparentAnnotationLayer(makeEffectUnit("blur"), ["blur-1"]);
 
@@ -190,4 +196,34 @@ describe("sticker effect export rasterization", () => {
             "Invalid canvas dimension: effect width",
         );
     });
+
+    it.each(["mosaic", "blur"] as const)(
+        "allocates %s effect layers at source resolution when the sticker frame is smaller",
+        async (type) => {
+            const { canvases } = installCanvas();
+            const unit = makeEffectUnit(type);
+            unit.w = 100;
+            unit.h = 60;
+
+            await renderStickerTransparentAnnotationLayer(unit, [`${type}-1`]);
+
+            expect(canvases[0]).toMatchObject({ width: 200, height: 120 });
+            expect(canvases[1]).toMatchObject({ width: 100, height: 40 });
+        },
+    );
+
+    it.each(["mosaic", "blur"] as const)(
+        "keeps %s composite export at source resolution instead of CSS frame size",
+        async (type) => {
+            const { canvases } = installCanvas();
+            const unit = makeEffectUnit(type);
+            unit.w = 100;
+            unit.h = 60;
+
+            await renderStickerComposite(unit);
+
+            expect(canvases[0]).toMatchObject({ width: 200, height: 120 });
+            expect(canvases[1]).toMatchObject({ width: 100, height: 40 });
+        },
+    );
 });

@@ -86,8 +86,9 @@ fn tauri_shortcut_from_chord(chord: &shortcut_config::Chord) -> Option<Shortcut>
 }
 
 fn configured_global_action_for_shortcut(shortcut: &Shortcut) -> Option<&'static str> {
-    ["capture", "long_capture", "toggle_sticker_toolbar"]
-        .into_iter()
+    shortcut_config::GLOBAL_SHORTCUT_ACTIONS
+        .iter()
+        .copied()
         .find(|action| {
             shortcut_config::chords_for_action(action)
                 .iter()
@@ -100,6 +101,9 @@ fn configured_global_shortcut_is_registered(
     vk_code: u32,
     modifiers: shortcut_config::Modifiers,
 ) -> bool {
+    if extension_global_shortcut_is_registered(vk_code, modifiers) {
+        return true;
+    }
     let Some(action) = shortcut_config::global_action(vk_code, modifiers) else {
         return false;
     };
@@ -124,8 +128,9 @@ fn configured_global_shortcut_is_registered(
 }
 
 fn refresh_configured_global_shortcuts(app: &tauri::AppHandle) -> Result<(), String> {
-    let mut desired = ["capture", "long_capture", "toggle_sticker_toolbar"]
-        .into_iter()
+    let mut desired = shortcut_config::GLOBAL_SHORTCUT_ACTIONS
+        .iter()
+        .copied()
         .flat_map(shortcut_config::chords_for_action)
         .filter_map(|chord| tauri_shortcut_from_chord(&chord))
         .collect::<Vec<_>>();

@@ -29,6 +29,7 @@ interface CanvasUnitsProps {
 
     resolveUnitImage: (id: string) => string | undefined;
     portsLayerRef: HTMLDivElement | undefined;
+    noticesLayerRef?: HTMLDivElement;
 }
 
 export const CanvasUnits: Component<CanvasUnitsProps> = (props) => {
@@ -71,6 +72,7 @@ export const CanvasUnits: Component<CanvasUnitsProps> = (props) => {
 
               // Setup
               portsLayer={props.portsLayerRef}
+              noticesLayer={props.noticesLayerRef}
 
               // Events
               onMouseDown={(e) => props.onStartDrag(e, u.id)}

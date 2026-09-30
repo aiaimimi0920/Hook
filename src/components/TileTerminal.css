@@ -1,0 +1,20 @@
+.tile-control { height: 100vh; overflow: auto; padding: 24px; box-sizing: border-box; background: var(--neuro-bg); color: var(--theme-text); font: 14px/1.6 system-ui, sans-serif; }
+.tile-control h1 { font-size: 20px; margin: 0; }
+.tile-control header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.tile-control p { margin: 12px 0; }
+.tile-control button { border: 1px solid var(--theme-border); background: var(--theme-control); color: var(--theme-text); padding: 8px 12px; cursor: pointer; }
+.tile-control button:hover { background: var(--theme-control-hover); }
+.tile-control button:focus-visible { outline: 2px solid var(--theme-signal); outline-offset: 2px; }
+.tile-control button:disabled { opacity: 0.6; cursor: default; }
+.tile-media-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.tile-media-choice select { padding: 8px 12px; border: 1px solid var(--theme-border); color: var(--theme-text); background: var(--theme-control); }
+.tile-media-choice select:focus-visible { outline: 2px solid var(--theme-signal); outline-offset: 2px; }
+.tile-control .tile-error { color: var(--theme-danger-text); overflow-wrap: anywhere; }
+.tile-output-row { display: grid; gap: 8px; border-top: 1px solid var(--theme-border); padding: 16px 0; }
+.tile-output-row code { color: var(--theme-text-muted); overflow-wrap: anywhere; }
+.tile-output-row button { justify-self: start; }
+.tile-output { position: fixed; inset: 0; overflow: hidden; background: #000; }
+.tile-output canvas { width: 100%; height: 100%; display: block; }
+.tile-output-reason { position: absolute; inset: 0; margin: 0; display: grid; place-content: center; padding: 20px; overflow-wrap: anywhere; background: var(--neuro-bg); color: var(--theme-text); font: 16px/1.6 system-ui, sans-serif; }
+/* Authority feedback must not cover the content or steal the canvas pointer. */
+.tile-input-status { position: absolute; top: 12px; left: 12px; max-width: calc(100% - 48px); margin: 0; padding: 6px 10px; pointer-events: none; overflow-wrap: anywhere; background: var(--neuro-bg); border: 1px solid var(--theme-border); color: var(--theme-signal); font: 14px/1.5 system-ui, sans-serif; }

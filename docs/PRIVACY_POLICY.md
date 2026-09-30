@@ -48,6 +48,13 @@ services, for example:
 When those optional integrations are used, the data sent depends on the feature
 that the user triggers and the service endpoint that is configured.
 
+Live collaboration remains usable against a local/private Loom without a cloud
+account. The current build does not configure a Cloud Relay or TURN/SFU provider
+and does not persist live frame bytes or OCR source text in a cloud service.
+Its local network capability report contains no device token, pairing secret, or
+proxy credential. Runtime and panic logs apply bounded credential and URL-query
+redaction before writing diagnostics.
+
 ## What Hook does not do by default
 
 Hook does not claim a built-in cloud-sync account system for ordinary screenshot

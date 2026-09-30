@@ -152,8 +152,13 @@ pub(super) fn is_pending_device_approval(status: u16, body: &str) -> bool {
 }
 
 pub(super) fn surface_client(base_url: &str) -> Result<reqwest::Client, String> {
-    crate::network_proxy::shared_client(base_url, Some(Duration::from_secs(10)))
-        .map_err(|error| format!("build Hook device session client: {error}"))
+    crate::network_proxy::shared_client_with(
+        base_url,
+        Some(Duration::from_secs(10)),
+        "device-session",
+        |builder| builder.redirect(reqwest::redirect::Policy::none()),
+    )
+    .map_err(|error| format!("build Hook device session client: {error}"))
 }
 
 pub(super) async fn read_surface_response_body(

@@ -37,6 +37,7 @@ import {
 } from "../services/historyModel";
 import { api } from "../services/api";
 import { applyStickerToolSettingsPatch } from "../services/toolSettings";
+import { appendEnhancementNotice, normalizeEnhancementNotice, removeEnhancementNotice, removeEnhancementNoticesByFeature, type EnhancementNotice, type EnhancementNoticeFeature, type EnhancementNoticeInput } from "../services/enhancementNoticeQueue";
 
 // Global Selection State
 export const [selectedStickerId, setSelectedStickerId] = createSignal<string | null>(null);
@@ -95,7 +96,7 @@ export type MultiDragPositionMap = Record<string, MultiDragPosition>;
 export const [multiDragPositions, setMultiDragPositions] = createSignal<MultiDragPositionMap | null>(null);
 // Capture Mode (Screenshot)
 export const [isSelecting, setIsSelecting] = createSignal(false);
-export const [captureMode, setCaptureMode] = createSignal<"region" | "long-vertical">("region");
+export const [captureMode, setCaptureMode] = createSignal<"region" | "long-vertical" | "live">("region");
 export const [longCaptureSession, setLongCaptureSession] = createSignal<{
     active: boolean;
     rect: CaptureRect;
@@ -173,15 +174,7 @@ export const [globalAddNodeMenu, setGlobalAddNodeMenu] = createSignal<{
     y: 0,
 });
 
-export type EnhancementNoticeFeature = "OCR" | "Translation" | "Loom";
-
-export interface EnhancementNotice {
-    feature: EnhancementNoticeFeature;
-    title: string;
-    message: string;
-}
-
-export const [enhancementNotices, setEnhancementNotices] = createStore<Record<string, EnhancementNotice | undefined>>({});
+export const [enhancementNotices, setEnhancementNotices] = createStore<Record<string, EnhancementNotice[] | undefined>>({});
 
 // Unit-Specific UI State (e.g. Panels open/close)
 // Key: Unit ID
@@ -300,11 +293,19 @@ export const uiActions = {
             }));
         });
     },
-    showEnhancementNotice: (unitId: string, notice: EnhancementNotice) => {
-        setEnhancementNotices(unitId, notice);
+    showEnhancementNotice: (unitId: string, notice: EnhancementNoticeInput | EnhancementNotice) => {
+        const nextNotice = normalizeEnhancementNotice(notice);
+        setEnhancementNotices(unitId, (current) => appendEnhancementNotice(current, nextNotice));
     },
-    dismissEnhancementNotice: (unitId: string) => {
-        setEnhancementNotices(unitId, undefined);
+    dismissEnhancementNotice: (unitId: string, noticeId?: number) => {
+        if (noticeId === undefined) {
+            setEnhancementNotices(unitId, undefined);
+            return;
+        }
+        setEnhancementNotices(unitId, (current) => removeEnhancementNotice(current, noticeId));
+    },
+    dismissEnhancementNoticesByFeature: (unitId: string, feature: EnhancementNoticeFeature) => {
+        setEnhancementNotices(unitId, (current) => removeEnhancementNoticesByFeature(current, feature));
     },
     clearUnitUiState: (unitId: string) => {
         setUnitUiState(unitId, undefined!);

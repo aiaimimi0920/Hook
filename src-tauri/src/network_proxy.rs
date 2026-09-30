@@ -210,6 +210,26 @@ pub fn shared_client(endpoint: &str, timeout: Option<Duration>) -> Result<Client
     shared_client_with(endpoint, timeout, "default", |builder| builder)
 }
 
+pub fn blocking_client(
+    endpoint: &str,
+    timeout: Option<Duration>,
+) -> Result<reqwest::blocking::Client, reqwest::Error> {
+    let mut builder = reqwest::blocking::Client::builder();
+    if endpoint_is_loopback(endpoint) {
+        builder = builder.no_proxy();
+    } else {
+        builder = match runtime_proxy() {
+            RuntimeProxy::System => builder,
+            RuntimeProxy::Disabled => builder.no_proxy(),
+            RuntimeProxy::Custom(url) => builder.proxy(reqwest::Proxy::all(url)?),
+        };
+    }
+    if let Some(timeout) = timeout {
+        builder = builder.timeout(timeout);
+    }
+    builder.build()
+}
+
 /// [`shared_client`] for call sites that need extra builder options. `flavor` names the
 /// customization and is part of the cache key, so two different customizations never share
 /// a client; it must be a distinct constant per call site.

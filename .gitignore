@@ -5,6 +5,7 @@ dist
 .runtime
 .tmp/
 artifacts/
+/output/
 /release/
 .memsearch/
 .playwright-cli/
@@ -12,6 +13,7 @@ artifacts/
 tmp-*
 tmp/
 src-tauri/target
+/target/
 src-tauri/crates/*/target/
 src-tauri/target-codex-verify
 src-tauri/target-test-sync

@@ -141,7 +141,7 @@ const executeSyncCycle = async () => {
         const bakedPreviewSrc = await renderStickerCompositeWithAnnotations(
             bakedUnit,
             unit.data.annotationState?.elements || [],
-            { baseImageSrcOverride },
+            { baseImageSrcOverride, outputMode: "source-resolution" },
         );
         if (
             isSyncImageCacheTokenCurrent(unit.id, cacheToken) &&
@@ -429,6 +429,7 @@ const scheduler = new SyncScheduler(executeSyncCycle);
 
 
 export const syncService = {
+    persistPendingChanges: () => scheduler.scheduleAndWait(),
     updateBackendRects: requestBackendRectSync,
 
     restoreSession: async (

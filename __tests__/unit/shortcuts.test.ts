@@ -66,11 +66,35 @@ describe("ShortcutManager Hook shortcuts", () => {
         shell.contentEditable = "true";
         const editableChild = document.createElement("span");
         shell.append(editableChild);
+        const liveControl = document.createElement("div");
+        liveControl.dataset.hookGlobalShortcuts = "ignore";
+        const liveControlChild = document.createElement("span");
+        liveControl.append(liveControlChild);
 
         expect(shouldIgnoreGlobalShortcut(input, "Tab")).toBe(true);
         expect(shouldIgnoreGlobalShortcut(textarea, "a")).toBe(true);
         expect(shouldIgnoreGlobalShortcut(select, "Delete")).toBe(true);
         expect(shouldIgnoreGlobalShortcut(editableChild, "Escape")).toBe(true);
+        expect(shouldIgnoreGlobalShortcut(liveControlChild, "Delete")).toBe(true);
+    });
+
+    it("preserves native Ctrl+C for a selected declarative text substring", () => {
+        const span = document.createElement("span");
+        span.dataset.surfaceSelectableText = "true";
+        span.textContent = "copy only this";
+        document.body.append(span);
+        const range = document.createRange();
+        range.setStart(span.firstChild!, 0);
+        range.setEnd(span.firstChild!, 4);
+        document.getSelection()?.removeAllRanges();
+        document.getSelection()?.addRange(range);
+
+        expect(shouldIgnoreGlobalShortcut(document.body, "c", true)).toBe(true);
+        expect(shouldIgnoreGlobalShortcut(document.body, "c")).toBe(false);
+        expect(shouldIgnoreGlobalShortcut(document.body, "v")).toBe(false);
+
+        document.getSelection()?.removeAllRanges();
+        span.remove();
     });
 
     it("lets a focused editor consume Escape before selected-unit deletion", () => {

@@ -9,6 +9,7 @@ import { renderStickerComposite } from "../services/stickerExport";
 import { captureStickerEditSnapshot } from "../services/stickerHistory";
 import { duplicateAnnotationById } from "../services/stickerAnnotationMutations";
 import { buildUnitFileNamingContext } from "../services/fileNaming";
+import { commitLiveCaptureUnitFrame, prepareLiveCaptureUnitSnapshot } from "../services/liveCaptureUnit";
 
 
 export function useClipboard() {
@@ -19,6 +20,14 @@ export function useClipboard() {
         const mp = mousePos();
 
         if (id) {
+            try {
+                const pendingSnapshot = prepareLiveCaptureUnitSnapshot(id);
+                if (pendingSnapshot) await pendingSnapshot;
+            } catch (error) {
+                console.error("Live clipboard snapshot failed", error);
+                return;
+            }
+            commitLiveCaptureUnitFrame(id);
             const unit = graphStore.units.find(u => u.id === id);
             if (unit && unit.type === 'sticker') {
                 if (annotationId && unit.data.annotationState) {
@@ -80,7 +89,8 @@ export function useClipboard() {
                 logger.debug("Copied to internal clipboard");
 
                 try {
-                    const exportBase64 = await renderStickerComposite(unit);
+                    // Internal and system clipboards must describe the same snapshot.
+                    const exportBase64 = await renderStickerComposite(unit, { liveSnapshotPrepared: true });
                     if (s.data.src) {
                         const path = await api.copyStickerImageToSmartClipboard(
                             exportBase64,
@@ -178,6 +188,7 @@ export function useClipboard() {
     const handleSave = async () => {
         const id = selectedStickerId();
         if (!id) return;
+        commitLiveCaptureUnitFrame(id);
         const unit = graphStore.units.find((candidate) => candidate.id === id);
         if (!unit || unit.type !== "sticker") return;
 

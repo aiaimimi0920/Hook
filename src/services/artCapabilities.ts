@@ -35,16 +35,6 @@ export const surfacePackageManifest = (
     capability: Pick<ArtCapability, "metadata"> | undefined,
 ): SurfacePackageManifest | undefined => capabilityMetadata(capability)?.surface;
 
-export const supportsDeclarativeSurface = (
-    capability: Pick<ArtCapability, "metadata"> | undefined,
-): boolean => {
-    const surface = surfacePackageManifest(capability);
-    return !!surface && (
-        surface.variants.some((variant) => variant.runtime === "declarative") ||
-        typeof surface.fallbackScene === "string"
-    );
-};
-
 export const supportsSurface = (
     capability: Pick<ArtCapability, "metadata"> | undefined,
 ): boolean => {

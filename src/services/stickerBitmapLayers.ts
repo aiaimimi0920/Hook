@@ -3,6 +3,16 @@ import { drawStrokePath, loadImage } from "./stickerCanvas";
 
 type StickerBitmapSize = { w: number; h: number };
 type FlipAxis = "x" | "y";
+
+const resolveImageSize = (image: HTMLImageElement, fallback: StickerBitmapSize): StickerBitmapSize => ({
+    w: Math.max(1, Math.round(image.naturalWidth || image.width || fallback.w)),
+    h: Math.max(1, Math.round(image.naturalHeight || image.height || fallback.h)),
+});
+
+const resolveCoordinateScale = (sourceSize: StickerBitmapSize, logicalSize: StickerBitmapSize) => ({
+    x: sourceSize.w / Math.max(1, logicalSize.w),
+    y: sourceSize.h / Math.max(1, logicalSize.h),
+});
 export type LiveStickerEraseMode = "annotations" | "content";
 
 const createCanvas = (size: StickerBitmapSize) => {
@@ -20,9 +30,13 @@ const eraseStrokePathToTransparency = (
     context: CanvasRenderingContext2D,
     points: StickerPoint[],
     width: number,
+    coordinateScale: { x: number; y: number } = { x: 1, y: 1 },
 ) => {
     context.save();
     context.globalCompositeOperation = "destination-out";
+    if (coordinateScale.x !== 1 || coordinateScale.y !== 1) {
+        context.scale(coordinateScale.x, coordinateScale.y);
+    }
     drawStrokePath(context, points, {
         color: "#000000",
         width,
@@ -62,6 +76,7 @@ export class LiveStickerEraseSession {
         private readonly baseContext: CanvasRenderingContext2D,
         private readonly annotationCanvas: HTMLCanvasElement | null,
         private readonly annotationContext: CanvasRenderingContext2D | null,
+        private readonly coordinateScale: { x: number; y: number },
         readonly previewCanvas: HTMLCanvasElement,
         private readonly previewContext: CanvasRenderingContext2D,
     ) {}
@@ -83,10 +98,20 @@ export class LiveStickerEraseSession {
             const points = this.pendingPoints;
             this.pendingPoints = [];
             if (this.mode === "content") {
-                eraseStrokePathToTransparency(this.baseContext, points, this.pendingWidth);
+                eraseStrokePathToTransparency(
+                    this.baseContext,
+                    points,
+                    this.pendingWidth,
+                    this.coordinateScale,
+                );
             }
             if (this.annotationContext) {
-                eraseStrokePathToTransparency(this.annotationContext, points, this.pendingWidth);
+                eraseStrokePathToTransparency(
+                    this.annotationContext,
+                    points,
+                    this.pendingWidth,
+                    this.coordinateScale,
+                );
             }
         }
 
@@ -142,13 +167,15 @@ export const createLiveStickerEraseSession = async (params: {
     size: StickerBitmapSize;
     previewCanvas: HTMLCanvasElement;
 }) => {
-    const baseLayer = createCanvas(params.size);
     const baseImage = await loadImage(params.baseLayerSrc);
+    const sourceSize = resolveImageSize(baseImage, params.size);
+    const coordinateScale = resolveCoordinateScale(sourceSize, params.size);
+    const baseLayer = createCanvas(sourceSize);
     baseLayer.context.drawImage(baseImage, 0, 0, baseLayer.canvas.width, baseLayer.canvas.height);
 
     let annotationLayer: ReturnType<typeof createCanvas> | null = null;
     if (params.rasterizedAnnotationLayerSrc) {
-        annotationLayer = createCanvas(params.size);
+        annotationLayer = createCanvas(sourceSize);
         const annotationImage = await loadImage(params.rasterizedAnnotationLayerSrc);
         annotationLayer.context.drawImage(
             annotationImage,
@@ -173,6 +200,7 @@ export const createLiveStickerEraseSession = async (params: {
         baseLayer.context,
         annotationLayer?.canvas ?? null,
         annotationLayer?.context ?? null,
+        coordinateScale,
         params.previewCanvas,
         previewContext,
     );
@@ -186,10 +214,7 @@ export const composeRasterizedStickerPreview = async (
     size?: StickerBitmapSize,
 ) => {
     const baseImage = await loadImage(baseLayerSrc);
-    const targetSize = size || {
-        w: baseImage.naturalWidth || baseImage.width,
-        h: baseImage.naturalHeight || baseImage.height,
-    };
+    const targetSize = size || resolveImageSize(baseImage, { w: 1, h: 1 });
     const { canvas, context } = createCanvas(targetSize);
     context.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
 
@@ -207,11 +232,13 @@ export const eraseRasterizedAnnotationLayer = async (params: {
     points: StickerPoint[];
     width: number;
 }) => {
-    const { canvas, context } = createCanvas(params.size);
     const annotationLayer = await loadImage(params.rasterizedAnnotationLayerSrc);
+    const sourceSize = resolveImageSize(annotationLayer, params.size);
+    const coordinateScale = resolveCoordinateScale(sourceSize, params.size);
+    const { canvas, context } = createCanvas(sourceSize);
     context.drawImage(annotationLayer, 0, 0, canvas.width, canvas.height);
 
-    eraseStrokePathToTransparency(context, params.points, params.width);
+    eraseStrokePathToTransparency(context, params.points, params.width, coordinateScale);
 
     return canvas.toDataURL("image/png");
 };
@@ -243,10 +270,17 @@ export const applyContentEraseToBaseLayer = async (params: {
     size: StickerBitmapSize;
     stroke: Pick<ContentEraserStroke, "points" | "width">;
 }) => {
-    const { canvas, context } = createCanvas(params.size);
     const baseImage = await loadImage(params.baseLayerSrc);
+    const sourceSize = resolveImageSize(baseImage, params.size);
+    const coordinateScale = resolveCoordinateScale(sourceSize, params.size);
+    const { canvas, context } = createCanvas(sourceSize);
     context.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
-    eraseStrokePathToTransparency(context, params.stroke.points, params.stroke.width);
+    eraseStrokePathToTransparency(
+        context,
+        params.stroke.points,
+        params.stroke.width,
+        coordinateScale,
+    );
     return canvas.toDataURL("image/png");
 };
 
@@ -271,11 +305,7 @@ export const applyLiveContentEraseToStickerLayers = async (params: {
           })
         : undefined;
 
-    const previewSrc = await composeRasterizedStickerPreview(
-        baseLayerSrc,
-        rasterizedAnnotationLayerSrc,
-        params.size,
-    );
+    const previewSrc = await composeRasterizedStickerPreview(baseLayerSrc, rasterizedAnnotationLayerSrc);
 
     return {
         baseLayerSrc,
@@ -302,11 +332,7 @@ export const applyRasterizedContentErase = async (params: {
         points: params.stroke.points,
         width: params.stroke.width,
     });
-    const previewSrc = await composeRasterizedStickerPreview(
-        baseLayerSrc,
-        rasterizedAnnotationLayerSrc,
-        params.size,
-    );
+    const previewSrc = await composeRasterizedStickerPreview(baseLayerSrc, rasterizedAnnotationLayerSrc);
 
     return {
         baseLayerSrc,
