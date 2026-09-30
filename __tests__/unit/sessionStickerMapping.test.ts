@@ -250,6 +250,27 @@ describe("mapSessionStickerToUnit", () => {
                 groupId: "grp",
                 originWorkflowId: "wf",
                 originNodeId: "node",
+                ocrResult: {
+                    fullText: "persist me",
+                    textBlocks: [],
+                    width: 20,
+                    height: 10,
+                },
+                extensionState: {
+                    schemaVersion: 1,
+                    revision: 2,
+                    attachments: [{
+                        attachmentId: "publisher.example/demo.result",
+                        typeId: "publisher.example/demo.result.v1",
+                        schemaVersion: "1.0",
+                        revision: 1,
+                        pluginId: "publisher.example/demo",
+                        pluginVersion: "1.2.3",
+                        payload: { text: "safe" },
+                        payloadDigest: "a".repeat(64),
+                        resourceRefs: [],
+                    }],
+                },
                 stickerEditPropagation: {
                     acceptUpstream: true,
                     locallyEdited: false,
@@ -281,6 +302,17 @@ describe("mapSessionStickerToUnit", () => {
         expect(back.data.groupId).toBe("grp");
         expect(back.data.originWorkflowId).toBe("wf");
         expect(back.data.originNodeId).toBe("node");
+        expect(back.data.ocrResult).toBeUndefined();
+        expect(back.data.extensionState?.revision).toBe(3);
+        expect(back.data.extensionState?.attachments[0]).toEqual(unit.data.extensionState?.attachments[0]);
+        expect(back.data.extensionState?.attachments[1]).toMatchObject({
+            attachmentId: "neuro.official/ocr.result",
+            typeId: "neuro.official/ocr.result.v1",
+            pluginId: "neuro.official/ocr",
+        });
+        const contracted = mapUnitToSessionSticker(back);
+        expect(contracted.ocrResult).toBeNull();
+        expect(contracted.extensionState?.attachments).toHaveLength(2);
         expect(back.data.stickerEditPropagation).toEqual(unit.data.stickerEditPropagation);
         expect(back.data.executionConfig).toEqual(unit.data.executionConfig);
     });
@@ -288,6 +320,34 @@ describe("mapSessionStickerToUnit", () => {
     it("11. preserves an empty-string src (the save side's missing-src sentinel)", () => {
         const unit = mapSessionStickerToUnit({ id: "z", x: 0, y: 0, w: 1, h: 1, src: "" }, noCaps);
         expect(unit.data.src).toBe("");
+    });
+
+    it("12. drops an over-budget persisted extension state before rendering", () => {
+        const extensionState = {
+            schemaVersion: 1 as const,
+            revision: 1,
+            attachments: Array.from({ length: 65 }, (_, index) => ({
+                attachmentId: `publisher.example/demo.result-${index}`,
+                typeId: "publisher.example/demo.result.v1",
+                schemaVersion: "1.0",
+                revision: 1,
+                pluginId: "publisher.example/demo",
+                pluginVersion: "1.0.0",
+                payload: { ok: true },
+                payloadDigest: "c".repeat(64),
+                resourceRefs: [],
+            })),
+        };
+        const unit = mapSessionStickerToUnit({
+            id: "unsafe-extension",
+            x: 0,
+            y: 0,
+            w: 1,
+            h: 1,
+            extensionState,
+        }, noCaps);
+
+        expect(unit.data.extensionState).toBeUndefined();
     });
 });
 

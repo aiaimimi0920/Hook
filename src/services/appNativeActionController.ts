@@ -14,12 +14,14 @@ import type { AppCaptureInputState } from "./appPointerListeners";
 import type { BootProfile } from "./bootProfile";
 import { runBackgroundTask } from "./backgroundTask";
 import { beginCaptureSelectionState, type CaptureSelectionMode } from "./captureState";
+import { cleanupCaptureInput } from "./captureInputCleanup";
 import {
     hasActiveEditableShortcutTarget,
     hasFocusedDomShortcutOwner,
 } from "./editableFocus";
 import type { OverlaySyntheticDispatcher } from "./overlaySyntheticEvents";
 import { syncService } from "./syncService";
+import { closeProjectionDialog, projectionDialog } from "../store/qrProjectionStore";
 
 type AppNativeActionControllerDependencies = {
     activeBootProfile: Accessor<BootProfile | null>;
@@ -44,7 +46,34 @@ type AppNativeActionControllerDependencies = {
 export function createAppNativeActionController(
     dependencies: AppNativeActionControllerDependencies,
 ) {
+    let captureActivationPromise: Promise<void> | null = null;
+    let captureActivationGeneration = 0;
+
+    const performCaptureCleanup = (reason: string) => cleanupCaptureInput({
+        reason,
+        setCaptureInputInactive: () => api.setCaptureInputActive(false),
+        clearHover: dependencies.overlaySynthetic.clearHover,
+        resetSelection: dependencies.resetSelection,
+        setOverlayClickThrough: () => api.setOverlayClickThrough(true),
+        restoreMouseMonitor: graphStore.units.length > 0,
+        setMouseMonitorActive: () => api.setMouseMonitorActive(true),
+        updateBackendRects: () => syncService.updateBackendRects(),
+    });
+
+    const abortCaptureSelection = async (reason: string) => {
+        captureActivationGeneration += 1;
+        dependencies.invalidateCaptureSessionLifecycle();
+        dependencies.captureInput.nativePointerActive = false;
+        dependencies.captureInput.ctrlReleasedSinceCaptureStart = false;
+        await performCaptureCleanup(reason);
+    };
+
     const beginCaptureSelection = async (mode: CaptureSelectionMode) => {
+        if (captureActivationPromise) {
+            const duplicate = beginCaptureSelectionState(mode, true);
+            if (!duplicate.shouldStart) void api.debugLogEvent(duplicate.duplicateDebugEvent);
+            return;
+        }
         const captureStart = beginCaptureSelectionState(mode, isSelecting());
         if (!captureStart.shouldStart) {
             void api.debugLogEvent(captureStart.duplicateDebugEvent);
@@ -58,18 +87,49 @@ export function createAppNativeActionController(
         dependencies.resetSelection();
         setCaptureMode(captureStart.captureMode);
         setIsSelecting(true);
-        let initialCapturePoint: { x: number; y: number } | null = null;
+        const activationGeneration = ++captureActivationGeneration;
+        const activationIsCurrent = () =>
+            activationGeneration === captureActivationGeneration;
+
+        runBackgroundTask("capture window target preparation", (async () => {
+            let initialCapturePoint: { x: number; y: number } | null = null;
+            try {
+                const cursor = await api.getCaptureCursorPosition();
+                if (!activationIsCurrent()) return;
+                initialCapturePoint = { x: cursor.x, y: cursor.y };
+                setMousePos(initialCapturePoint);
+            } catch {
+                // Backend global mouse_move refreshes this best-effort seed immediately.
+            }
+            if (!activationIsCurrent()) return;
+            await dependencies.prepareCaptureWindowTargets(initialCapturePoint);
+        })());
+
+        const activation = (async () => {
+            await api.setMouseMonitorActive(false);
+            if (!activationIsCurrent()) {
+                await performCaptureCleanup("activation-cancelled-after-monitor");
+                return;
+            }
+            await api.setCaptureInputActive(true);
+            if (!activationIsCurrent()) {
+                await performCaptureCleanup("activation-cancelled-after-input");
+                return;
+            }
+            await api.setOverlayClickThrough(true);
+            if (!activationIsCurrent()) {
+                await performCaptureCleanup("activation-cancelled-after-overlay");
+            }
+        })();
+        captureActivationPromise = activation;
         try {
-            const cursor = await api.getCaptureCursorPosition();
-            initialCapturePoint = { x: cursor.x, y: cursor.y };
-            setMousePos(initialCapturePoint);
-        } catch {
-            // Backend global mouse_move refreshes this best-effort seed immediately.
+            await activation;
+        } catch (error) {
+            await abortCaptureSelection("activation-failed");
+            throw error;
+        } finally {
+            if (captureActivationPromise === activation) captureActivationPromise = null;
         }
-        await dependencies.prepareCaptureWindowTargets(initialCapturePoint);
-        await api.setMouseMonitorActive(false);
-        await api.setCaptureInputActive(true);
-        await api.setOverlayClickThrough(true);
     };
 
     const handleNativeEscape = () => {
@@ -85,25 +145,14 @@ export function createAppNativeActionController(
             dependencies.setAppSettingsOpen(false);
             return;
         }
+        if (projectionDialog()) { closeProjectionDialog(); return; }
         if (hasFocusedDomShortcutOwner()) return;
         if (longCaptureSession()?.active) {
             runBackgroundTask("long capture cancellation", dependencies.cancelAutoLongCaptureSession());
             return;
         }
         if (isSelecting()) {
-            dependencies.invalidateCaptureSessionLifecycle();
-            dependencies.captureInput.nativePointerActive = false;
-            dependencies.captureInput.ctrlReleasedSinceCaptureStart = false;
-            runBackgroundTask("capture escape cleanup", (async () => {
-                await api.setCaptureInputActive(false);
-                dependencies.overlaySynthetic.clearHover();
-                dependencies.resetSelection();
-                await api.setOverlayClickThrough(true);
-                if (graphStore.units.length > 0) {
-                    await api.setMouseMonitorActive(true);
-                    await syncService.updateBackendRects();
-                }
-            })());
+            runBackgroundTask("capture escape cleanup", abortCaptureSelection("escape"));
             return;
         }
         if (hasActiveEditableShortcutTarget()) return;
@@ -117,6 +166,7 @@ export function createAppNativeActionController(
         if (dependencies.activeBootProfile()?.nativeAcceptance || hasFocusedDomShortcutOwner()) return;
         if (
             dependencies.appSettingsOpen()
+            || projectionDialog()
             || dependencies.surfaceConfirmationCount() > 0
             || longCaptureSession()?.active
             || isSelecting()
@@ -128,5 +178,10 @@ export function createAppNativeActionController(
         dependencies.deleteSelectedUnitOrAnnotation();
     };
 
-    return { beginCaptureSelection, handleNativeEscape, handleNativeDelete };
+    return {
+        beginCaptureSelection,
+        abortCaptureSelection,
+        handleNativeEscape,
+        handleNativeDelete,
+    };
 }

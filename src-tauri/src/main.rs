@@ -80,6 +80,30 @@ fn main() {
         return;
     }
 
+    if args == ["--tile-outputs"] {
+        match hook_lib::tile_outputs::enumerate()
+            .and_then(|outputs| serde_json::to_string_pretty(&outputs).map_err(|e| e.to_string()))
+        {
+            Ok(report) => emit_cli_text(&report),
+            Err(error) => {
+                emit_cli_text(&error);
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+    if args
+        .iter()
+        .any(|arg| arg == "--tile" || arg == "--tile-output")
+    {
+        if let Err(error) = hook_lib::tile_terminal::parse_output_argument(&args)
+            .and_then(hook_lib::tile_terminal::run)
+        {
+            emit_cli_text(&error);
+            std::process::exit(1);
+        }
+        return;
+    }
     hook_lib::run()
 }
 

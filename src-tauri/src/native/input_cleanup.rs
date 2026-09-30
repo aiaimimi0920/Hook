@@ -28,6 +28,7 @@ fn set_capture_input_runtime_active(active: bool) {
         CAPTURE_MOUSE_HOOK_ACTIVE.store(active, Ordering::SeqCst);
         if !active {
             CAPTURE_MOUSE_HOOK_BUTTON_DOWN.store(false, Ordering::SeqCst);
+            reset_overlay_pointer_session();
         }
         append_runtime_log_line(&format!("capture_mouse_hook_active :: {}", active));
     }

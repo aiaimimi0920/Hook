@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-    buildPrivacyMosaicTiles,
     computeEffectSourceProjection,
-    computeMosaicPreviewCanvasSize,
     paintMosaicGrid,
-    renderMosaicToCanvas,
 } from "../../src/services/stickerEffects";
 
 describe("stickerEffects", () => {
@@ -52,32 +49,9 @@ describe("stickerEffects", () => {
         });
     });
 
-    it("caps mosaic preview canvas dimensions to avoid blocking pointer-drag rendering", () => {
-        expect(
-            computeMosaicPreviewCanvasSize({ w: 2400, h: 1200 }, 512),
-        ).toEqual({
-            width: 512,
-            height: 256,
-            scale: 512 / 2400,
-        });
-
-        expect(
-            computeMosaicPreviewCanvasSize({ w: 320, h: 160 }, 512),
-        ).toEqual({
-            width: 320,
-            height: 160,
-            scale: 1,
-        });
-    });
-
     it("renders mosaic as an opaque privacy pattern instead of resampling readable source pixels", () => {
         const calls: Array<[string, ...unknown[]]> = [];
         const context = {
-            save: () => calls.push(["save"]),
-            restore: () => calls.push(["restore"]),
-            beginPath: () => calls.push(["beginPath"]),
-            rect: (...args: number[]) => calls.push(["rect", ...args]),
-            clip: () => calls.push(["clip"]),
             fillRect: (...args: number[]) => calls.push(["fillRect", ...args]),
             set fillStyle(value: string) {
                 calls.push(["fillStyle", value]);
@@ -98,12 +72,7 @@ describe("stickerEffects", () => {
 
         try {
             expect(() =>
-                renderMosaicToCanvas(
-                    context,
-                    {} as CanvasImageSource,
-                    { sourceX: 0, sourceY: 0, sourceW: 40, sourceH: 20, destX: 4, destY: 6, destW: 40, destH: 20 },
-                    12,
-                ),
+                paintMosaicGrid(context, 40, 20, 12, 4, 6),
             ).not.toThrow();
         } finally {
             if (originalDocumentDescriptor) {
@@ -122,22 +91,16 @@ describe("stickerEffects", () => {
         ).toBe(true);
     });
 
-    it("covers fractional mosaic bounds so subpixel edges do not expose source pixels", () => {
-        const tiles = buildPrivacyMosaicTiles({ x: 2.25, y: 3.5, w: 20.4, h: 12.2 }, 10);
-        const coveredRight = Math.max(...tiles.map((tile) => tile.x + tile.w));
-        const coveredBottom = Math.max(...tiles.map((tile) => tile.y + tile.h));
+    it("allows the mosaic grid to use the user-selected A/B colors", () => {
+        const fills = new Set<string>();
+        const context = {
+            fillRect: () => {},
+            set fillStyle(value: string) {
+                fills.add(value);
+            },
+        } as unknown as CanvasRenderingContext2D;
 
-        expect(coveredRight).toBeGreaterThanOrEqual(22.65);
-        expect(coveredBottom).toBeGreaterThanOrEqual(15.7);
-    });
-
-    it("allows mosaic privacy tiles to use the user-selected A/B colors", () => {
-        const tiles = buildPrivacyMosaicTiles(
-            { x: 0, y: 0, w: 40, h: 40 },
-            10,
-            ["#111111", "#eeeeee"],
-        );
-        const fills = new Set(tiles.map((tile) => tile.fill));
+        paintMosaicGrid(context, 40, 40, 10, 0, 0, ["#111111", "#eeeeee"]);
 
         expect(fills).toEqual(new Set(["#111111", "#eeeeee"]));
     });
@@ -165,5 +128,13 @@ describe("stickerEffects", () => {
                 && Number.isInteger(h),
             ),
         ).toBe(true);
+        // Every output pixel must be covered, including fractional-origin seams.
+        for (let y = 0; y < 27; y += 1) {
+            for (let x = 0; x < 43; x += 1) {
+                expect(fillRects.some(([left, top, width, height]) =>
+                    x >= left && x < left + width && y >= top && y < top + height,
+                )).toBe(true);
+            }
+        }
     });
 });

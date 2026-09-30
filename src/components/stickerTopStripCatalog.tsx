@@ -57,6 +57,7 @@ export interface RasterizeScopeOption {
     Icon: Component<TopStripIconProps>;
 }
 
+
 export const transformModeOptions: TransformModeOption[] = [
     { mode: "select", label: "选择", shortcut: "Q", Icon: SelectModeIcon },
     { mode: "move", label: "移动", shortcut: "W", Icon: MoveModeIcon },

@@ -7,7 +7,9 @@ export type TopStripOpenMenu =
     | "effect"
     | "history"
     | "rasterize"
+    | "extension"
     | "view"
+    | "projection"
     | null;
 
 export const toolbarButtonClass =

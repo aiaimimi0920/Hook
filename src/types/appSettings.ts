@@ -7,6 +7,10 @@ export interface AppSettings {
     schemaVersion: number;
     fileNaming: FileNamingSettings;
     cache: HookCacheSettings;
+    /** Empty means follow the Hook display language. */
+    translationTargetLanguage: "" | "zh-CN" | "en";
+    /** Selects the host-side translation backend. */
+    translationProviderMode: "auto" | "local" | "gateway";
 }
 
 export interface HookCacheSettings {
@@ -27,4 +31,6 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     schemaVersion: 2,
     fileNaming: { ...DEFAULT_FILE_NAMING_SETTINGS },
     cache: { ...DEFAULT_HOOK_CACHE_SETTINGS },
+    translationTargetLanguage: "",
+    translationProviderMode: "auto",
 };

@@ -2,6 +2,7 @@ import { graphStore } from "../store/graphStore";
 import { linkingState, setLinkingState, setMousePos, setIsSelecting, setHoveringLink } from "../store/uiStore";
 import { syncService } from "../services/syncService";
 import { calculatePortY } from "../utils/graphUtils";
+import { showUnitFailureNotice } from "../services/unitFailureNotice";
 
 interface UseLinkingOptions {
     onLinkCreated?: (sourceUnitId: string, targetUnitId: string, targetPortId: string) => void;
@@ -84,7 +85,9 @@ export function useLinking(options: UseLinkingOptions = {}) {
              };
 
              if (hasCycle(targetUnitId, sourceId)) {
-                 alert("Cyclic dependency detected!");
+                 showUnitFailureNotice({ feature: "Interaction", title: "无法创建连接",
+                     message: "此连接会形成循环依赖，请选择其他节点。",
+                     source: { namespace: "core", id: "link-cycle" } }, targetUnitId);
                  setLinkingState({ isLinking: false, sourceUnitId: null, sourceParamId: null, startX: 0, startY: 0 });
                  return;
              }

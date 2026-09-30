@@ -4,6 +4,7 @@ interface StickerContextMenuPanelProps {
     referenceActionLabel: string;
     onCloseSticker: () => void;
     onSave: () => void;
+    onProjection: () => void;
     onClearRecycleBin: () => void;
     onToggleReference: () => void;
     onClearReferenceLibrary: () => void;
@@ -45,6 +46,10 @@ export const StickerContextMenuPanel = (props: StickerContextMenuPanelProps) => 
                 onClick={() => props.onSave()}
             >
                 保存
+            </button>
+            <button class="hook-context-menu-item px-3 py-2 text-left" type="button"
+                onMouseEnter={() => props.onOpenSubmenu("none")} onClick={() => props.onProjection()}>
+                二维码投射
             </button>
             <button
                 class="hook-context-menu-item px-3 py-2 text-left"

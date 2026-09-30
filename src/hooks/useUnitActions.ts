@@ -2,7 +2,7 @@ import { api } from "../services/api";
 import { graphStore } from "../store/graphStore";
 import { syncService } from "../services/syncService";
 import { logger } from "../services/logger";
-import { setDraggingStickerId, setMultiDragPositions, uiActions } from "../store/uiStore";
+import { setDraggingStickerId, setMultiDragPositions } from "../store/uiStore";
 import {
     computeMinifiedStickerWindow,
     computeRestoredMinifiedStickerWindow,
@@ -15,6 +15,7 @@ import { getCapabilityInputsForPorts } from "../services/artPorts";
 import { deriveUnitExecutionConfig } from "../services/nodeExecutionConfig";
 import { findArtCapability } from "../services/artCapabilityLookup";
 import { buildStandaloneArtNodeUnit } from "../services/artNodeFactory";
+import { runWithLiveCaptureSnapshots } from "../services/liveCaptureSnapshotAction";
 
 const getSourceImageFrame = (unit: Unit): { w: number; h: number } => {
     const savedRect = unit.data.savedRect;
@@ -29,7 +30,6 @@ export function useUnitActions() {
 
     // Import logic from new hook
     const { handleParamChange } = useNodeParameters();
-
     const getPrimaryImageInputPort = (artId: string) => {
         const capability = findArtCapability(graphStore.capabilities, artId);
         const inputs = getCapabilityInputsForPorts(capability);
@@ -190,7 +190,7 @@ export function useUnitActions() {
     };
 
     // Extracted from App.tsx - Inline Logic
-    const spawnConnectedNode = (fromId: string, artId: string): string | null => {
+    const spawnConnectedNode = (fromId: string, artId: string) => runWithLiveCaptureSnapshots([fromId], () => {
          const u = graphStore.units.find(u => u.id === fromId);
          if (!u) return null;
 
@@ -223,107 +223,12 @@ export function useUnitActions() {
          syncService.performWorkflowSync();
          queueMicrotask(() => propagateFromUnit(fromId));
          return newId;
+    });
+
+    return {
+        handleParamChange,
+        propagateFromUnit,
+        handleDoubleClick,
+        spawnConnectedNode,
     };
-
-    const showEnhancementUnavailable = (unitId: string, feature: "OCR" | "Translation") => {
-         const label = feature === "OCR" ? "OCR 识别" : "翻译";
-         const message = `${label} 需要 Loom Hook 增强服务。请启动 Loom Hook，并通过联动模式运行 Hook。`;
-         console.warn(message);
-         uiActions.showEnhancementNotice(unitId, {
-             feature,
-             title: "增强功能未安装或未连接",
-             message,
-         });
-    };
-
-    const performOcrAction = async (unitId: string) => {
-         const u = graphStore.units.find(u => u.id === unitId);
-         if(u && u.data.src) {
-             try {
-                  const capabilities = await api.getEnhancementCapabilities();
-                  if (!capabilities.ocr) {
-                      showEnhancementUnavailable(unitId, "OCR");
-                      return;
-                  }
-                  const res = await api.performOcr(u.data.src);
-                  if(res.fullText && res.textBlocks) {
-                      await navigator.clipboard.writeText(res.fullText);
-                      graphStore.actions.updateUnitData(unitId, {
-                          ocrResult: {
-                              fullText: res.fullText,
-                              textBlocks: res.textBlocks,
-                              width: res.width,
-                              height: res.height,
-                              scaleFactor: res.scaleFactor,
-                          }
-                      });
-                      syncService.performWorkflowSync();
-                  }
-             } catch(e) { console.error("OCR Error", e); }
-         }
-    };
-
-    const toggleTranslationAction = async (unitId: string) => {
-         const unit = graphStore.units.find(u => u.id === unitId);
-         const ocrResult = unit?.data?.ocrResult;
-         if (!unit || !ocrResult?.textBlocks?.length) {
-             showEnhancementUnavailable(unitId, "Translation");
-             return;
-         }
-
-         if (unit.data.showTranslated) {
-             graphStore.actions.updateUnitData(unitId, { showTranslated: false });
-             syncService.performWorkflowSync();
-             return;
-         }
-
-         const untranslatedBlocks = ocrResult.textBlocks.filter((block) => !block.translatedText);
-         if (untranslatedBlocks.length > 0) {
-             const capabilities = await api.getEnhancementCapabilities();
-             if (!capabilities.translation) {
-                 showEnhancementUnavailable(unitId, "Translation");
-                 return;
-             }
-
-             const interfaceLanguage = typeof document !== "undefined"
-                 ? document.documentElement.lang
-                 : typeof navigator !== "undefined"
-                     ? navigator.language
-                     : "zh-Hans";
-             const targetLang =
-                 typeof interfaceLanguage === "string" &&
-                 !interfaceLanguage.toLowerCase().startsWith("zh")
-                     ? "en"
-                     : "zh";
-
-             try {
-                 const translatedBlocks = await Promise.all(
-                     ocrResult.textBlocks.map(async (block) => ({
-                         ...block,
-                         translatedText:
-                             block.translatedText ||
-                             (await api.translateText(block.text, targetLang)),
-                     })),
-                 );
-                 graphStore.actions.updateUnitData(unitId, {
-                     ocrResult: {
-                         ...ocrResult,
-                         textBlocks: translatedBlocks,
-                     },
-                     showTranslated: true,
-                 });
-                 syncService.performWorkflowSync();
-                 return;
-             } catch (error) {
-                 console.error("Translation Error", error);
-                 showEnhancementUnavailable(unitId, "Translation");
-                 return;
-             }
-         }
-
-         graphStore.actions.updateUnitData(unitId, { showTranslated: true });
-         syncService.performWorkflowSync();
-    };
-
-    return { handleParamChange, propagateFromUnit, handleDoubleClick, spawnConnectedNode, performOcrAction, toggleTranslationAction };
 }

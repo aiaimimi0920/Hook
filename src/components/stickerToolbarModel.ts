@@ -6,8 +6,6 @@ import type {
     StickerTransformMode,
 } from "../types/stickerEditing";
 
-export type StickerCreateToolCategoryId = "shape" | "paint" | "label" | "effect";
-export type StickerCanvasCategoryId = "geometry" | "erase" | "appearance" | "finalize";
 export type StickerTopStripPropertyTool =
     | "crop"
     | "selected-text"
@@ -27,9 +25,7 @@ export type StickerTopStripPropertyTool =
     | "blur"
     | "content-eraser";
 
-export type StickerToolbarTool = { mode: StickerCreateTool; label: string };
 export type StickerTransformModeButton = { mode: StickerTransformMode; label: string; shortcut: string };
-export type StickerEditingDomainButton = { id: StickerEditingDomain; label: string; description: string };
 export type ShapeColorSettingKey = keyof Pick<
     StickerToolSettings,
     | "textColor"
@@ -63,98 +59,12 @@ export type NumericToolSettingKey = keyof Pick<
     | "effectBrushSize"
     | "contentEraserSize"
 >;
-export type ActiveColorPopoverSlot = { key: ShapeColorSettingKey; label: string };
-export type StickerCreateToolCategory = {
-    id: StickerCreateToolCategoryId;
-    label: string;
-    tools: StickerToolbarTool[];
-};
-export type StickerCanvasCategory = {
-    id: StickerCanvasCategoryId;
-    label: string;
-    description: string;
-};
-
-export const STICKER_EDITING_DOMAINS: StickerEditingDomainButton[] = [
-    { id: "existing", label: "已有节点", description: "选择并修改已经存在的标记节点" },
-    { id: "create", label: "新建节点", description: "创建新的图形、文字、绘画与效果节点" },
-    { id: "sticker", label: "整图处理", description: "直接处理整张贴图的几何、外观与擦除" },
-];
-
 export const TRANSFORM_MODE_BUTTONS: StickerTransformModeButton[] = [
     { mode: "select", label: "选择", shortcut: "Q" },
     { mode: "move", label: "移动", shortcut: "W" },
     { mode: "rotate", label: "旋转", shortcut: "E" },
     { mode: "scale", label: "缩放", shortcut: "R" },
 ];
-
-export const CREATE_TOOL_CATEGORIES: StickerCreateToolCategory[] = [
-    {
-        id: "shape",
-        label: "图形",
-        tools: [
-            { mode: "shape-rect", label: "矩形" },
-            { mode: "shape-ellipse", label: "椭圆" },
-            { mode: "shape-triangle", label: "三角形" },
-            { mode: "shape-polygon", label: "多边形" },
-            { mode: "line", label: "直线" },
-        ],
-    },
-    {
-        id: "paint",
-        label: "绘画",
-        tools: [
-            { mode: "brush", label: "画笔" },
-        ],
-    },
-    {
-        id: "label",
-        label: "文字标记",
-        tools: [
-            { mode: "text", label: "文本" },
-            { mode: "serial", label: "序号" },
-        ],
-    },
-    {
-        id: "effect",
-        label: "效果",
-        tools: [
-            { mode: "mosaic", label: "马赛克" },
-            { mode: "blur", label: "模糊" },
-        ],
-    },
-];
-
-export const STICKER_CANVAS_CATEGORIES: StickerCanvasCategory[] = [
-    { id: "geometry", label: "几何", description: "裁剪与翻转整张贴图" },
-    { id: "erase", label: "擦除", description: "直接擦除贴图内容或栅格化标记图层" },
-    { id: "appearance", label: "外观", description: "边框、圆角、透明度与画布尺寸" },
-    { id: "finalize", label: "固化", description: "栅格化、撤销与重做" },
-];
-
-export const createCategoryForMode = (mode: StickerCreateTool): StickerCreateToolCategoryId =>
-    mode === "shape-round-rect" || mode === "arrow" || mode === "polyline"
-        ? "shape"
-        : CREATE_TOOL_CATEGORIES.find((category) => category.tools.some((tool) => tool.mode === mode))?.id ?? "shape";
-
-export const toolLabelForMode = (mode: StickerCreateTool | null) =>
-    mode === "shape-round-rect"
-        ? "圆角矩形"
-        : mode === "arrow"
-          ? "箭头"
-          : CREATE_TOOL_CATEGORIES.flatMap((category) => category.tools).find((tool) => tool.mode === mode)?.label;
-
-export const isShapeFillMode = (mode: StickerCreateTool | null) =>
-    mode === "shape-rect" || mode === "shape-round-rect" || mode === "shape-ellipse" || mode === "shape-triangle" || mode === "shape-polygon";
-
-export const isShapeStrokeMode = (mode: StickerCreateTool | null) =>
-    isShapeFillMode(mode) || mode === "line" || mode === "arrow";
-
-export const isBrushStrokeMode = (mode: StickerCreateTool | null) =>
-    mode === "brush" || mode === "highlighter";
-
-export const adjustToolSize = (current: number, delta: number, min = 4, max = 96) =>
-    Math.min(max, Math.max(min, current + delta));
 
 export const PAINT_COLOR_SETTING_KEYS: ShapeColorSettingKey[] = [
     "textColor",

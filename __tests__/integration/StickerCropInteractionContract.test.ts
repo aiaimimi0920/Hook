@@ -62,9 +62,7 @@ describe("Hook sticker crop interaction contract", () => {
     });
 
     it("still routes the crop secondary tool to crop controls instead of hiding the whole toolbar", () => {
-        const toolbarContractSource = `${topStripSource}\n${topStripEditActionsSource}\n${propertyBarRenderSource}\n${toolbarModelSource}`;
-
-        expect(toolbarContractSource).toContain('{ id: "geometry", label: "几何"');
+        expect(topStripEditActionsSource).toContain('aria-label="裁剪工具"');
         expect(topStripSource).toContain('stickerToolSettings.domain === "sticker" && stickerToolSettings.activeCanvasTool === "crop"');
         expect(topStripSource).toContain("onCanvasTool={applyTopStripTool}");
         expect(topStripEditActionsSource).toContain('onClick={() => props.onCanvasTool("crop")}');

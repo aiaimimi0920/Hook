@@ -11,7 +11,19 @@ let currentSettings: AppSettings = {
     ...DEFAULT_APP_SETTINGS,
     fileNaming: { ...DEFAULT_APP_SETTINGS.fileNaming },
     cache: { ...DEFAULT_APP_SETTINGS.cache },
+    translationTargetLanguage: DEFAULT_APP_SETTINGS.translationTargetLanguage,
+    translationProviderMode: DEFAULT_APP_SETTINGS.translationProviderMode,
 };
+
+const normalizeTranslationTargetLanguage = (
+    value: unknown,
+): AppSettings["translationTargetLanguage"] =>
+    value === "zh-CN" || value === "en" ? value : "";
+
+const normalizeTranslationProviderMode = (
+    value: unknown,
+): AppSettings["translationProviderMode"] =>
+    value === "local" || value === "gateway" ? value : "auto";
 
 export const normalizeHookCacheSettings = (
     value: Partial<HookCacheSettings> | null | undefined,
@@ -32,6 +44,8 @@ export const normalizeAppSettings = (
     schemaVersion: 2,
     fileNaming: normalizeFileNamingSettings(value?.fileNaming),
     cache: normalizeHookCacheSettings(value?.cache),
+    translationTargetLanguage: normalizeTranslationTargetLanguage(value?.translationTargetLanguage),
+    translationProviderMode: normalizeTranslationProviderMode(value?.translationProviderMode),
 });
 
 export const getCurrentAppSettings = (): AppSettings => currentSettings;

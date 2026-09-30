@@ -27,6 +27,9 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource).toContain("push:");
     expect(workflowSource).toContain("tags:");
     expect(workflowSource).toContain("- 'V*.*.*'");
+    expect(workflowSource).toContain("- 'v*.*.*'");
+    expect(workflowSource).toContain("- '!v*.*.*.*'");
+    expect(workflowSource).toContain("- '!V*.*.*.*'");
     expect(workflowSource).toContain("workflow_dispatch:");
     expect(workflowSource).toContain("inputs:");
     expect(workflowSource).toContain("tag:");
@@ -37,7 +40,7 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource).toContain(
       "ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}",
     );
-    expect(workflowSource).toContain("uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38");
+    expect(workflowSource).toContain("uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020");
     // Toolchain is pinned to an exact version (not the floating @stable) so
     // release builds stay reproducible.
     expect(workflowSource).toContain("uses: dtolnay/rust-toolchain@a5f673d0ba8626c3977bb416a1612774bc82181b");

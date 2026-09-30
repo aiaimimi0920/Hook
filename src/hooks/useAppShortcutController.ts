@@ -22,7 +22,10 @@ import { resolveShortcutContext } from "../services/captureState";
 import { logger } from "../services/logger";
 import type { ArtCapability } from "../services/protocol";
 import { syncService } from "../services/syncService";
+import { toggleSelectedStickerToolbar } from "../services/stickerToolbarShortcutRouting";
 import { useShortcuts } from "./useShortcuts";
+import { commitLiveCaptureUnitFrame } from "../services/liveCaptureUnit";
+import type { LiveSnapshotActionResult } from "../services/liveCaptureSnapshotAction";
 
 type AppShortcutControllerDependencies = {
     appSettingsOpen: Accessor<boolean>;
@@ -39,11 +42,10 @@ type AppShortcutControllerDependencies = {
     cancelAutoLongCaptureSession: () => Promise<boolean>;
     invalidateCaptureSessionLifecycle: () => void;
     resetSelection: () => void;
-    toggleStickerToolbarVisibility: () => void;
+    toggleStickerToolbarVisibility: () => void | Promise<void>;
     refreshCapabilities: () => Promise<void>;
     scheduleOverlayHitTestRefresh: () => void;
-    spawnConnectedNode: (sourceId: string, artId: string) => string | null;
-    toggleTranslationAction: (unitId: string) => Promise<void>;
+    spawnConnectedNode: (sourceId: string, artId: string) => LiveSnapshotActionResult<string | null>;
 };
 
 /** Binds product shortcut actions while leaving their domain commands injectable. */
@@ -53,8 +55,8 @@ export function useAppShortcutController(dependencies: AppShortcutControllerDepe
         // the selected sticker instead of leaving an unhandled rejection/toast.
         void dependencies.refreshCapabilities()
             .then(() => {
-                if (enhancementNotices[unitId]?.feature === "Loom") {
-                    uiActions.dismissEnhancementNotice(unitId);
+                if (enhancementNotices[unitId]?.some((notice) => notice.feature === "Loom")) {
+                    uiActions.dismissEnhancementNoticesByFeature(unitId, "Loom");
                 }
             })
             .catch((error: unknown) => {
@@ -123,10 +125,16 @@ export function useAppShortcutController(dependencies: AppShortcutControllerDepe
                 }
             },
             onCancelStickerEdit: () => uiActions.requestStickerEditCancel(),
-            onToggleStickerToolbar: dependencies.toggleStickerToolbarVisibility,
+            onToggleStickerToolbar: () => {
+                toggleSelectedStickerToolbar({
+                    fallback: dependencies.toggleStickerToolbarVisibility,
+                    refreshHitTest: dependencies.scheduleOverlayHitTestRefresh,
+                });
+            },
             onToggleActions: () => {
                 const id = selectedStickerId();
                 if (!id) return;
+                commitLiveCaptureUnitFrame(id);
                 // Refresh each time because Loom can add tools after Hook starts.
                 refreshActionsCapabilities(id);
                 uiActions.toggleActions(id);
@@ -194,22 +202,12 @@ export function useAppShortcutController(dependencies: AppShortcutControllerDepe
                     return;
                 }
 
-                const nodeId = dependencies.spawnConnectedNode(sourceId, capability.id);
+                const nodeId = await dependencies.spawnConnectedNode(sourceId, capability.id);
                 if (!nodeId) return;
                 void api.debugLogEvent(
                     "quick-art-node-created",
                     `source=${sourceId} node=${nodeId} requested=${artId} resolved=${capability.id}`,
                 );
-            },
-            onToggleOcr: async () => {
-                if (!selectedStickerId()) return;
-                logger.debug("Triggering OCR explicitly...");
-                await api.triggerOcrEvent();
-            },
-            onToggleTranslation: async () => {
-                const id = selectedStickerId();
-                if (!id) return;
-                await dependencies.toggleTranslationAction(id);
             },
         },
     });
