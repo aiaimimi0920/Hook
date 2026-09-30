@@ -158,8 +158,10 @@ describe("Hook long capture session contract", () => {
         const finishBody = autoLongCaptureSource.slice(finishSessionStart, cancelSessionStart);
         const cancelBody = autoLongCaptureSource.slice(cancelSessionStart);
 
-        expect(finishBody).toContain("await api.setCaptureInputActive(false)");
-        expect(cancelBody).toContain("await api.setCaptureInputActive(false)");
+        expect(finishBody).toContain("await disableAutoLongCaptureInput()");
+        expect(cancelBody).toContain("await disableAutoLongCaptureInput()");
+        expect(autoLongCaptureActivationSource).toContain("export const disableAutoLongCaptureInput");
+        expect(autoLongCaptureActivationSource).toContain("() => api.setCaptureInputActive(false)");
     });
 
     it("accelerates backend long-capture sampling from real wheel input without trusting wheel direction", () => {

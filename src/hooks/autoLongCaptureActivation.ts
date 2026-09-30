@@ -36,6 +36,11 @@ export const restoreAutoLongCaptureExclusion = async () => {
     );
 };
 
+export const disableAutoLongCaptureInput = () => bestEffort(
+    "auto-long-capture-input-disable-failed",
+    () => api.setCaptureInputActive(false),
+);
+
 /** Activates long capture transactionally so partial native setup cannot own input. */
 export const activateAutoLongCaptureSession = async (
     dependencies: AutoLongCaptureActivationDependencies,
@@ -87,10 +92,7 @@ export const activateAutoLongCaptureSession = async (
         if (current) {
             dependencies.invalidateSession();
         }
-        await bestEffort(
-            "auto-long-capture-input-disable-failed",
-            () => api.setCaptureInputActive(false),
-        );
+        await disableAutoLongCaptureInput();
         await bestEffort("auto-long-capture-hover-clear-failed", dependencies.clearCaptureHover);
         const sessionToCancel = backendSessionId;
         if (sessionToCancel) {
