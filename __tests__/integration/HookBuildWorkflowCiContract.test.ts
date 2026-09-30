@@ -10,7 +10,7 @@ const workflowSource = readFileSync(
 describe("Hook build workflow CI contract", () => {
     it("uses immutable node24-compatible GitHub action revisions", () => {
         expect(workflowSource).toContain('uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1');
-        expect(workflowSource).toContain('uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38');
+        expect(workflowSource).toContain('uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020');
         expect(workflowSource).toContain('uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a');
         expect(workflowSource).toContain('uses: dtolnay/rust-toolchain@a5f673d0ba8626c3977bb416a1612774bc82181b');
         expect(workflowSource).toContain('uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6');
@@ -18,8 +18,9 @@ describe("Hook build workflow CI contract", () => {
         expect(workflowSource).toContain('node-version: "22"');
     });
 
-    it("keeps the ordinary Hook build workflow scoped to main branch pushes", () => {
+    it("runs the ordinary Hook build on main pushes and pull requests, not release tags", () => {
         expect(workflowSource).toContain("push:");
+        expect(workflowSource).toContain("pull_request:");
         expect(workflowSource).toContain("branches:");
         expect(workflowSource).toContain("- main");
         expect(workflowSource).not.toContain("tags:");
