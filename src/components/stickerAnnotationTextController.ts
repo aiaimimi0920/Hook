@@ -1,4 +1,4 @@
-import { createMemo, createSignal, onCleanup, type Accessor } from "solid-js";
+import { createComputed, createMemo, createSignal, onCleanup, type Accessor } from "solid-js";
 
 import { updateTextAnnotationById } from "../services/stickerAnnotationMutations";
 import { stickerToolSettings, uiActions } from "../store/uiStore";
@@ -30,6 +30,8 @@ interface StickerAnnotationTextControllerOptions {
         options?: PatchOptions,
     ) => Promise<void>;
     rememberCurrentState: (includeImageData?: boolean) => void;
+    refreshOverlayInteractivity?: () => Promise<void>;
+    restoreTextCursor?: () => Promise<void>;
 }
 
 // Own the inline text edit session while the layer retains rendering and
@@ -46,7 +48,26 @@ export const createStickerAnnotationTextController = (
         clearTimeout(pendingTextFocusTimer);
         pendingTextFocusTimer = undefined;
     };
-    onCleanup(clearPendingTextFocusTimer);
+    const restoreTextCursor = async () => {
+        try {
+            await options.restoreTextCursor?.();
+        } catch (error) {
+            console.error("[Hook] Failed to restore cursor after text input", error);
+        }
+    };
+    let editing = false;
+    createComputed(() => {
+        const active = pendingTextInput() !== null;
+        if (editing && !active) {
+            clearPendingTextFocusTimer();
+            void restoreTextCursor();
+        }
+        editing = active;
+    });
+    onCleanup(() => {
+        clearPendingTextFocusTimer();
+        if (editing) void restoreTextCursor();
+    });
 
     const getPendingTextExistingAnnotation = (draft: PendingTextInput) =>
         draft.annotationId
@@ -87,6 +108,18 @@ export const createStickerAnnotationTextController = (
             ? stickerToolSettings.serialFontFamily
             : stickerToolSettings.textFontFamily);
 
+    const refreshOverlayInteractivity = async () => {
+        try {
+            await options.refreshOverlayInteractivity?.();
+        } catch (error) {
+            console.error("[Hook] Failed to refresh overlay interactivity after text commit", error);
+        } finally {
+            // Persistence/rendering may complete after the input is removed.
+            // Restore again here without ending a newer edit session.
+            await restoreTextCursor();
+        }
+    };
+
     const beginPendingTextInput = (point: StickerPoint, existing?: StickerTextAnnotation) => {
         setPendingTextInput({
             annotationId: existing?.id,
@@ -112,12 +145,16 @@ export const createStickerAnnotationTextController = (
 
         const text = draft.value.trim();
         setPendingTextInput(null);
-        if (!text) return;
+        if (!text) {
+            await refreshOverlayInteractivity();
+            return;
+        }
 
         if (draft.annotationId) {
             const existing = getPendingTextExistingAnnotation(draft);
             if (!existing || existing.text === text) {
                 uiActions.setSelectedStickerAnnotation(draft.annotationId);
+                await refreshOverlayInteractivity();
                 return;
             }
             options.rememberCurrentState();
@@ -129,6 +166,7 @@ export const createStickerAnnotationTextController = (
                 ),
             }, { propagateEdit: true });
             uiActions.setSelectedStickerAnnotation(draft.annotationId);
+            await refreshOverlayInteractivity();
             return;
         }
 
@@ -149,11 +187,13 @@ export const createStickerAnnotationTextController = (
         };
         await options.commitAnnotation(annotation);
         uiActions.setSelectedStickerAnnotation(annotation.id);
+        await refreshOverlayInteractivity();
     };
 
     const handlePendingTextInputKeyDown = (
         event: KeyboardEvent & { currentTarget: HTMLInputElement },
     ) => {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === "Enter") {
             event.preventDefault();
             void commitPendingTextInput();

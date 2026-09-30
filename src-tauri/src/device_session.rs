@@ -10,7 +10,11 @@ mod identity;
 #[cfg(feature = "remote-surface")]
 mod identity_protection;
 #[cfg(feature = "remote-surface")]
+mod local_projection;
+#[cfg(feature = "remote-surface")]
 mod pairing;
+#[cfg(feature = "remote-surface")]
+mod projection;
 #[cfg(feature = "remote-surface")]
 mod session_attempt;
 
@@ -159,6 +163,24 @@ fn disabled_remote_surface_error(base_url: &str) -> String {
     )
 }
 
+/// Tile presenters always use their paired identity, including on loopback.
+/// A local administrator bearer cannot own a remote-input or presentation lease.
+#[cfg_attr(not(feature = "remote-surface"), allow(clippy::unused_async))]
+pub(crate) async fn authorize_tile_request(
+    app: &AppHandle,
+    manifest: &crate::loom_connector::LoomManifest,
+) -> Result<DeviceSessionAuthorization, String> {
+    #[cfg(feature = "remote-surface")]
+    {
+        remote_surface_authorization(app, manifest).await
+    }
+    #[cfg(not(feature = "remote-surface"))]
+    {
+        let _ = (app, manifest);
+        Err("tile presentation requires the remote-surface build feature".to_owned())
+    }
+}
+
 #[cfg(feature = "remote-surface")]
 async fn remote_surface_authorization(
     app: &AppHandle,
@@ -245,3 +267,39 @@ pub(crate) fn invalidate_surface_sessions(base_url: &str) {
 
 #[cfg(test)]
 mod tests;
+
+pub(crate) fn sign_projection_invitation(
+    app: &AppHandle,
+    envelope: &crate::qr_projection::protocol::ProjectionEnvelope,
+) -> Result<String, String> {
+    envelope.validate()?;
+    #[cfg(feature = "remote-surface")]
+    {
+        use base64::Engine;
+        use ed25519_dalek::Signer;
+        let identity = load_or_create_device_identity(app)?;
+        let key = identity::decode_signing_key(&identity.private_key)?;
+        Ok(base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(key.sign(envelope.signature_message().as_bytes()).to_bytes()))
+    }
+    #[cfg(not(feature = "remote-surface"))]
+    {
+        let _ = app;
+        Err("projection_pairing_unavailable".to_owned())
+    }
+}
+
+pub(crate) async fn authorize_projection_request(
+    app: &AppHandle,
+    base_url: &str,
+) -> Result<DeviceSessionAuthorization, String> {
+    #[cfg(feature = "remote-surface")]
+    {
+        projection::authorize(app, base_url).await
+    }
+    #[cfg(not(feature = "remote-surface"))]
+    {
+        let _ = (app, base_url);
+        Err("projection_pairing_unavailable".to_owned())
+    }
+}

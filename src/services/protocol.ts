@@ -131,12 +131,6 @@ export interface HookArtResultCommit {
     candidates?: ArtResultCandidateMetadata;
 }
 
-export interface PropChange {
-    art_id: string;
-    prop_id: string;
-    value: unknown;
-}
-
 export interface ArtResultCandidate {
     index: number;
     title?: string;

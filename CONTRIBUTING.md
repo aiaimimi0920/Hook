@@ -98,7 +98,9 @@ unless release behavior or embedded assets changed.
 
 - Keep `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`,
   `src-tauri/Cargo.lock`, and `src-tauri/tauri.conf.json` versions aligned.
-- Public release tags use `Vx.x.x`.
+- New public release tags use `vx.x.x`; existing uppercase tags remain accepted.
+- Internal iterations use `vx.x.x.n` via `npm run version:internal`; do not bump
+  public package versions for internal work. See `docs/VERSIONING.md`.
 - The current user package is the portable Windows zip.
 - A signing-candidate manifest is provenance metadata, not a signed installer.
 - Never commit a PFX, private key, signing token, or private provider identifier.

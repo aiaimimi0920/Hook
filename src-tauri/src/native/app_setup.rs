@@ -52,6 +52,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         append_runtime_log_line(&format!("app_settings_dir_failed :: {error}"));
         error
     })?;
+    // Restored sessions use file-backed images instead of the first-run data URLs.
+    // Grant only managed image files, including when the app-data root is overridden.
+    app.asset_protocol_scope()
+        .allow_directory(app_settings_dir.join("images"), false)?;
     let initial_app_settings =
         app_settings::load_app_settings(&app_settings_dir).map_err(|error| {
             append_runtime_log_line(&format!("app_settings_load_failed :: {error}"));
@@ -110,6 +114,13 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             None::<&str>,
         )?;
         let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+        let projection_item = MenuItem::with_id(
+            app,
+            "receive_projection",
+            "接收二维码投射…",
+            true,
+            None::<&str>,
+        )?;
         let tray_menu = Menu::with_items(
             app,
             &[
@@ -117,6 +128,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 &live_capture_item,
                 &long_capture_item,
                 &open_image_item,
+                &projection_item,
                 // Temporarily keep app settings out of the tray menu while
                 // retaining the existing command and event handler.
                 &quit_item,
@@ -162,7 +174,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 }
+                "receive_projection" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        show_overlay_host_impl(&window, false);
+                        let _ = window.emit("trigger-receive-projection", ());
+                    }
+                }
                 "quit" => {
+                    record_process_exit_event("tray_quit", Some(0));
                     app.exit(0);
                 }
                 _ => {}

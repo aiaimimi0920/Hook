@@ -137,7 +137,8 @@ fn validate_direct_parent(requested_parent_pid: u32, actual_parent_pid: u32) -> 
 pub fn run(parent_pid: u32) -> i32 {
     use windows::Win32::Foundation::{CloseHandle, WAIT_OBJECT_0, WAIT_TIMEOUT};
     use windows::Win32::System::Threading::{
-        OpenProcess, TerminateProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+        GetExitCodeProcess, OpenProcess, TerminateProcess, WaitForSingleObject,
+        PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
     };
     use windows::Win32::UI::Input::KeyboardAndMouse::VK_ESCAPE;
 
@@ -161,17 +162,22 @@ pub fn run(parent_pid: u32) -> i32 {
         ));
         return 7;
     }
-    let process =
-        match unsafe { OpenProcess(PROCESS_TERMINATE | PROCESS_SYNCHRONIZE, false, parent_pid) } {
-            Ok(process) => process,
-            Err(error) => {
-                super::append_runtime_log_line_sync(&format!(
-                    "emergency_watchdog_open_parent_failed :: parent_pid={} error={}",
-                    parent_pid, error
-                ));
-                return 3;
-            }
-        };
+    let process = match unsafe {
+        OpenProcess(
+            PROCESS_TERMINATE | PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION,
+            false,
+            parent_pid,
+        )
+    } {
+        Ok(process) => process,
+        Err(error) => {
+            super::append_runtime_log_line_sync(&format!(
+                "emergency_watchdog_open_parent_failed :: parent_pid={} error={}",
+                parent_pid, error
+            ));
+            return 3;
+        }
+    };
 
     super::append_runtime_log_line_sync(&format!(
         "emergency_watchdog_started :: parent_pid={} watchdog_pid={}",
@@ -185,6 +191,17 @@ pub fn run(parent_pid: u32) -> i32 {
     loop {
         match unsafe { WaitForSingleObject(process, 0) } {
             WAIT_OBJECT_0 => {
+                let mut exit_code = 0;
+                match unsafe { GetExitCodeProcess(process, &mut exit_code) } {
+                    Ok(()) => super::append_runtime_log_line_sync(&format!(
+                        "[{}] emergency_watchdog_parent_exited :: parent_pid={} exit_code={} exit_code_hex=0x{:08X}",
+                        super::runtime_log_timestamp(), parent_pid, exit_code, exit_code
+                    )),
+                    Err(error) => super::append_runtime_log_line_sync(&format!(
+                        "[{}] emergency_watchdog_parent_exit_query_failed :: parent_pid={} error={}",
+                        super::runtime_log_timestamp(), parent_pid, error
+                    )),
+                }
                 let _ =
                     super::restore_live_source_windows_for_parent(parent_pid).map_err(|error| {
                         super::append_runtime_log_line_sync(&format!(

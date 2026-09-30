@@ -115,8 +115,8 @@ fn phase_four_live_relay_source_endpoint() {
     let live_session_id = format!("live:phase4:{}", uuid::Uuid::new_v4());
     let request = LiveRelayPublishRequest {
         capture_session_id: capture_status.session_id.clone(),
-        surface_instance_id: ready.surface_instance_id.clone(),
-        source_attachment_id: ready.source_attachment_id.clone(),
+        surface_instance_id: Some(ready.surface_instance_id.clone()),
+        source_attachment_id: Some(ready.source_attachment_id.clone()),
         source_hook_id: "hook-node:phase4-source".to_owned(),
         live_session_id: Some(live_session_id.clone()),
     };

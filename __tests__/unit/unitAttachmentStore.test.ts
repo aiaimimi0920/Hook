@@ -1,9 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { applyExtensionEffect } from "../../src/services/extensionCommandRouter";
 import { extensionRegistry } from "../../src/services/extensionRegistry";
 import { graphStore } from "../../src/store/graphStore";
 import type { Unit } from "../../src/types/unit";
+import { sanitizePersistedUnitExtensionState } from "../../src/services/unitExtensionValidation";
+import { denseOcrAttachmentPayload } from "../fixtures/denseOcrAttachment";
+import { syncService } from "../../src/services/syncService";
 
 const plugin = {
     id: "publisher.example/demo",
@@ -60,6 +63,7 @@ const upsertPayload = (overrides: Record<string, unknown> = {}) => ({
 
 describe("unit attachment store", () => {
     beforeEach(() => {
+        vi.spyOn(syncService, "performWorkflowSync").mockResolvedValue(undefined);
         graphStore.actions.replaceUnits([unit()]);
         extensionRegistry.beginSession("session-1");
         extensionRegistry.applySnapshot("session-1", snapshot);
@@ -68,6 +72,7 @@ describe("unit attachment store", () => {
     afterEach(() => {
         extensionRegistry.disconnect("session-1");
         graphStore.actions.replaceUnits([]);
+        vi.restoreAllMocks();
     });
 
     it("persists a host-owned attachment and applies compare-and-swap revisions", async () => {
@@ -86,11 +91,13 @@ describe("unit attachment store", () => {
             payload: { text: "safe" },
         });
         expect(state?.attachments[0].payloadDigest).toMatch(/^[0-9a-f]{64}$/u);
+        expect(syncService.performWorkflowSync).toHaveBeenCalledTimes(1);
 
         await expect(applyExtensionEffect(plugin.scopeId, "unit-1", {
             type: "attachment.upsert",
             payload: upsertPayload({ payload: { text: "stale" } }),
         }, 4)).rejects.toThrow("compare-and-swap");
+        expect(syncService.performWorkflowSync).toHaveBeenCalledTimes(1);
     });
 
     it("serializes concurrent compare-and-swap mutations for the same unit", async () => {
@@ -108,6 +115,21 @@ describe("unit attachment store", () => {
         expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
         expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
         expect(graphStore.units[0].data.extensionState?.attachments).toHaveLength(1);
+        expect(syncService.performWorkflowSync).toHaveBeenCalledTimes(1);
+    });
+
+    it("commits dense OCR geometry and keeps its overlay scene after a session round trip", async () => {
+        const payload = denseOcrAttachmentPayload();
+        await applyExtensionEffect(plugin.scopeId, "unit-1", {
+            type: "attachment.upsert",
+            payload: upsertPayload({ payload }),
+        }, 4);
+
+        const state = graphStore.units[0].data.extensionState;
+        expect(state?.attachments[0].payload).toEqual(payload);
+        const restored = sanitizePersistedUnitExtensionState(JSON.parse(JSON.stringify(state)));
+        expect(restored?.attachments[0].payload).toEqual(payload);
+        expect(restored?.attachments[0].payloadDigest).toBe(state?.attachments[0].payloadDigest);
     });
 
     it("retains opaque attachments when their plugin disconnects", async () => {
@@ -152,6 +174,7 @@ describe("unit attachment store", () => {
                 }],
             }),
         }, 4)).rejects.toThrow("not content addressed");
+        expect(syncService.performWorkflowSync).not.toHaveBeenCalled();
     });
 
     it("removes only an attachment owned by the active plugin", async () => {
@@ -164,5 +187,6 @@ describe("unit attachment store", () => {
             payload: { attachmentId: "publisher.example/demo.result", priorRevision: 1 },
         }, 4);
         expect(graphStore.units[0].data.extensionState).toMatchObject({ revision: 2, attachments: [] });
+        expect(syncService.performWorkflowSync).toHaveBeenCalledTimes(2);
     });
 });

@@ -36,8 +36,8 @@ export const liveRelayApi = {
 
     publishLiveCaptureToLoom: (request: {
         captureSessionId: string;
-        surfaceInstanceId: string;
-        sourceAttachmentId: string;
+        surfaceInstanceId?: string;
+        sourceAttachmentId?: string;
         sourceHookId: string;
         liveSessionId?: string;
     }): Promise<LiveRelaySnapshot> => safeInvoke("publish_live_capture_to_loom", { request }),

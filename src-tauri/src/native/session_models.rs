@@ -52,6 +52,8 @@ pub struct StickerData {
     pub barcode_result: Option<serde_json::Value>,
     #[serde(rename = "extensionState")]
     pub extension_state: Option<serde_json::Value>,
+    pub qr_projection: Option<serde_json::Value>,
+    pub projection_senders: Option<serde_json::Value>,
     #[serde(rename = "originWorkflowId")]
     pub origin_workflow_id: Option<String>,
     #[serde(rename = "originNodeId")]
@@ -169,4 +171,24 @@ const SESSION_FILE_LOCK_TIMEOUT: Duration = Duration::from_secs(2);
 #[serde(rename_all = "camelCase")]
 struct SessionSaveResult {
     document_revision: u64,
+}
+
+#[cfg(test)]
+#[test]
+fn projection_sender_bindings_survive_native_session_round_trip() {
+    let links = serde_json::json!([
+        {"target":{"deviceId":"pc2","name":"PC2"},"link":{"revision":2,"stopPending":true}},
+        {"target":{"deviceId":"pc3","name":"PC3","peerId":"loom-peer"},"link":{"revision":5}}
+    ]);
+    let raw = serde_json::json!({
+        "id":"source","src":"image","x":0,"y":0,"w":1,"h":1,
+        "projectionSenders":links
+    });
+    let sticker: StickerData = serde_json::from_value(raw).unwrap();
+    let encoded = serde_json::to_value(sticker).unwrap();
+    assert_eq!(encoded["projectionSenders"], links);
+    let legacy: StickerData = serde_json::from_value(serde_json::json!({
+        "id":"legacy","src":"image","x":0,"y":0,"w":1,"h":1
+    })).unwrap();
+    assert!(legacy.projection_senders.is_none());
 }

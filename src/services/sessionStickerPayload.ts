@@ -28,6 +28,8 @@ export const mapUnitToSessionSticker = (unit: Unit): SessionSticker => ({
     ocrResult: unit.data.ocrResult || null,
     barcodeResult: unit.data.barcodeResult || null,
     extensionState: unit.data.extensionState || null,
+    qrProjection: unit.data.qrProjection || null,
+    projectionSenders: unit.data.projectionSenders || null,
     originWorkflowId: unit.data.originWorkflowId || null,
     originNodeId: unit.data.originNodeId || null,
     executionConfig: unit.data.executionConfig || null,

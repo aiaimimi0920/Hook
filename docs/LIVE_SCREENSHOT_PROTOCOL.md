@@ -44,8 +44,11 @@ pending moves are queued before their matching edges. Blur, cancellation, and
 teardown release held input. Removing a Unit stops its capture; a capture closed
 before its first frame does not leave an empty graph Unit.
 
-See [V0.2.10 native acceptance](LIVE_UNIT_V0_2_10_ACCEPTANCE.md) for the tested
-WinForms/DPI baseline and the remaining release-gate limitations.
+The historical input baseline covers same-integrity Windows WinForms controls
+and 150% DPI. It does not establish support for every Electron, Qt, custom-drawn,
+elevated or protected window, or every mixed-DPI monitor combination. Creating
+an Art Unit is not proof that every plugin completed execution. Candidate desktop
+checks do not replace the exact package's full tests and clean-source release gates.
 
 The static Phase 1 declaration in `src/services/liveProtocol.ts` remains
 `status: "contract_only"`; it is a schema descriptor, not a runtime health
@@ -74,8 +77,8 @@ UIPI; an elevated Hook does not require an ordinary source to be elevated.
 Source titles, pixels, UIA text, keyboard data, and OCR text are
 sensitive and must not be written to normal logs.
 
-See `docs/LIVE_SCREENSHOT_COMPATIBILITY_BASELINE.md` for the locked Phase 0
-support declaration. The contract intentionally contains capabilities for later
+See [Live compatibility](LIVE_CAPTURE.md#compatibility-and-validation) for the
+controlled support declaration. The contract intentionally contains capabilities for later
 phases without claiming they are currently implemented.
 
 ## Phase 6 observation behavior

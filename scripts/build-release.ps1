@@ -15,6 +15,7 @@ $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 . (Join-Path $PSScriptRoot "release\PathSafety.ps1")
 . (Join-Path $PSScriptRoot "release\Manifest.ps1")
 . (Join-Path $PSScriptRoot "release\ExtensionCompatibility.ps1")
+. (Join-Path $PSScriptRoot "version-identity.ps1")
 
 function Get-HookGitText {
     param([string[]]$Arguments)
@@ -93,6 +94,7 @@ if ($preparedMode) {
     & (Join-Path $PSScriptRoot "build-local-hook-exe.ps1") `
         -OutputDir $portableDir `
         -RequireCleanSource:$RequireCleanSource.IsPresent `
+        -PublicRelease `
         -Force
 }
 $gitHead = Get-HookGitText -Arguments @("rev-parse", "HEAD")
@@ -116,6 +118,8 @@ if ($preparedMode) {
         throw "Prepared Hook executable does not match its provenance artifact record."
     }
 }
+$portableIdentity = Read-HookBoundedText -Path $portableProvenance -MaxBytes 1MB | ConvertFrom-Json
+Assert-HookPublicBuildIdentity -Provenance $portableIdentity -ProductVersion $productVersion
 $compatibilityRecord = $null
 $packagingCompatibilityPath = ""
 if (-not [string]::IsNullOrWhiteSpace($ExtensionCompatibilityPath)) {

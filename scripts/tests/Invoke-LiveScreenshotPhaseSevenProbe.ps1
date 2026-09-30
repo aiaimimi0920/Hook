@@ -114,7 +114,7 @@ $commands.hookStableHeartbeat = Invoke-LoggedCommand -Name "hook-stable-heartbea
     -WorkingDirectory $repoRoot -FilePath $cargo `
     -Arguments @("test", "--manifest-path", "src-tauri\Cargo.toml", "stable_requires_two_identical_trusted_samples")
 $commands.hookProtocol = Invoke-LoggedCommand -Name "hook-protocol" -WorkingDirectory $repoRoot `
-    -FilePath $npm -Arguments @("test", "--", "__tests__\unit\liveProtocol.test.ts", "__tests__\unit\liveRelay.test.ts")
+    -FilePath $npm -Arguments @("test", "--", "__tests__\unit\liveRelay.test.ts")
 $commands.hookTypecheck = Invoke-LoggedCommand -Name "hook-typecheck" -WorkingDirectory $repoRoot `
     -FilePath $npm -Arguments @("run", "typecheck")
 $commands.hookTestTypecheck = Invoke-LoggedCommand -Name "hook-test-typecheck" -WorkingDirectory $repoRoot `

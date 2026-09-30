@@ -110,6 +110,12 @@ describe("overlay input shield window contract", () => {
     expect(rustSource).toContain("OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE");
     expect(createShieldBlock).toContain("overlay_input_shield_wndproc");
     expect(shieldWndProcBlock).toContain("route_overlay_input_shield_mouse_message(message, wparam)");
+    expect(shieldWndProcBlock).toContain("if message == WM_SETCURSOR");
+    expect(shieldWndProcBlock).toContain("LoadCursorW(None, IDC_ARROW)");
+    expect(shieldWndProcBlock).toContain("SetCursor(Some(cursor))");
+    expect(shieldWndProcBlock.indexOf("overlay_input_shield_cursor_message(")).toBeLessThan(
+      shieldWndProcBlock.indexOf("route_overlay_input_shield_mouse_message(message, wparam)"),
+    );
     expect(shieldRouteBlock).toContain("WM_LBUTTONDOWN");
     expect(shieldRouteBlock).toContain("WM_MOUSEMOVE");
     expect(shieldRouteBlock).toContain("WM_LBUTTONUP");
@@ -121,6 +127,45 @@ describe("overlay input shield window contract", () => {
     expect(shieldRouteBlock).toContain("CaptureMouseHookEvent::OverlayWheel");
     expect(shieldRouteBlock).toContain("CaptureMouseHookEvent::OverlayContextMenu");
     expect(shieldRouteBlock).toContain("return Some(LRESULT(1));");
+  });
+
+  it("keeps the sticker cursor visible when the WebView receives WM_SETCURSOR during shield handoff", () => {
+    const rustSource = readHookLibRustSources();
+    const mainWindowProcBlock = sourceBetween(
+      rustSource,
+      "unsafe extern \"system\" fn overlay_mouse_activate_wndproc(",
+      "#[cfg(target_os = \"windows\")]\nfn install_overlay_mouse_activate_no_activate",
+    );
+
+    expect(mainWindowProcBlock).toContain("if message == WM_SETCURSOR");
+    expect(mainWindowProcBlock).toContain("OVERLAY_MOUSE_HIT_MAP_ACTIVE");
+    expect(mainWindowProcBlock).toContain("is_sticker_body_synthetic_rect");
+    expect(mainWindowProcBlock).toContain("LoadCursorW(None, IDC_ARROW)");
+    expect(mainWindowProcBlock).toContain("SetCursor(Some(cursor))");
+    expect(mainWindowProcBlock.indexOf("if message == WM_SETCURSOR")).toBeLessThan(
+      mainWindowProcBlock.indexOf("if message == WM_MOUSEACTIVATE"),
+    );
+  });
+
+  it("restores the sticker cursor after click-through refreshes without overriding overlay controls", () => {
+    const rustSource = readHookLibRustSources();
+    const restoreBlock = sourceBetween(
+      rustSource,
+      "fn restore_sticker_body_cursor(",
+      "#[cfg(target_os = \"windows\")]\nfn is_overlay_ui_synthetic_rect",
+    );
+    const refreshBlock = sourceBetween(
+      rustSource,
+      "fn refresh_overlay_interactivity_for_current_cursor(",
+      "#[cfg(target_os = \"windows\")]\nfn current_cursor_position_physical",
+    );
+
+    expect(restoreBlock).toContain("OVERLAY_MOUSE_HIT_MAP_ACTIVE");
+    expect(restoreBlock).toContain("is_sticker_body_synthetic_rect");
+    expect(restoreBlock).toContain("is_overlay_ui_synthetic_rect");
+    expect(restoreBlock).toContain("LoadCursorW(None, IDC_ARROW)");
+    expect(restoreBlock).toContain("SetCursor(Some(cursor))");
+    expect(refreshBlock).toContain("restore_sticker_body_cursor(&rects, cursor_x, cursor_y)");
   });
 
   it("keeps the overlay and native input shield at the front of the topmost z-order while stickers are interactive, so Task Manager focus cannot leave stickers unclickable behind it", () => {

@@ -10,7 +10,9 @@ const MAX_RESOURCE_REFS_PER_ATTACHMENT = 16;
 const MAX_RESOURCE_BYTES = 64 * 1024 * 1024;
 const MAX_PAYLOAD_BYTES = 256 * 1024;
 const MAX_JSON_DEPTH = 32;
-const MAX_JSON_NODES = 8_192;
+// Even the densest JSON tree ([0,0,...]) needs at least 2 * nodes - 1 bytes.
+// Derive the traversal cap from the wire budget so valid OCR span geometry fits.
+const MAX_JSON_NODES = Math.floor((MAX_PAYLOAD_BYTES + 1) / 2);
 const SHA256 = /^[0-9a-f]{64}$/u;
 
 export const extensionRecord = (value: unknown, field: string): Record<string, unknown> => {
@@ -90,7 +92,7 @@ const parsePersistedAttachment = (value: unknown, index: number): UnitAttachment
     const source = extensionRecord(value, `attachments[${index}]`);
     assertKeys(source, [
         "attachmentId", "typeId", "schemaVersion", "revision", "pluginId", "pluginVersion",
-        "rendererId", "payload", "payloadDigest", "resourceRefs",
+        "rendererId", "payload", "payloadDigest", "resourceRefs", "overlayVisible",
     ], `attachments[${index}]`);
     const pluginId = boundedExtensionString(source.pluginId, `attachments[${index}].pluginId`);
     const attachmentId = boundedExtensionString(source.attachmentId, `attachments[${index}].attachmentId`);
@@ -102,6 +104,9 @@ const parsePersistedAttachment = (value: unknown, index: number): UnitAttachment
         ? undefined
         : boundedExtensionString(source.payloadDigest, `attachments[${index}].payloadDigest`, 64);
     if (payloadDigest && !SHA256.test(payloadDigest)) throw new Error("persisted attachment payload digest is invalid");
+    if (source.overlayVisible !== undefined && typeof source.overlayVisible !== "boolean") {
+        throw new Error("persisted attachment overlay visibility must be a boolean");
+    }
     return {
         attachmentId,
         typeId: boundedExtensionString(source.typeId, `attachments[${index}].typeId`),
@@ -115,6 +120,7 @@ const parsePersistedAttachment = (value: unknown, index: number): UnitAttachment
         payload,
         payloadDigest,
         resourceRefs,
+        ...(source.overlayVisible === undefined ? {} : { overlayVisible: source.overlayVisible }),
     };
 };
 

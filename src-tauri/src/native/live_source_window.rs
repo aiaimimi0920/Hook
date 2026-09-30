@@ -32,6 +32,7 @@ struct LiveSourceWindowLifecycle {
     pressed_mouse_buttons: u8,
     pressed_virtual_keys: std::collections::BTreeMap<u16, isize>,
     mouse_target_hwnd: Option<isize>,
+    button_gesture: Option<LiveButtonGesture>,
     keyboard_target_hwnd: Option<isize>,
     last_client_x: i32,
     last_client_y: i32,
@@ -62,6 +63,7 @@ impl LiveSourceWindowLifecycle {
             pressed_mouse_buttons: 0,
             pressed_virtual_keys: std::collections::BTreeMap::new(),
             mouse_target_hwnd: None,
+            button_gesture: None,
             keyboard_target_hwnd: None,
             last_client_x: 0,
             last_client_y: 0,
@@ -83,7 +85,11 @@ impl LiveSourceWindowLifecycle {
     }
 
     fn source_window_state(&self) -> &'static str {
-        if self.visibility.lock().is_ok_and(|visibility| visibility.logically_hidden) {
+        if self
+            .visibility
+            .lock()
+            .is_ok_and(|visibility| visibility.logically_hidden)
+        {
             "logically_hidden"
         } else {
             "visible"
@@ -91,7 +97,10 @@ impl LiveSourceWindowLifecycle {
     }
 
     fn logical_hide_reason(&self) -> Option<String> {
-        self.visibility.lock().ok().and_then(|visibility| visibility.logical_hide_reason.clone())
+        self.visibility
+            .lock()
+            .ok()
+            .and_then(|visibility| visibility.logical_hide_reason.clone())
     }
 
     fn set_logically_hidden(&mut self, hidden: bool, reason: &str) -> Result<(), String> {
@@ -100,7 +109,9 @@ impl LiveSourceWindowLifecycle {
         } else {
             self.release_pressed_inputs();
             self.interaction_enabled = false;
-            let mut visibility = self.visibility.lock()
+            let mut visibility = self
+                .visibility
+                .lock()
                 .map_err(|_| "live source visibility poisoned".to_string())?;
             self.restore_visibility(&mut visibility)
         }
@@ -118,7 +129,9 @@ impl LiveSourceWindowLifecycle {
     }
 
     fn hide(&mut self, reason: &str) -> Result<(), String> {
-        let mut visibility = self.visibility.lock()
+        let mut visibility = self
+            .visibility
+            .lock()
             .map_err(|_| "live source visibility poisoned".to_string())?;
         if visibility.logically_hidden {
             return Ok(());
@@ -180,7 +193,9 @@ impl LiveSourceWindowLifecycle {
     fn restore(&mut self) -> Result<(), String> {
         self.release_pressed_inputs();
         self.interaction_enabled = false;
-        let mut visibility = self.visibility.lock()
+        let mut visibility = self
+            .visibility
+            .lock()
             .map_err(|_| "live source visibility poisoned".to_string())?;
         if self.visibility_attached {
             self.visibility_attached = false;

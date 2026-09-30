@@ -8,6 +8,9 @@ use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_MULTITH
 use super::work_budget::{CaptureBudget, CpuPermit};
 use super::{frame::GpuFrame, presenter::Presenter, Layout, PreviewStatus, SubmitOutcome};
 
+#[path = "worker_schedule.rs"]
+mod schedule;
+
 const LEASE: Duration = Duration::from_millis(350);
 static SERVICE: LazyLock<Mutex<Option<Service>>> = LazyLock::new(|| Mutex::new(None));
 
@@ -103,13 +106,11 @@ pub(super) fn configure(
     let slot = slots.entry(id.to_string()).or_insert_with(Slot::new);
     // Latch device/budget errors for this session. No automatic retry storm;
     // stopping the Unit removes the slot and a new session can probe again.
-    if slot.layout != layout {
-        slot.status.presenting = false;
-    }
-    slot.layout = layout;
-    slot.renewed = Instant::now();
+    let changed = schedule::renew(slot, layout, Instant::now());
     let status = slot.status.clone();
-    let _ = service.wake.try_send(());
+    if changed {
+        let _ = service.wake.try_send(());
+    }
     Ok(status)
 }
 
@@ -151,6 +152,7 @@ pub(crate) fn submit(
     ) {
         slot.status.error = Some("GPU preview texture budget exceeded".to_string());
         slot.status.presenting = false;
+        let _ = service.wake.try_send(());
         return SubmitOutcome::Fallback;
     }
     let latest = slot.latest.take();
@@ -173,6 +175,7 @@ pub(crate) fn submit(
         Err(error) => {
             slot.status.error = Some(error);
             slot.status.presenting = false;
+            let _ = service.wake.try_send(());
             SubmitOutcome::Fallback
         }
     }
@@ -211,6 +214,7 @@ pub(crate) fn submit_pending(id: &str, pending: &mut Option<GpuFrame>) -> Submit
     ) {
         slot.status.error = Some("GPU preview texture budget exceeded".to_string());
         slot.status.presenting = false;
+        let _ = service.wake.try_send(());
         return SubmitOutcome::Fallback;
     }
     let retained = [&slot.latest, &slot.in_flight, &slot.spare]
@@ -348,9 +352,10 @@ fn run(hwnd: usize, slots: Arc<Mutex<HashMap<String, Slot>>>, receiver: mpsc::Re
         return;
     }
     let mut presenter: Option<Presenter> = None;
+    let mut wait = LEASE;
     loop {
         if matches!(
-            receiver.recv_timeout(Duration::from_millis(16)),
+            receiver.recv_timeout(wait),
             Err(mpsc::RecvTimeoutError::Disconnected)
         ) {
             break;
@@ -437,6 +442,15 @@ fn run(hwnd: usize, slots: Arc<Mutex<HashMap<String, Slot>>>, receiver: mpsc::Re
                     }
                 }
             }
+        }
+        let Ok(current) = slots.lock() else { break };
+        wait = schedule::next_wait(&current, Instant::now());
+        // A lease/fault may change while Present runs outside the lock.
+        if active
+            .iter()
+            .any(|id| current.get(id).is_some_and(|slot| !slot.active()))
+        {
+            wait = Duration::ZERO;
         }
     }
     drop(presenter);

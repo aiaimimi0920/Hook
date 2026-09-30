@@ -4,7 +4,7 @@ async fn publish_live_capture_to_loom(
     app: tauri::AppHandle,
     captures: tauri::State<'_, SharedLiveCaptureSessions>,
     relays: tauri::State<'_, SharedLiveRelaySessions>,
-    request: LiveRelayPublishRequest,
+    mut request: LiveRelayPublishRequest,
 ) -> Result<LiveRelaySnapshot, String> {
     validate_live_relay_publish_request(&request)?;
     let capture = captures.get(&request.capture_session_id)?;
@@ -12,7 +12,7 @@ async fn publish_live_capture_to_loom(
     if capture_status.capture_state == "failed" || capture_status.capture_state == "closed" {
         return Err("the local live capture is not publishable".to_owned());
     }
-    let (base_url, authorization) = live_relay_context(&app).await?;
+    let (base_url, authorization) = live_source_context(&app, &request).await?;
     let live_session_id = request
         .live_session_id
         .clone()
@@ -32,65 +32,24 @@ async fn publish_live_capture_to_loom(
         &observation_probe.capabilities,
     );
     let response = create_live_session_http(&base_url, &authorization, &body).await?;
-    validate_live_session_snapshot(&response, &live_session_id)?;
-    let relay = Arc::new(LiveRelaySession {
-        relay_id: next_live_relay_id(LiveRelayRole::Source),
-        live_session_id,
-        role: LiveRelayRole::Source,
+    let epoch = validate_live_session_snapshot(&response, &live_session_id)?;
+    request.live_session_id = Some(live_session_id);
+    let relay = new_live_relay_source(
+        next_live_relay_id(LiveRelayRole::Source),
+        request,
+        capture,
         base_url,
-        surface_instance_id: request.surface_instance_id,
-        attachment_id: request.source_attachment_id,
         authorization,
-        capture: Some(Arc::clone(&capture)),
-        state: Arc::new(Mutex::new(LiveRelayRuntimeState::starting(
-            1,
+        LiveRelayRuntimeState::starting(
+            epoch,
             observation_probe.capabilities.clone(),
             observation_probe.unavailable_reason.clone(),
-        ))),
-        frames: Arc::new(Mutex::new(LiveRelayFrameBuffer::new())),
-        stop: Arc::new(AtomicBool::new(false)),
-        reconnect: Arc::new(AtomicBool::new(false)),
-        join: Mutex::new(None),
-        control_join: Mutex::new(None),
-        observation_join: Mutex::new(None),
-        control_sequence: Mutex::new(1),
-        input_sequence: Mutex::new(0),
-    });
-    let worker = spawn_live_relay_source_worker(Arc::clone(&relay), capture)?;
-    *relay
-        .join
-        .lock()
-        .map_err(|_| "live relay worker lock poisoned".to_owned())? = Some(worker);
-    let control_worker = match spawn_live_relay_control_worker(Arc::clone(&relay)) {
-        Ok(worker) => worker,
-        Err(error) => {
-            let _ = relay.stop_and_join();
-            let _ = close_live_session_blocking(&relay);
-            return Err(error);
-        }
-    };
-    *relay
-        .control_join
-        .lock()
-        .map_err(|_| "live relay control worker lock poisoned".to_owned())? = Some(control_worker);
-    if observation_probe
-        .capabilities
-        .iter()
-        .any(|capability| capability == "uia_tree")
-    {
-        let observation_worker = match spawn_live_observation_worker(Arc::clone(&relay)) {
-            Ok(worker) => worker,
-            Err(error) => {
-                let _ = relay.stop_and_join();
-                let _ = close_live_session_blocking(&relay);
-                return Err(error);
-            }
-        };
-        *relay
-            .observation_join
-            .lock()
-            .map_err(|_| "live observation worker lock poisoned".to_owned())? =
-            Some(observation_worker);
+        ),
+    );
+    if let Err(error) = start_live_relay_source_workers(&relay) {
+        let _ = relay.stop_and_join();
+        let _ = close_live_session_blocking(&relay);
+        return Err(error);
     }
     if let Err(error) = relays.insert(Arc::clone(&relay)) {
         let _ = relay.stop_and_join();
@@ -142,9 +101,12 @@ async fn join_live_relay_session(
         live_session_id: request.live_session_id,
         role: LiveRelayRole::Viewer,
         base_url,
-        surface_instance_id: request.surface_instance_id,
-        attachment_id: request.attachment_id,
+        surface_instance_id: Some(request.surface_instance_id),
+        attachment_id: Some(request.attachment_id),
         authorization,
+        publication: None,
+        recovery_busy: AtomicBool::new(false),
+        event_cursor: std::sync::atomic::AtomicU64::new(0),
         capture: None,
         state: Arc::new(Mutex::new(runtime_state)),
         frames: Arc::new(Mutex::new(LiveRelayFrameBuffer::new())),
@@ -219,12 +181,16 @@ async fn configure_live_relay_trigger(
 }
 
 #[tauri::command]
-fn reconnect_live_relay_session(
+async fn reconnect_live_relay_session(
+    app: tauri::AppHandle,
     relays: tauri::State<'_, SharedLiveRelaySessions>,
     relay_id: String,
 ) -> Result<LiveRelaySnapshot, String> {
     validate_live_relay_identifier(&relay_id, "relay id")?;
     let relay = relays.get(&relay_id)?;
+    if relay.role == LiveRelayRole::Source {
+        return recover_live_relay_source(&app, &relays, relay).await;
+    }
     if relay.stop.load(Ordering::SeqCst) {
         return Err("live relay session is stopping".to_owned());
     }
@@ -362,8 +328,14 @@ fn shutdown_live_relay_sessions(app: &tauri::AppHandle) {
 
 fn validate_live_relay_publish_request(request: &LiveRelayPublishRequest) -> Result<(), String> {
     validate_live_capture_session_id(&request.capture_session_id)?;
-    validate_live_relay_identifier(&request.surface_instance_id, "Surface instance id")?;
-    validate_live_relay_identifier(&request.source_attachment_id, "source attachment id")?;
+    match (&request.surface_instance_id, &request.source_attachment_id) {
+        (Some(instance), Some(attachment)) => {
+            validate_live_relay_identifier(instance, "Surface instance id")?;
+            validate_live_relay_identifier(attachment, "source attachment id")?;
+        }
+        (None, None) => {}
+        _ => return Err("source binding requires both Surface identifiers or neither".to_owned()),
+    }
     validate_live_relay_identifier(&request.source_hook_id, "source Hook id")?;
     if let Some(session_id) = &request.live_session_id {
         validate_live_relay_identifier(session_id, "live session id")?;

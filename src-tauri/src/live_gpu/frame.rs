@@ -55,19 +55,21 @@ impl GpuFrame {
         desc.Width = region.right - region.left;
         desc.Height = region.bottom - region.top;
         validate_texture(&desc, limit)?;
-        // Existing capture sessions share an immediate context. Enable the D3D11
-        // runtime lock before the new presenter thread can issue any commands.
-        let guard: ID3D11Multithread = frame.d3d_context().cast().map_err(|e| e.to_string())?;
-        let _ = unsafe { guard.SetMultithreadProtected(true) };
         let mut output = match reusable {
             Some(previous)
                 if previous.width == desc.Width
                     && previous.height == desc.Height
-                    && previous.device == *frame.d3d_device() =>
+                    && previous.device == *frame.d3d_device()
+                    && previous.context == *frame.d3d_context() =>
             {
                 previous
             }
             _ => {
+                // Protection persists on this context; retained copies prove it was
+                // enabled already. A new context must establish it before publishing.
+                let guard: ID3D11Multithread =
+                    frame.d3d_context().cast().map_err(|e| e.to_string())?;
+                let _ = unsafe { guard.SetMultithreadProtected(true) };
                 desc.Usage = D3D11_USAGE_DEFAULT;
                 desc.BindFlags = (D3D11_BIND_RENDER_TARGET.0 | D3D11_BIND_SHADER_RESOURCE.0) as u32;
                 desc.CPUAccessFlags = 0;

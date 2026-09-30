@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -111,6 +112,10 @@ namespace Hook.LiveScreenshot.PhaseZero
         private int trackDowns;
         private int trackMoves;
         private int trackUps;
+        private int trackWheels;
+        private int lastWheelDelta;
+        private MouseButtons pressedMouseButtons;
+        private readonly HashSet<Keys> pressedKeys = new HashSet<Keys>();
         private bool dragActive;
 
         internal FixtureForm(string readyPath, int screenIndex, string statePath)
@@ -143,11 +148,12 @@ namespace Hook.LiveScreenshot.PhaseZero
                 statusLabel.Text = "Clicks: " + clicks;
                 WriteStateFile();
             };
-            actionButton.KeyDown += (_, __) => UpdateKeyEdges();
-            actionButton.KeyUp += (_, __) => UpdateKeyEdges();
+            actionButton.KeyDown += (_, e) => UpdateKeyEdges(e.KeyCode, true);
+            actionButton.KeyUp += (_, e) => UpdateKeyEdges(e.KeyCode, false);
             actionButton.MouseDown += (_, eventArgs) =>
             {
                 if (eventArgs.Button != MouseButtons.Left) return;
+                pressedMouseButtons |= eventArgs.Button;
                 dragActive = true;
                 UpdateDragEdges();
             };
@@ -158,6 +164,7 @@ namespace Hook.LiveScreenshot.PhaseZero
             actionButton.MouseUp += (_, eventArgs) =>
             {
                 if (eventArgs.Button != MouseButtons.Left) return;
+                pressedMouseButtons &= ~eventArgs.Button;
                 UpdateDragEdges();
                 dragActive = false;
             };
@@ -165,6 +172,7 @@ namespace Hook.LiveScreenshot.PhaseZero
             rangeValue.MouseDown += (_, __) => { trackDowns++; WriteStateFile(); };
             rangeValue.MouseMove += (_, e) => { if (e.Button == MouseButtons.Left) { trackMoves++; WriteStateFile(); } };
             rangeValue.MouseUp += (_, __) => { trackUps++; WriteStateFile(); };
+            rangeValue.MouseWheel += (_, e) => { trackWheels++; lastWheelDelta = e.Delta; WriteStateFile(); };
 
             var controls = new FlowLayoutPanel
             {
@@ -206,8 +214,9 @@ namespace Hook.LiveScreenshot.PhaseZero
             get { return Environment.GetEnvironmentVariable("HOOK_LIVE_FIXTURE_BACKGROUND") == "1"; }
         }
 
-        private void UpdateKeyEdges()
+        private void UpdateKeyEdges(Keys key, bool pressed)
         {
+            if (pressed) pressedKeys.Add(key); else pressedKeys.Remove(key);
             keyEdges++;
             keyStatusLabel.Text = "Keys: " + keyEdges;
             WriteStateFile();
@@ -256,8 +265,10 @@ namespace Hook.LiveScreenshot.PhaseZero
             Directory.CreateDirectory(Path.GetDirectoryName(statePath));
             string json = string.Format(
                 System.Globalization.CultureInfo.InvariantCulture,
-                "{{\"schemaVersion\":1,\"clicks\":{0},\"keyEdges\":{1},\"dragEdges\":{2},\"trackValue\":{3},\"trackDowns\":{4},\"trackMoves\":{5},\"trackUps\":{6}}}",
-                clicks, keyEdges, dragEdges, rangeValue.Value, trackDowns, trackMoves, trackUps);
+                "{{\"schemaVersion\":1,\"clicks\":{0},\"keyEdges\":{1},\"dragEdges\":{2},\"trackValue\":{3},\"trackDowns\":{4},\"trackMoves\":{5},\"trackUps\":{6}," +
+                "\"trackWheels\":{7},\"lastWheelDelta\":{8},\"pressedMouseButtons\":{9},\"pressedKeyCount\":{10}}}",
+                clicks, keyEdges, dragEdges, rangeValue.Value, trackDowns, trackMoves, trackUps,
+                trackWheels, lastWheelDelta, (int)pressedMouseButtons, pressedKeys.Count);
             File.WriteAllText(statePath, json);
         }
     }

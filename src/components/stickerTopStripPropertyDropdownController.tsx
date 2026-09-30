@@ -6,6 +6,7 @@ import { acceptsSurfaceRelayedKeydown } from "../services/surfaceHostKeydown";
 import { syncTopStripBackendRects } from "../services/stickerTopStripSync";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import type { MiniDropdownOption } from "./stickerTopStripPropertyBarFields";
+import { OverlayMenuScrollArea } from "./OverlayMenuScrollArea";
 
 export interface PropertyBarAnchorRect {
     x: number;
@@ -191,8 +192,9 @@ export const createPropertyDropdownController = (options: CreatePropertyDropdown
                         onPointerMove={(event) => event.stopPropagation()}
                         onWheel={(event) => event.stopPropagation()}
                     >
-                        <div class="max-h-[220px] overflow-y-auto overflow-x-hidden py-1">
-                            <For each={menu().options}>
+                        <OverlayMenuScrollArea label="字体与属性选项滚动条"
+                            maxHeight={`max(28px, min(220px, calc(100vh - ${menu().anchor.y + menu().anchor.height + 16}px)))`}>
+                            <div class="py-1"><For each={menu().options}>
                                 {(option) => (
                                     <button
                                         type="button"
@@ -206,8 +208,8 @@ export const createPropertyDropdownController = (options: CreatePropertyDropdown
                                         <span class="truncate">{option.label}</span>
                                     </button>
                                 )}
-                            </For>
-                        </div>
+                            </For></div>
+                        </OverlayMenuScrollArea>
                     </div>
                 </Portal>
             )}

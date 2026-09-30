@@ -94,10 +94,13 @@ fn spawn_live_relay_control_worker(
 }
 
 fn run_live_relay_control(relay: Arc<LiveRelaySession>) {
-    let mut after = 0_u64;
+    let mut after = relay.event_cursor.load(Ordering::SeqCst);
     while !relay.stop.load(Ordering::SeqCst) {
         match poll_live_relay_events_blocking(&relay, after) {
             Ok(response) => {
+                if relay.stop.load(Ordering::SeqCst) {
+                    break;
+                }
                 if response.reset {
                     fail_live_relay_control(
                         &relay,
@@ -106,6 +109,7 @@ fn run_live_relay_control(relay: Arc<LiveRelaySession>) {
                     );
                     let _ = revoke_live_relay_after_failure(&relay);
                     after = response.next;
+                    relay.event_cursor.store(after, Ordering::SeqCst);
                     continue;
                 }
                 if let Err(error) = apply_live_relay_events(&relay, &response, &mut after) {
@@ -153,6 +157,9 @@ fn apply_live_relay_events(
     after: &mut u64,
 ) -> Result<(), String> {
     for event in &response.events {
+        if relay.stop.load(Ordering::SeqCst) {
+            return Err("live relay is stopping".to_owned());
+        }
         let expected = after.saturating_add(1);
         if event.protocol_version != LIVE_RELAY_PROTOCOL_VERSION
             || event.session_id != relay.live_session_id
@@ -167,6 +174,7 @@ fn apply_live_relay_events(
             return Err("Loom live control event identity or ordering is invalid".to_owned());
         }
         *after = event.sequence;
+        relay.event_cursor.store(*after, Ordering::SeqCst);
         match event.message_type.as_str() {
             "session_state" => apply_live_relay_session_state(relay, &event.payload)?,
             "input_event" if relay.role == LiveRelayRole::Source => {

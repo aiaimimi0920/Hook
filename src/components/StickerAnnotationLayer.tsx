@@ -1,5 +1,7 @@
 import { Component, Show, createMemo, createSignal } from "solid-js";
 import { graphStore } from "../store/graphStore";
+import { api } from "../services/api";
+import { syncService } from "../services/syncService";
 import {
     activeStickerEditTargetId,
     selectedStickerId,
@@ -118,6 +120,11 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
         commitAnnotation,
         patchUnitData,
         rememberCurrentState,
+        restoreTextCursor: () => api.restoreOverlayTextCursor(),
+        refreshOverlayInteractivity: async () => {
+            await api.setMouseMonitorActive(true);
+            await syncService.updateBackendRects();
+        },
     });
     const {
         appendLiveErasePoint,
@@ -357,6 +364,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             style={{
                 "pointer-events": interactionEnabled() ? "auto" : "none",
                 "overflow": cropClipped() ? "hidden" : "visible",
+                cursor: "default",
             }}
             onPointerDown={(event) =>
                 void onPointerDown(event).catch((error) =>
@@ -397,6 +405,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                 class="absolute inset-0 h-full w-full"
                 style={{
                     "overflow": cropClipped() ? "hidden" : "visible",
+                    cursor: "default",
                 }}
             >
                 <StickerAnnotationElements
@@ -458,6 +467,10 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                         class="absolute z-[20] border bg-transparent px-0 py-0 font-medium outline-none placeholder:text-[rgba(247,252,230,0.55)]"
                         style={{
                             ...pendingTextInputStyle(),
+                            // The inline editor is transparent over the sticker. A native text
+                            // I-beam blends into the image, so keep the system arrow visible
+                            // while the caret still communicates the active editing state.
+                            cursor: "default",
                             "border-color": "color-mix(in srgb, var(--theme-signal) 65%, transparent)",
                             "box-shadow": "inset 0 0 0 1px color-mix(in srgb, var(--theme-signal) 20%, transparent)",
                         }}

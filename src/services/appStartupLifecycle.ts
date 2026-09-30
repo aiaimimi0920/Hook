@@ -6,6 +6,7 @@ import { uiActions } from "../store/uiStore";
 import type { AppSettings } from "../types/appSettings";
 import { api, listenBrowserLoomHookMethod, type VoiceSettingsSummary } from "./api";
 import { AppListenerRegistry } from "./appListenerRegistry";
+import { setStartupSessionReady } from "./appStartupState";
 import { registerAppArtControlListeners } from "./appArtControlListeners";
 import { registerAppCommandListeners } from "./appCommandListeners";
 import { registerAppPointerListeners } from "./appPointerListeners";
@@ -137,12 +138,14 @@ export function useAppStartupLifecycle(dependencies: AppStartupLifecycleDependen
     onMount(async () => {
         logger.debug("App Mounted - Initializing...");
         const cleanups = new AppListenerRegistry();
+        setStartupSessionReady(false);
         let bootProfile: BootProfile | null = null;
 
         // Establish ownership before the first await so a fast unmount also
         // disposes listeners whose asynchronous registration resolves later.
         onCleanup(() => {
             cleanups.dispose();
+            setStartupSessionReady(false);
             surfaceResourceStore.actions.clearAll();
         });
 
@@ -173,7 +176,7 @@ export function useAppStartupLifecycle(dependencies: AppStartupLifecycleDependen
         if (dependencies.tauriRuntime) {
             // Register before handshake/session restore so no initial workflow
             // broadcast can race ahead of the frontend listeners.
-            await registerExtensionLifecycle(cleanups, dependencies.tauriRuntime);
+            await registerExtensionLifecycle(cleanups, dependencies.tauriRuntime, bootProfile?.loomHookWsUrl);
             await registerAppCommandListeners({
                 registry: cleanups,
                 ...dependencies.registerAppCommandListeners,
@@ -207,6 +210,7 @@ export function useAppStartupLifecycle(dependencies: AppStartupLifecycleDependen
         }
 
         await restoreStartupSession(bootProfile, refreshCapabilities);
+        if (!cleanups.isDisposed) setStartupSessionReady(true);
 
         if (bootProfile?.autoStartCapture) {
             await api.debugLogEvent("boot-autostart-capture");

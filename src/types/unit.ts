@@ -6,6 +6,7 @@ import type {
 } from "./stickerEditing";
 import type { ArtResultCandidate } from "../services/protocol";
 import type { UnitExtensionState } from "./unitExtension";
+import type { QrProjectionLink } from "./qrProjection";
 
 export interface OcrPoint {
     x: number;
@@ -56,6 +57,13 @@ export interface BarcodeScanResult {
     selectedId?: string;
 }
 
+export interface TranslationResult {
+    targetLanguage: string;
+    sourceRevision: number;
+    fullText: string;
+    textBlocks: OcrBlock[];
+}
+
 export interface Port {
     id: string;
     type: 'image' | 'text' | 'number' | 'boolean' | 'any';
@@ -92,6 +100,9 @@ export interface UnitData {
         scaleFactor?: number;
     };
     barcodeResult?: BarcodeScanResult;
+    translationResult?: TranslationResult;
+    qrProjection?: QrProjectionLink;
+    projectionSenders?: import("../services/projectionSenderBindings").ProjectionSenderBinding[];
     extensionState?: UnitExtensionState;
 
     // Art Specific
@@ -248,6 +259,8 @@ export interface SessionSticker {
     ocrResult?: UnitData["ocrResult"] | null;
     barcodeResult?: BarcodeScanResult | null;
     extensionState?: UnitExtensionState | null;
+    qrProjection?: QrProjectionLink | null;
+    projectionSenders?: UnitData["projectionSenders"] | null;
     originWorkflowId?: string | null;
     originNodeId?: string | null;
     executionConfig?: NodeExecutionConfig | null;

@@ -13,8 +13,17 @@ tests remain the source of truth.
 - [`../CONTRIBUTING.md`](../CONTRIBUTING.md) - engineering and verification rules.
 - [`FEATURES.md`](FEATURES.md) - implemented shortcuts and manual regression matrix.
 - [`HDR_CAPTURE.md`](HDR_CAPTURE.md) - HDR capture behavior and SDR fallback rules.
-- [`LIVE_SCREENSHOT_COMPATIBILITY_BASELINE.md`](LIVE_SCREENSHOT_COMPATIBILITY_BASELINE.md) -
-  measured Phase 0 evidence and the current G0 decision.
+- [`LIVE_CAPTURE.md`](LIVE_CAPTURE.md) - native capture scope, browser behavior,
+  failure notices, and the current implementation/verification entrypoints.
+- [`LIVE_RESOURCE_ADMISSION.md`](LIVE_RESOURCE_ADMISSION.md) - resource admission and pressure.
+- [`LIVE_GPU_PRESENTATION.md`](LIVE_GPU_PRESENTATION.md) - GPU presentation and fallback.
+- [`LIVE_SHARED_SOURCE_CAPTURE.md`](LIVE_SHARED_SOURCE_CAPTURE.md) - shared window capture ownership.
+- [`QR_PROJECTION.md`](QR_PROJECTION.md) - projection, receiving, and two-way editing.
+- [`QR_BARCODE_RECOGNITION.md`](QR_BARCODE_RECOGNITION.md) - optional OCR package
+  code recognition, gestures, attachments, and safe URL handling.
+- [`TILE_TERMINAL.md`](TILE_TERMINAL.md) - terminal startup and its acceptance boundary.
+- [Live compatibility and validation](LIVE_CAPTURE.md#compatibility-and-validation) -
+  controlled support matrix, native probes and evidence limits.
 - [`LIVE_SCREENSHOT_PROTOCOL.md`](LIVE_SCREENSHOT_PROTOCOL.md) - `loom.live.v1`
   source/viewer, ordering, binary-media, and security boundaries.
 - [`ASSET_LIBRARY_INTEGRATION.md`](ASSET_LIBRARY_INTEGRATION.md) - target
@@ -34,6 +43,8 @@ tests remain the source of truth.
 ## Project policy
 
 - [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md)
+- [`SECURITY_BOUNDARIES.md`](SECURITY_BOUNDARIES.md) - identity storage, remote-image
+  destination enforcement and native input lifecycle limits.
 - [`../SECURITY.md`](../SECURITY.md)
 - [`../GOVERNANCE.md`](../GOVERNANCE.md)
 - [`../THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md)
@@ -41,7 +52,7 @@ tests remain the source of truth.
 ## Documentation rule
 
 Completed implementation plans, migration checklists, smoke logs, and handoff
-notes are preserved by Git history and the `文本优化前版本` tag rather than kept in
+notes are preserved by Git history and the `cleanup-base-20260928` tag rather than kept in
 the active documentation tree. If a document conflicts with the implementation,
 correct or remove the document; do not change working code merely to match an old
 plan.

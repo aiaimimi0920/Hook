@@ -136,6 +136,7 @@ impl LiveSourceWindowLifecycle {
         }
         self.last_client_x = target_point.x;
         self.last_client_y = target_point.y;
+        let button_completion = self.track_button_gesture(target, request, target_point);
         let (wparam, lparam) = if request.kind == "mouse_wheel" {
             let delta = request
                 .wheel_delta
@@ -167,12 +168,25 @@ impl LiveSourceWindowLifecycle {
         if button_mask != 0 {
             self.pressed_mouse_buttons |= next_pressed;
         }
-        self.deliver_message(target, message, wparam, lparam)?;
+        live_deliver_message_with_timeout(
+            target,
+            message,
+            wparam,
+            lparam,
+            if request.kind == "mouse_move" {
+                50
+            } else {
+                250
+            },
+        )?;
         if button_mask != 0 {
             self.pressed_mouse_buttons = next_pressed;
             if next_pressed == 0 {
                 self.mouse_target_hwnd = None;
             }
+        }
+        if button_completion {
+            self.complete_occluded_button(hwnd, target, target_point)?;
         }
         Ok(())
     }
@@ -266,11 +280,12 @@ impl LiveSourceWindowLifecycle {
             self.pressed_virtual_keys
                 .insert(virtual_key, target.0 as isize);
         }
-        self.deliver_message(
+        live_deliver_message_with_timeout(
             target,
             if key_up { 0x0101 } else { 0x0100 },
             windows::Win32::Foundation::WPARAM(usize::from(virtual_key)),
             windows::Win32::Foundation::LPARAM(lparam),
+            250,
         )?;
         if key_up {
             self.pressed_virtual_keys.remove(&virtual_key);
@@ -279,6 +294,8 @@ impl LiveSourceWindowLifecycle {
     }
 
     fn release_pressed_inputs(&mut self) {
+        // Cancelling a captured gesture must never run its deferred button action.
+        self.button_gesture = None;
         let hwnd = match self.validate_identity() {
             Ok(hwnd) => hwnd,
             Err(_) => {
@@ -348,6 +365,18 @@ fn live_deliver_message(
     wparam: windows::Win32::Foundation::WPARAM,
     lparam: windows::Win32::Foundation::LPARAM,
 ) -> Result<(), String> {
+    // Cleanup retains its short per-edge bound even when an application stops responding.
+    live_deliver_message_with_timeout(target, message, wparam, lparam, 50)
+}
+
+#[cfg(target_os = "windows")]
+fn live_deliver_message_with_timeout(
+    target: windows::Win32::Foundation::HWND,
+    message: u32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+    timeout_ms: u32,
+) -> Result<(), String> {
     #[cfg(test)]
     if let Some(result) = live_input_delivery_tests::intercept(message) {
         return result;
@@ -361,7 +390,7 @@ fn live_deliver_message(
             lparam,
             windows::Win32::UI::WindowsAndMessaging::SMTO_ABORTIFHUNG
                 | windows::Win32::UI::WindowsAndMessaging::SMTO_BLOCK,
-            50,
+            timeout_ms,
             Some(&mut message_result),
         )
     };

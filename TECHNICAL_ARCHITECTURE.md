@@ -53,6 +53,28 @@ Hook/
 └── docs/                       current feature, HDR, release, and policy docs
 ```
 
+## Projection editing ownership
+
+`useProjectionTargetControls.ts` owns secondary-toolbar checkbox intent, fresh
+directory validation and per-target operation feedback. It reuses the durable
+create journal and batch sender; cancellation persists `stopPending` on saved
+bindings and waits for the existing sync owner's unlink result. Uncertain creates
+are cancelled in the journal before unlink. `projectionTargetStatus.ts` distinguishes
+invitation creation from receiver display and aggregates group results. Sync status
+snapshots replace earlier fields, so recovery cannot retain an obsolete error.
+The full projection management dialog retains its separate batch-selection flow.
+
+`projectionEditEngine.ts` serializes each Unit's editing operations and fences
+workspace changes, removal and delayed responses. `projectionEditSession.ts` binds
+that engine to graph actions, native transport and the existing projection poller.
+`projectionEditJournal.ts` owns bounded IndexedDB records with transaction-complete
+durability and revision compare-and-set; ordinary workflow saving does not replace
+this request journal. Geometry, validation and concurrent-view merging have separate
+modules. Hook owns original annotations and base-image rasterization; Loom owns
+authenticated bindings, shared revisions, mode authority and checkpoint fences.
+The native `qr_projection/edit.rs` boundary validates typed requests and documents
+before routing through the paired local or offline-peer projection endpoint.
+
 ## 3. Frontend architecture
 
 ### 3.1 Integration entry
@@ -139,10 +161,30 @@ they must not be unified as a cosmetic refactor without behavior tests.
 
 ## 4. Native backend architecture
 
+The independent tile path uses `TileTerminal.tsx`, `tilePresenter.ts`, bounded
+image/Live caches, and the shared `wallGeometry.ts` mapping. Its serial input
+controller owns one bounded queue and one endpoint control lease. A separate
+500 ms output monitor invalidates late control results after geometry or display
+loss; six seconds without renewed authorization clears even static content.
+Input feedback is a noninteractive badge, separate from full-screen error state.
+
+Art has a separate `tileSurfaceController.ts` action owner, serial state cache
+and bounded resource cache. `TileSurfaceLayers.tsx` composes existing declarative
+controls with media using the shared crop/rotation mapping. Stable node IDs and
+`surfaceInputDraft.ts` preserve local edits until an outcome read completes.
+Loom owns the ephemeral view, event identity, confirmation and execution state;
+the terminal never launches Art code. Layout and connection teardown release
+only presentation grants, leaving the source and its formal output intact.
+
 ### 4.1 Entry and command surface
 
 - `src-tauri/src/main.rs` handles process-only CLI modes such as `--version`,
   `--self-check`, smoke helpers, and the emergency watchdog child process.
+- `tile_terminal.rs` handles `--tile` / `--tile-output`, owns one mutex per physical
+  output and registers only terminal commands. It does not install capture hooks
+  or start the ordinary Hook workspace. `tile_outputs.rs` owns stable Windows
+  output identities and physical/DPI geometry; `wall_client.rs` and `wall_live.rs`
+  keep device credentials and network media outside the frontend.
 - `src-tauri/src/lib.rs` registers Tauri commands, initializes the runtime,
   installs global input handling, owns overlay/tray transitions, and connects the
   frontend to native services.
@@ -267,6 +309,14 @@ child becomes invalid, input falls back to the nearest valid ancestor instead of
 disabling the whole session. `SendMessageTimeoutW` provides bounded delivery.
 This does not emulate hardware input, secure desktop, or native minimization.
 
+`native/live_source_button.rs` tracks a bounded push-button gesture for WinForms
+controls whose ordinary mouse-up Click is suppressed by occlusion. Only an
+explicit, un-dragged release at the same validated, enabled control may complete
+the standard parent `BN_CLICKED` notification. Cleanup never runs this action.
+Ordinary discrete input delivery allows 250 ms for cold control handlers; move
+samples and cleanup releases retain their 50 ms bound. Unknown completion is not
+retried. Existing user/session, UIPI and child-HWND checks remain in force.
+
 Static rectangular region drags intentionally use the visible display composition
 to preserve every window that overlaps the selection. Live drags are program-first:
 a rectangle fully contained by one valid top-level window uses that HWND plus a
@@ -318,6 +368,21 @@ transform.
 
 Package Arts are forwarded to Loom through `loom.hook.v1`. Hook does not maintain
 per-Art command executors in the frontend or Rust host.
+
+The extension lifecycle uses the native boot profile's `loomHookWsUrl`, including
+for reconnects, so custom bridge ports serve both Art and capability extensions.
+Disposing the App mount closes that connection and cancels its reconnect timer.
+The native context adds only that configured loopback WebSocket origin to
+`connect-src`. Other origins and ports, credentials, paths, and CSP directive
+injection cannot expand this grant; the static script/frame policies remain intact.
+
+`extensionOverlayVisibility.ts` owns cached OCR-context overlay presentation.
+Each attachment can retain a host-owned `overlayVisible` preference outside its
+capability payload. Toggling visibility preserves the result revision and digest;
+only a real result update goes through attachment CAS. The preference is persisted
+with the unit but is omitted from capability command inputs. A replacement renderer
+suppresses its source without changing that source's preference, and source identity
+guards continue rejecting translation after a real OCR or image refresh.
 
 Loom OCR blocks may carry additive `rawText` correction evidence,
 `lineGeometry`, and CTC-timestep-aligned `characterSpans`/`wordSpans`. Hook
@@ -396,6 +461,9 @@ transport files, logs, and caches do not use the visible naming templates.
 The public bundle identity and canonical automatic data root are
 `com.yamiyu.hook`. Tests and isolated launches can override the data root with
 `HOOK_APPDATA_DIR`; the runtime does not scan or migrate obsolete identities.
+Startup grants the WebView asset protocol access to image files directly inside
+that effective data root's `images` directory so persisted stickers can render
+after restart. The grant does not expose session/settings files or the whole data root.
 
 Phase 71 enforces the same canonical-only rule across the active Art boundary:
 current schemas, package layouts, and app-data identities are accepted;

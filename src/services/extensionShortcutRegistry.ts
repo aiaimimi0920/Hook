@@ -1,11 +1,13 @@
 import { DEFAULT_SHORTCUTS, parseShortcutAlternatives, type ShortcutCandidate } from "./shortcuts";
 import { extensionContributionPayload, type ContributionSnapshot } from "./extensionProtocol";
 import { compileExtensionWhen, type ExtensionWhenPredicate } from "./extensionWhen";
-import { currentExtensionWhenContext } from "./extensionContext";
+import { currentExtensionTarget, currentExtensionWhenContext } from "./extensionContext";
 import { extensionCommandRouter } from "./extensionCommandRouter";
+import { extensionNoticeRegistry } from "./extensionNoticeRegistry";
 
 export type ExtensionShortcutBinding = {
     id: string;
+    scopeId: string;
     commandId: string;
     candidate: ShortcutCandidate;
     global: boolean;
@@ -66,6 +68,7 @@ export const buildExtensionShortcutBindings = (snapshot: ContributionSnapshot): 
             occupied.add(key);
             accepted.push({
                 id: shortcut.id,
+                scopeId: shortcut.scopeId,
                 commandId,
                 candidate,
                 global: payload.global === true,
@@ -127,8 +130,16 @@ export class ExtensionShortcutRegistry {
         if (!binding) return;
         event.preventDefault();
         event.stopPropagation();
+        const targetUnit = currentExtensionTarget();
         void extensionCommandRouter.execute(binding.commandId).catch((error) => {
             console.error(`Extension shortcut ${binding.id} failed`, error);
+            // Preserve the invocation owner across selection changes; disconnect owns cleanup.
+            if (targetUnit && this.bindings.some((entry) => entry.scopeId === binding.scopeId)) {
+                extensionNoticeRegistry.show(binding.scopeId, targetUnit.unitId, {
+                    title: "扩展命令未完成",
+                    message: error instanceof Error ? error.message.slice(0, 512) : "请检查 Loom 扩展状态后重试。",
+                });
+            }
         });
     };
 }

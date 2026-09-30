@@ -5,7 +5,8 @@ param(
     [switch]$DryRun,
     [switch]$UiAccess,
     [switch]$AllowUnsignedUiAccessBuild,
-    [switch]$RequireCleanSource
+    [switch]$RequireCleanSource,
+    [switch]$PublicRelease
 )
 
 Set-StrictMode -Version Latest
@@ -21,6 +22,8 @@ $releaseExe = Join-Path $hookRoot "src-tauri\target\release\hook.exe"
 $versionPreflightScript = Join-Path $hookRoot "scripts\assert-release-version.ps1"
 $fileHashScript = Join-Path $hookRoot "scripts\file-hash.ps1"
 . $fileHashScript
+. (Join-Path $PSScriptRoot "version-identity.ps1")
+$versionIdentity = Get-HookVersionIdentity -RepoRoot $hookRoot -PublicRelease:$PublicRelease.IsPresent
 
 function Get-HookGitText {
     param([string[]]$Arguments)
@@ -68,6 +71,9 @@ function Write-HookBuildProvenance {
         builder = "Hook scripts/build-local-hook-exe.ps1"
         builtAt = (Get-Date).ToString("o")
         productVersion = $productVersion
+        buildVersion = $versionIdentity.buildVersion
+        channel = $versionIdentity.channel
+        internalRevision = $versionIdentity.internalRevision
         gitHead = $gitHead
         gitDirty = $GitDirty
         sourcePaths = @(".")
@@ -139,6 +145,8 @@ if ($DryRun) {
         allowUnsignedUiAccessBuild = $AllowUnsignedUiAccessBuild.IsPresent
         requireCleanSource = $RequireCleanSource.IsPresent
         sourceGitDirty = $sourceGitDirty
+        buildVersion = $versionIdentity.buildVersion
+        channel = $versionIdentity.channel
     } | ConvertTo-Json -Depth 5
     exit 0
 }

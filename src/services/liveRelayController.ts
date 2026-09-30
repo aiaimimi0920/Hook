@@ -29,6 +29,8 @@ export function createLiveRelayController() {
     const generations = new Map<string, number>();
     const objectUrls = new Map<string, string>();
     const inputQueues = new Map<string, InputQueue>();
+    const recoveryAfter = new Map<string, number>();
+    const publications = new Map<string, Promise<void>>();
     let disposed = false;
 
     const releaseObjectUrl = (relayId: string): void => {
@@ -75,6 +77,7 @@ export function createLiveRelayController() {
         try {
             if (view.status.role === "viewer") {
                 const response = await api.pollLiveRelayFrame(relayId, view.renderedFrameId);
+                if (disposed || generations.get(relayId) !== generation) return;
                 liveRelayActions.updateStatus(relayId, response.status);
                 if (response.frame && response.frame.frameId > view.renderedFrameId) {
                     try {
@@ -84,7 +87,16 @@ export function createLiveRelayController() {
                     }
                 }
             } else {
-                liveRelayActions.updateStatus(relayId, await api.getLiveRelayStatus(relayId));
+                let status = await api.getLiveRelayStatus(relayId);
+                if (disposed || generations.get(relayId) !== generation) return;
+                if ((status.connectionState === "recovering" || status.errorCode === "control_poll_failed")
+                    && status.errorCode !== "source_recovery_unavailable"
+                    && Date.now() >= (recoveryAfter.get(relayId) ?? 0)) {
+                    recoveryAfter.set(relayId, Date.now() + 5000);
+                    status = await api.reconnectLiveRelaySession(relayId);
+                    if (disposed || generations.get(relayId) !== generation) return;
+                }
+                liveRelayActions.updateStatus(relayId, status);
             }
             const current = liveRelayViews.find((candidate) => candidate.relayId === relayId);
             if (current?.status.connectionState === "closed") {
@@ -116,33 +128,50 @@ export function createLiveRelayController() {
     };
 
     const discover = async (): Promise<void> => {
+        if (disposed) return;
         const discovery = await api.discoverLiveRelaySessions();
-        liveRelayActions.setDiscovery(discovery);
+        if (!disposed) liveRelayActions.setDiscovery(discovery);
     };
 
     const publish = async (
         captureSessionId: string,
         title: string,
         size: { width: number; height: number },
-        binding: LiveRelayBinding,
+        binding?: LiveRelayBinding,
     ): Promise<void> => {
-        const status = await api.publishLiveCaptureToLoom({
-            captureSessionId,
-            surfaceInstanceId: binding.instanceId,
-            sourceAttachmentId: binding.attachmentId,
-            sourceHookId: binding.unitId,
-        });
-        track(status, title, size);
-        await discover();
+        if (disposed) throw new Error("live relay owner is disposed");
+        const pending = publications.get(captureSessionId);
+        if (pending) return pending;
+        if (liveRelayViews.some((view) => view.status.role === "source" && view.status.captureSessionId === captureSessionId)) return;
+        if (publications.size >= 4) throw new Error("live_relay_publication_limit");
+        const operation = Promise.resolve().then(async () => {
+            if (disposed) return;
+            const status = await api.publishLiveCaptureToLoom({
+                captureSessionId,
+                surfaceInstanceId: binding?.instanceId,
+                sourceAttachmentId: binding?.attachmentId,
+                sourceHookId: binding?.unitId ?? captureSessionId,
+            });
+            if (disposed) { await api.stopLiveRelaySession(status.relayId); return; }
+            track(status, title, size);
+            // A catalog refresh failure does not undo an already successful publication.
+            await discover().catch((error: unknown) => {
+                if (!disposed) liveRelayActions.setError(status.relayId, error instanceof Error ? error.message : String(error));
+            });
+        }).finally(() => { publications.delete(captureSessionId); });
+        publications.set(captureSessionId, operation);
+        return operation;
     };
 
     const join = async (session: LiveRelaySessionSummary, binding: LiveRelayBinding): Promise<void> => {
+        if (disposed) return;
         if (liveRelayViews.some((view) => view.status.liveSessionId === session.session.sessionId)) return;
         const status = await api.joinLiveRelaySession({
             liveSessionId: session.session.sessionId,
             surfaceInstanceId: binding.instanceId,
             attachmentId: binding.attachmentId,
         });
+        if (disposed) { await api.stopLiveRelaySession(status.relayId); return; }
         track(status, titleFor(session), session.session.frameStream);
     };
 
@@ -231,6 +260,7 @@ export function createLiveRelayController() {
 
     const stop = async (relayId: string): Promise<void> => {
         generations.delete(relayId);
+        recoveryAfter.delete(relayId);
         const timer = timers.get(relayId);
         if (timer !== undefined) window.clearTimeout(timer);
         const queue = inputQueues.get(relayId);
@@ -272,6 +302,7 @@ export function createLiveRelayController() {
         timers.clear();
         generations.clear();
         inputQueues.clear();
+        recoveryAfter.clear();
         objectUrls.clear();
         liveRelayActions.clear();
     };

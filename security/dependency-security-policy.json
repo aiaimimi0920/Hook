@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "scanner": {
     "name": "osv-scanner",
-    "version": "2.5.0",
-    "reusableWorkflow": "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@0c58c542420dfd23fcac08dd9c8ca3cca9c36f1a",
-    "actionCommit": "06b2ab4348248b456ee06c9e953637f55e03504f",
-    "windowsX64Url": "https://github.com/google/osv-scanner/releases/download/v2.5.0/osv-scanner_windows_amd64.exe",
-    "windowsX64Sha256": "4342285bd8be36b9f113468f3eea86e7900befbcd19ca8dc6ac4f0f6cbe7c362"
+    "version": "2.5.1",
+    "reusableWorkflow": "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@ffa0a5f39214d80778c9b494822d94d0d9668458",
+    "actionCommit": "baa4139e56d6312335d899e6ba045fa16d1d3d0b",
+    "windowsX64Url": "https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_windows_amd64.exe",
+    "windowsX64Sha256": "25e42f5ef6711fd8c0fb45390972205891dd44c6bd02ac93f0f63e8e98d9bfb6"
   },
   "config": "security/osv-scanner.toml",
   "evidenceDirectory": ".tmp/dependency-security",

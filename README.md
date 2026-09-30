@@ -28,6 +28,33 @@ Hook combines a transparent desktop capture surface with a persistent sticker
 workspace. Captures can remain on the desktop, be edited and annotated, or be
 connected to local Art/Loom workflows without leaving the application.
 
+[QR projection](docs/QR_PROJECTION.md) is available from the Ctrl+E toolbar and
+links a sticker or formal Art image to another Windows Hook. Choose a shared
+HTTPS Loom with device pairing and no official login, or the existing Loom
+account mode. Receiver layout stays independent. Shared Loom supports online-device
+selection and continuous delivery with receiver confirmation or automatic display.
+Confirmation uses a compact upper-center desktop prompt with accept, reject,
+and defer actions. Manually trusted offline Loom peers also support delivery. Official premium relay
+remains reserved. Native PC1/PC3 acceptance passed using pinned SSH forwarding.
+
+The projection secondary toolbar uses device/group checkboxes to start or cancel
+projection directly, with per-row pending/success/failure markers and safe retry.
+Success follows receiver display or remote cancellation acknowledgement.
+The receive toolbar displays data flow as a read-only indicator. Its single import
+compact, sticker-anchored dialog accepts a QR PNG or projection link without explanatory
+labels and receives content after an explicit
+Import action; the sender identifier remains visible without a revision button.
+Count-free device/group/user icons open dropdowns; target rows show IDs and checkboxes. Long target
+and font lists support wheel scrolling and draggable scrollbars in the overlay.
+The user dropdown reports the unavailable account service. This UI increment has
+focused and browser coverage. Isolated candidates have also passed PC1/PC3
+shared/cross-Loom policy, editing, batch-binding and stop checks over pinned SSH
+forwarding; the batch check used two Loom identities on one physical receiver.
+Shared and trusted cross-Loom v1 links also support opt-in two-way annotation
+editing, source-controlled direction, durable retries and explicit conflict choices.
+The base image stays fixed during an editing session; account-mode v2 and unsupported
+annotation effects do not expose this editing capability.
+
 ## Core capabilities
 
 ### Capture
@@ -96,11 +123,24 @@ connected to local Art/Loom workflows without leaving the application.
 
 - node canvas, links, grouped parameters, and shader previews;
 - Loom capability discovery and Art execution/delivery;
+- an opt-in [tile terminal](docs/TILE_TERMINAL.md) through `--tile`, presenting
+  Loom-managed images, Live content and declarative Art on a selected physical
+  output, with endpoint-scoped input and host-owned Art confirmation/cancellation.
+  Loom can freeze, black out and resume a saved wall, with per-output application
+  reports and paused input. Identify one screen by its actual output name with a
+  marker lasting at most 10 seconds; Escape dismisses it without exiting the output.
+  This remains an internal development slice;
+  scheduling and multi-computer acceptance are pending;
 - installable Loom Capability Plugins can contribute commands, shortcuts, toolbar
   menus, result attachments, overlays, and unit-scoped notices without a Hook
   business branch; the official OCR package contributes its own `Ctrl+4`,
   `Alt+4`, cached full/layout copy, click-to-copy, and Shift+click multi-block
   selection behavior only while installed and enabled;
+- OCR and translation keep independent cached results: `Ctrl+4` re-recognizes,
+  `Ctrl+5` translates using existing OCR or recognizes first, and `Alt+4` / `Alt+5`
+  toggle cached overlays or produce the missing result on first use. The overlays
+  are mutually exclusive; hiding translation restores OCR only when it was not
+  explicitly hidden. Visibility changes do not repeat OCR or model requests;
 - all sticker and Art notices stay bound to their owning unit, stack in its upper-right corner, and can be dismissed one at a time;
 - the official OCR package automatically performs bounded local QR/barcode
   decoding during `Ctrl+4`, then contributes generic result attachments, green hit markers, and
@@ -181,16 +221,11 @@ only the current app-data identity, publisher-qualified packages, and formal
 `loom.hook.v1`/`loom.surface.v1` contracts. Obsolete compatibility paths are not
 part of acceptance.
 
-The acceptance scripts fail closed on SHA-256. Their defaults identify the
-current image-search runtime-fix R18/R28 pair; when validating any other path, pass
-the matching expected digest explicitly rather than omitting the hash.
-
-The last completed Phase 71 native acceptance remains the historical
-`artifacts/runtime-performance/hook-loom-surface-candidate/20260813-205423-hook-loom-surface-b89e7c2bd751/summary.json`:
-R14/R23 passed the 600-second soak (402 process-tree samples, 2.476% private-byte
-growth, no violations), formal Surface action/resource delivery, clean exit,
-and same-instance restart recovery (`revision 1 -> 4 -> 8`). R18/R28 must produce
-its own 600-second evidence before it replaces that historical acceptance record.
+The acceptance scripts fail closed on SHA-256. Pass the candidate's matching
+expected digest explicitly; historical script defaults do not identify the
+current build. Each candidate needs its own 600-second soak, formal Surface
+action/resource delivery, clean exit and restart-recovery evidence. Older
+acceptance summaries remain in Git history and do not certify a later binary.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `

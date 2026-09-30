@@ -23,6 +23,12 @@ const available = () => {
     return safeInvoke<boolean>("get_live_gpu_preview_capability", undefined).catch(() => false);
 };
 
+// Native slots expire after 350 ms. Two layout ticks leave room for IPC jitter;
+// never renew the presentation lease from cached geometry alone.
+const STABLE_REFRESH_MS = 160;
+const sameLayout = (a: GpuPreviewLayout | undefined, b: GpuPreviewLayout) =>
+    a?.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height && a.inset === b.inset;
+
 // Unsupported composition keeps the ordinary image; native health controls CPU suppression.
 export function registerLiveGpuPreview(
     image: HTMLImageElement,
@@ -36,9 +42,11 @@ export function registerLiveGpuPreview(
     let registeredId: string | undefined;
     let requested = false;
     let lastVisible: boolean | undefined;
+    let acknowledgedLayout: GpuPreviewLayout | undefined;
+    let refreshAt = 0;
     let resized: ResizeObserver | undefined;
 
-    const layout = (measurements: PreviewMeasurements): GpuPreviewLayout | null => {
+    const layout = (measurements: PreviewMeasurements, box: DOMRect): GpuPreviewLayout | null => {
         const unit = image.closest<HTMLElement>(".unit-container");
         if (disabled() || !image.isConnected || !unit || document.visibilityState === "hidden"
             || activeStickerEditTargetId() || draggingStickerId() || isSelecting()
@@ -49,7 +57,7 @@ export function registerLiveGpuPreview(
         const style = getComputedStyle(image);
         if (style.transform !== "none" && style.transform !== "matrix(1, 0, 0, 1, 0, 0)") return null;
         if (style.objectFit !== "contain" || style.objectPosition !== "50% 50%") return null;
-        const rect = containedPreviewRect(image.getBoundingClientRect(), image.naturalWidth, image.naturalHeight);
+        const rect = containedPreviewRect(box, image.naturalWidth, image.naturalHeight);
         if (!rect) return null;
         const occluders = [...extraRects(), ...Array.from(measurements.unitRects())
             .filter(([other]) => other !== unit).map(([, rect]) => rect)];
@@ -59,8 +67,7 @@ export function registerLiveGpuPreview(
     const configure = (id: string, next: GpuPreviewLayout | null, visible = true) =>
         safeInvoke<PreviewStatus>("configure_live_gpu_preview", { sessionId: id, layout: next, visible });
 
-    const isVisible = () => {
-        const rect = image.getBoundingClientRect();
+    const isVisible = (rect = image.getBoundingClientRect()) => {
         return document.visibilityState !== "hidden" && image.isConnected
             && rect.width > 0 && rect.height > 0 && rect.right > 0 && rect.bottom > 0
             && rect.left < innerWidth && rect.top < innerHeight;
@@ -77,15 +84,20 @@ export function registerLiveGpuPreview(
                 registeredId = undefined;
                 requested = false;
                 lastVisible = undefined;
+                acknowledgedLayout = undefined;
                 subscription?.invalidate();
                 return;
             }
             if (disposed) return;
             const live = liveCaptureViews.find((view) => view.sessionId === id);
             if (live?.status.captureState !== "streaming" && !requested) return;
-            let visible = isVisible();
-            const next = gpuEnabled && live?.status.captureState === "streaming" && image.complete ? layout(measurements) : null;
+            const box = image.getBoundingClientRect();
+            let visible = isVisible(box);
+            const next = visible && gpuEnabled && live?.status.captureState === "streaming" && image.complete
+                ? layout(measurements, box) : null;
             if (!next && !requested && lastVisible === visible) return;
+            if (next && lastVisible === visible && sameLayout(acknowledgedLayout, next)
+                && performance.now() < refreshAt) return;
             registeredId = id;
             if (!next && requested) {
                 setLiveGpuPresenting(id, false);
@@ -98,6 +110,7 @@ export function registerLiveGpuPreview(
                     registeredId = undefined;
                     requested = false;
                     lastVisible = undefined;
+                    acknowledgedLayout = undefined;
                     subscription?.invalidate();
                     return;
                 }
@@ -111,10 +124,13 @@ export function registerLiveGpuPreview(
                 await configure(id, null).catch(() => undefined);
                 registeredId = undefined;
                 requested = false;
+                acknowledgedLayout = undefined;
                 subscription?.invalidate();
                 return;
             }
             const presenting = status.presenting && next !== null && !status.error;
+            acknowledgedLayout = presenting ? next : undefined;
+            refreshAt = performance.now() + STABLE_REFRESH_MS;
             setLiveGpuPresenting(id, presenting);
             image.dataset.liveGpuPreview = presenting ? "gpu-mirror" : "jpeg";
             image.dataset.liveGpuSubmitted = String(status.submittedFrames);
@@ -126,6 +142,7 @@ export function registerLiveGpuPreview(
                 if (next) await configure(id, null, visible).catch(() => undefined);
             }
         })().catch(() => {
+            acknowledgedLayout = undefined;
             if (registeredId) setLiveGpuPresenting(registeredId, false);
             image.dataset.liveGpuPreview = "jpeg";
         }).finally(() => {
