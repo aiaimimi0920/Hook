@@ -115,12 +115,13 @@ export const createPropertyDropdownController = (options: CreatePropertyDropdown
     };
 
     createEffect(() => {
-        const menu = openDropdownMenu();
-        if (typeof window === "undefined" || !menu) return;
+        // Each effect owns listeners and cleanup for the menu that opened it.
+        const initialMenu = openDropdownMenu();
+        if (typeof window === "undefined" || !initialMenu) return;
 
         const rectId = dropdownRectId();
-        scheduleDropdownRectSync(menu, rectId);
-        const handleResize = () => scheduleDropdownRectSync(menu, rectId);
+        scheduleDropdownRectSync(initialMenu, rectId);
+        const handleResize = () => scheduleDropdownRectSync(initialMenu, rectId);
         window.addEventListener("resize", handleResize);
         onCleanup(() => {
             cancelDropdownRectSync();
@@ -133,15 +134,15 @@ export const createPropertyDropdownController = (options: CreatePropertyDropdown
     });
 
     createEffect(() => {
-        const menu = openDropdownMenu();
-        if (typeof window === "undefined" || !menu) return;
+        const initialMenu = openDropdownMenu();
+        if (typeof window === "undefined" || !initialMenu) return;
 
         const handlePointerDown = (event: PointerEvent) => {
             const target = event.target;
             if (target instanceof Node && openDropdownMenuRef?.contains(target)) return;
             if (target instanceof Element) {
                 const trigger = target.closest<HTMLElement>("[data-top-strip-popup-trigger]");
-                if (trigger?.dataset.topStripPopupTrigger === menu.id) return;
+                if (trigger?.dataset.topStripPopupTrigger === initialMenu.id) return;
             }
             closeDropdownMenu();
         };

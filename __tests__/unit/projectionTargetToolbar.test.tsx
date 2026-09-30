@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { createRoot } from "solid-js";
 import { render } from "solid-js/web";
+import { useProjectionTargetControls } from "../../src/hooks/useProjectionTargetControls";
 import { ProjectionPropertyBar } from "../../src/components/ProjectionPropertyBar";
 import { graphStore } from "../../src/store/graphStore";
 import { projectionStatuses, setProjectionStatuses } from "../../src/store/qrProjectionStore";
@@ -275,4 +277,25 @@ it("replaces status snapshots so a recovered send clears its old error and recei
     expect(marker().dataset.phase).toBe("success"); expect(projectionStatuses[key]?.error).toBeUndefined();
     setProjectionStatuses(key, { phase: "stopping" });
     expect(projectionStatuses[key]?.delivery).toBeUndefined();
+});
+
+it("reads the latest target state when a saved retry callback runs after its binding is removed", async () => {
+    await start();
+    const binding = bindings()[0];
+    setProjectionStatuses(statusKey(), { phase: "retrying", error: "projection_network_error" });
+    dispose();
+    const controls = createRoot((rootDispose) => {
+        dispose = rootDispose;
+        return useProjectionTargetControls({ unitId: "source" });
+    });
+    await vi.waitFor(() => expect(controls.busy()).toBe(false));
+    const row = controls.rows("devices").find((item) => item.id === "pc2")!;
+    expect(row.checked).toBe(true);
+    expect(row.retry).toBeTypeOf("function");
+    patchProjection("source", undefined, undefined, projectionBindingKey(binding.link));
+    row.retry!();
+    await vi.waitFor(() => expect(controls.busy()).toBe(false));
+    expect(createProjectionWithRecovery).toHaveBeenCalledTimes(1);
+    expect(bindings()).toHaveLength(0);
+    expect(controls.rows("devices").find((item) => item.id === "pc2")?.checked).toBe(false);
 });

@@ -31,14 +31,15 @@ export const OverlayMenuScrollArea = (props: { children: JSX.Element; maxHeight?
         if (event.button !== 0) return;
         event.preventDefault(); event.stopPropagation();
         endDrag?.(); sync();
+        // Keep the drag origin and scale fixed until this gesture ends.
         const startY = event.clientY;
         const startTop = viewport.scrollTop;
-        const distance = travel();
-        const max = maximum();
-        if (distance <= 0 || max <= 0) return;
+        const initialTravel = travel();
+        const initialMaximum = maximum();
+        if (initialTravel <= 0 || initialMaximum <= 0) return;
         const move = (next: MouseEvent) => {
             next.preventDefault(); next.stopPropagation();
-            setTop(startTop + (next.clientY - startY) * max / distance);
+            setTop(startTop + (next.clientY - startY) * initialMaximum / initialTravel);
         };
         const stop = () => {
             window.removeEventListener("mousemove", move, true);

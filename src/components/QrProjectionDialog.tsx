@@ -18,13 +18,13 @@ export const QrProjectionDialog = (props: { target: ProjectionDialogTarget; retr
         let mounted = true;
         const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         closeButton?.focus();
-        // Unit DOM bounds are viewport CSS pixels, including live drag transforms.
-        const anchor = compact() ? [...document.querySelectorAll<HTMLElement>("[data-unit-id]")]
+        // The keyed dialog owns its mount-time anchor; bounds still follow live drag transforms.
+        const initialAnchor = compact() ? [...document.querySelectorAll<HTMLElement>("[data-unit-id]")]
             .find((element) => element.dataset.unitId === (props.target.anchorUnitId ?? props.target.unitId)) : undefined;
         const updateRect = () => {
             if (!mounted) return;
             if (compact() && dialog) {
-                const source = anchor?.getBoundingClientRect();
+                const source = initialAnchor?.getBoundingClientRect();
                 if (importing() && source) {
                     dialog.style.width = `${Math.max(1, Math.min(312, source.width, window.innerWidth - 16))}px`;
                     dialog.style.maxHeight = `${Math.max(1, Math.min(source.height, window.innerHeight - 16))}px`;
@@ -42,9 +42,9 @@ export const QrProjectionDialog = (props: { target: ProjectionDialogTarget; retr
         };
         const observer = new ResizeObserver(updateRect);
         if (dialog) observer.observe(dialog);
-        if (anchor) observer.observe(anchor);
+        if (initialAnchor) observer.observe(initialAnchor);
         const movement = new MutationObserver(updateRect);
-        if (anchor) movement.observe(anchor, { attributes: true, attributeFilter: ["style", "class"] });
+        if (initialAnchor) movement.observe(initialAnchor, { attributes: true, attributeFilter: ["style", "class"] });
         window.addEventListener("scroll", updateRect, true);
         window.addEventListener("resize", updateRect);
         updateRect();

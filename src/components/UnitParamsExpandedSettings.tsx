@@ -137,7 +137,6 @@ export const UnitParamsExpandedSettings: Component<UnitParamsExpandedSettingsPro
             props.onParamChange(PARAM_ui_resize, { w: width, h: height });
             activeResizeImage = undefined;
             if (layoutTimerId !== undefined) window.clearTimeout(layoutTimerId);
-            // eslint-disable-next-line solid/reactivity -- the delayed guard intentionally reads the latest props before publishing layout work.
             layoutTimerId = window.setTimeout(() => {
                 layoutTimerId = undefined;
                 if (isCurrentRequest()) setLayoutTick((tick) => tick + 1);

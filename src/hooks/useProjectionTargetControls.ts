@@ -211,7 +211,7 @@ export function useProjectionTargetControls(props: { unitId: string }) {
         return { key: device.key, id: device.id, title: device.title, checked: current.checked, status: current.status,
             disabled: busy() || !unit() || unit()?.data.qrProjection?.role === "receiver" || current.stopping || (unavailable && !current.checked),
             change: (enabled) => { void change([device], enabled); },
-            ...(current.status.phase === "error" && !current.stopping ? { retry: () => { void change([device], operations()[device.key]?.enabled ?? current.checked); } } : {}),
+            ...(current.status.phase === "error" && !current.stopping ? { retry: () => { void change([device], operations()[device.key]?.enabled ?? state(device).checked); } } : {}),
         };
     };
     const rows = (kind: "devices" | "groups"): ProjectionTargetRow[] => kind === "devices" ? devices().map(deviceRow)

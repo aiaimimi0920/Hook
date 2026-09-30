@@ -148,16 +148,17 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
         event.preventDefault();
         event.stopPropagation();
         void api.focusOverlayWindow();
+        // Keep the drag origin and scale fixed until this gesture ends.
         const dragStartClientY = event.clientY;
-        const dragStartScrollTop = scrollContainerRef?.scrollTop ?? scrollMetrics().scrollTop;
-        const maxScrollTop = getMaxScrollTop();
-        const thumbTravel = getScrollThumbTravel();
-        if (!scrollContainerRef || maxScrollTop <= 0 || thumbTravel <= 0) return;
+        const initialScrollTop = scrollContainerRef?.scrollTop ?? scrollMetrics().scrollTop;
+        const initialMaxScrollTop = getMaxScrollTop();
+        const initialThumbTravel = getScrollThumbTravel();
+        if (!scrollContainerRef || initialMaxScrollTop <= 0 || initialThumbTravel <= 0) return;
 
         const handleMouseMove = (moveEvent: MouseEvent) => {
             moveEvent.preventDefault();
-            const scrollDelta = ((moveEvent.clientY - dragStartClientY) / thumbTravel) * maxScrollTop;
-            setManualScrollTop(dragStartScrollTop + scrollDelta);
+            const scrollDelta = ((moveEvent.clientY - dragStartClientY) / initialThumbTravel) * initialMaxScrollTop;
+            setManualScrollTop(initialScrollTop + scrollDelta);
         };
         const handleMouseUp = () => clearScrollThumbDrag();
         clearScrollThumbDrag();

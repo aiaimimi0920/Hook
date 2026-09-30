@@ -41,11 +41,12 @@ export const QrProjectionSender = (props: { unitId: string; retry: (id: string) 
     const loopback = () => { try { return isProjectionLoopback(projectionOrigin(origin())); } catch { return false; } };
     const refreshConnection = async () => {
         const lookup = ++connectionLookup;
-        const requestedProtocol = protocol();
-        const current = () => alive && lookup === connectionLookup && protocol() === requestedProtocol;
+        // Reject a lookup that completes after the requested protocol changes.
+        const initialProtocol = protocol();
+        const current = () => alive && lookup === connectionLookup && protocol() === initialProtocol;
         setAccountLoading(true); setError("");
         try {
-            if (requestedProtocol === PROJECTION_PROTOCOL) {
+            if (initialProtocol === PROJECTION_PROTOCOL) {
                 const value = await projectionContext();
                 if (current() && !link()) setOrigin(value);
             } else {
@@ -87,27 +88,28 @@ export const QrProjectionSender = (props: { unitId: string; retry: (id: string) 
             .catch((reason: unknown) => { if (current && alive) setError(projectionError(reason)); });
     });
     const generate = async () => {
-        const source = unit();
-        if (!source || link() || busy() || accountLoading() || (!shared() && !account())) return;
+        // This request must remain tied to the source whose frame is being captured.
+        const initialSource = unit();
+        if (!initialSource || link() || busy() || accountLoading() || (!shared() && !account())) return;
         const requestedProtocol = protocol();
         const generation = projectionWorkspaceGeneration();
         const lifetime = sourceLifetime;
         const valid = () => alive && sourceLifetime === lifetime && projectionWorkspaceGeneration() === generation
-            && unit()?.id === source.id && !link();
+            && unit()?.id === initialSource.id && !link();
         setBusy(true); setError(""); setCopied(false);
         try {
             const serverOrigin = projectionOrigin(origin().trim());
             setOrigin(serverOrigin);
-            const frame = await projectionEditing.sendFrame(source.id, () => renderProjectionFrame(source), { origin: serverOrigin, protocol: requestedProtocol });
+            const frame = await projectionEditing.sendFrame(initialSource.id, () => renderProjectionFrame(initialSource), { origin: serverOrigin, protocol: requestedProtocol });
             if (!valid()) return;
-            const operation = { kind: "create" as const, unitId: source.id, contentKind: source.type, snapshot: frame.snapshot };
+            const operation = { kind: "create" as const, unitId: initialSource.id, contentKind: initialSource.type, snapshot: frame.snapshot };
             const response = await requestProjection(operation, serverOrigin, requestedProtocol);
             if (!valid()) {
                 queueProjectionUnlink(response.envelope, ...(response.offlineTransport ? [response.offlineTransport] as const : [] as const));
                 return;
             }
-            patchProjection(source.id, projectionLinkFromResponse("source", source.id, response));
-            props.retry(source.id);
+            patchProjection(initialSource.id, projectionLinkFromResponse("source", initialSource.id, response));
+            props.retry(initialSource.id);
         } catch (reason) { if (alive) setError(projectionError(reason)); }
         finally { if (alive) setBusy(false); }
     };

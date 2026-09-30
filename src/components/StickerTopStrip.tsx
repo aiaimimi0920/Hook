@@ -200,22 +200,23 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
 
     createEffect(() => {
         if (typeof window === "undefined") return;
-        const menu = openMenu();
+        // Capture the registration owned by this effect so cleanup removes its original rect.
+        const initialMenu = openMenu();
 
-        if (!menu) {
+        if (!initialMenu) {
             cancelOpenToolbarMenuRectSync();
             return;
         }
 
-        const menuRectId = openMenuRectId();
-        scheduleOpenToolbarMenuRectSync(menu, menuRectId);
-        const handleResize = () => scheduleOpenToolbarMenuRectSync(menu, menuRectId);
+        const initialMenuRectId = openMenuRectId();
+        scheduleOpenToolbarMenuRectSync(initialMenu, initialMenuRectId);
+        const handleResize = () => scheduleOpenToolbarMenuRectSync(initialMenu, initialMenuRectId);
         window.addEventListener("resize", handleResize);
 
         onCleanup(() => {
             cancelOpenToolbarMenuRectSync();
             window.removeEventListener("resize", handleResize);
-            removeRect(menuRectId);
+            removeRect(initialMenuRectId);
             syncTopStripBackendRects();
         });
     });
