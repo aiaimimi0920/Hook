@@ -27,6 +27,16 @@ pub(super) async fn register_device_pairing_request(
     identity: &mut DeviceIdentityDocument,
     app: &AppHandle,
 ) -> Result<(), String> {
+    identity.device_id = Some(register_device_identity(base_url, identity).await?);
+    let app_data_dir = crate::effective_app_data_dir(app)?;
+    persist_device_identity(&app_data_dir.join("device-identity.json"), identity)
+}
+
+/// Resolve the identity at one endpoint without overwriting the default Loom association.
+pub(super) async fn register_device_identity(
+    base_url: &str,
+    identity: &DeviceIdentityDocument,
+) -> Result<String, String> {
     let base = base_url.trim_end_matches('/');
     let client = surface_client(base)?;
     let computer_name = std::env::var("COMPUTERNAME")
@@ -62,7 +72,5 @@ pub(super) async fn register_device_pairing_request(
         .find(|device| device.public_key.as_deref() == Some(identity.public_key.as_str()))
         .ok_or_else(|| "Loom did not return the paired Hook device".to_owned())?;
 
-    identity.device_id = Some(device.id);
-    let app_data_dir = crate::effective_app_data_dir(app)?;
-    persist_device_identity(&app_data_dir.join("device-identity.json"), identity)
+    Ok(device.id)
 }

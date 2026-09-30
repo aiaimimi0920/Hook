@@ -16,7 +16,7 @@ fn emit_capture_mouse_event(
     modifiers: ModifierSnapshot,
     native_drag_preflight: bool,
     metrics: Option<CaptureWindowMetrics>,
-) {
+) -> bool {
     let sample = if event_name.starts_with("capture/")
         && DESKTOP_COLOR_PICKER_ACTIVE.load(Ordering::Relaxed)
     {
@@ -44,7 +44,7 @@ fn emit_capture_mouse_event(
             payload["hex"] = serde_json::json!(sample.hex);
             payload["rgb"] = serde_json::json!(sample.rgb);
         }
-        let _ = window.emit(event_name, payload);
+        window.emit(event_name, payload).is_ok()
     } else {
         let mut payload = serde_json::json!({
             "x": global_x,
@@ -61,7 +61,7 @@ fn emit_capture_mouse_event(
             payload["hex"] = serde_json::json!(sample.hex);
             payload["rgb"] = serde_json::json!(sample.rgb);
         }
-        let _ = window.emit(event_name, payload);
+        window.emit(event_name, payload).is_ok()
     }
 }
 

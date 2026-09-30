@@ -39,6 +39,7 @@ fn refresh_overlay_interactivity_for_current_cursor(
     let should_ignore = should_overlay_window_ignore_cursor_events(&rects, cursor_x, cursor_y);
 
     set_overlay_click_through_impl(window, should_ignore);
+    restore_sticker_body_cursor(&rects, cursor_x, cursor_y);
     append_runtime_log_line(&format!(
         "refresh_overlay_interactivity :: cursor_x={} cursor_y={} should_ignore={}",
         cursor_x, cursor_y, should_ignore

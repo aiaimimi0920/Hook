@@ -11,6 +11,22 @@ import {
 } from "../../src/services/stickerTopStripLayout";
 
 describe("sticker top strip layout", () => {
+    it.each([320, 390, 549, 550])("reserves both toolbar rows at %i px", (width) => {
+        const layout = computeStickerTopStripLayout({ x: 300, y: 500, w: 200, h: 100 }, width, 800, true);
+        expect(layout.mainBar.height).toBe(100);
+        expect(layout.container.height).toBe(140);
+        expect(layout.container.top + layout.container.height).toBe(500);
+        expect(layout.container.left + layout.container.width).toBeLessThanOrEqual(width);
+    });
+
+    it("reserves wrapped extension rows and moves the entire toolbar below a high anchor", () => {
+        const layout = computeStickerTopStripLayout({ x: 0, y: 20, w: 200, h: 100 }, 320, 800, true, 8);
+        expect(layout.mainBar.height).toBe(200);
+        expect(layout.container.height).toBe(240);
+        expect(layout.container.top).toBe(120);
+        expect(layout.mainBar.top).toBe(160);
+    });
+
     it("uses the approved 50px toolbar height", () => {
         expect(STICKER_TOP_STRIP_HEIGHT).toBe(50);
         expect(STICKER_TOP_STRIP_PROPERTY_BAR_HEIGHT).toBe(40);

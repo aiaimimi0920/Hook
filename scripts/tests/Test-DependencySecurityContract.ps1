@@ -18,10 +18,10 @@ function Read-RepoText {
 
 $policy = Read-RepoText "security\dependency-security-policy.json" | ConvertFrom-Json
 Assert-True ([int]$policy.schemaVersion -eq 1) "Unsupported dependency security policy schema."
-Assert-True ($policy.scanner.version -eq "2.5.0") "Dependency scanner version is not pinned."
-Assert-True ($policy.scanner.reusableWorkflow -eq "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@0c58c542420dfd23fcac08dd9c8ca3cca9c36f1a") "OSV workflow pin changed without review."
-Assert-True ($policy.scanner.actionCommit -eq "06b2ab4348248b456ee06c9e953637f55e03504f") "OSV action pin changed without review."
-Assert-True ($policy.scanner.windowsX64Sha256 -eq "4342285bd8be36b9f113468f3eea86e7900befbcd19ca8dc6ac4f0f6cbe7c362") "OSV Windows hash changed without review."
+Assert-True ($policy.scanner.version -eq "2.5.1") "Dependency scanner version is not pinned."
+Assert-True ($policy.scanner.reusableWorkflow -eq "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@ffa0a5f39214d80778c9b494822d94d0d9668458") "OSV workflow pin changed without review."
+Assert-True ($policy.scanner.actionCommit -eq "baa4139e56d6312335d899e6ba045fa16d1d3d0b") "OSV action pin changed without review."
+Assert-True ($policy.scanner.windowsX64Sha256 -eq "25e42f5ef6711fd8c0fb45390972205891dd44c6bd02ac93f0f63e8e98d9bfb6") "OSV Windows hash changed without review."
 Assert-True ([int]$policy.maximumExceptionDays -gt 0 -and [int]$policy.maximumExceptionDays -le 90) "Exception lifetime must be at most 90 days."
 
 $expectedLockfiles = @(

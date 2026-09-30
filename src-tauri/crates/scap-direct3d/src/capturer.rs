@@ -1,13 +1,14 @@
 //! Windows Graphics Capture session creation and callback lifecycle.
 
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 use windows::{
     Foundation::{Metadata::ApiInformation, TypedEventHandler},
     Graphics::{
-        Capture::{
-            Direct3D11CaptureFramePool, GraphicsCaptureItem, GraphicsCaptureSession,
-        },
+        Capture::{Direct3D11CaptureFramePool, GraphicsCaptureItem, GraphicsCaptureSession},
         DirectX::Direct3D11::IDirect3DDevice,
     },
     Win32::{
@@ -20,9 +21,7 @@ use windows::{
                 D3D11_USAGE_DEFAULT, D3D11CreateDevice, ID3D11Device, ID3D11DeviceContext,
                 ID3D11Texture2D,
             },
-            Dxgi::{
-                Common::DXGI_SAMPLE_DESC, DXGI_ERROR_UNSUPPORTED, IDXGIDevice,
-            },
+            Dxgi::{Common::DXGI_SAMPLE_DESC, DXGI_ERROR_UNSUPPORTED, IDXGIDevice},
         },
         System::WinRT::Direct3D11::{
             CreateDirect3D11DeviceFromDXGIDevice, IDirect3DDxgiInterfaceAccess,
@@ -31,6 +30,7 @@ use windows::{
     core::{Error, HSTRING, IInspectable, Interface},
 };
 
+use crate::frame_selection::{next_frame, pool_size};
 use crate::{Frame, Settings, WindowsVersion, staging_pool::StagingTexturePool};
 
 #[derive(Clone, Debug, thiserror::Error)]
@@ -102,6 +102,7 @@ impl Capturer {
         mut closed_callback: impl FnMut() -> windows::core::Result<()> + Send + 'static,
         d3d_device: Option<ID3D11Device>,
     ) -> Result<Capturer, NewCapturerError> {
+        crate::runtime::ensure_runtime()?;
         validate_platform_support()?;
         validate_requested_features(&settings)?;
 
@@ -132,10 +133,7 @@ impl Capturer {
             .crop
             .map(|crop| validate_crop(crop, item_size.Width, item_size.Height))
             .transpose()?;
-        let frame_pool_size = settings
-            .fps
-            .map(|fps| ((fps as f32 / 30.0 * 2.0).ceil() as i32).clamp(2, 4))
-            .unwrap_or(2);
+        let frame_pool_size = pool_size(settings.latest_frame_only, settings.fps);
         let frame_pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
             &direct3d_device,
             settings.pixel_format.as_directx(),
@@ -151,9 +149,7 @@ impl Capturer {
         let crop_data = settings
             .crop
             .zip(crop_dimensions)
-            .map(|(crop, dimensions)| {
-                create_crop_texture(&d3d_device, &settings, crop, dimensions)
-            })
+            .map(|(crop, dimensions)| create_crop_texture(&d3d_device, &settings, crop, dimensions))
             .transpose()?;
         let frame_arrived_token = register_frame_callback(
             &frame_pool,
@@ -165,11 +161,11 @@ impl Capturer {
             crop_data,
             callback,
         )?;
-        let item_closed_token = match item.Closed(
-            &TypedEventHandler::<GraphicsCaptureItem, IInspectable>::new(move |_, _| {
-                closed_callback()
-            }),
-        ) {
+        let item_closed_token = match item.Closed(&TypedEventHandler::<
+            GraphicsCaptureItem,
+            IInspectable,
+        >::new(move |_, _| closed_callback()))
+        {
             Ok(token) => token,
             Err(error) => {
                 let _ = frame_pool.RemoveFrameArrived(frame_arrived_token);
@@ -286,9 +282,7 @@ fn validate_requested_features(settings: &Settings) -> Result<(), NewCapturerErr
     if settings.is_border_required.is_some() && !Settings::can_is_border_required()? {
         return Err(NewCapturerError::BorderNotSupported);
     }
-    if settings.is_cursor_capture_enabled.is_some()
-        && !Settings::can_is_cursor_capture_enabled()?
-    {
+    if settings.is_cursor_capture_enabled.is_some() && !Settings::can_is_cursor_capture_enabled()? {
         return Err(NewCapturerError::CursorNotSupported);
     }
     if settings.min_update_interval.is_some() && !Settings::can_min_update_interval()? {
@@ -330,9 +324,7 @@ fn create_d3d_device_with_warp_fallback() -> Result<(ID3D11Device, bool), NewCap
     }
 }
 
-fn create_direct3d_device(
-    d3d_device: &ID3D11Device,
-) -> Result<IDirect3DDevice, NewCapturerError> {
+fn create_direct3d_device(d3d_device: &ID3D11Device) -> Result<IDirect3DDevice, NewCapturerError> {
     (|| {
         let dxgi_device = d3d_device.cast::<IDXGIDevice>()?;
         let inspectable = unsafe { CreateDirect3D11DeviceFromDXGIDevice(&dxgi_device) }?;
@@ -431,6 +423,7 @@ fn register_frame_callback(
     let stop_flag = stop_flag.clone();
     let staging_pool = staging_pool.clone();
     let pixel_format = settings.pixel_format;
+    let latest_frame_only = settings.latest_frame_only;
     frame_pool
         .FrameArrived(
             &TypedEventHandler::<Direct3D11CaptureFramePool, IInspectable>::new(
@@ -441,7 +434,9 @@ fn register_frame_callback(
                     let frame_pool = frame_pool
                         .as_ref()
                         .ok_or_else(|| Error::new(E_POINTER, "FrameArrived parameter was None"))?;
-                    let frame = frame_pool.TryGetNextFrame()?;
+                    let Some(frame) = next_frame(frame_pool, latest_frame_only)? else {
+                        return Ok(());
+                    };
                     let size = frame.ContentSize()?;
                     if size.Width <= 0 || size.Height <= 0 {
                         return Ok(());
@@ -513,7 +508,10 @@ mod tests {
 
     #[test]
     fn crop_validation_requires_positive_in_bounds_2d_region() {
-        assert_eq!(validate_crop(crop(1, 2, 11, 22), 100, 100).unwrap(), (10, 20));
+        assert_eq!(
+            validate_crop(crop(1, 2, 11, 22), 100, 100).unwrap(),
+            (10, 20)
+        );
         assert!(validate_crop(crop(5, 2, 5, 22), 100, 100).is_err());
         assert!(validate_crop(crop(1, 2, 101, 22), 100, 100).is_err());
         let mut invalid_depth = crop(1, 2, 11, 22);

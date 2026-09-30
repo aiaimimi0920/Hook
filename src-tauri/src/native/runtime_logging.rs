@@ -73,7 +73,7 @@ fn append_runtime_log_line_sync(line: &str) {
         .append(true)
         .open(path)
     {
-        let _ = writeln!(file, "{}", line);
+        let _ = writeln!(file, "{}", sanitize_runtime_log_message(line));
     }
 }
 
@@ -96,8 +96,19 @@ pub(crate) fn append_runtime_log_line(message: &str) {
         return;
     }
     let timestamp = runtime_log_timestamp();
-    let line = format!("[{}] {}", timestamp, message);
+    let line = format!("[{}] {}", timestamp, sanitize_runtime_log_message(message));
     let _ = runtime_log_sender().try_send(line);
+}
+
+// Exit evidence must survive a full log queue and immediate process teardown.
+fn record_process_exit_event(source: &str, code: Option<i32>) {
+    append_runtime_log_line_sync(&format!(
+        "[{}] process_exit_event :: pid={} source={} code={:?}",
+        runtime_log_timestamp(),
+        std::process::id(),
+        source,
+        code
+    ));
 }
 
 // Install a process-wide panic hook that records the panic message, location,
@@ -108,17 +119,16 @@ pub(crate) fn append_runtime_log_line(message: &str) {
 // Writing synchronously here — not via the async runtime-log channel — is
 // essential: the channel's background thread may never drain before abort.
 fn install_panic_logger() {
-    let default_hook = std::panic::take_hook();
+    let _ = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        prepare_for_hook_process_exit("panic");
         let location = info
             .location()
             .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
             .unwrap_or_else(|| "<unknown location>".to_string());
         let message = if let Some(s) = info.payload().downcast_ref::<&str>() {
-            (*s).to_string()
+            sanitize_runtime_log_message(s)
         } else if let Some(s) = info.payload().downcast_ref::<String>() {
-            s.clone()
+            sanitize_runtime_log_message(s)
         } else {
             "<non-string panic payload>".to_string()
         };
@@ -133,9 +143,9 @@ fn install_panic_logger() {
         );
         // Synchronous write so the record survives the imminent abort.
         append_runtime_log_line_sync(&line);
+        // Cleanup can re-enter native window code; preserve the original panic first.
+        prepare_for_hook_process_exit("panic");
         console_error_line!("{line}");
-        // Preserve default behavior (prints to stderr) for good measure.
-        default_hook(info);
     }));
 }
 

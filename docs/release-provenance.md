@@ -1,7 +1,9 @@
 # Hook Release Provenance
 
 A publishable Hook release comes from a clean Git worktree and an exact
-`Vx.y.z` tag that is reachable from `origin/main`. The dependency gate scans
+`vx.y.z` tag that is reachable from `origin/main` (legacy uppercase tags remain
+accepted). Internal `vx.y.z.n` builds cannot be published. See [versioning](VERSIONING.md).
+The dependency gate scans
 that exact tag/ref; evidence from another commit does not authorize release.
 
 ```powershell
@@ -26,6 +28,29 @@ The clean-source gate runs before the version destination is created. Formal
 manifests and provenance must record `gitDirty=false` and
 `sourceGitDirty=false`. A dirty candidate may be retained as runtime evidence,
 but it is never a formal publication claim.
+
+## Joint release acceptance
+
+Before claiming a Hook/Loom joint release, use reviewed commits and unused output
+directories in each independent repository. Run the full applicable Hook source
+gates: lint, application/test type checks, frontend and Surface browser tests,
+Rust formatting/tests, production build, strict effective-line checks and the
+packaged executable's version/self-check contract. Record commands and results
+against the actual source identity; old phase test totals are not current proof.
+
+Verify the exact executable and ZIP contents/digests against their provenance.
+Native candidate preflight must use the expected executable SHA-256, then run
+the required native and paired-end scenarios. Loom must separately pass its
+full source gates and `verify-release.ps1 -RunSmoke -RequireCleanSource` on its
+exact package. Do not combine one repository's passing results with another's
+untested candidate to claim joint acceptance.
+
+The former Phase 79 source-modularization record is available through Git tag
+`cleanup-base-20260928`. Its removal does not close full joint release acceptance.
+Later clean commits, package construction and headless/QR checks alone do not
+complete native, browser or physical-network gates. The current feature-specific
+limits remain in [QR projection](QR_PROJECTION.md), [Live capture](LIVE_CAPTURE.md),
+[tile terminal](TILE_TERMINAL.md) and [runtime security](SECURITY_BOUNDARIES.md).
 
 ## Public Release subjects and private evidence
 

@@ -27,6 +27,9 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource).toContain("push:");
     expect(workflowSource).toContain("tags:");
     expect(workflowSource).toContain("- 'V*.*.*'");
+    expect(workflowSource).toContain("- 'v*.*.*'");
+    expect(workflowSource).toContain("- '!v*.*.*.*'");
+    expect(workflowSource).toContain("- '!V*.*.*.*'");
     expect(workflowSource).toContain("workflow_dispatch:");
     expect(workflowSource).toContain("inputs:");
     expect(workflowSource).toContain("tag:");

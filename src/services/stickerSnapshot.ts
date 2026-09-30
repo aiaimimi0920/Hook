@@ -16,6 +16,9 @@ export interface FrozenStickerSessionSnapshot {
     previewSrc: string | null;
     filePath: string | null;
     rasterizedAnnotationLayerSrc: string | null;
+    ocrResult?: Unit["data"]["ocrResult"] | null;
+    barcodeResult?: Unit["data"]["barcodeResult"] | null;
+    extensionState?: Unit["data"]["extensionState"] | null;
     annotationState: Unit["data"]["annotationState"] | null;
     imageEditState: Unit["data"]["imageEditState"] | null;
     captureMeta: Unit["data"]["captureMeta"] | null;
@@ -47,6 +50,9 @@ export const captureFrozenStickerSnapshot = (unit: Unit): FrozenStickerEntry => 
         previewSrc: unit.data.previewSrc || null,
         filePath: unit.data.filePath || null,
         rasterizedAnnotationLayerSrc: unit.data.rasterizedAnnotationLayerSrc || null,
+        ocrResult: unit.data.ocrResult || null,
+        barcodeResult: unit.data.barcodeResult || null,
+        extensionState: unit.data.extensionState || null,
         annotationState: unit.data.annotationState || null,
         imageEditState: unit.data.imageEditState || null,
         captureMeta: unit.data.captureMeta || null,
@@ -76,6 +82,9 @@ export const instantiateStickerFromFrozenSnapshot = (
         previewSrc: entry.snapshot.previewSrc || undefined,
         filePath: entry.snapshot.filePath || undefined,
         rasterizedAnnotationLayerSrc: entry.snapshot.rasterizedAnnotationLayerSrc || undefined,
+        ocrResult: entry.snapshot.ocrResult || undefined,
+        barcodeResult: entry.snapshot.barcodeResult || undefined,
+        extensionState: entry.snapshot.extensionState || undefined,
         annotationState: entry.snapshot.annotationState || undefined,
         imageEditState: entry.snapshot.imageEditState || undefined,
         captureMeta: entry.snapshot.captureMeta || undefined,

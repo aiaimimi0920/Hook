@@ -1,6 +1,9 @@
 //! Small lease-aware pool of CPU-readable staging textures.
 
-use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicUsize, Ordering},
+};
 
 use windows::{
     Win32::{
@@ -89,11 +92,7 @@ impl StagingTexturePool {
         })
     }
 
-    fn create_texture(
-        &self,
-        width: u32,
-        height: u32,
-    ) -> windows::core::Result<ID3D11Texture2D> {
+    fn create_texture(&self, width: u32, height: u32) -> windows::core::Result<ID3D11Texture2D> {
         let texture_desc = D3D11_TEXTURE2D_DESC {
             Width: width,
             Height: height,

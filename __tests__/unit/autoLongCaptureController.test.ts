@@ -109,6 +109,7 @@ describe("auto long capture controller", () => {
         const second = controller.finishAutoLongCaptureSession();
 
         expect(second).toBe(first);
+        expect(controller.cancelAutoLongCaptureSession()).toBe(first);
         await flushPromises();
         expect(state.finishLongCaptureSession).toHaveBeenCalledTimes(1);
 
@@ -145,5 +146,139 @@ describe("auto long capture controller", () => {
         expect(
             dependencies.restorePostCaptureInteractivity.mock.invocationCallOrder[0],
         ).toBeLessThan(state.startLongCaptureSession.mock.invocationCallOrder[1]);
+    });
+
+    it("waits for cancellation and input restoration before activating a replacement", async () => {
+        const cancellation = deferred<undefined>();
+        const restoration = deferred<undefined>();
+        state.cancelLongCaptureSession.mockReturnValueOnce(cancellation.promise);
+        const { controller, dependencies } = createController();
+        await controller.startAutoLongCaptureSession(
+            { x: 0, y: 0, w: 100, h: 100 }, { x: 0, y: 0 },
+        );
+        dependencies.restorePostCaptureInteractivity.mockReturnValueOnce(restoration.promise);
+
+        const cancelling = controller.cancelAutoLongCaptureSession();
+        const restarting = controller.startAutoLongCaptureSession(
+            { x: 200, y: 100, w: 160, h: 90 }, { x: 200, y: 100 },
+        );
+        await flushPromises();
+        expect(state.startLongCaptureSession).toHaveBeenCalledTimes(1);
+        expect(state.setMouseMonitorActive).toHaveBeenCalledTimes(1);
+
+        cancellation.resolve(undefined);
+        await flushPromises();
+        expect(dependencies.restorePostCaptureInteractivity).toHaveBeenCalledTimes(1);
+        expect(state.setMouseMonitorActive).toHaveBeenCalledTimes(1);
+        restoration.resolve(undefined);
+        await expect(cancelling).resolves.toBe(true);
+        await restarting;
+
+        expect(state.startLongCaptureSession).toHaveBeenCalledTimes(2);
+        expect(state.setOverlayCaptureExclusion).toHaveBeenLastCalledWith(true);
+    });
+
+    it("coalesces repeated cancellation and finish while cancellation owns teardown", async () => {
+        const cancellation = deferred<undefined>();
+        state.cancelLongCaptureSession.mockReturnValueOnce(cancellation.promise);
+        const { controller, dependencies } = createController();
+        await controller.startAutoLongCaptureSession(
+            { x: 0, y: 0, w: 100, h: 100 }, { x: 0, y: 0 },
+        );
+
+        const cancelling = controller.cancelAutoLongCaptureSession();
+        expect(controller.cancelAutoLongCaptureSession()).toBe(cancelling);
+        expect(controller.finishAutoLongCaptureSession()).toBe(cancelling);
+        cancellation.resolve(undefined);
+        await expect(cancelling).resolves.toBe(true);
+        expect(state.cancelLongCaptureSession).toHaveBeenCalledTimes(1);
+        expect(dependencies.restorePostCaptureInteractivity).toHaveBeenCalledTimes(1);
+        expect(dependencies.addCaptureUnit).not.toHaveBeenCalled();
+    });
+
+    it("releases cancellation ownership after failed restoration so the next session can start", async () => {
+        const restoration = deferred<undefined>();
+        const { controller, dependencies } = createController();
+        await controller.startAutoLongCaptureSession(
+            { x: 0, y: 0, w: 100, h: 100 }, { x: 0, y: 0 },
+        );
+        dependencies.restorePostCaptureInteractivity.mockReturnValueOnce(restoration.promise);
+        const cancelling = controller.cancelAutoLongCaptureSession();
+        const rejected = expect(cancelling).rejects.toThrow("restore failed");
+        const restarting = controller.startAutoLongCaptureSession(
+            { x: 200, y: 100, w: 160, h: 90 }, { x: 200, y: 100 },
+        );
+        await flushPromises();
+        expect(state.startLongCaptureSession).toHaveBeenCalledTimes(1);
+        restoration.reject(new Error("restore failed"));
+        await rejected;
+        await restarting;
+        await expect(controller.cancelAutoLongCaptureSession()).resolves.toBe(true);
+        expect(state.cancelLongCaptureSession).toHaveBeenCalledTimes(2);
+    });
+
+    it("restores interactivity when capture-input disable fails during cancellation", async () => {
+        state.setCaptureInputActive.mockRejectedValueOnce(new Error("disable failed"));
+        const { controller, dependencies } = createController();
+        await controller.startAutoLongCaptureSession(
+            { x: 0, y: 0, w: 100, h: 100 },
+            { x: 0, y: 0 },
+        );
+        const resetCountBeforeCancel = dependencies.resetSelection.mock.calls.length;
+
+        await expect(controller.cancelAutoLongCaptureSession()).resolves.toBe(true);
+        expect(dependencies.resetSelection).toHaveBeenCalledTimes(resetCountBeforeCancel + 1);
+        expect(dependencies.clearCaptureHover).toHaveBeenCalled();
+        expect(dependencies.restorePostCaptureInteractivity).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+        ["mouse monitor", state.setMouseMonitorActive],
+        ["overlay click-through", state.setOverlayClickThrough],
+    ])("rolls back a partially activated session when %s setup rejects", async (_label, failingApi) => {
+        failingApi.mockRejectedValueOnce(new Error("activation failed"));
+        const { controller, dependencies } = createController();
+
+        await expect(controller.startAutoLongCaptureSession(
+            { x: 0, y: 0, w: 100, h: 100 },
+            { x: 0, y: 0 },
+        )).rejects.toThrow("activation failed");
+
+        expect(state.setCaptureInputActive).toHaveBeenCalledWith(false);
+        expect(state.setLongCaptureSession).toHaveBeenLastCalledWith(null);
+        expect(dependencies.clearCaptureHover).toHaveBeenCalledTimes(1);
+        expect(dependencies.resetSelection).toHaveBeenCalledTimes(2);
+        expect(dependencies.restorePostCaptureInteractivity).toHaveBeenCalledTimes(1);
+        await expect(controller.cancelAutoLongCaptureSession()).resolves.toBe(false);
+    });
+
+    it.each(["cancel", "finish"] as const)("cleans stale activation after %s before allowing a replacement session to start", async (action) => {
+        const pendingMonitorDisable = deferred<undefined>();
+        state.setMouseMonitorActive.mockReturnValueOnce(pendingMonitorDisable.promise);
+        const { controller, dependencies } = createController();
+
+        const firstStart = controller.startAutoLongCaptureSession(
+            { x: 0, y: 0, w: 100, h: 100 },
+            { x: 0, y: 0 },
+        );
+        await flushPromises();
+        const teardown = action === "cancel"
+            ? controller.cancelAutoLongCaptureSession()
+            : controller.finishAutoLongCaptureSession();
+        await expect(teardown).resolves.toBe(true);
+        const replacementStart = controller.startAutoLongCaptureSession(
+            { x: 200, y: 100, w: 160, h: 90 },
+            { x: 200, y: 100 },
+        );
+        await flushPromises();
+
+        expect(state.startLongCaptureSession).not.toHaveBeenCalled();
+        pendingMonitorDisable.resolve(undefined);
+        await firstStart;
+        await replacementStart;
+
+        expect(state.startLongCaptureSession).toHaveBeenCalledTimes(1);
+        expect(state.setOverlayCaptureExclusion).toHaveBeenCalledWith(false);
+        expect(dependencies.restorePostCaptureInteractivity).toHaveBeenCalled();
     });
 });

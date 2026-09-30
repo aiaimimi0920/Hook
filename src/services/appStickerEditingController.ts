@@ -1,4 +1,5 @@
 import { graphStore } from "../store/graphStore";
+import { runWithLiveCaptureSnapshots } from "./liveCaptureSnapshotAction";
 import {
     activeStickerEditTargetId,
     selectedStickerAnnotationId,
@@ -34,12 +35,14 @@ export function createAppStickerEditingController(
     dependencies: AppStickerEditingControllerDependencies,
 ) {
     let lastToolbarToggleAt = Number.NEGATIVE_INFINITY;
+    let toolbarRequest = 0;
 
     const toggleStickerToolbarVisibility = () => {
         const now = performance.now();
         // Native and focused-WebView Ctrl+E can report the same key edge.
         if (now - lastToolbarToggleAt < 250) return;
         lastToolbarToggleAt = now;
+        const request = ++toolbarRequest;
         const stickerId = selectedStickerId();
         if (dependencies.tauriRuntime) {
             void api.debugLogEvent(
@@ -55,8 +58,13 @@ export function createAppStickerEditingController(
             uiActions.hideStickerToolbar();
             return;
         }
-        uiActions.showStickerToolbar(stickerId);
-        if (selectedUnit.type === "art") uiActions.setStickerEditMode("select");
+        return runWithLiveCaptureSnapshots([stickerId], () => {
+            if (request !== toolbarRequest || selectedStickerId() !== stickerId) return;
+            const current = graphStore.units.find((unit) => unit.id === stickerId);
+            if (!current || activeStickerEditTargetId() === stickerId) return;
+            uiActions.showStickerToolbar(stickerId);
+            if (current.type === "art") uiActions.setStickerEditMode("select");
+        });
     };
 
     const scheduleOverlayHitTestRefresh = (
@@ -132,31 +140,43 @@ export function createAppStickerEditingController(
 
         if (plan.kind !== "units") return;
         const ids = plan.unitIds;
-        ids.forEach((id) => void dependencies.disposeSurface(id, "disposed"));
-        const recycleEntries = ids
-            .map((id) => graphStore.units.find((unit) => unit.id === id))
-            .filter((unit): unit is Unit => !!unit && unit.type === "sticker")
-            .map((unit) => captureFrozenStickerSnapshot(unit));
-        if (recycleEntries.length > 0) {
-            graphStore.setRecycleBin(
-                recycleEntries.reduce(
-                    (entries, entry) => addRecycleBinEntry(entries, entry),
-                    [...graphStore.recycleBin],
-                ),
-            );
-        }
+        return runWithLiveCaptureSnapshots(ids, () => {
+            // A delayed readback must not delete a new selection or an annotation.
+            const currentPlan = resolveDeletionPlan({
+                selectedAnnotationId: selectedStickerAnnotationId(),
+                selectedAnnotationIds: [...selectedStickerAnnotationIds],
+                selectedStickerId: selectedStickerId(),
+                selectedUnitIds: [...selectedUnitIds],
+                units: graphStore.units,
+            });
+            if (currentPlan.kind !== "units" || currentPlan.unitIds.length !== ids.length
+                || currentPlan.unitIds.some((id) => !ids.includes(id))) return;
+            ids.forEach((id) => void dependencies.disposeSurface(id, "disposed"));
+            const recycleEntries = ids
+                .map((id) => graphStore.units.find((unit) => unit.id === id))
+                .filter((unit): unit is Unit => !!unit && unit.type === "sticker")
+                .map((unit) => captureFrozenStickerSnapshot(unit));
+            if (recycleEntries.length > 0) {
+                graphStore.setRecycleBin(
+                    recycleEntries.reduce(
+                        (entries, entry) => addRecycleBinEntry(entries, entry),
+                        [...graphStore.recycleBin],
+                    ),
+                );
+            }
 
-        ids.forEach((id) => graphStore.actions.removeUnit(id));
-        ids.forEach((id) => {
-            artExecutionRequests.invalidate(id);
-            uiActions.clearStickerHistory(id);
-            uiActions.clearUnitUiState(id);
-            uiActions.dismissEnhancementNotice(id);
+            ids.forEach((id) => graphStore.actions.removeUnit(id));
+            ids.forEach((id) => {
+                artExecutionRequests.invalidate(id);
+                uiActions.clearStickerHistory(id);
+                uiActions.clearUnitUiState(id);
+                uiActions.dismissEnhancementNotice(id);
+            });
+            selectionActions.clear();
+            uiActions.hideStickerToolbar();
+            void syncService.updateBackendRects();
+            void syncService.performWorkflowSync();
         });
-        selectionActions.clear();
-        uiActions.hideStickerToolbar();
-        void syncService.updateBackendRects();
-        void syncService.performWorkflowSync();
     };
 
     const openImageForEdit = async () => {

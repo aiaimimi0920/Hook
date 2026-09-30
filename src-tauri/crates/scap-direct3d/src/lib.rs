@@ -2,6 +2,8 @@
 
 mod capturer;
 mod frame;
+mod frame_selection;
+mod runtime;
 mod settings;
 mod staging_pool;
 mod windows_version;

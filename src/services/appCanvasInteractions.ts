@@ -55,6 +55,9 @@ export function createAppCanvasInteractions({
         if (handledGlobalMouseMoveEvents.has(event)) return;
         handledGlobalMouseMoveEvents.add(event);
         if (tauriRuntime && draggingStickerId() && event.isTrusted) return;
+        // Native overlay selection is already updated before its untrusted DOM
+        // replay bubbles here. Do not reinterpret that replay as sticker drag.
+        if (!event.isTrusted && overlaySynthetic.textSelectionActive) return;
         if (!draggingStickerId()) {
             setMousePos({ x: event.clientX, y: event.clientY });
         }

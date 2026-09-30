@@ -34,13 +34,15 @@ describe("Art node editing shortcut contract", () => {
     expect(shortcutSource).toContain("{ id: 'toggle-params', key: 'Tab', modifiers: []");
     expect(handlerSource).not.toContain("uiActions.toggleParams(stickerId);");
     expect(handlerSource).toContain('selectedUnit?.type !== "sticker" && selectedUnit?.type !== "art"');
+    expect(appShortcutSource).toContain("onToggleStickerToolbar: () => {");
     expect(appShortcutSource).toContain(
-      "onToggleStickerToolbar: dependencies.toggleStickerToolbarVisibility",
+      "fallback: dependencies.toggleStickerToolbarVisibility",
     );
     expect(appShortcutSource).not.toContain("onToggleStickerToolbar: tauriRuntime ? undefined");
     expect(handlerSource).toContain("now - lastToolbarToggleAt < 250");
     expect(handlerSource).toContain("uiActions.showStickerToolbar(stickerId);");
-    expect(handlerSource).toContain('if (selectedUnit.type === "art")');
+    expect(handlerSource).toContain("runWithLiveCaptureSnapshots([stickerId]");
+    expect(handlerSource).toContain('if (current.type === "art")');
     expect(handlerSource).toContain('uiActions.setStickerEditMode("select");');
     expect(stickerEditingSource).toContain('unit.type !== "sticker" && unit.type !== "art"');
     expect(visualOverlaysSource).toContain('props.unit.type === "sticker" || props.unit.type === "art"');

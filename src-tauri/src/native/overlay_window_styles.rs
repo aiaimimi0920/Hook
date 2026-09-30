@@ -80,6 +80,32 @@ unsafe extern "system" fn overlay_mouse_activate_wndproc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
+    // The transparent WebView can still receive WM_SETCURSOR while the
+    // native shield is being rebuilt after an annotation commit. Keep the
+    // sticker body cursor visible during that handoff without overriding
+    // cursors for ordinary controls or panels.
+    if message == WM_SETCURSOR {
+        if let Some((cursor_x, cursor_y)) = current_cursor_position_physical() {
+            let over_synthetic_rect = OVERLAY_MOUSE_HIT_MAP_ACTIVE.load(Ordering::SeqCst)
+                && overlay_mouse_hit_map()
+                    .lock()
+                    .ok()
+                    .map(|rects| {
+                        rects.iter().any(|rect| {
+                            is_sticker_body_synthetic_rect(rect)
+                                && rect.contains(cursor_x, cursor_y)
+                        })
+                    })
+                    .unwrap_or(false);
+            if over_synthetic_rect {
+                if let Ok(cursor) = unsafe { LoadCursorW(None, IDC_ARROW) } {
+                    let _ = unsafe { SetCursor(Some(cursor)) };
+                    return LRESULT(1);
+                }
+            }
+        }
+    }
+
     if message == WM_MOUSEACTIVATE {
         return LRESULT(MA_NOACTIVATE as isize);
     }

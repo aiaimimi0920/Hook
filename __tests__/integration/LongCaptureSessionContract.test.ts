@@ -10,6 +10,10 @@ const apiTypesSource = readFileSync(resolve(process.cwd(), "src/services/apiType
 const appSource = readFileSync(resolve(process.cwd(), "src/app.tsx"), "utf8");
 const selectionSource = readFileSync(resolve(process.cwd(), "src/hooks/useSelection.ts"), "utf8");
 const autoLongCaptureSource = readFileSync(resolve(process.cwd(), "src/hooks/autoLongCaptureController.ts"), "utf8");
+const autoLongCaptureActivationSource = readFileSync(
+    resolve(process.cwd(), "src/hooks/autoLongCaptureActivation.ts"),
+    "utf8",
+);
 const captureUnitSource = readFileSync(resolve(process.cwd(), "src/hooks/captureUnitController.ts"), "utf8");
 const captureStateSource = readFileSync(resolve(process.cwd(), "src/services/captureState.ts"), "utf8");
 const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitView.tsx"), "utf8");
@@ -139,10 +143,11 @@ describe("Hook long capture session contract", () => {
         const finishBody = autoLongCaptureSource.slice(finishSessionStart, cancelSessionStart);
         const cancelBody = autoLongCaptureSource.slice(cancelSessionStart);
 
-        expect(startBody).toContain("await api.setOverlayCaptureExclusion(true)");
-        expect(autoLongCaptureSource).toContain("await api.setOverlayCaptureExclusion(false)");
-        expect(finishBody).toContain("await restoreOverlayExclusion()");
-        expect(cancelBody).toContain("await restoreOverlayExclusion()");
+        expect(startBody).toContain("activateAutoLongCaptureSession");
+        expect(autoLongCaptureActivationSource).toContain("await api.setOverlayCaptureExclusion(true)");
+        expect(autoLongCaptureActivationSource).toContain("api.setOverlayCaptureExclusion(false)");
+        expect(finishBody).toContain("await restoreAutoLongCaptureExclusion()");
+        expect(cancelBody).toContain("await restoreAutoLongCaptureExclusion()");
     });
 
     it("explicitly disables capture input when long capture finishes or is canceled so Ctrl+3 exit cannot leave the crosshair active", () => {
@@ -153,8 +158,10 @@ describe("Hook long capture session contract", () => {
         const finishBody = autoLongCaptureSource.slice(finishSessionStart, cancelSessionStart);
         const cancelBody = autoLongCaptureSource.slice(cancelSessionStart);
 
-        expect(finishBody).toContain("await api.setCaptureInputActive(false)");
-        expect(cancelBody).toContain("await api.setCaptureInputActive(false)");
+        expect(finishBody).toContain("await disableAutoLongCaptureInput()");
+        expect(cancelBody).toContain("await disableAutoLongCaptureInput()");
+        expect(autoLongCaptureActivationSource).toContain("export const disableAutoLongCaptureInput");
+        expect(autoLongCaptureActivationSource).toContain("() => api.setCaptureInputActive(false)");
     });
 
     it("accelerates backend long-capture sampling from real wheel input without trusting wheel direction", () => {
@@ -170,13 +177,15 @@ describe("Hook long capture session contract", () => {
         expect(appSource).toContain("registerAppCommandListeners");
         expect(commandSource).toContain("listen<{ deltaX?: number; deltaY?: number }>(");
         expect(commandSource).toContain('"trigger-long-capture-wheel"');
-        expect(rustSource).toContain('window.emit("trigger-long-capture-wheel"');
+        expect(rustSource).toMatch(/window\.emit\(\s*"trigger-long-capture-wheel"\s*,\s*LongCaptureWheelEvent\s*\{/);
         expect(rustSource).toContain("rdev::EventType::Wheel { delta_x, delta_y }");
     });
 
     it("starts long-capture sessions in auto-axis mode so horizontal captures can be detected", () => {
         expect(autoLongCaptureSource).toContain("axis = undefined;");
-        expect(autoLongCaptureSource).toContain("api.startLongCaptureSession(rect, axis)");
+        expect(autoLongCaptureActivationSource).toContain(
+            "api.startLongCaptureSession(dependencies.rect, dependencies.axis)",
+        );
         expect(autoLongCaptureSource).not.toContain('axis = "vertical";');
         expect(longCaptureSource).toContain("find_horizontal_right_fixed_chrome_candidate");
         expect(captureApiSource).toContain("axis?: LongCaptureAxis");

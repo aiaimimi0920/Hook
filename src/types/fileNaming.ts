@@ -42,5 +42,3 @@ export const FILE_NAMING_PLACEHOLDERS = [
     "time",
     "timestamp",
 ] as const;
-
-export type FileNamingPlaceholder = (typeof FILE_NAMING_PLACEHOLDERS)[number];

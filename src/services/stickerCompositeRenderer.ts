@@ -96,8 +96,13 @@ export const renderStickerCompositeWithAnnotations = async (
         throw new Error("Sticker has no image source");
     }
 
-    const renderWidth = resolveFiniteCanvasDimension(unit.w, "sticker width");
-    const renderHeight = resolveFiniteCanvasDimension(unit.h, "sticker height");
+    const frameWidth = resolveFiniteCanvasDimension(unit.w, "sticker width");
+    const frameHeight = resolveFiniteCanvasDimension(unit.h, "sticker height");
+    const preserveSourceResolution = options?.outputMode === "source-resolution";
+    // Content geometry uses fractional logical pixels. Rounding the scale's
+    // denominator resamples the entire base again on every committed erase.
+    const renderWidth = preserveSourceResolution ? Math.max(1, unit.w) : frameWidth;
+    const renderHeight = preserveSourceResolution ? Math.max(1, unit.h) : frameHeight;
     const image = await loadImage(baseSrc);
     const cropRect = unit.data.imageEditState?.cropRect;
     const contentFrame = resolveStickerContentFrame(unit);
@@ -105,7 +110,6 @@ export const renderStickerCompositeWithAnnotations = async (
         width: image.naturalWidth || image.width,
         height: image.naturalHeight || image.height,
     };
-    const preserveSourceResolution = options?.outputMode === "source-resolution";
     const outputWidth = preserveSourceResolution
         ? resolveFiniteCanvasDimension(sourceSize.width || renderWidth, "source width")
         : renderWidth;

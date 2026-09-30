@@ -217,7 +217,10 @@ export const createStickerAnnotationViewModel = (
         );
         const rotationTransform = createMemo(() => buildAnnotationRotationTransform(text()));
         return (
-            <g transform={rotationTransform()}>
+            <g
+                transform={rotationTransform()}
+                style={{ "pointer-events": "none", cursor: "default" }}
+            >
                 <Show when={text().type === "serial"}>
                     <circle
                         cx={text().x + serialMetrics().radius}
@@ -226,6 +229,7 @@ export const createStickerAnnotationViewModel = (
                         fill={getVisibleFill(text().style.fill)}
                         stroke={getVisibleStroke(text().style.color, serialBorderWidth())}
                         stroke-width={serialBorderWidth()}
+                        style={{ "pointer-events": "none", cursor: "default" }}
                     />
                 </Show>
                 <text
@@ -242,6 +246,7 @@ export const createStickerAnnotationViewModel = (
                             : stickerToolSettings.textFontFamily)
                     }
                     font-weight={text().type === "serial" ? 700 : 500}
+                    style={{ "pointer-events": "none", cursor: "default" }}
                 >
                     {text().text}
                 </text>

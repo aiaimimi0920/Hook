@@ -5,7 +5,8 @@ param(
     [switch]$DryRun,
     [switch]$UiAccess,
     [switch]$AllowUnsignedUiAccessBuild,
-    [switch]$RequireCleanSource
+    [switch]$RequireCleanSource,
+    [switch]$PublicRelease
 )
 
 Set-StrictMode -Version Latest
@@ -21,6 +22,8 @@ $releaseExe = Join-Path $hookRoot "src-tauri\target\release\hook.exe"
 $versionPreflightScript = Join-Path $hookRoot "scripts\assert-release-version.ps1"
 $fileHashScript = Join-Path $hookRoot "scripts\file-hash.ps1"
 . $fileHashScript
+. (Join-Path $PSScriptRoot "version-identity.ps1")
+$versionIdentity = Get-HookVersionIdentity -RepoRoot $hookRoot -PublicRelease:$PublicRelease.IsPresent
 
 function Get-HookGitText {
     param([string[]]$Arguments)
@@ -68,6 +71,9 @@ function Write-HookBuildProvenance {
         builder = "Hook scripts/build-local-hook-exe.ps1"
         builtAt = (Get-Date).ToString("o")
         productVersion = $productVersion
+        buildVersion = $versionIdentity.buildVersion
+        channel = $versionIdentity.channel
+        internalRevision = $versionIdentity.internalRevision
         gitHead = $gitHead
         gitDirty = $GitDirty
         sourcePaths = @(".")
@@ -139,6 +145,8 @@ if ($DryRun) {
         allowUnsignedUiAccessBuild = $AllowUnsignedUiAccessBuild.IsPresent
         requireCleanSource = $RequireCleanSource.IsPresent
         sourceGitDirty = $sourceGitDirty
+        buildVersion = $versionIdentity.buildVersion
+        channel = $versionIdentity.channel
     } | ConvertTo-Json -Depth 5
     exit 0
 }
@@ -161,9 +169,19 @@ try {
     } else {
         "npm run tauri build -- --no-bundle"
     }
-    & cmd.exe /d /c $buildCommand
-    if ($LASTEXITCODE -ne 0) {
-        throw "Hook Tauri build failed with exit code $LASTEXITCODE."
+    # Tauri writes informational progress to stderr. Windows PowerShell can turn
+    # those lines into NativeCommandError records when the script is fail-fast,
+    # so use the native exit code as the authoritative build result.
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & cmd.exe /d /c $buildCommand
+        $buildExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($buildExitCode -ne 0) {
+        throw "Hook Tauri build failed with exit code $buildExitCode."
     }
 } finally {
     Pop-Location

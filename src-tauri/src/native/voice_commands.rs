@@ -242,10 +242,13 @@ fn configure_webview2_video_safe_composition() {
         combined_args.push_str(arg);
     }
 
+    // Chromium's Windows CursorManager checks HideCursorWhileTyping before
+    // hiding on key input. Duplicate disable-features switches lose earlier
+    // values, so merge them before WebView2 creates its browser environment.
+    let combined_args = webview_bootstrap_args::with_visible_typing_cursor(&combined_args);
     std::env::set_var(ENV_NAME, combined_args);
     append_runtime_log_line("webview2_video_safe_composition_args_applied");
 }
 
 #[cfg(not(target_os = "windows"))]
 fn configure_webview2_video_safe_composition() {}
-

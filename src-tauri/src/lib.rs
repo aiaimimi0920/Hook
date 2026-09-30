@@ -31,12 +31,17 @@ pub mod loom_connector;
 mod loom_hook;
 mod mouse_monitor;
 mod network_proxy;
+mod qr_projection;
 mod screenshot;
 mod shortcut_config;
 mod single_instance;
 pub mod talk_connector;
 pub mod tea_client;
+pub mod tile_outputs;
+pub mod tile_terminal;
 pub mod voice;
+mod wall_client;
+mod wall_live;
 
 #[cfg(all(test, target_os = "windows"))]
 #[link(name = "hook_test_manifest", kind = "static")]
@@ -124,27 +129,32 @@ use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CallWindowProcW, CopyIcon, CreateWindowExW, DefWindowProcW, DispatchMessageW,
     EnumWindows, GetAncestor, GetClassNameW, GetCursorPos, GetForegroundWindow, GetMessageW,
     GetParent, GetWindow, GetWindowLongPtrW, GetWindowRect, GetWindowThreadProcessId,
-    IsWindowVisible, LoadCursorW, SetLayeredWindowAttributes, SetSystemCursor, SetWindowLongPtrW,
-    SetWindowPos, SetWindowsHookExW, ShowWindow, SystemParametersInfoW, TranslateMessage,
-    UnhookWindowsHookEx, WindowFromPoint, GA_ROOT, GWLP_WNDPROC, GWL_EXSTYLE, GW_HWNDPREV, HCURSOR,
-    HC_ACTION, HICON, HWND_NOTOPMOST, HWND_TOPMOST, IDC_CROSS, KBDLLHOOKSTRUCT, LWA_ALPHA,
-    MA_NOACTIVATE, MSG, MSLLHOOKSTRUCT, OCR_CROSS, OCR_HAND, OCR_IBEAM, OCR_NO, OCR_NORMAL,
-    OCR_SIZEALL, OCR_SIZENESW, OCR_SIZENS, OCR_SIZENWSE, OCR_SIZEWE, OCR_UP, SPI_SETCURSORS,
-    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW,
-    SW_HIDE, SW_SHOWNA, SYSTEM_CURSOR_ID, WH_KEYBOARD_LL, WH_MOUSE_LL, WM_KEYDOWN, WM_KEYUP,
-    WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEACTIVATE, WM_MOUSEMOVE,
-    WM_MOUSEWHEEL, WM_NOTIFY, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
-    WM_XBUTTONDOWN, WM_XBUTTONUP, WNDPROC, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-    WS_EX_TRANSPARENT, WS_POPUP,
+    IsWindowVisible, LoadCursorW, SetCursor, SetLayeredWindowAttributes, SetSystemCursor,
+    SetWindowLongPtrW, SetWindowPos, SetWindowsHookExW, ShowWindow, SystemParametersInfoW,
+    TranslateMessage, UnhookWindowsHookEx, WindowFromPoint, GA_ROOT, GWLP_WNDPROC, GWL_EXSTYLE,
+    GW_HWNDPREV, HCURSOR, HC_ACTION, HICON, HWND_NOTOPMOST, HWND_TOPMOST, IDC_ARROW, IDC_CROSS,
+    KBDLLHOOKSTRUCT, LWA_ALPHA, MA_NOACTIVATE, MSG, MSLLHOOKSTRUCT, OCR_CROSS, OCR_HAND, OCR_IBEAM,
+    OCR_NO, OCR_NORMAL, OCR_SIZEALL, OCR_SIZENESW, OCR_SIZENS, OCR_SIZENWSE, OCR_SIZEWE, OCR_UP,
+    SPI_SETCURSORS, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+    SWP_SHOWWINDOW, SW_HIDE, SW_SHOWNA, SYSTEM_CURSOR_ID, WH_KEYBOARD_LL, WH_MOUSE_LL, WM_KEYDOWN,
+    WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEACTIVATE,
+    WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NOTIFY, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR,
+    WM_SYSKEYDOWN, WM_SYSKEYUP, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDPROC, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_POPUP,
 };
 
 // =====================================
 // New WinAPI helpers for Shared Memory
 // =====================================
 
+mod live_gpu;
+mod live_resources;
+
 include!("native/shared_memory.rs");
 
 include!("native/boot_diagnostics.rs");
+
+include!("native/runtime_log_sanitize.rs");
 
 include!("native/runtime_logging.rs");
 
@@ -176,6 +186,14 @@ include!("native/capture_input_state.rs");
 
 include!("native/overlay_input_routing.rs");
 
+#[cfg(target_os = "windows")]
+#[path = "native/overlay_webview_cursor.rs"]
+mod overlay_webview_cursor;
+
+#[cfg(target_os = "windows")]
+#[path = "native/webview_bootstrap_args.rs"]
+mod webview_bootstrap_args;
+
 include!("native/capture_mouse_hook_proc.rs");
 
 include!("native/capture_mouse_worker.rs");
@@ -183,6 +201,8 @@ include!("native/capture_mouse_worker.rs");
 include!("native/keyboard_policy.rs");
 
 include!("native/rdev_key_map.rs");
+
+include!("native/extension_shortcuts.rs");
 
 include!("native/global_shortcuts.rs");
 
@@ -219,6 +239,10 @@ include!("native/native_file_drag.rs");
 
 include!("native/clipboard_commands.rs");
 
+include!("native/clipboard_text.rs");
+
+include!("native/external_url.rs");
+
 include!("native/overlay_state_commands.rs");
 
 include!("native/image_path_commands.rs");
@@ -226,6 +250,8 @@ include!("native/image_path_commands.rs");
 include!("native/session_models.rs");
 
 include!("native/session_persistence.rs");
+
+include!("native/session_ocr_migration.rs");
 
 include!("native/precise_capture_commands.rs");
 include!("native/legacy_long_capture_commands.rs");
@@ -274,6 +300,73 @@ include!("native/long_capture_encoding.rs");
 
 include!("native/long_capture_session_commands.rs");
 
+include!("native/live_source_recovery.rs");
+
+include!("native/live_capture_region.rs");
+
+include!("native/live_source_window.rs");
+include!("native/live_source_visibility.rs");
+
+include!("native/live_source_security.rs");
+
+include!("native/live_source_input_target.rs");
+
+include!("native/live_source_button.rs");
+
+include!("native/live_source_input.rs");
+
+include!("native/live_capture_types.rs");
+
+include!("native/live_capture_commands.rs");
+include!("native/live_input_dispatch.rs");
+
+include!("native/live_observation_types.rs");
+
+include!("native/live_extension_capabilities.rs");
+
+include!("native/live_network_capabilities.rs");
+
+include!("native/live_trigger_types.rs");
+
+include!("native/live_observation_uia.rs");
+
+include!("native/live_observation_uia_sample.rs");
+
+include!("native/live_observation_state.rs");
+
+include!("native/live_relay_types.rs");
+
+include!("native/live_relay_protocol.rs");
+
+include!("native/live_relay_http.rs");
+
+include!("native/live_relay_http_trigger.rs");
+
+include!("native/live_relay_observation.rs");
+
+include!("native/live_relay_input.rs");
+
+include!("native/live_relay_input_source.rs");
+
+include!("native/live_relay_websocket.rs");
+
+include!("native/live_relay_connection.rs");
+
+include!("native/live_relay_source.rs");
+
+include!("native/live_relay_recovery.rs");
+
+include!("native/live_relay_commands.rs");
+
+#[cfg(all(test, target_os = "windows", feature = "remote-surface"))]
+mod live_relay_acceptance_tests {
+    include!("native/tests/live_relay_phase4_acceptance.rs");
+    include!("native/tests/live_relay_acceptance_session_support.rs");
+    include!("native/tests/live_relay_phase4_acceptance_support.rs");
+    include!("native/tests/live_relay_phase6_acceptance_support.rs");
+    include!("native/tests/wall_input_source_acceptance.rs");
+}
+
 include!("native/overlay_commands.rs");
 
 include!("native/shortcut_trigger_policy.rs");
@@ -284,6 +377,7 @@ include!("native/rdev_input_listener.rs");
 
 include!("native/app_setup.rs");
 
+mod bridge_csp;
 include!("native/app_runtime.rs");
 
 #[cfg(test)]
@@ -293,6 +387,7 @@ mod app_cli_tests {
     include!("native/tests/app_cli_capture_encoding.rs");
     include!("native/tests/app_cli_image_cache.rs");
     include!("native/tests/app_cli_session_persistence.rs");
+    include!("native/tests/app_cli_ocr_migration.rs");
     include!("native/tests/app_cli_workflow_archive.rs");
     include!("native/tests/app_cli_release_smoke.rs");
 }

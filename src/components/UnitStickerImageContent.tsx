@@ -1,5 +1,8 @@
 import { Component, JSX, Show } from "solid-js";
 import type { Unit } from "../types/unit";
+import { liveCaptureViews } from "../store/liveCaptureStore";
+import { activeStickerEditTargetId } from "../store/uiStore";
+import { registerLiveGpuPreview } from "../services/liveGpuPreview";
 
 interface ImageViewport {
     width: number;
@@ -87,7 +90,11 @@ const imageStyle = (
 };
 
 /** Owns baked, base, rasterized, and border image layers for one unit. */
-export const UnitStickerImageContent: Component<UnitStickerImageContentProps> = (props) => (
+export const UnitStickerImageContent: Component<UnitStickerImageContentProps> = (props) => {
+    const liveGpuUnitId = () => props.unit.id;
+    const liveGpuDisabled = () => props.isMinified || Boolean(props.croppedImageViewport)
+        || props.cornerRadius > 0 || Boolean(props.unit.data.rasterizedAnnotationLayerSrc);
+    return (
     <>
         <Show when={!props.hasDeclarativeSurface && props.minifiedBakedPreviewSrc} keyed>
             {(src) => (
@@ -131,10 +138,13 @@ export const UnitStickerImageContent: Component<UnitStickerImageContentProps> = 
             >
                 <img
                     class="sticker-img"
+                    ref={(image) => registerLiveGpuPreview(image, liveGpuUnitId, liveGpuDisabled)}
                     data-sticker-base-image="true"
                     draggable={props.browserDragEnabled}
                     onDragStart={(event) => props.onBrowserDragStart(event)}
-                    src={props.baseImageSrc}
+                    src={activeStickerEditTargetId() === props.unit.id
+                        ? props.baseImageSrc
+                        : liveCaptureViews.find((view) => view.sessionId === props.unit.id)?.imageUrl || props.baseImageSrc}
                     onLoad={(event) => props.onBaseImageLoad(event)}
                     onError={() => props.onImageError()}
                     style={imageStyle(
@@ -182,4 +192,5 @@ export const UnitStickerImageContent: Component<UnitStickerImageContentProps> = 
             />
         </Show>
     </>
-);
+    );
+};

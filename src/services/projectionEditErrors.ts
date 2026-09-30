@@ -1,0 +1,26 @@
+/** User-visible recovery choices for the bounded annotation protocol. */
+const messages: Record<string, string> = {
+    projection_edit_read_only: "当前为单向修改。本地标注已保留，只有投射端能启用双向。",
+    projection_edit_object_conflict: "同一标注已在另一端修改。请选择保留本地修改或采用远端版本。",
+    projection_edit_mode_conflict: "数据流向已更新，旧模式下的修改未提交。本地标注已保留。",
+    projection_edit_revision_conflict: "编辑历史已更新。本地标注已保留，请确认冲突后重试。",
+    projection_edit_recovery_conflict: "恢复的编辑记录与工作区不一致。已保留本地内容，请选择要使用的版本。",
+    projection_edit_source_recovery_required: "发起端编辑记录缺失。请停止此图块的全部投射，再重新启用双向并投射。",
+    projection_edit_session_mismatch: "投射编辑会话已变更，请停止旧关联后重新投射。",
+    projection_edit_basis_changed: "底图或裁剪已改变，请停止此图块的全部投射后重新启用双向。",
+    projection_edit_basis_conflict: "底图与共享标注不一致，请停止旧关联后重新投射。",
+    projection_edit_unsupported_basis: "当前图像变换不支持共享标注。请先结束变换或停止关联后重新投射。",
+    projection_edit_unsupported_annotation: "马赛克和模糊暂不支持双向标注，请先合并这些效果或使用单向投射。",
+    projection_edit_mixed_origins: "一个编辑会话需使用同一 Loom。账号投射暂不支持双向标注。",
+    projection_edit_storage_unavailable: "无法持久保存编辑请求，已暂停提交。请检查本机存储后重试。",
+    projection_edit_storage_conflict: "编辑存储已由另一窗口更新，请关闭重复窗口后重试。",
+    projection_edit_journal_full: "本机编辑存储已满，请删除不再使用的投射图块后重试。",
+    projection_edit_invalid_document: "标注数据超出协议限制，未应用收到的数据。",
+    projection_edit_not_found: "Loom 尚无此编辑会话，请确认两端已更新并重新投射。",
+    projection_edit_log_full: "等待投射端整理编辑历史。本地修改已保留，请稍后处理冲突。",
+    projection_edit_object_budget: "共享标注数量已达上限，请减少标注后处理冲突。",
+    projection_edit_pending: "正在核对上次提交的结果，请恢复连接后再处理冲突。",
+    projection_edit_binding_stopped: "上次提交使用的关联已停止。本地修改已保留，请在其余关联上确认要采用的版本。",
+    projection_edit_snapshot_locked: "此关联使用固定底图，修改底图需停止关联后重新投射。",
+};
+export const projectionEditError = (code: string): string | undefined => messages[code];

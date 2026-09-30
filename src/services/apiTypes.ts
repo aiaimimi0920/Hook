@@ -39,28 +39,6 @@ export interface CaptureRegionOptions {
     captureWindowId?: string;
 }
 
-export interface OcrResult {
-    fullText: string;
-    textBlocks?: Array<{
-        text: string;
-        boxPoints: { x: number; y: number }[];
-        boxScore: number;
-        textScore: number;
-        colorHex: string;
-        bgColorHex: string;
-        translatedText?: string;
-        translating?: boolean;
-    }>;
-    width?: number;
-    height?: number;
-    scaleFactor?: number;
-}
-
-export interface EnhancementCapabilities {
-    ocr: boolean;
-    translation: boolean;
-}
-
 export interface VoiceSettingsSummary {
     shortcut: string;
     triggerMode: string;

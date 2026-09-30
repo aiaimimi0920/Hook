@@ -2,6 +2,8 @@
 param(
     [Parameter(Mandatory = $true)][ValidatePattern('^V\d+\.\d+\.\d+$')][string]$VersionId,
     [string]$OutputRoot = "..\release\Hook",
+    [string]$ExtensionCompatibilityPath = "",
+    [string]$PreparedPortableDir = "",
     [switch]$RequireCleanSource,
     [switch]$DryRun
 )
@@ -12,6 +14,8 @@ $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 . (Join-Path $PSScriptRoot "file-hash.ps1")
 . (Join-Path $PSScriptRoot "release\PathSafety.ps1")
 . (Join-Path $PSScriptRoot "release\Manifest.ps1")
+. (Join-Path $PSScriptRoot "release\ExtensionCompatibility.ps1")
+. (Join-Path $PSScriptRoot "version-identity.ps1")
 
 function Get-HookGitText {
     param([string[]]$Arguments)
@@ -48,6 +52,7 @@ if ($DryRun) {
         schemaVersion = 1; app = "Hook"; versionId = $VersionId
         outputRoot = $resolvedOutputRoot; destination = $destination
         sourceGitDirty = $sourceDirty; requireCleanSource = $RequireCleanSource.IsPresent
+        preparedPortable = -not [string]::IsNullOrWhiteSpace($PreparedPortableDir)
     } | ConvertTo-Json
     exit 0
 }
@@ -64,13 +69,69 @@ $portableDir = Resolve-HookReleasePath -RootPath $destination -RelativePath "por
 $packageDir = Resolve-HookReleasePath -RootPath $destination -RelativePath "packages"
 $sbomDir = Resolve-HookReleasePath -RootPath $destination -RelativePath "sbom"
 $provenanceDir = Resolve-HookReleasePath -RootPath $destination -RelativePath "provenance"
-foreach ($directory in @($portableDir, $packageDir, $sbomDir, $provenanceDir)) {
+$compatibilityDir = Resolve-HookReleasePath -RootPath $destination -RelativePath "compatibility"
+foreach ($directory in @($portableDir, $packageDir, $sbomDir, $provenanceDir, $compatibilityDir)) {
     New-Item -ItemType Directory -Path $directory | Out-Null
 }
 
-& (Join-Path $PSScriptRoot "build-local-hook-exe.ps1") -OutputDir $portableDir -RequireCleanSource -Force
 $portableExe = Join-Path $portableDir "hook.exe"
-& (Join-Path $PSScriptRoot "package-release-zip.ps1") -ExePath $portableExe -OutputDir $packageDir -Tag $VersionId -Force
+$portableProvenance = Join-Path $portableDir "build-provenance.json"
+$preparedMode = -not [string]::IsNullOrWhiteSpace($PreparedPortableDir)
+if ($preparedMode) {
+    $preparedRoot = [System.IO.Path]::GetFullPath($PreparedPortableDir)
+    if (-not (Test-Path -LiteralPath $preparedRoot -PathType Container)) {
+        throw "Prepared Hook portable directory is missing: $preparedRoot"
+    }
+    foreach ($name in @("hook.exe", "build-provenance.json")) {
+        $source = Join-Path $preparedRoot $name
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+            throw "Prepared Hook portable payload is missing $name."
+        }
+        [void](Assert-HookAbsolutePathNoReparsePoints -Path $source -TrustedRootPath $preparedRoot)
+        Copy-Item -LiteralPath $source -Destination (Join-Path $portableDir $name)
+    }
+} else {
+    & (Join-Path $PSScriptRoot "build-local-hook-exe.ps1") `
+        -OutputDir $portableDir `
+        -RequireCleanSource:$RequireCleanSource.IsPresent `
+        -PublicRelease `
+        -Force
+}
+$gitHead = Get-HookGitText -Arguments @("rev-parse", "HEAD")
+if ($gitHead -notmatch '^[0-9a-f]{40}$') { throw "Cannot resolve the Hook source commit for provenance." }
+if ($preparedMode) {
+    $preparedProvenance = Read-HookBoundedText -Path $portableProvenance -MaxBytes 1MB | ConvertFrom-Json
+    if ([string]$preparedProvenance.app -cne "Hook" -or
+        [string]$preparedProvenance.gitHead -cne $gitHead) {
+        throw "Prepared Hook provenance does not match the Hook source commit."
+    }
+    if ($null -eq $sourceDirty -or [bool]$preparedProvenance.gitDirty -ne [bool]$sourceDirty) {
+        throw "Prepared Hook provenance does not match the current worktree state."
+    }
+    if ($RequireCleanSource -and [bool]$preparedProvenance.gitDirty -ne $false) {
+        throw "Prepared Hook provenance is not clean."
+    }
+    $preparedDigest = Get-HookReleaseDigest -Path $portableExe
+    if ([string]$preparedProvenance.artifact.name -cne "hook.exe" -or
+        [int64]$preparedProvenance.artifact.bytes -ne [int64]$preparedDigest.bytes -or
+        [string]$preparedProvenance.artifact.sha256 -cne [string]$preparedDigest.sha256) {
+        throw "Prepared Hook executable does not match its provenance artifact record."
+    }
+}
+$portableIdentity = Read-HookBoundedText -Path $portableProvenance -MaxBytes 1MB | ConvertFrom-Json
+Assert-HookPublicBuildIdentity -Provenance $portableIdentity -ProductVersion $productVersion
+$compatibilityRecord = $null
+$packagingCompatibilityPath = ""
+if (-not [string]::IsNullOrWhiteSpace($ExtensionCompatibilityPath)) {
+    $compatibility = Read-HookExtensionCompatibility -Path $ExtensionCompatibilityPath
+    Assert-HookExtensionCompatibility -Document $compatibility -GitHead $gitHead -ExecutablePath $portableExe
+    $packagingCompatibilityPath = Join-Path $compatibilityDir "extension-compatibility.json"
+    Copy-Item -LiteralPath ([System.IO.Path]::GetFullPath($ExtensionCompatibilityPath)) -Destination $packagingCompatibilityPath -Force
+    $compatibilityRecord = New-HookFileRecord -RootPath $destination -Path $packagingCompatibilityPath -Kind "compatibility"
+}
+& (Join-Path $PSScriptRoot "package-release-zip.ps1") `
+    -ExePath $portableExe -OutputDir $packageDir -Tag $VersionId `
+    -ExtensionCompatibilityPath $packagingCompatibilityPath -Force
 $zipName = "hook-windows-x64-$VersionId.zip"
 $zipPath = Join-Path $packageDir $zipName
 $zipDigest = Get-HookReleaseDigest -Path $zipPath
@@ -78,9 +139,14 @@ $sidecarPath = "$zipPath.sha256"
 Write-HookUtf8NoBom -Path $sidecarPath -Value "$($zipDigest.sha256)  $zipName`n"
 
 & (Join-Path $PSScriptRoot "New-HookSbom.ps1") -OutputDirectory $sbomDir -Version $VersionId | Out-Null
-$gitHead = Get-HookGitText -Arguments @("rev-parse", "HEAD")
-if ($gitHead -notmatch '^[0-9a-f]{40}$') { throw "Cannot resolve the Hook source commit for provenance." }
-
+$provenanceSubjects = @([ordered]@{ name = $zipName; bytes = $zipDigest.bytes; sha256 = $zipDigest.sha256 })
+if ($null -ne $compatibilityRecord) {
+    $provenanceSubjects += [ordered]@{
+        name = "extension-compatibility.json"
+        bytes = $compatibilityRecord.bytes
+        sha256 = $compatibilityRecord.sha256
+    }
+}
 $formalProvenancePath = Join-Path $provenanceDir "build-provenance.json"
 $formalProvenance = [ordered]@{
     schemaVersion = 1
@@ -92,11 +158,11 @@ $formalProvenance = [ordered]@{
     gitDirty = $sourceDirty
     sourcePaths = @(".")
     commands = @(
-        "npm run tauri build -- --no-bundle",
+        $(if ($preparedMode) { "reuse verified prepared Hook portable payload" } else { "npm run tauri build -- --no-bundle" }),
         "scripts/package-release-zip.ps1",
         "scripts/New-HookSbom.ps1"
     )
-    subjects = @([ordered]@{ name = $zipName; bytes = $zipDigest.bytes; sha256 = $zipDigest.sha256 })
+    subjects = $provenanceSubjects
 }
 Write-HookUtf8NoBom -Path $formalProvenancePath -Value (($formalProvenance | ConvertTo-Json -Depth 10) + "`n")
 
@@ -119,6 +185,7 @@ $manifest = [ordered]@{
     builtAt = [DateTimeOffset]::UtcNow.ToString("o"); target = "windows-x64"
     gitHead = $gitHead; gitDirty = $sourceDirty; sourceGitDirty = $sourceDirty
     sourcePaths = @("."); files = $files; publishedAssets = $publishedAssets
+    extensionCompatibility = $compatibilityRecord
 }
 $manifestPath = Join-Path $destination "manifest.json"
 Write-HookUtf8NoBom -Path $manifestPath -Value (($manifest | ConvertTo-Json -Depth 15) + "`n")

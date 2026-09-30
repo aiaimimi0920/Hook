@@ -1,0 +1,9 @@
+.tile-identification { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; overflow: auto; padding: 24px; box-sizing: border-box; background: var(--neuro-bg); color: var(--theme-text); font: 16px/1.6 system-ui, sans-serif; }
+.tile-identification section { width: min(900px, 100%); border: 1px solid var(--theme-border); border-left: 4px solid var(--theme-signal); padding: clamp(16px, 4vw, 48px); box-sizing: border-box; background: var(--theme-panel); overflow-wrap: anywhere; }
+.tile-identification h1 { margin: 16px 0; font-size: clamp(24px, 3.5vw, 64px); line-height: 1.2; }
+.tile-identification-kicker { color: var(--theme-text-muted); }
+.tile-identification code { font-size: 13px; color: var(--theme-text-muted); }
+.tile-identification button { color: var(--theme-text); background: var(--theme-control); border: 1px solid var(--theme-border); padding: 10px 16px; cursor: pointer; }
+.tile-identification button:hover { background: var(--theme-control-hover); }
+.tile-identification button:focus-visible { outline: 2px solid var(--theme-signal); outline-offset: 2px; }
+.tile-output-content { position: absolute; inset: 0; }

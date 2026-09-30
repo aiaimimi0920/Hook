@@ -4,6 +4,7 @@ import {
     createCaptureMeta,
     createAutoLongCaptureOptions,
     findCaptureWindowTargetAtPoint,
+    findCaptureWindowTargetForRegion,
     findRefreshedCaptureWindowTarget,
     resolveAutoLongCaptureBurstBudget,
     resolveAutoLongCaptureBurstPollInterval,
@@ -33,7 +34,7 @@ const elementTarget = (target: { tagName?: string; id?: string; classes?: string
     }) as HTMLElement;
 
 describe("capture state helpers", () => {
-    it("starts a new region or long capture only when no capture selection is active", () => {
+    it("starts region, long, or live capture only when no capture selection is active", () => {
         expect(beginCaptureSelectionState("region", false)).toEqual({
             shouldStart: true,
             captureMode: "region",
@@ -41,6 +42,10 @@ describe("capture state helpers", () => {
         expect(beginCaptureSelectionState("long-vertical", false)).toEqual({
             shouldStart: true,
             captureMode: "long-vertical",
+        });
+        expect(beginCaptureSelectionState("live", false)).toEqual({
+            shouldStart: true,
+            captureMode: "live",
         });
     });
 
@@ -52,6 +57,10 @@ describe("capture state helpers", () => {
         expect(beginCaptureSelectionState("long-vertical", true)).toEqual({
             shouldStart: false,
             duplicateDebugEvent: "trigger-long-capture-ignored-duplicate",
+        });
+        expect(beginCaptureSelectionState("live", true)).toEqual({
+            shouldStart: false,
+            duplicateDebugEvent: "trigger-live-capture-ignored-duplicate",
         });
     });
 
@@ -79,6 +88,30 @@ describe("capture state helpers", () => {
         expect(findCaptureWindowTargetAtPoint(targets, 200, 200)?.id).toBe("top");
         expect(findCaptureWindowTargetAtPoint(targets, 20, 20)?.id).toBe("back");
         expect(findCaptureWindowTargetAtPoint(targets, 900, 700)).toBeNull();
+    });
+
+    it("anchors a live subregion to fixed window-local pixels", () => {
+        const targets = [
+            { id: "program-a", x: 200, y: 100, w: 500, h: 400 },
+            { id: "background", x: 0, y: 0, w: 1_200, h: 800 },
+        ];
+        const anchored = findCaptureWindowTargetForRegion(
+            targets,
+            { x: 300, y: 200, w: 50, h: 50 },
+        );
+
+        expect(anchored).toEqual({
+            target: targets[0],
+            region: { x: 100, y: 100, w: 50, h: 50 },
+        });
+        expect(findCaptureWindowTargetForRegion(
+            targets,
+            { x: 650, y: 450, w: 100, h: 100 },
+        )?.target.id).toBe("background");
+        expect(findCaptureWindowTargetForRegion(
+            [targets[0]],
+            { x: 150, y: 150, w: 100, h: 100 },
+        )).toBeNull();
     });
 
     it("confirms a window capture only for two clicks on the same target inside 450ms", () => {

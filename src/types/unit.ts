@@ -5,16 +5,63 @@ import type {
     StickerImageEditState,
 } from "./stickerEditing";
 import type { ArtResultCandidate } from "../services/protocol";
+import type { UnitExtensionState } from "./unitExtension";
+import type { QrProjectionLink } from "./qrProjection";
+
+export interface OcrPoint {
+    x: number;
+    y: number;
+}
+
+export interface OcrLineGeometry {
+    baseline: [OcrPoint, OcrPoint];
+    angleDegrees: number;
+    source: "estimatedFromRapidOcrLineQuad";
+}
+
+export interface OcrTextSpan {
+    text: string;
+    boxPoints: [OcrPoint, OcrPoint, OcrPoint, OcrPoint];
+    score: number;
+    source: "ctcAlignedFromRecognitionTimesteps";
+}
 
 export interface OcrBlock {
     text: string;
-    boxPoints: {x: number, y: number}[];
+    boxPoints: OcrPoint[];
     boxScore: number;
     textScore: number;
     colorHex: string;
     bgColorHex: string;
+    rawText?: string;
+    lineGeometry?: OcrLineGeometry;
+    characterSpans?: OcrTextSpan[];
+    wordSpans?: OcrTextSpan[];
     translatedText?: string;
     translating?: boolean;
+}
+
+export interface BarcodeResult {
+    id: string;
+    format: string;
+    text: string;
+    url?: string | null;
+    points: { x: number; y: number }[];
+    bounds?: { left: number; top: number; right: number; bottom: number } | null;
+}
+
+export interface BarcodeScanResult {
+    width: number;
+    height: number;
+    results: BarcodeResult[];
+    selectedId?: string;
+}
+
+export interface TranslationResult {
+    targetLanguage: string;
+    sourceRevision: number;
+    fullText: string;
+    textBlocks: OcrBlock[];
 }
 
 export interface Port {
@@ -52,6 +99,11 @@ export interface UnitData {
         height?: number;
         scaleFactor?: number;
     };
+    barcodeResult?: BarcodeScanResult;
+    translationResult?: TranslationResult;
+    qrProjection?: QrProjectionLink;
+    projectionSenders?: import("../services/projectionSenderBindings").ProjectionSenderBinding[];
+    extensionState?: UnitExtensionState;
 
     // Art Specific
     processing?: boolean;
@@ -204,6 +256,11 @@ export interface SessionSticker {
     filePath?: string | null;
     rasterizedAnnotationLayerSrc?: string | null;
     outputs?: Record<string, unknown> | null;
+    ocrResult?: UnitData["ocrResult"] | null;
+    barcodeResult?: BarcodeScanResult | null;
+    extensionState?: UnitExtensionState | null;
+    qrProjection?: QrProjectionLink | null;
+    projectionSenders?: UnitData["projectionSenders"] | null;
     originWorkflowId?: string | null;
     originNodeId?: string | null;
     executionConfig?: NodeExecutionConfig | null;

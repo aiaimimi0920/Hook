@@ -95,6 +95,7 @@ export const drawAnnotation = (
     annotation: StickerAnnotation,
     sourceImage: HTMLImageElement,
     unit: Unit,
+    coordinateScale: { x: number; y: number } = { x: 1, y: 1 },
 ) => {
     switch (annotation.type) {
         case "rect":
@@ -225,8 +226,22 @@ export const drawAnnotation = (
             const effect = annotation as StickerEffectAnnotation;
             // Render the effect over its bounding box, then keep only its brush
             // stroke through a destination-in mask before compositing it back.
-            const boxW = resolveFiniteCanvasDimension(Math.ceil(effect.w), "effect width");
-            const boxH = resolveFiniteCanvasDimension(Math.ceil(effect.h), "effect height");
+            const scaleX = Number.isFinite(coordinateScale.x) && coordinateScale.x > 0
+                ? coordinateScale.x
+                : 1;
+            const scaleY = Number.isFinite(coordinateScale.y) && coordinateScale.y > 0
+                ? coordinateScale.y
+                : 1;
+            const logicalBoxW = resolveFiniteCanvasDimension(Math.ceil(effect.w), "effect width");
+            const logicalBoxH = resolveFiniteCanvasDimension(Math.ceil(effect.h), "effect height");
+            const boxW = resolveFiniteCanvasDimension(
+                Math.ceil(logicalBoxW * scaleX),
+                "effect output width",
+            );
+            const boxH = resolveFiniteCanvasDimension(
+                Math.ceil(logicalBoxH * scaleY),
+                "effect output height",
+            );
             const points = effect.points ?? [];
             const brushWidth = Math.max(1, effect.brushWidth ?? effect.style.width ?? 12);
 
@@ -236,6 +251,9 @@ export const drawAnnotation = (
             const layerContext = layer.getContext("2d");
             if (!layerContext) {
                 return;
+            }
+            if (scaleX !== 1 || scaleY !== 1) {
+                layerContext.scale(scaleX, scaleY);
             }
 
             const projection = computeEffectSourceProjection(
@@ -263,8 +281,8 @@ export const drawAnnotation = (
                 // never sample the underlying image.
                 paintMosaicGrid(
                     layerContext,
-                    boxW,
-                    boxH,
+                    logicalBoxW,
+                    logicalBoxH,
                     Math.max(2, Math.round(effect.strength || 12)),
                     effect.x,
                     effect.y,
@@ -291,7 +309,7 @@ export const drawAnnotation = (
                     );
                 }
                 layerContext.fillStyle = BLUR_EFFECT_OVERLAY_FILL;
-                layerContext.fillRect(0, 0, boxW, boxH);
+                layerContext.fillRect(0, 0, logicalBoxW, logicalBoxH);
 
                 if (points.length > 0) {
                     layerContext.save();
@@ -308,7 +326,11 @@ export const drawAnnotation = (
 
             context.save();
             applyAnnotationRotation(context, effect);
-            context.drawImage(layer, effect.x, effect.y);
+            // The caller may already scale the destination context to source
+            // pixels. Draw the high-resolution layer into the logical effect
+            // bounds so the transform maps it one time instead of enlarging a
+            // low-resolution box-local raster.
+            context.drawImage(layer, effect.x, effect.y, effect.w, effect.h);
             context.restore();
             return;
         }
