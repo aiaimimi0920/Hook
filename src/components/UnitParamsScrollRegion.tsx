@@ -133,16 +133,17 @@ export const UnitParamsScrollRegion: Component<UnitParamsScrollRegionProps> = (p
         event.stopPropagation();
         void api.focusOverlayWindow();
 
+        // Keep the drag origin and scale fixed until this gesture ends.
         const dragStartClientY = event.clientY;
-        const dragStartScrollTop = scrollContainerRef?.scrollTop ?? scrollMetrics().scrollTop;
-        const maxScrollTop = getMaxScrollTop();
-        const thumbTravel = getScrollThumbTravel();
-        if (!scrollContainerRef || maxScrollTop <= 0 || thumbTravel <= 0) return;
+        const initialScrollTop = scrollContainerRef?.scrollTop ?? scrollMetrics().scrollTop;
+        const initialMaxScrollTop = getMaxScrollTop();
+        const initialThumbTravel = getScrollThumbTravel();
+        if (!scrollContainerRef || initialMaxScrollTop <= 0 || initialThumbTravel <= 0) return;
 
         const handleMouseMove = (moveEvent: MouseEvent) => {
             moveEvent.preventDefault();
             const deltaY = moveEvent.clientY - dragStartClientY;
-            setManualScrollTop(dragStartScrollTop + (deltaY / thumbTravel) * maxScrollTop);
+            setManualScrollTop(initialScrollTop + (deltaY / initialThumbTravel) * initialMaxScrollTop);
         };
         const handleMouseUp = () => clearScrollThumbDrag();
 
@@ -277,7 +278,7 @@ export const UnitParamsScrollRegion: Component<UnitParamsScrollRegionProps> = (p
                 </div>
             </div>
             <div
-                ref={scrollTrackRef}
+                ref={(el) => { scrollTrackRef = el; }}
                 data-param-scrollbar-track
                 class="param-scrollbar-track absolute bottom-3 right-1 top-3"
                 style={{ width: "8px", opacity: hasScrollableOverflow() ? 1 : 0.35 }}

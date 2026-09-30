@@ -2,6 +2,8 @@ import type { Unit } from "../types/unit";
 import type { ProjectionEnvelope, ProjectionResponse, QrProjectionLink } from "../types/qrProjection";
 import type { requestProjection, unlinkProjection } from "./qrProjectionApi";
 import type { ProjectionFrame } from "./qrProjectionSnapshot";
+import { projectionAssociations, projectionBindingStatusKey } from "./projectionSenderBindings";
+import { createProjectionFrameCache } from "./projectionFrameCache";
 
 export interface ProjectionSyncStatus {
     phase: "waiting" | "connected" | "syncing" | "retrying" | "stopping" | "stopped";
@@ -17,12 +19,16 @@ export interface ProjectionSyncDependencies {
     render: (unit: Unit) => Promise<ProjectionFrame>;
     request: typeof requestProjection;
     unlink: typeof unlinkProjection;
-    patch: (unitId: string, link: QrProjectionLink | undefined, imageBase64?: string) => void;
+    patch: (unitId: string, link: QrProjectionLink | undefined, imageBase64?: string, bindingKey?: string) => void;
     status: (unitId: string, status: ProjectionSyncStatus | undefined) => void;
+    edit?: (unitId: string, link: QrProjectionLink, response: ProjectionResponse, current: () => boolean) => Promise<boolean>;
     now?: () => number;
 }
 interface Work {
     id: string;
+    unitId: string;
+    key?: string;
+    statusKey: string;
     generation: number;
     busy: boolean;
     failures: number;
@@ -56,27 +62,37 @@ export function createProjectionSync(deps: ProjectionSyncDependencies) {
     const now = deps.now ?? Date.now;
     let disposed = false;
     let inFlight = 0;
+    let workspace = deps.generation();
+    const frames = createProjectionFrameCache(deps.render);
     const stopListening = deps.onUnitRemoved((unitId) => {
-        if (jobs.delete(unitId)) deps.status(unitId, undefined);
+        frames.remove(unitId);
+        for (const [key, job] of jobs) if (job.unitId === unitId) { jobs.delete(key); deps.status(key, undefined); }
     });
-    const getLink = (unitId: string) => deps.units().find((unit) => unit.id === unitId)?.data.qrProjection;
+    const getLink = (job: Work) => {
+        const unit = deps.units().find((unit) => unit.id === job.unitId);
+        return unit && projectionAssociations(unit).find((entry) => entry.key === job.key)?.link;
+    };
     const current = (unitId: string, job: Work, stopping: boolean) => {
-        const link = getLink(unitId);
-        return !disposed && deps.generation() === job.generation && jobs.get(unitId) === job
-            && link?.envelope.projectionId === job.id && link.localUnitId === unitId
+        const link = getLink(job);
+        return !disposed && deps.generation() === job.generation && jobs.get(job.statusKey) === job
+            && link?.envelope.projectionId === job.id && link.localUnitId === unitId && !link.stopped
             && Boolean(link.stopPending) === stopping;
     };
 
     const synchronize = async (unit: Unit, job: Work, link: QrProjectionLink) => {
         const stopping = Boolean(link.stopPending);
         const valid = () => current(unit.id, job, stopping);
+        const status = (value: ProjectionSyncStatus) => deps.status(job.statusKey, value);
+        const patch = (value: QrProjectionLink | undefined, image?: string) => job.key === undefined
+            ? deps.patch(unit.id, value, ...(image ? [image] as const : []))
+            : deps.patch(unit.id, value, image, job.key);
         try {
             if (stopping) {
-                deps.status(unit.id, { phase: "stopping" });
+                status({ phase: "stopping" });
                 await deps.unlink(job.id, link.envelope.serverOrigin, link.envelope.protocol, ...(link.offlineTransport ? [link.offlineTransport] as const : []));
                 if (valid()) {
-                    deps.patch(unit.id, undefined);
-                    deps.status(unit.id, { phase: "stopped" });
+                    patch(undefined);
+                    status({ phase: "stopped" });
                 }
                 return;
             }
@@ -84,20 +100,24 @@ export function createProjectionSync(deps: ProjectionSyncDependencies) {
             if (!valid()) return;
             validateLinkedResponse(link, response);
             if (!response.linked) throw new Error("projection_unlinked");
+            const editing = await deps.edit?.(unit.id, link, response, valid);
+            if (!valid()) return;
             const nextLink = (): QrProjectionLink => ({
                 ...link, revision: response.revision, digest: response.digest, linked: response.receiverDeviceId !== null,
             });
-            if (link.role === "receiver") {
+            if (editing) {
+                job.signature = undefined;
+            } else if (link.role === "receiver") {
                 if (response.revision > link.revision) {
                     if (!response.snapshot) throw new Error("projection_invalid_response");
-                    deps.patch(unit.id, nextLink(), response.snapshot.imageBase64);
+                    patch(nextLink(), response.snapshot.imageBase64);
                 }
             } else {
                 const latest = deps.units().find((item) => item.id === unit.id)!;
                 const signature = deps.signature(latest);
                 if (signature !== job.signature) {
-                    deps.status(unit.id, { phase: "syncing" });
-                    const frame = await deps.render(latest);
+                    status({ phase: "syncing" });
+                    const frame = await frames.get(latest, signature);
                     if (!valid()) return;
                     const afterRender = deps.units().find((item) => item.id === unit.id)!;
                     if (deps.signature(afterRender) !== signature) return;
@@ -113,22 +133,22 @@ export function createProjectionSync(deps: ProjectionSyncDependencies) {
                 }
                 const updated = nextLink();
                 if (updated.revision !== link.revision || updated.digest !== link.digest || updated.linked !== link.linked) {
-                    deps.patch(unit.id, updated);
+                    patch(updated);
                 }
             }
             job.failures = 0;
-            deps.status(unit.id, { phase: response.receiverDeviceId === null ? "waiting"
+            status({ phase: response.receiverDeviceId === null ? "waiting"
                 : response.transport === "offline" || response.transport === "reconnecting" ? "retrying" : "connected",
                 transport: response.transport, error: response.error, delivery: response.delivery });
         } catch (error) {
             if (!valid()) return;
             const code = errorCode(error);
             if (terminalErrors.has(code) || (stopping && code === "projection_account_mismatch")) {
-                deps.patch(unit.id, stopping ? undefined : { ...link, stopped: true, stopReason: code });
-                deps.status(unit.id, { phase: "stopped", error: code });
+                patch(stopping ? undefined : { ...link, stopped: true, stopReason: code });
+                status({ phase: "stopped", error: code });
             } else {
                 job.failures = Math.min(job.failures + 1, 6);
-                deps.status(unit.id, { phase: stopping ? "stopping" : "retrying", error: code });
+                status({ phase: stopping ? "stopping" : "retrying", error: code });
             }
         } finally {
             job.nextAt = now() + (job.failures ? Math.min(30_000, 500 * 2 ** job.failures) : 750);
@@ -141,23 +161,26 @@ export function createProjectionSync(deps: ProjectionSyncDependencies) {
         if (disposed) return;
         const units = deps.units();
         const generation = deps.generation();
-        for (const [unitId, job] of jobs) {
-            const link = getLink(unitId);
-            if (job.generation !== generation || link?.envelope.projectionId !== job.id || link.localUnitId !== unitId || link.stopped) {
-                jobs.delete(unitId);
-                if (!link) deps.status(unitId, undefined);
+        if (workspace !== generation) { frames.clear(); workspace = generation; }
+        for (const [key, job] of jobs) {
+            const link = getLink(job);
+            if (job.generation !== generation || link?.envelope.projectionId !== job.id || link.localUnitId !== job.unitId || link.stopped) {
+                jobs.delete(key);
+                deps.status(key, undefined);
             }
         }
         const due: { unit: Unit; job: Work; link: QrProjectionLink }[] = [];
         for (const unit of units) {
-            const link = unit.data.qrProjection;
+          for (const { key, link } of projectionAssociations(unit)) {
             if (!link || link.stopped || link.localUnitId !== unit.id || (link.role === "source" && link.envelope.source.unitId !== unit.id)) continue;
-            let job = jobs.get(unit.id);
+            const statusKey = key === undefined ? unit.id : projectionBindingStatusKey(unit.id, key);
+            let job = jobs.get(statusKey);
             if (!job && jobs.size < 64) {
-                job = { id: link.envelope.projectionId, generation, busy: false, failures: 0, nextAt: 0 };
-                jobs.set(unit.id, job);
+                job = { id: link.envelope.projectionId, unitId: unit.id, key, statusKey, generation, busy: false, failures: 0, nextAt: 0 };
+                jobs.set(statusKey, job);
             }
             if (job && !job.busy && job.nextAt <= now()) due.push({ unit, job, link: { ...link } });
+          }
         }
         // Oldest due work wins, so a source with expensive rendering cannot starve receivers.
         due.sort((a, b) => a.job.nextAt - b.job.nextAt);
@@ -172,7 +195,7 @@ export function createProjectionSync(deps: ProjectionSyncDependencies) {
     tick();
     return {
         tick,
-        retry(unitId: string) { const job = jobs.get(unitId); if (job) { job.nextAt = 0; job.failures = 0; } tick(); },
-        dispose() { disposed = true; clearInterval(timer); stopListening(); jobs.clear(); },
+        retry(unitId: string) { for (const job of jobs.values()) if (job.unitId === unitId || job.statusKey === unitId) { job.nextAt = 0; job.failures = 0; } tick(); },
+        dispose() { disposed = true; clearInterval(timer); stopListening(); jobs.clear(); frames.clear(); },
     };
 }

@@ -233,8 +233,8 @@ export function useClipboard() {
     };
 
     const pasteClipboardData = (clip: ClipboardData, mp: {x: number, y: number}) => {
-        let newX = mp.x;
-        let newY = mp.y;
+        let newX: number;
+        let newY: number;
 
         // CASCADE MODE DETECTION
         // Logic: If mouse is inside the original source rect, we assume the user wants to "duplicate on top".

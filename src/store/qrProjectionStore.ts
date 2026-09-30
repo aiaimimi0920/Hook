@@ -1,12 +1,18 @@
 import { createSignal } from "solid-js";
-import { createStore } from "solid-js/store";
+import { createStore, reconcile } from "solid-js/store";
 import type { ProjectionSyncStatus } from "../services/qrProjectionSync";
 
-export interface ProjectionDialogTarget { unitId?: string; invitationText?: string }
+export type ProjectionShareAction = "qr" | "link" | "targets";
+export type ProjectionImportKind = "qr" | "link" | "combined";
+export interface ProjectionDialogTarget { unitId?: string; anchorUnitId?: string; invitationText?: string; shareAction?: ProjectionShareAction; importKind?: ProjectionImportKind }
 export const [projectionDialog, setProjectionDialog] = createSignal<ProjectionDialogTarget>();
-export const [projectionStatuses, setProjectionStatuses] = createStore<Record<string, ProjectionSyncStatus | undefined>>({});
-export const openProjection = (unitId: string) => setProjectionDialog({ unitId });
-export const openProjectionReceiver = (invitationText = "") => setProjectionDialog({ invitationText });
+const [projectionStatuses, setStatuses] = createStore<Record<string, ProjectionSyncStatus | undefined>>({});
+export { projectionStatuses };
+// Sync reports are complete snapshots; recovered errors and old delivery receipts must not survive a new phase.
+export const setProjectionStatuses = (id: string, status: ProjectionSyncStatus | undefined) => setStatuses(id, reconcile(status));
+export const openProjection = (unitId: string, shareAction?: ProjectionShareAction) => setProjectionDialog({ unitId, ...(shareAction ? { shareAction } : {}) });
+export const openProjectionReceiver = (invitationText = "", importKind?: ProjectionImportKind, anchorUnitId?: string) =>
+    setProjectionDialog({ invitationText, ...(importKind ? { importKind } : {}), ...(anchorUnitId ? { anchorUnitId } : {}) });
 export const closeProjectionDialog = () => setProjectionDialog(undefined);
 
 export const projectionStatusLabel = (status: ProjectionSyncStatus | undefined): string => status?.phase === "connected" && status.delivery

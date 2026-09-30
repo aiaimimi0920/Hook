@@ -23,9 +23,13 @@ const checkSize = (width: number, height: number) => {
         || width > 8192 || height > 8192 || width * height > 16_777_216) throw new Error("projection_image_budget");
 };
 
-export async function renderProjectionFrame(unit: Unit): Promise<ProjectionFrame> {
+export async function renderProjectionFrame(unit: Unit, options: { withoutAnnotations?: boolean } = {}): Promise<ProjectionFrame> {
     if (isLiveCaptureUnit(unit.id)) throw new Error("projection_live_unsupported");
     const frozen: Unit = structuredClone(unwrap(unit));
+    if (options.withoutAnnotations) {
+        frozen.data.annotationState = undefined;
+        frozen.data.opacityNormal = 1;
+    }
     const source = resolveRuntimeStickerCompositeBaseImageSrc(frozen);
     if (!source) throw new Error("projection_no_image");
     const base = await loadImage(source);

@@ -1,6 +1,5 @@
 import { graphStore } from "../store/graphStore";
-import { deliveryBusy, deliverySettings, setDeliveryBusy, setDeliveryError, setDeliveryPending } from "../store/projectionDeliveryStore";
-import { openProjectionReceiver, projectionDialog } from "../store/qrProjectionStore";
+import { deliveryBusy, deliveryPendingGeneration, deliverySettings, setDeliveryBusy, setDeliveryError, setDeliveryPending } from "../store/projectionDeliveryStore";
 import { deliveryInbox, deliveryReceipt, type DeliveryInvitation } from "./projectionDeliveryApi";
 import { requestProjection } from "./qrProjectionApi";
 import { attachProjectionReceiver } from "./qrProjectionSession";
@@ -65,6 +64,10 @@ export async function decideDelivery(invitation: DeliveryInvitation, accept: boo
     if (deliveryBusy()) return;
     const settings = deliverySettings();
     const generation = projectionWorkspaceGeneration();
+    // The visible inbox may still belong to the previous workspace until the next poll.
+    if (deliveryPendingGeneration() !== generation) {
+        setDeliveryPending([]); setDeliveryError("projection_workspace_changed"); return;
+    }
     const valid = () => settings === deliverySettings() && generation === projectionWorkspaceGeneration();
     setDeliveryBusy(true); setDeliveryError("");
     try {
@@ -84,10 +87,9 @@ export function createDeliveryReceiver() {
     let lastAttempt = "";
     let lastSettings = deliverySettings();
     let generation = projectionWorkspaceGeneration();
-    const prompted = new Set<string>();
     const tick = async () => {
         const settings = deliverySettings();
-        if (settings !== lastSettings) { lastSettings = settings; generation = projectionWorkspaceGeneration(); nextAt = 0; prompted.clear(); }
+        if (settings !== lastSettings) { lastSettings = settings; generation = projectionWorkspaceGeneration(); nextAt = 0; }
         if (disposed || polling || deliveryBusy() || settings.policy === "disabled" || Date.now() < nextAt) return;
         if (generation !== projectionWorkspaceGeneration()) {
             setDeliveryPending([]); setDeliveryError("projection_workspace_changed"); return;
@@ -98,14 +100,8 @@ export function createDeliveryReceiver() {
             const items = await deliveryInbox(settings.origin, settings.policy);
             if (!valid()) return;
             setDeliveryPending(items); setDeliveryError(""); failures = 0;
-            const candidates = items.filter((item) => item.accepted || settings.policy === "auto");
+            const candidates = items.filter((item) => item.accepted || (item.receivePolicy ?? settings.policy) === "auto");
             const automatic = candidates[(candidates.findIndex((item) => item.envelope.projectionId === lastAttempt) + 1) % candidates.length];
-            const confirmation = items.find((item) => !item.accepted && !prompted.has(item.envelope.projectionId));
-            if (settings.policy === "confirm" && confirmation && !projectionDialog()) {
-                if (prompted.size >= 64) prompted.clear();
-                prompted.add(confirmation.envelope.projectionId);
-                openProjectionReceiver();
-            }
             if (automatic) {
                 lastAttempt = automatic.envelope.projectionId;
                 setDeliveryBusy(true);

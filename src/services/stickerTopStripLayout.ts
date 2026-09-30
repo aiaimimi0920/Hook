@@ -75,12 +75,15 @@ export const computeStickerTopStripLayout = (
     const safeViewportWidth = Math.max(0, Math.round(viewportWidth));
     const safeViewportHeight = Math.max(0, Math.round(viewportHeight));
     const boundedAdditionalSlots = Math.max(0, Math.min(8, Math.floor(additionalSlots)));
-    const desiredWidth = STICKER_TOP_STRIP_MIN_WIDTH + boundedAdditionalSlots * STICKER_TOP_STRIP_SLOT_WIDTH;
+    const borderWidth = 2; // The terminal shell has a 1px border on each side.
+    const desiredWidth = STICKER_TOP_STRIP_MIN_WIDTH + boundedAdditionalSlots * STICKER_TOP_STRIP_SLOT_WIDTH + borderWidth;
     const width = Math.min(desiredWidth, safeViewportWidth);
     const maxLeft = Math.max(0, safeViewportWidth - width);
     const left = clamp(Math.round(anchor.x), 0, maxLeft);
     const propertyBarHeight = showPropertyBar ? STICKER_TOP_STRIP_PROPERTY_BAR_HEIGHT : 0;
-    const totalHeight = STICKER_TOP_STRIP_HEIGHT + propertyBarHeight;
+    const columns = Math.max(1, Math.floor((width - borderWidth) / STICKER_TOP_STRIP_SLOT_WIDTH));
+    const mainBarHeight = Math.ceil((STICKER_TOP_STRIP_SLOT_COUNT + boundedAdditionalSlots) / columns) * STICKER_TOP_STRIP_HEIGHT;
+    const totalHeight = mainBarHeight + propertyBarHeight;
 
     const preferredAboveTop = Math.round(anchor.y - totalHeight);
     const preferredBelowTop = Math.round(anchor.y + anchor.h);
@@ -123,7 +126,7 @@ export const computeStickerTopStripLayout = (
             left,
             top: top + propertyBarHeight,
             width,
-            height: STICKER_TOP_STRIP_HEIGHT,
+            height: mainBarHeight,
         },
         propertyBar,
     };

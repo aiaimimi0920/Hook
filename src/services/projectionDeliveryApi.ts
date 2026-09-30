@@ -1,6 +1,7 @@
 import { safeInvoke } from "./apiTransport";
 import { parseProjectionEnvelope, projectionOrigin } from "./qrProjectionProtocol";
 import type { OfflineProjectionTransport, ProjectionEnvelope } from "../types/qrProjection";
+import { parseDeliveryGroups, type DeliveryGroup } from "./projectionTargetSelection";
 
 export type ReceivePolicy = "disabled" | "confirm" | "auto";
 type TargetBase = { deviceId: string; name: string; policy: "confirm" | "auto" };
@@ -8,8 +9,8 @@ export type DeliveryTarget = TargetBase & ({ route: "shared_loom" } | {
     route: "offline_peer"; peerId: string; peerName: string; remoteDeviceId: string; deliveryAvailable: boolean;
 });
 export type DirectoryStatus = "complete" | "partial" | "busy" | "unavailable";
-export interface DeliveryDirectory { targets: DeliveryTarget[]; status: DirectoryStatus }
-export interface DeliveryInvitation { envelope: ProjectionEnvelope; revision: number; digest: string; sourceName: string; accepted: boolean; offlineTransport?: OfflineProjectionTransport }
+export interface DeliveryDirectory { targets: DeliveryTarget[]; status: DirectoryStatus; groups?: DeliveryGroup[] }
+export interface DeliveryInvitation { envelope: ProjectionEnvelope; revision: number; digest: string; sourceName: string; accepted: boolean; receivePolicy?: "auto" | "confirm"; offlineTransport?: OfflineProjectionTransport }
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const invalid = () => new Error("projection_invalid_response");
 const request = (origin: string, operation: Record<string, unknown>, offline = false) =>
@@ -35,7 +36,8 @@ export async function deliveryTargets(origin: string): Promise<DeliveryDirectory
         return { ...base, route: "offline_peer", peerId: entry.peerId, peerName: entry.peerName,
             remoteDeviceId: entry.remoteDeviceId, deliveryAvailable: entry.deliveryAvailable };
     });
-    return { targets, status };
+    if (new Set(targets.map((target) => target.deviceId)).size !== targets.length) throw invalid();
+    return { targets, status, groups: parseDeliveryGroups(value.groups, targets) };
 }
 
 export async function deliveryInbox(origin: string, policy: ReceivePolicy): Promise<DeliveryInvitation[]> {
@@ -52,10 +54,12 @@ function parseInbox(value: unknown, origin: string, offline: boolean): DeliveryI
             || typeof entry.digest !== "string" || !/^[a-f0-9]{64}$/.test(entry.digest)
             || !object(entry.delivery) || !["awaiting_confirmation", "accepted"].includes(String(entry.delivery.status))) throw invalid();
         const envelope = parseProjectionEnvelope(entry.envelope);
+        if (entry.receivePolicy !== undefined && entry.receivePolicy !== "auto" && entry.receivePolicy !== "confirm") throw invalid();
         if (envelope.protocol !== "neuro.qr-projection.v1" || (offline ? entry.route !== "offline_peer" : envelope.serverOrigin !== projectionOrigin(origin))) throw invalid();
         return { envelope, revision: Number(entry.revision), digest: entry.digest,
             sourceName: typeof entry.sourceName === "string" ? entry.sourceName : envelope.source.deviceId,
-            accepted: entry.delivery.status === "accepted", ...(offline ? { offlineTransport: { origin: projectionOrigin(origin) } } : {}) };
+            accepted: entry.delivery.status === "accepted", ...(entry.receivePolicy ? { receivePolicy: entry.receivePolicy } : {}),
+            ...(offline ? { offlineTransport: { origin: projectionOrigin(origin) } } : {}) };
     });
 }
 

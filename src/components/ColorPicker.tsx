@@ -345,7 +345,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
             onMouseDown={(e) => e.stopPropagation()}
         >
             <div
-                ref={panelRef}
+                ref={(el) => { panelRef = el; }}
                 class="hook-terminal-shell hook-terminal-shell--strong overflow-y-auto p-4"
                 style={{ width: "320px", "max-height": "calc(100vh - 16px)", ...pickerStyle() }}
                 onClick={(e) => e.stopPropagation()}
@@ -363,7 +363,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                 </div>
 
                 <div
-                    ref={svPickerRef}
+                    ref={(el) => { svPickerRef = el; }}
                     class="hook-color-picker__field relative mb-3 h-48 cursor-crosshair"
                     style={{
                         background: `linear-gradient(to bottom, transparent, black), linear-gradient(to right, white, ${hueGradient()})`,
@@ -382,7 +382,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                 </div>
 
                 <div
-                    ref={hueSliderRef}
+                    ref={(el) => { hueSliderRef = el; }}
                     class="hook-color-picker__field relative mb-3 h-4 cursor-pointer"
                     style={{
                         background: "linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)",
@@ -403,7 +403,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                 <div class="mb-3 flex items-center gap-2">
                     <span class="hook-param-label text-sm">透明度</span>
                     <div
-                        ref={alphaSliderRef}
+                        ref={(el) => { alphaSliderRef = el; }}
                         data-alpha-slider
                         class="hook-color-picker__field relative h-4 flex-1 cursor-pointer"
                         style={{

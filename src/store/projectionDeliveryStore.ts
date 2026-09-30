@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import type { DeliveryInvitation, ReceivePolicy } from "../services/projectionDeliveryApi";
 import { projectionOrigin } from "../services/qrProjectionProtocol";
+import { projectionWorkspaceGeneration } from "../services/qrProjectionLifecycle";
 
 export interface DeliverySettings { origin: string; policy: ReceivePolicy }
 const key = "hook.projection-receiver.v1";
@@ -15,7 +16,14 @@ function load(): DeliverySettings {
     return { origin: "", policy: "disabled" };
 }
 export const [deliverySettings, setDeliverySettings] = createSignal<DeliverySettings>(load());
-export const [deliveryPending, setDeliveryPending] = createSignal<DeliveryInvitation[]>([]);
+const [deliveryPending, updateDeliveryPending] = createSignal<DeliveryInvitation[]>([]);
+export { deliveryPending };
+let pendingGeneration = projectionWorkspaceGeneration();
+export const deliveryPendingGeneration = () => pendingGeneration;
+export function setDeliveryPending(value: DeliveryInvitation[] | ((items: DeliveryInvitation[]) => DeliveryInvitation[])): DeliveryInvitation[] {
+    pendingGeneration = projectionWorkspaceGeneration();
+    return updateDeliveryPending(value);
+}
 export const [deliveryError, setDeliveryError] = createSignal("");
 export const [deliveryBusy, setDeliveryBusy] = createSignal(false);
 export function saveDeliverySettings(origin: string, policy: ReceivePolicy): void {

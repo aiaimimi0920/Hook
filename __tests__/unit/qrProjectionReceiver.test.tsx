@@ -9,7 +9,7 @@ import { graphStore } from "../../src/store/graphStore";
 
 vi.mock("../../src/services/qrProjectionApi", () => ({ requestProjection: vi.fn(), unlinkProjection: vi.fn() }));
 vi.mock("../../src/services/qrProjectionSession", () => ({ attachProjectionReceiver: vi.fn() }));
-vi.mock("../../src/services/qrProjectionCleanup", () => ({ queueProjectionUnlink: vi.fn() }));
+vi.mock("../../src/services/qrProjectionCleanup", () => ({ queueProjectionUnlinks: vi.fn(), queueProjectionUnlink: vi.fn() }));
 
 describe("projection receiver confirmation", () => {
     let container: HTMLDivElement;

@@ -56,3 +56,18 @@
 .qr-projection-dialog .hook-terminal-btn { min-height: 36px; padding: 8px 14px; }
 .qr-projection-dialog .hook-terminal-btn[aria-pressed="true"] { border-color: var(--theme-signal); }
 .qr-projection-dialog footer { padding: 14px 20px; border-top: 1px solid var(--theme-border); color: var(--theme-text-secondary); font-size: 12px; line-height: 1.6; }
+.qr-projection-backdrop--share { background: transparent; padding: 0; }
+.qr-projection-dialog--share { position: fixed; width: min(312px, calc(100vw - 16px)); max-height: calc(100vh - 16px); }
+.qr-projection-dialog--share header { justify-content: flex-end; padding: 4px; border: 0; }
+.qr-projection-dialog--share header .hook-terminal-btn { min-height: 28px; width: 28px; padding: 0; font-size: 20px; }
+.qr-projection-dialog--share .qr-projection-content { padding: 0 12px 12px; gap: 10px; }
+.qr-projection-dialog--import { box-sizing: border-box; }
+.qr-projection-dialog--import .qr-projection-content { padding: 0 8px 8px; gap: 8px; min-width: 0; }
+.qr-projection-dialog--import .hook-terminal-btn { min-height: 28px; padding: 4px 8px; }
+.qr-projection-dialog--import .qr-projection-field textarea { min-height: 48px; max-height: 96px; padding: 6px; }
+.qr-projection-share-link {
+    width: 100%; min-width: 0; box-sizing: border-box; padding: 8px;
+    color: var(--theme-text); background: var(--neuro-surface);
+    border: 1px solid var(--theme-border); font: 11px/1.5 ui-monospace, monospace;
+    cursor: copy;
+}

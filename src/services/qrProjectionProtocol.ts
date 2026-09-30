@@ -1,4 +1,7 @@
 import type { ProjectionEnvelope, ProjectionResponse, ProjectionSnapshot, QrProjectionLink } from "../types/qrProjection";
+import { unwrapProjectionInvitation } from "./projectionInvitationLink";
+import { parseProjectionEditDocument } from "./projectionEditProtocol";
+import { projectionEditError } from "./projectionEditErrors";
 
 export const PROJECTION_PROTOCOL = "neuro.qr-projection.v1";
 export const PROJECTION_PROTOCOL_V2 = "neuro.qr-projection.v2";
@@ -43,8 +46,12 @@ export function parseProjectionEnvelope(value: unknown): ProjectionEnvelope {
 }
 
 export function parseProjectionInvitation(text: string): ProjectionEnvelope {
-    if (text.length > 4096) throw new Error("projection_invalid_invitation");
-    try { return parseProjectionEnvelope(JSON.parse(text)); }
+    if (text.length > 8192) throw new Error("projection_invalid_invitation");
+    try {
+        const payload = unwrapProjectionInvitation(text.trim());
+        if (payload.length > 4096) throw new Error("projection_invalid_invitation");
+        return parseProjectionEnvelope(JSON.parse(payload));
+    }
     catch { throw new Error("projection_invalid_invitation"); }
 }
 
@@ -55,9 +62,15 @@ export function parseProjectionResponse(value: unknown): ProjectionResponse {
         || (value.receiverDeviceId !== null && !identifier(value.receiverDeviceId))
         || (value.receiverUnitId !== null && !identifier(value.receiverUnitId))) throw new Error("projection_invalid_response");
     if (value.snapshot != null) parseProjectionSnapshot(value.snapshot);
+    if (value.sourceName !== undefined && (typeof value.sourceName !== "string" || value.sourceName.length > 1024)) throw new Error("projection_invalid_response");
     if (value.delivery != null && (!record(value.delivery) || !identifier(value.delivery.targetDeviceId)
         || !["awaiting_confirmation", "accepted", "displayed", "rejected"].includes(String(value.delivery.status)))) throw new Error("projection_invalid_response");
     if (value.transport != null && !["direct", "relay", "offline", "reconnecting"].includes(String(value.transport))) throw new Error("projection_invalid_response");
+    if (value.editing !== undefined) {
+        const editing = parseProjectionEditDocument(value.editing);
+        if (editing.basis.digest !== value.digest) throw new Error("projection_edit_basis_conflict");
+        return { ...value, envelope, editing } as unknown as ProjectionResponse;
+    }
     return { ...value, envelope } as unknown as ProjectionResponse;
 }
 
@@ -83,6 +96,7 @@ export function sanitizeProjectionLink(value: unknown, unitId: string): QrProjec
         const offlineTransport = value.offlineTransport === undefined ? undefined : parseOfflineTransport(value.offlineTransport);
         if (offlineTransport && envelope.protocol !== "neuro.qr-projection.v1") return undefined;
         return { role: value.role as QrProjectionLink["role"], localUnitId: unitId, envelope,
+            ...(typeof value.sourceName === "string" && value.sourceName.length <= 1024 ? { sourceName: value.sourceName } : {}),
             ...(offlineTransport ? { offlineTransport } : {}),
             revision: value.revision, digest: value.digest, linked: value.linked, stopPending: value.stopPending === true,
             stopped: value.stopped === true,
@@ -93,13 +107,24 @@ export function sanitizeProjectionLink(value: unknown, unitId: string): QrProjec
 export const projectionError = (error: unknown): string => {
     const code = error instanceof Error ? error.message : String(error);
     const messages: Record<string, string> = {
+        projection_busy: "投射服务正忙，请稍后重试。",
         projection_pairing_required: "请在目标 Loom 的设备管理中批准本机，然后重试。",
         projection_target_offline: "接收设备已离线或关闭投送，请刷新设备列表。",
         projection_target_unavailable: "接收设备不可用，请检查设备配对。",
         projection_rejected: "接收端已拒绝此次投送。",
+        projection_receiver_rejected: "接收端 Loom 的投射规则拒绝了此次投送。",
+        projection_settings_unavailable: "Loom 投射规则暂不可用，请检查 Loom 状态后重试。",
+        projection_context_changed: "当前 Loom 已变化，请刷新后重新选择目标。",
+        projection_source_unavailable: "来源贴图不可用；接收贴图暂不支持再次投送。",
+        projection_create_storage_unavailable: "无法保存投射请求，未发起新投射。请检查本机存储后重试。",
+        projection_create_journal_full: "投射请求存储已满，请停止已有投射或取消未完成投射。",
+        projection_create_cancelled: "此请求正在取消，等待远端清理完成后再投射。",
         projection_display_pending: "已接受，正在等待本机图像显示。",
         projection_workspace_changed: "工作区已切换，请重新保存接收设置以恢复设备投送。",
         projection_invalid_invitation: "邀请内容无效，请重新读取投射二维码。",
+        projection_qr_not_found: "图片中没有可识别的二维码，请导入清晰完整的 PNG 图片。",
+        projection_qr_timeout: "二维码识别超时，请裁剪二维码区域后重试。",
+        projection_invalid_image: "图片无效，请选择不超过 4 MiB 的 PNG 二维码。",
         projection_invalid_origin: "请输入有效的 HTTPS 服务地址。",
         projection_invitation_expired: "二维码已过期，请在发送端重新生成。",
         projection_invitation_consumed: "此二维码已被接收，请使用新的邀请。",
@@ -122,5 +147,5 @@ export const projectionError = (error: unknown): string => {
         projection_peer_unavailable: "对端暂时离线，Loom 将在恢复连接后同步最新图像。",
         projection_not_configured: "当前账号服务尚未配置投射网络，请联系服务管理员。",
     };
-    return messages[code] ?? "连接暂时不可用，请检查网络和设备配对后重试。";
+    return messages[code] ?? projectionEditError(code) ?? "连接暂时不可用，请检查网络和设备配对后重试。";
 };

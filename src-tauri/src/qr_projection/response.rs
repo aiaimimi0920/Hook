@@ -10,6 +10,7 @@ pub(super) struct ResponseContext {
     envelope: Value,
     receiver_unit_id: Value,
     target_device_id: Value,
+    session_id: Value,
     known_revision: u64,
     expected_revision: Option<u64>,
     expected_digest: Option<String>,
@@ -32,6 +33,7 @@ impl ResponseContext {
             envelope: body["envelope"].clone(),
             receiver_unit_id: body["receiverUnitId"].clone(),
             target_device_id: body["targetDeviceId"].clone(),
+            session_id: body["sessionId"].clone(),
             known_revision: body["knownRevision"]
                 .as_u64()
                 .or(body["expectedRevision"].as_u64())
@@ -54,6 +56,9 @@ impl ResponseContext {
 }
 
 pub(super) fn validate(value: Value, context: &ResponseContext) -> Result<Value, String> {
+    if context.path == "/v1/projections/edit" {
+        return super::edit::validate_response(value, &context.session_id);
+    }
     if matches!(
         context.path,
         "/v1/projections/targets" | "/v1/projections/inbox" | "/v1/projections/receipt"
@@ -120,6 +125,12 @@ pub(super) fn validate(value: Value, context: &ResponseContext) -> Result<Value,
         let digest = protocol::validate_snapshot(&snapshot)?;
         if value["digest"].as_str() != Some(&digest) {
             return Err("projection_digest_mismatch".to_owned());
+        }
+    }
+    if !value["editing"].is_null() {
+        let editing = super::edit::validate_response(value["editing"].clone(), &Value::Null)?;
+        if editing["basis"]["digest"] != value["digest"] {
+            return Err("projection_response_mismatch".into());
         }
     }
     Ok(value)

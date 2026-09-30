@@ -143,7 +143,7 @@ export const createStickerTopStripPropertyBarFields = (
 
         return (
             <button
-                ref={buttonRef}
+                ref={(el) => { buttonRef = el; }}
                 type="button"
                 class={`${options.iconShellClass} relative w-6 overflow-hidden`}
                 title={fieldProps.title}
@@ -181,7 +181,7 @@ export const createStickerTopStripPropertyBarFields = (
 
         return (
             <button
-                ref={buttonRef}
+                ref={(el) => { buttonRef = el; }}
                 type="button"
                 class={`${options.iconShellClass} relative w-6 overflow-hidden`}
                 title={fieldProps.title}
@@ -316,7 +316,7 @@ export const createStickerTopStripPropertyBarFields = (
 
         return (
             <button
-                ref={buttonRef}
+                ref={(el) => { buttonRef = el; }}
                 type="button"
                 data-top-strip-popup-trigger={fieldProps.id}
                 class={`${options.groupedShellClass} ${fieldProps.triggerWidthClass} justify-between`}

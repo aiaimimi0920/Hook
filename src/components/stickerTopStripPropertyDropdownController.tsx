@@ -6,6 +6,7 @@ import { acceptsSurfaceRelayedKeydown } from "../services/surfaceHostKeydown";
 import { syncTopStripBackendRects } from "../services/stickerTopStripSync";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import type { MiniDropdownOption } from "./stickerTopStripPropertyBarFields";
+import { OverlayMenuScrollArea } from "./OverlayMenuScrollArea";
 
 export interface PropertyBarAnchorRect {
     x: number;
@@ -114,12 +115,13 @@ export const createPropertyDropdownController = (options: CreatePropertyDropdown
     };
 
     createEffect(() => {
-        const menu = openDropdownMenu();
-        if (typeof window === "undefined" || !menu) return;
+        // Each effect owns listeners and cleanup for the menu that opened it.
+        const initialMenu = openDropdownMenu();
+        if (typeof window === "undefined" || !initialMenu) return;
 
         const rectId = dropdownRectId();
-        scheduleDropdownRectSync(menu, rectId);
-        const handleResize = () => scheduleDropdownRectSync(menu, rectId);
+        scheduleDropdownRectSync(initialMenu, rectId);
+        const handleResize = () => scheduleDropdownRectSync(initialMenu, rectId);
         window.addEventListener("resize", handleResize);
         onCleanup(() => {
             cancelDropdownRectSync();
@@ -132,15 +134,15 @@ export const createPropertyDropdownController = (options: CreatePropertyDropdown
     });
 
     createEffect(() => {
-        const menu = openDropdownMenu();
-        if (typeof window === "undefined" || !menu) return;
+        const initialMenu = openDropdownMenu();
+        if (typeof window === "undefined" || !initialMenu) return;
 
         const handlePointerDown = (event: PointerEvent) => {
             const target = event.target;
             if (target instanceof Node && openDropdownMenuRef?.contains(target)) return;
             if (target instanceof Element) {
                 const trigger = target.closest<HTMLElement>("[data-top-strip-popup-trigger]");
-                if (trigger?.dataset.topStripPopupTrigger === menu.id) return;
+                if (trigger?.dataset.topStripPopupTrigger === initialMenu.id) return;
             }
             closeDropdownMenu();
         };
@@ -191,8 +193,9 @@ export const createPropertyDropdownController = (options: CreatePropertyDropdown
                         onPointerMove={(event) => event.stopPropagation()}
                         onWheel={(event) => event.stopPropagation()}
                     >
-                        <div class="max-h-[220px] overflow-y-auto overflow-x-hidden py-1">
-                            <For each={menu().options}>
+                        <OverlayMenuScrollArea label="字体与属性选项滚动条"
+                            maxHeight={`max(28px, min(220px, calc(100vh - ${menu().anchor.y + menu().anchor.height + 16}px)))`}>
+                            <div class="py-1"><For each={menu().options}>
                                 {(option) => (
                                     <button
                                         type="button"
@@ -206,8 +209,8 @@ export const createPropertyDropdownController = (options: CreatePropertyDropdown
                                         <span class="truncate">{option.label}</span>
                                     </button>
                                 )}
-                            </For>
-                        </div>
+                            </For></div>
+                        </OverlayMenuScrollArea>
                     </div>
                 </Portal>
             )}

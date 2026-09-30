@@ -290,7 +290,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
   return (
     <>
     <div
-        ref={paramContainerRef}
+        ref={(el) => { paramContainerRef = el; }}
         id={`params-panel-${props.unit.id}`}
         class="absolute flex flex-col z-[100] pointer-events-auto"
         style={{

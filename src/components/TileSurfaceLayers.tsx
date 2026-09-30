@@ -46,7 +46,7 @@ function ArtLayer(props: Props & { layer: TileSurfaceLayer; clipId: string; size
         element.addEventListener('focusin', focus, true);
         onCleanup(() => { element.removeEventListener('pointerdown', pointer, true); element.removeEventListener('focusin', focus, true); });
     });
-    return <div ref={element} class="tile-art-clip" style={{ 'clip-path': `url(#${props.clipId})` }}>
+    return <div ref={(el) => { element = el; }} class="tile-art-clip" style={{ 'clip-path': `url(#${props.clipId})` }}>
         <Show when={state()}>{(current) => <div class="tile-art-viewport" style={{ width: `${current().width}px`, height: `${current().height}px`,
             transform: `matrix(${tileSurfaceMatrix(props.layer.projection, current().width, current().height, props.size.width, props.size.height).join(',')})` }}>
             <DeclarativeSurface unitId={`tile:${props.layer.placement.placementId}`} snapshot={current().snapshot} generation={current().generation}

@@ -28,7 +28,7 @@ describe("Hook sticker export contract", () => {
         expect(imageResourceApiSource).toContain('"save_sticker_image"');
         expect(propertyBarRenderSource).toContain('title="重置裁剪"');
         expect(effectSource).toContain("computeEffectSourceProjection");
-        expect(effectSource).toContain("renderMosaicToCanvas");
+        expect(effectSource).toContain("paintMosaicGrid");
         // Mosaic export paints a non-repeating grid of blue-gray cells (colored by
         // absolute position) that never samples the image, matching the live
         // overlay; blur still renders blurred source pixels.

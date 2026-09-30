@@ -309,7 +309,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
             }}
           >
             <div
-              ref={sliderTrackRef}
+              ref={(el) => { sliderTrackRef = el; }}
               data-param-slider-track
               aria-disabled={props.isDisabled}
               class="param-slider-track relative w-full min-w-0 rounded-full"

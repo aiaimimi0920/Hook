@@ -69,7 +69,6 @@ export const resolveOcrOverlayVisualLines = (block: OcrOverlayBlock): OcrOverlay
         ? block.visualLines
         : [{ text: block.text, bounds: block.bounds, lineHeightHint: block.lineHeightHint }];
 
-export const MAX_OCR_BLOCKS = 512;
 const MAX_OCR_POINTS = 32;
 const MAX_OCR_COORDINATE_MAGNITUDE = 1_000_000;
 const MAX_OCR_LINES = 128;

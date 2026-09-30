@@ -17,7 +17,15 @@ pub(super) async fn authorize(
     if let Some(authorization) = cache::get(&cache_key, session_attempt::unix_time_millis())? {
         return Ok(authorization);
     }
-    identity.device_id = Some(pairing::register_device_identity(base_url, &identity).await?);
+    let manifest = crate::loom_connector::read_default_loom_manifest().ok();
+    identity.device_id = Some(
+        match super::local_projection::register(base_url, &identity.public_key, manifest.as_ref())
+            .await?
+        {
+            Some(device_id) => device_id,
+            None => pairing::register_device_identity(base_url, &identity).await?,
+        },
+    );
     let session = session_attempt::wait_for_approved_device_session(base_url, &identity).await?;
     if identity.device_id.as_deref() != Some(session.device_id.as_str()) {
         return Err("projection_pairing_mismatch".to_owned());

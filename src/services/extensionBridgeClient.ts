@@ -182,7 +182,7 @@ export class ExtensionBridgeClient {
         } catch {
             return;
         }
-        let eventSnapshot: unknown | null = null;
+        let eventSnapshot: unknown | null;
         try {
             eventSnapshot = parseExtensionSnapshotEvent(value);
         } catch (error) {

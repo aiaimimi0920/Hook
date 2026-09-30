@@ -47,7 +47,7 @@ export const ExtensionCommandPalette: Component = () => {
                 onMouseDown={() => setOpen(false)}
             >
                 <section
-                    ref={dialog}
+                    ref={(el) => { dialog = el; }}
                     class="hook-terminal-shell hook-terminal-shell--strong w-[min(560px,90vw)] max-h-[70vh] overflow-y-auto p-2"
                     role="dialog"
                     aria-modal="true"
