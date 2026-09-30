@@ -124,6 +124,7 @@ sample.
 ### 3.4 Rendering components
 
 - `CanvasUnits.tsx`, `CanvasLinks.tsx`, `CanvasSelection.tsx` render the workspace;
+  `CanvasGraphLink.tsx` retains each SVG edge while reactive geometry changes;
 - `UnitView.tsx` renders each sticker or Art node and owns its DOM interaction
   boundary;
 - `StickerAnnotationLayer.tsx` owns editable annotation rendering and geometry-
@@ -141,7 +142,7 @@ The service directory is intentionally split by responsibility:
 
 - **desktop boundary** — `api.ts`, `bootProfile.ts`, `client.ts`, `protocol.ts`;
 - **session/workflow** — `syncService.ts`, `sessionStickerMapping.ts`,
-  `sessionStickerPayload.ts`, `workflowInstantiation.ts`, `workflowPayload.ts`;
+  `sessionStickerPayload.ts`, `sessionAssetReferences.ts`, `workflowInstantiation.ts`, `workflowPayload.ts`;
 - **Art** — `artCapabilities.ts`, `artCapabilityNormalization.ts`,
   `artCandidateCache.ts`, `artDelivery*.ts`, `artNodeFactory.ts`, `artPorts.ts`;
 - **sticker editing** — `stickerEditing.ts`, `stickerGeometry.ts`,
@@ -159,7 +160,20 @@ Two image-resolution paths intentionally coexist. Canvas display resolution and
 capability-aware workflow resolution have different ordering and fallback rules;
 they must not be unified as a cosmetic refactor without behavior tests.
 
+Session image references are acknowledged only after a successful native document
+commit. The persistence boundary replaces unchanged source/preview bytes with
+managed paths while retaining the original frontend pixels for Loom's full-image
+snapshot contract. Workspace replacement, unit removal and stale save responses
+cannot restore retired references; a missing managed asset retries once from the
+retained pixels at the same expected document revision.
+
 ## 4. Native backend architecture
+
+Session save/load commands admit at most two blocking workers; the existing
+session mutex and file lease keep a single writer with revision conflict checks
+and atomic replacement. Disk I/O, image validation and sync no longer execute on
+Tauri's main thread. Image clipboard consumers reuse the validated decode;
+file-naming consumers inspect dimensions without a second pixel decode.
 
 The independent tile path uses `TileTerminal.tsx`, `tilePresenter.ts`, bounded
 image/Live caches, and the shared `wallGeometry.ts` mapping. Its serial input

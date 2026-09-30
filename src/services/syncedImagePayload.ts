@@ -96,6 +96,7 @@ export const buildSyncedImageSignature = (
         previewSrc: previewSrc ?? null,
         filePath: unit.data.filePath ?? null,
         rasterizedAnnotationLayerSrc: unit.data.rasterizedAnnotationLayerSrc ?? null,
+        opacityNormal: unit.data.opacityNormal ?? 1,
         annotationState: unit.data.annotationState ?? null,
         imageEditState: unit.data.imageEditState ?? null,
         stickerContentGeometry: {
