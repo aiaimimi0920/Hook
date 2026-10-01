@@ -1,3 +1,4 @@
+import { assertProbeRoute, loopbackHttpOrigin } from './probeOrigins.ts';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -37,8 +38,11 @@ export async function openProbe(root: string) {
         || manifest.transport.baseUrl !== runtime.daemonBaseUrl || !manifest.transport.authToken) {
         throw new Error('Probe must use its own loopback manifest and administrator credential');
     }
+    // Capture the validated origin once; callers cannot redirect requests by mutating runtime.
+    const baseUrl = loopbackHttpOrigin(Number(origin.port));
     async function request<T>(method: string, route: string, body?: unknown, admin = true): Promise<T> {
-        const response = await fetch(runtime.daemonBaseUrl + route, {
+        assertProbeRoute(route);
+        const response = await fetch(baseUrl + route, {
             method, signal: AbortSignal.timeout(15000), redirect: 'error',
             headers: { 'Content-Type': 'application/json', ...(admin ? { Authorization: `Bearer ${manifest.transport.authToken}` } : {}) },
             body: body === undefined ? undefined : JSON.stringify(body),

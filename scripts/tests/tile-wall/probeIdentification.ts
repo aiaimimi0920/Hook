@@ -1,3 +1,4 @@
+import { hasTauriOrigin } from './probeOrigins.ts';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import type { Page } from 'playwright';
@@ -27,7 +28,7 @@ export async function verifyIdentification({ root, output, runtime, request }: I
     let page: Page | undefined;
     try {
         page = await until(async () => browser.contexts().flatMap((context) => context.pages())
-            .find((page) => page.url().startsWith('http://tauri.localhost')), Boolean, 'identification manager');
+            .find((page) => hasTauriOrigin(page.url())), Boolean, 'identification manager');
         assert(page); page.setDefaultTimeout(10000); await page.bringToFront();
         assert(await page.evaluate(() => '__TAURI_INTERNALS__' in window), 'real native manager transport');
         const wall = page.getByRole('region', { name: '屏幕墙管理', exact: true });

@@ -20,11 +20,13 @@ test("JavaScript Surface bootstrap is a deterministic generated classic script",
     assert.ok(source.split(/\r?\n/u).length <= 500, `${path} exceeds 500 physical lines`);
     assert.notEqual(source.charCodeAt(0), 0xfeff, `${path} has a UTF-8 BOM`);
   }
-  const syntax = spawnSync(process.execPath, ["--check", outputPath], {
-    encoding: "utf8",
-    timeout: 10_000,
-    windowsHide: true,
-  });
-  assert.equal(syntax.error, undefined);
-  assert.equal(syntax.status, 0, syntax.stderr || syntax.stdout);
+  for (const path of [...fragmentPaths, outputPath]) {
+    const syntax = spawnSync(process.execPath, ["--check", path], {
+      encoding: "utf8",
+      timeout: 10_000,
+      windowsHide: true,
+    });
+    assert.equal(syntax.error, undefined);
+    assert.equal(syntax.status, 0, `${path}: ${syntax.stderr || syntax.stdout}`);
+  }
 });

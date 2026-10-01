@@ -1,3 +1,4 @@
+import { hasTauriOrigin } from './probeOrigins.ts';
 import assert from 'node:assert/strict';
 import { access, mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -16,7 +17,7 @@ const screenshots = path.resolve(root, '../../output/playwright', path.basename(
 await mkdir(screenshots, { recursive: true });
 const browser = await connectOutput(runtime.sourceCdpPort);
 const page = await until(async () => browser.contexts().flatMap((context) => context.pages())
-    .find((candidate) => candidate.url().startsWith('http://tauri.localhost') && !candidate.url().includes('#tile')),
+    .find((candidate) => hasTauriOrigin(candidate.url()) && !candidate.url().includes('#tile')),
 Boolean, 'ordinary packaged Hook page');
 assert(page);
 let relay: LiveRelaySnapshot | undefined, capture: LiveCaptureStatus | undefined;

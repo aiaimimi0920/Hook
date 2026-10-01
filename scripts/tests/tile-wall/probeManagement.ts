@@ -1,3 +1,4 @@
+import { hasTauriOrigin } from './probeOrigins.ts';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -25,7 +26,7 @@ let outputBrowser: Browser | undefined, page: Page | undefined;
 const result: Record<string, unknown> = { passed: false, nativeTransport: true, executable: runtime.loomExe };
 try {
     page = await until(async () => browser.contexts().flatMap((context) => context.pages())
-        .find((candidate) => candidate.url().startsWith('http://tauri.localhost')), Boolean, 'packaged Loom management');
+        .find((candidate) => hasTauriOrigin(candidate.url())), Boolean, 'packaged Loom management');
     assert(page); page.setDefaultTimeout(15000); await page.bringToFront();
     assert(await page.evaluate(() => '__TAURI_INTERNALS__' in window));
     outputBrowser = await connectOutput(runtime.outputCdpPort);

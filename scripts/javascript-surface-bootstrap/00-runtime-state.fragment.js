@@ -1,8 +1,3 @@
-/* global Blob, MutationObserver, PerformanceObserver, URL, atob, document, performance, structuredClone */
-
-(() => {
-  "use strict";
-
   const MAX_TIMERS = 64;
   const MAX_DOM_NODES = 1000;
   const MAX_HEAP_GROWTH_BYTES = 64 * 1024 * 1024;

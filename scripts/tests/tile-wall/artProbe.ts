@@ -1,3 +1,4 @@
+import { loopbackHttpOrigin } from './probeOrigins.ts';
 import assert from 'node:assert/strict';
 import { chromium, type Page } from 'playwright';
 import type { SurfaceActionAck, SurfaceResultCommit, SurfaceSnapshot } from '../../../src/services/surfaceProtocol.ts';
@@ -24,9 +25,9 @@ export function art(page: Page, placement = 'form-a') {
 }
 
 export async function connectOutput(port: number) {
-    const origin = `http://127.0.0.1:${port}`;
+    const origin = loopbackHttpOrigin(port);
     await until(async () => {
-        try { return (await fetch(origin + '/json/version', { signal: AbortSignal.timeout(1000) })).ok; }
+        try { return (await fetch(origin + '/json/version', { signal: AbortSignal.timeout(1000), redirect: 'error' })).ok; }
         catch { return false; }
     }, Boolean, 'owned WebView2 CDP');
     return chromium.connectOverCDP(origin);
