@@ -197,11 +197,7 @@ fn spawn_rdev_input_listener(
                         append_runtime_log_line("rdev_escape_skipped_overlay_keyboard_capture");
                         return;
                     }
-                    let capture_active = capture_input_state_clone
-                        .active
-                        .lock()
-                        .map(|guard| *guard)
-                        .unwrap_or(false)
+                    let capture_active = capture_input_state_clone.escape_capture_active()
                         || CAPTURE_MOUSE_HOOK_ACTIVE.load(Ordering::SeqCst);
                     let app_has_focus = overlay_webview_has_foreground_focus();
                     if !rdev_should_dispatch_app_scoped_shortcut(

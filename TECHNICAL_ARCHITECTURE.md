@@ -250,7 +250,12 @@ must be made conservatively because event ordering is load-bearing.
 
 Ordinary region capture can return a file-backed PNG plus metadata. HDR output
 uses 16-bit BT.2020/PQ when appropriate; SDR output uses 8-bit sRGB. Long capture
-remains SDR by design.
+remains SDR by design. After region selection, long-capture activation releases
+the native selection mouse hook and full-screen input shield before sampling,
+so wheel and scrollbar drags reach the target application. Its independent
+Escape scope stays active even when the target has focus or backend capture
+falls back to frontend sampling; finish, cancellation, and failed activation
+clear that scope through the existing input cleanup command.
 
 Single-device live capture is a separate session path rather than a loop added to
 `capture_region`. Each session owns one delivery worker, one replaceable callback slot,

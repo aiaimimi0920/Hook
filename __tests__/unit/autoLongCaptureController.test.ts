@@ -96,6 +96,42 @@ describe("auto long capture controller", () => {
         };
     };
 
+    it("releases selection interception before backend sampling on each recording", async () => {
+        const { controller } = createController();
+        for (let index = 0; index < 2; index += 1) {
+            await controller.startAutoLongCaptureSession(
+                { x: 0, y: 0, w: 100, h: 100 }, { x: 0, y: 0 },
+            );
+            expect(state.setCaptureInputActive).toHaveBeenLastCalledWith(false, true);
+            const releaseOrder = state.setCaptureInputActive.mock.invocationCallOrder.at(-1)!;
+            expect(state.setMouseMonitorActive.mock.invocationCallOrder.at(-1)!).toBeLessThan(releaseOrder);
+            expect(state.setOverlayClickThrough.mock.invocationCallOrder.at(-1)!).toBeLessThan(releaseOrder);
+            expect(releaseOrder).toBeLessThan(state.startLongCaptureSession.mock.invocationCallOrder.at(-1)!);
+            expect(releaseOrder).toBeLessThan(state.sampleLongCaptureSession.mock.invocationCallOrder.at(-1)!);
+            await controller.cancelAutoLongCaptureSession();
+            expect(state.setCaptureInputActive).toHaveBeenLastCalledWith(false);
+        }
+    });
+
+    it("cancels during pointer release without starting or sampling a stale backend", async () => {
+        const release = deferred<undefined>();
+        state.setCaptureInputActive.mockReturnValueOnce(release.promise);
+        const { controller, dependencies } = createController();
+        const starting = controller.startAutoLongCaptureSession(
+            { x: 0, y: 0, w: 100, h: 100 }, { x: 0, y: 0 },
+        );
+        await flushPromises();
+        expect(state.setCaptureInputActive).toHaveBeenCalledWith(false, true);
+        await controller.cancelAutoLongCaptureSession();
+        release.resolve(undefined);
+        await starting;
+        expect(state.startLongCaptureSession).not.toHaveBeenCalled();
+        expect(state.sampleLongCaptureSession).not.toHaveBeenCalled();
+        expect(state.setCaptureInputActive).toHaveBeenLastCalledWith(false);
+        expect(state.setLongCaptureSession).toHaveBeenLastCalledWith(null);
+        expect(dependencies.restorePostCaptureInteractivity).toHaveBeenCalled();
+    });
+
     it("coalesces concurrent finish requests into one backend finish and one sticker commit", async () => {
         const finish = deferred<ManualLongCaptureFrame>();
         state.finishLongCaptureSession.mockReturnValue(finish.promise);
@@ -218,12 +254,12 @@ describe("auto long capture controller", () => {
     });
 
     it("restores interactivity when capture-input disable fails during cancellation", async () => {
-        state.setCaptureInputActive.mockRejectedValueOnce(new Error("disable failed"));
         const { controller, dependencies } = createController();
         await controller.startAutoLongCaptureSession(
             { x: 0, y: 0, w: 100, h: 100 },
             { x: 0, y: 0 },
         );
+        state.setCaptureInputActive.mockRejectedValueOnce(new Error("disable failed"));
         const resetCountBeforeCancel = dependencies.resetSelection.mock.calls.length;
 
         await expect(controller.cancelAutoLongCaptureSession()).resolves.toBe(true);
@@ -235,6 +271,7 @@ describe("auto long capture controller", () => {
     it.each([
         ["mouse monitor", state.setMouseMonitorActive],
         ["overlay click-through", state.setOverlayClickThrough],
+        ["selection input release", state.setCaptureInputActive],
     ])("rolls back a partially activated session when %s setup rejects", async (_label, failingApi) => {
         failingApi.mockRejectedValueOnce(new Error("activation failed"));
         const { controller, dependencies } = createController();
