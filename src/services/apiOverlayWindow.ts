@@ -39,8 +39,8 @@ export const overlayWindowApi = {
     triggerCaptureMode: (): Promise<void> =>
         safeInvoke("trigger_capture_mode", undefined, () => undefined, false),
 
-    setCaptureInputActive: (active: boolean): Promise<void> =>
-        safeInvoke("set_capture_input_active", { active }, () => undefined, false),
+    setCaptureInputActive: (active: boolean, longCapture = false): Promise<void> =>
+        safeInvoke("set_capture_input_active", { active, longCapture }, () => undefined, false),
 
     setDesktopColorPickerActive: (active: boolean): Promise<void> =>
         safeInvoke("set_desktop_color_picker_active", { active }, () => undefined, false),

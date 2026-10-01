@@ -66,6 +66,10 @@ export const activateAutoLongCaptureSession = async (
         assertCurrent();
         await api.setOverlayClickThrough(true);
         assertCurrent();
+        // Selection owns the global mouse hook and full-screen input shield.
+        // Release both before sampling; retain only Escape's long-capture scope.
+        await api.setCaptureInputActive(false, true);
+        assertCurrent();
         try {
             await api.setOverlayCaptureExclusion(true);
         } catch (error) {
