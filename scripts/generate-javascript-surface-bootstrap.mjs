@@ -32,7 +32,14 @@ const readFragment = (path) => {
   return bytes.toString("utf8").replace(/\r\n/g, "\n").replace(/\n+$/u, "");
 };
 
-export const buildBootstrapSource = () => `${fragmentPaths.map(readFragment).join("\n\n")}\n`;
+// Keep the shared closure here so each input fragment is independently parseable.
+const bootstrapPrefix = `/* global Blob, MutationObserver, PerformanceObserver, URL, atob, document, performance, structuredClone */
+
+(() => {
+  "use strict";
+
+`;
+export const buildBootstrapSource = () => `${bootstrapPrefix}${fragmentPaths.map(readFragment).join("\n\n")}\n})();\n`;
 
 export const checkBootstrapSource = () => {
   if (!existsSync(outputPath)) return false;

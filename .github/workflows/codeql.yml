@@ -20,9 +20,32 @@ permissions:
   security-events: write
 
 jobs:
+  inventory-contract:
+    name: Validate CodeQL inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test source-text-free SARIF inventory
+        env:
+          PYTHONPATH: .
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/codeql-inventory-tests"
+          "${RUNNER_TEMP}/codeql-inventory-tests/bin/python" -m pip install --disable-pip-version-check pytest==9.1.1
+          "${RUNNER_TEMP}/codeql-inventory-tests/bin/python" -m pytest -q scripts/tests/test_codeql_summary.py
   analyze:
     name: Analyze ${{ matrix.language }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Scan unchanged source too: PR-diff results are not a full inventory.
+      CODEQL_ACTION_DIFF_INFORMED_QUERIES: "false"
     strategy:
       fail-fast: false
       matrix:
@@ -48,3 +71,7 @@ jobs:
         uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
         with:
           category: /language:${{ matrix.language }}
+          output: codeql-results
+      - name: Report bounded CodeQL finding inventory
+        if: ${{ !cancelled() }}
+        run: python3 scripts/summarize_codeql_results.py codeql-results

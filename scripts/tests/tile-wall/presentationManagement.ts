@@ -1,3 +1,4 @@
+import { hasTauriOrigin } from './probeOrigins.ts';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import type { WallStateSnapshot } from '../../../src/services/wallTypes.ts';
@@ -9,7 +10,7 @@ export async function verifyPresentationManagement(root: string, runtime: ProbeR
     const browser = await connectOutput(runtime.loomCdpPort);
     try {
         const page = await until(async () => browser.contexts().flatMap((context) => context.pages())
-            .find((page) => page.url().startsWith('http://tauri.localhost')), Boolean, 'packaged Loom management page');
+            .find((page) => hasTauriOrigin(page.url())), Boolean, 'packaged Loom management page');
         assert(page); page.setDefaultTimeout(15000); await page.bringToFront();
         assert(await page.evaluate(() => '__TAURI_INTERNALS__' in window), 'management must use native transport');
         await page.getByRole('button', { name: '设备管理', exact: true }).click();

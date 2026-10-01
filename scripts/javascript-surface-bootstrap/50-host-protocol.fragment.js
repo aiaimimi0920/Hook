@@ -74,4 +74,3 @@
     }
   };
   globalThis.addEventListener("message", onHostMessage);
-})();
