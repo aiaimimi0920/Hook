@@ -1,0 +1,48 @@
+// Positive: ordinary window and unprotected global receivers.
+window.onmessage = event => consume(event.data);
+self.onmessage = event => consume(event.data);
+
+// Negative: a directly registered worker-only handler.
+if (typeof DedicatedWorkerGlobalScope === "function" && self instanceof DedicatedWorkerGlobalScope) {
+  self.onmessage = event => consume(event.data);
+}
+
+// Positive: guard does not dominate the registration.
+if (typeof DedicatedWorkerGlobalScope === "function" && self instanceof DedicatedWorkerGlobalScope) {
+  consume("worker only");
+}
+self.onmessage = event => consume(event.data);
+
+// Positive: checking only existence of the constructor is insufficient.
+if (typeof DedicatedWorkerGlobalScope === "function") {
+  self.onmessage = event => consume(event.data);
+}
+
+// Positive: an else branch is not a worker guarantee.
+if (typeof DedicatedWorkerGlobalScope === "function" && self instanceof DedicatedWorkerGlobalScope) {
+  consume("worker");
+} else {
+  self.onmessage = event => consume(event.data);
+}
+
+// Positive: a window handler elsewhere in the same worker-containing file.
+window.addEventListener("message", event => consume(event.data));
+
+// Negative: preserve existing legitimate window origin checks.
+window.onmessage = event => {
+  if (event.origin === "https://trusted.example") consume(event.data);
+};
+
+// Positive: a function registered outside the branch remains unprotected.
+let later;
+if (typeof DedicatedWorkerGlobalScope === "function" && self instanceof DedicatedWorkerGlobalScope) {
+  later = event => consume(event.data);
+}
+window.onmessage = later;
+
+// Positive: lookalike local constructor must not authenticate a worker.
+function spoofed(DedicatedWorkerGlobalScope) {
+  if (typeof DedicatedWorkerGlobalScope === "function" && self instanceof DedicatedWorkerGlobalScope) {
+    self.onmessage = event => consume(event.data);
+  }
+}

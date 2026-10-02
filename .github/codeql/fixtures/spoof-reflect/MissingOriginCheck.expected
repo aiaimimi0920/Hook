@@ -1,0 +1,1 @@
+| cases.js:3:20:3:24 | event | Postmessage handler has no origin check. |

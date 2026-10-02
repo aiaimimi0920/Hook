@@ -1,0 +1,6 @@
+name: hook/dedicated-worker-origin-model
+version: 0.0.1
+extractor: javascript
+dependencies:
+  codeql/javascript-all: 2.10.2
+  codeql/javascript-queries: 2.4.6

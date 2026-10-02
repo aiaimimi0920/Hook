@@ -1,0 +1,4 @@
+- import: codeql-suites/javascript-security-extended.qls
+  from: codeql/javascript-queries
+- exclude:
+    id: js/missing-origin-check

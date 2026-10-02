@@ -52,3 +52,31 @@ device/network behavior are separate evidence. Follow
 [release provenance](release-provenance.md), [QR projection](QR_PROJECTION.md),
 [Live capture](LIVE_CAPTURE.md) and [tile terminal](TILE_TERMINAL.md) for their
 specific gates and remaining physical-runtime limits.
+
+## Dedicated QR worker and CodeQL model
+
+The QR decoder registers its message handler only inside a positive
+`DedicatedWorkerGlobalScope` runtime guard. The private worker channel carries
+structured-cloned data with no page origin; payload validation is not origin
+authentication. Loading the built worker as a Window module must not install a
+Window message handler. The Chromium CI probe decodes a real QR fixture, checks
+transferred pixels and malformed messages, and verifies that Window exclusion.
+It does not replace interactive Windows WebView2 validation.
+
+`.github/codeql` retains the official `js/missing-origin-check` metadata and all
+stock origin/source checks. Its conservative extra case recognizes only a direct
+inline registration in the explicitly guarded branch. Known global constructor
+or `self` assignments anywhere in the analysis retain the warning, as do local
+constructor shadows and unrelated guards. This static model assumes native
+globals are not secretly replaced by external code; it is not a general proof
+against arbitrary monkey-patching or compromised same-origin scripts.
+
+The JavaScript CLI and packs are pinned in `upstream.json` and `qlpack.yml`.
+`test-codeql-worker-model.mjs` fails on upstream query hash drift or any change to
+the stock security-extended query set except this one replacement. Intentional
+unsafe fixtures use `.fixture` files and are materialized outside the checkout
+for real CodeQL tests; no application scan paths or SARIF results are filtered.
+The source query and license are derived from the recorded GitHub CodeQL commit.
+Update the pinned toolchain, packs, hash, fixtures and coverage evidence together
+when adopting upstream releases; a fixed model is not permission to stop scanner
+maintenance. Rust and Actions retain their existing suites and tool selection.

@@ -1,0 +1,2 @@
+// Positive: file naming alone never excludes a window/global handler.
+self.onmessage = event => consume(event.data);
