@@ -13,6 +13,7 @@ import { liveRelayActions, liveRelayViews } from "../store/liveRelayStore";
 import { liveRelayPointerDelayMs } from "./liveRelayInputQos";
 
 const RETRY_MS = 500;
+const VIEWER_POLL_INTERVAL_MS = 80;
 const INPUT_DRAIN_TIMEOUT_MS = 1_000;
 
 type InputQueue = {
@@ -74,6 +75,7 @@ export function createLiveRelayController() {
         if (disposed || generations.get(relayId) !== generation) return;
         const view = liveRelayViews.find((candidate) => candidate.relayId === relayId);
         if (!view) return;
+        const startedAt = performance.now();
         try {
             if (view.status.role === "viewer") {
                 const response = await api.pollLiveRelayFrame(relayId, view.renderedFrameId);
@@ -103,7 +105,12 @@ export function createLiveRelayController() {
                 releaseObjectUrl(relayId);
                 liveRelayActions.clearFrame(relayId);
             } else {
-                schedule(relayId, current?.status.role === "viewer" ? 80 : 400);
+                // Include IPC/BMP work in the viewer interval. Awaiting the whole
+                // iteration keeps one read in flight; overruns yield without catch-up.
+                const delay = current?.status.role === "viewer"
+                    ? Math.max(1, VIEWER_POLL_INTERVAL_MS - (performance.now() - startedAt))
+                    : 400;
+                schedule(relayId, delay);
             }
         } catch (error) {
             if (disposed || generations.get(relayId) !== generation) return;
