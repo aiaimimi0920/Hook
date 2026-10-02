@@ -83,6 +83,11 @@ cargo test --manifest-path src-tauri\Cargo.toml
 npm run build
 ```
 
+`test:parallel` excludes only `RuntimePerformanceGates.test.ts`: its wall-clock
+budgets must not compete with other test workers. CI immediately runs that exact
+file through `test:performance` with one worker and unchanged thresholds. The
+serial `npm test` packaging gate still includes every test.
+
 `npm run lint` is a blocking gate (`--max-warnings 0`), so a new warning fails
 the build. `npm run test:surface-browser` drives a real Chromium through
 Playwright; run `npx playwright install chromium` once before its first use.
