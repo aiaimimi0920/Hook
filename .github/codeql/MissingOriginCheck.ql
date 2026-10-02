@@ -79,16 +79,23 @@ predicate hasOriginCheck(PostMessageHandler handler) {
   )
 }
 
-/** Only a direct inline registration in the positively guarded worker branch.
- * No filename, import-path, or unrelated/late guard exempts a handler.
- */
+/** Keep the stock warning for source-visible worker identity overrides. */
 predicate hasWorkerGlobalReassignment() {
   exists(GlobalVarAccess access |
     access.getName() = ["DedicatedWorkerGlobalScope", "self"] and
-    exists(access.getVariable().getAnAssignedExpr())
+    (
+      access.isLValue()
+      or
+      exists(VarDecl declaration |
+        declaration = access.getVariable().getADeclaration() and
+        not declaration.isAmbient() and not declaration.inExternsFile()
+      )
+    )
   )
   or
   exists(DataFlow::globalObjectRef().getAPropertyWrite(["DedicatedWorkerGlobalScope", "self"]))
+  or
+  exists(DataFlow::globalVarRef("DedicatedWorkerGlobalScope").getAPropertyWrite())
   or
   // Conservatively include aliases, even when global-variable flow is unavailable.
   exists(Assignment assignment, PropAccess property |
@@ -104,6 +111,9 @@ predicate hasWorkerGlobalReassignment() {
   )
 }
 
+/** Only a direct inline registration in the positively guarded worker branch.
+ * No filename, import-path, or unrelated/late guard exempts a handler.
+ */
 predicate isGuardedDedicatedWorkerHandler(PostMessageHandler handler) {
   not hasWorkerGlobalReassignment() and
   exists(AssignExpr assignment, IfStmt guard, BlockStmt body,

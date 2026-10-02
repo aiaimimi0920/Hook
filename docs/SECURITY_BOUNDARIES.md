@@ -65,8 +65,8 @@ It does not replace interactive Windows WebView2 validation.
 
 `.github/codeql` retains the official `js/missing-origin-check` metadata and all
 stock origin/source checks. Its conservative extra case recognizes only a direct
-inline registration in the explicitly guarded branch. Known global constructor
-or `self` assignments anywhere in the analysis retain the warning, as do local
+inline registration in the explicitly guarded branch. Known non-ambient constructor/`self` declarations or writes anywhere in the
+analysis retain the warning, as do constructor property mutations, local
 constructor shadows and unrelated guards. This static model assumes native
 globals are not secretly replaced by external code; it is not a general proof
 against arbitrary monkey-patching or compromised same-origin scripts.
