@@ -67,6 +67,25 @@ frame ID, capture/encode timestamps, dimensions, keyframe flag, dropped-frame
 count, color space, codec, and payload length. The queue contract is two or three
 latest frames; a slow viewer never blocks capture.
 
+The LiveRelay viewer schedules its next native poll against an 80ms interval
+measured from the start of the current iteration using a monotonic clock. The
+descriptor read, payload IPC and BMP construction count toward that interval.
+Only one iteration is in flight per viewer; an overrun yields at least 1ms and
+does not replay missed ticks. Empty polls retain the same cadence, source status
+polls retain their 400ms completion delay, and errors retain a 500ms backoff.
+This changes local receiver scheduling only: NLLV/raw BGRA, latest-frame buffers,
+authorization and old-client compatibility are unchanged. It is separate from
+the screen-wall selection buffer and QR image synchronization.
+
+`LiveRelayPollCadence.test.ts` exercises the controller with delayed reads,
+eviction, closure and cancellation. Its `measures synthetic` cases report
+store-update cadence and sampled held-frame age for a simulated 30fps source.
+These are deterministic scheduling measurements, not native IPC/CPU, browser
+decode/paint, physical display or cross-device latency measurements. More local
+frame updates can increase receiver work even though the poll ceiling stays at
+12.5/s; native receiver CPU and real two-device presentation need separate
+acceptance before claiming an end-to-end speedup.
+
 ## Security boundary
 
 Parsing is not authorization. Hook accepts remote input only after Loom device,
