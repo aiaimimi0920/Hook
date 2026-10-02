@@ -10,25 +10,30 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Release tag to publish manually
-        required: true
+        description: Release tag to publish manually (required unless scan-only)
+        required: false
         type: string
+      scan-only:
+        description: Scan this workflow ref without building, signing, or publishing
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
-  group: release-hook-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  # Keep maintenance scans separate from release publication for the same ref.
+  group: release-hook-${{ inputs['scan-only'] && github.ref || (github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name) }}
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 jobs:
   dependency-security:
     name: Verify release dependency security
     uses: ./.github/workflows/dependency-security.yml
     with:
-      checkout-ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      # Keep this caller/job identity: default-branch scans refresh its existing SARIF configuration.
+      checkout-ref: ${{ inputs['scan-only'] && github.sha || (github.event_name == 'workflow_dispatch' && inputs.tag || github.ref) }}
     permissions:
       actions: read
       contents: read
@@ -36,8 +41,14 @@ jobs:
 
   release:
     name: Build and publish Hook release
+    # Job-level gating also excludes its always()/failure() artifact and cleanup steps.
+    if: ${{ !inputs['scan-only'] }}
     needs: dependency-security
     runs-on: windows-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout release ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
