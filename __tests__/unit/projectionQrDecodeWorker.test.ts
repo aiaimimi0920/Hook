@@ -19,10 +19,11 @@ const dispatch = (data: unknown) => worker.onmessage!(new MessageEvent("message"
 
 beforeEach(() => {
     decode.mockReset();
-    worker = { postMessage: vi.fn() };
+    class DedicatedWorkerGlobalScope { postMessage = vi.fn(); }
+    worker = new DedicatedWorkerGlobalScope();
     // Simulate a worker with the real source in an isolated global scope;
     // this does not exercise browser scheduling or Vite's worker loader.
-    const context = createContext({ self: worker, Uint8ClampedArray, exports: {}, require: (name: string) => {
+    const context = createContext({ self: worker, DedicatedWorkerGlobalScope, Uint8ClampedArray, exports: {}, require: (name: string) => {
         if (name !== "jsqr") throw new Error(`Unexpected worker dependency: ${name}`);
         return decode;
     } });
@@ -80,4 +81,14 @@ it("accepts the exact dimension budget", () => {
     expect(decode).toHaveBeenCalledTimes(1);
     expect(decode.mock.calls[0][0] === pixels).toBe(true);
     expect(decode.mock.calls[0].slice(1)).toEqual([1536, 1536]);
+});
+
+
+it.each([undefined, class DedicatedWorkerGlobalScope {}])("does not install a Window message handler %#", (constructor) => {
+    const windowScope = { postMessage: vi.fn() };
+    const context = createContext({ self: windowScope, DedicatedWorkerGlobalScope: constructor,
+        Uint8ClampedArray, exports: {}, require: () => decode });
+    runInContext(workerScript, context);
+    expect("onmessage" in windowScope).toBe(false);
+    expect(decode).not.toHaveBeenCalled();
 });

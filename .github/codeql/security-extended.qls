@@ -1,0 +1,2 @@
+- import: stock-security-extended.qls
+- query: MissingOriginCheck.ql

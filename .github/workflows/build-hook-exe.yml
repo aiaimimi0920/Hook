@@ -145,5 +145,15 @@ jobs:
       - name: Run JavaScript Surface browser smoke
         run: npm run test:surface-browser
 
+      - name: Verify production QR module worker in Chromium
+        run: node scripts/test-qr-worker-browser.mjs
+      - name: Upload QR worker browser evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: qr-worker-browser-evidence
+          path: artifacts/qr-worker-browser
+          if-no-files-found: error
+
       - name: Run Rust tests with default parallel test threads
         run: cargo test --manifest-path src-tauri/Cargo.toml

@@ -1,3 +1,4 @@
+/// <reference lib="webworker" />
 import jsQR from "jsqr";
 
 interface DecodeRequest { pixels: Uint8ClampedArray; width: number; height: number }
@@ -13,13 +14,15 @@ function isDecodeRequest(data: unknown): data is DecodeRequest {
 // A dedicated Worker receives only its creator's private-channel messages, not
 // Window.postMessage traffic. Its messages have no page origin to authenticate;
 // validate the structured-cloned payload before passing pixels to the decoder.
-self.onmessage = (event: MessageEvent<unknown>) => {
-    if (!isDecodeRequest(event.data)) {
-        self.postMessage({ error: "projection_invalid_image" }); return;
-    }
-    const { pixels, width, height } = event.data;
-    try {
-        const code = jsQR(pixels, width, height);
-        self.postMessage(code ? { text: code.data } : { error: "projection_qr_not_found" });
-    } catch { self.postMessage({ error: "projection_invalid_image" }); }
-};
+if (typeof DedicatedWorkerGlobalScope === "function" && self instanceof DedicatedWorkerGlobalScope) {
+    self.onmessage = (event: MessageEvent<unknown>) => {
+        if (!isDecodeRequest(event.data)) {
+            self.postMessage({ error: "projection_invalid_image" }); return;
+        }
+        const { pixels, width, height } = event.data;
+        try {
+            const code = jsQR(pixels, width, height);
+            self.postMessage(code ? { text: code.data } : { error: "projection_qr_not_found" });
+        } catch { self.postMessage({ error: "projection_invalid_image" }); }
+    };
+}

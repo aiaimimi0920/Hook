@@ -62,11 +62,24 @@ jobs:
         with:
           persist-credentials: false
       - name: Initialize CodeQL
+        id: init
         uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
-          queries: security-extended
+          tools: ${{ matrix.language == 'javascript-typescript' && 'https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.1/codeql-bundle-linux64.tar.zst' || '' }}
+          queries: ${{ matrix.language != 'javascript-typescript' && 'security-extended' || '' }}
+          config-file: ${{ matrix.language == 'javascript-typescript' && './.github/codeql/config.yml' || '' }}
+      - name: Verify guarded-worker query model and full suite coverage
+        if: matrix.language == 'javascript-typescript'
+        run: node scripts/test-codeql-worker-model.mjs "${{ steps.init.outputs.codeql-path }}"
+      - name: Upload guarded-worker model evidence
+        if: ${{ !cancelled() && matrix.language == 'javascript-typescript' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: codeql-worker-model-evidence
+          path: artifacts/codeql-worker-model
+          if-no-files-found: error
       - name: Analyze
         uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
         with:

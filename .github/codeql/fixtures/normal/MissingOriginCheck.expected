@@ -1,0 +1,9 @@
+| cases.js:2:20:2:24 | event | Postmessage handler has no origin check. |
+| cases.js:3:18:3:22 | event | Postmessage handler has no origin check. |
+| cases.js:14:18:14:22 | event | Postmessage handler has no origin check. |
+| cases.js:18:20:18:24 | event | Postmessage handler has no origin check. |
+| cases.js:25:20:25:24 | event | Postmessage handler has no origin check. |
+| cases.js:29:36:29:40 | event | Postmessage handler has no origin check. |
+| cases.js:39:11:39:15 | event | Postmessage handler has no origin check. |
+| cases.js:46:22:46:26 | event | Postmessage handler has no origin check. |
+| pretend.worker.js:2:18:2:22 | event | Postmessage handler has no origin check. |

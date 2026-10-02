@@ -1,0 +1,4 @@
+name: Hook JavaScript security-extended with guarded worker model
+disable-default-queries: true
+queries:
+  - uses: ./.github/codeql/security-extended.qls

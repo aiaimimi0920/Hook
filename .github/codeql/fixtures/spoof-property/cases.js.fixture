@@ -1,0 +1,4 @@
+globalThis.DedicatedWorkerGlobalScope = Object;
+if (typeof DedicatedWorkerGlobalScope === "function" && self instanceof DedicatedWorkerGlobalScope) {
+  self.onmessage = event => consume(event.data);
+}
