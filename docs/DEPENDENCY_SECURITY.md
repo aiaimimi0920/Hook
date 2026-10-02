@@ -16,6 +16,24 @@ gate; it is not proof that unknown vulnerabilities do not exist.
   only the portable ZIP and its checksum sidecar; the remaining evidence stays in
   the maintainer/workflow verification boundary.
 
+## Refreshing the release scan configuration safely
+
+The code-scanning tool-status page tracks the default branch. A failed manual
+release run on `main` can leave that workflow's configuration reporting failure
+even when its OSV job succeeded; later successful tag runs do not refresh the
+default-branch record. Check the failing job before changing scanner settings.
+
+To refresh that configuration, manually run **Release Hook Tag** from `main`
+with **scan-only** enabled and leave **tag** empty. This scans the exact workflow
+commit using the existing OSV job and SARIF configuration. The entire release
+job is skipped, including build, signing-candidate, publication, and failure
+cleanup steps. Its write/OIDC permissions are unavailable to the scan job.
+Verify the scan and SARIF upload succeed, then recheck the tool-status page.
+
+`scan-only` defaults to false. Normal manual publication still requires a valid
+release tag, checked before building; tag-triggered release behavior is unchanged.
+Do not rerun an old release, move a tag, or delete scan history to clear a banner.
+
 ## Machine-authoritative inventory
 
 `security/dependency-security-policy.json` owns the inventory:
