@@ -4,7 +4,7 @@ const { readJson, validateScan, verdict, summary } = require('./osv-result-polic
 
 function evaluate({ file, exitCode, mode, root = path.resolve(__dirname, '../..') }) {
   const policy = readJson(path.join(root, 'security/dependency-security-policy.json'));
-  const result = validateScan(readJson(file), exitCode, policy.lockfiles);
+  const result = validateScan(readJson(file), exitCode, policy.lockfiles, { allVulns: mode === 'advisory' });
   const code = verdict(result, mode);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
     summary(result, mode, process.env.GITHUB_REPOSITORY));

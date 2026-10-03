@@ -39,7 +39,8 @@ During private development, valid vulnerability and static-quality findings are
 reported without blocking ordinary product compilation or functional tests.
 OSV runs the same pinned 2.5.1 binary from an immutable container digest, directly
 instead of the upstream shell wrapper. Its full inventory JSON must cover all
-four lockfiles, and its SARIF must validate before a findings exit of 1 can become
+four lockfiles, and its SARIF must cover each vulnerability alias group at every affected package,
+version and lockfile location before a findings exit of 1 can become
 advisory success. Unknown exits, missing/corrupt/incomplete evidence, startup,
 network, reporter, and upload failures remain failed jobs. No blanket
 `continue-on-error` is used.
@@ -47,7 +48,16 @@ network, reporter, and upload failures remain failed jobs. No blanket
 Development uses `security/osv-advisory.toml` without release suppressions.
 Full JSON/SARIF artifacts, step summaries, and existing deduplicated Security
 alerts retain findings. No duplicate issues or additional credentials are needed.
-Release scans keep the reviewed, time-bounded exceptions in `osv-scanner.toml`
+The pinned reporter aggregates aliases, but emits a result per package/source.
+Validation checks alias-group membership, package/version messages, physical
+locations and the reporter's SHA-256 fingerprints; a retained ID alone is not
+coverage. JSON evidence is never rewritten or reduced.
+
+Development enables `--all-vulns`. Strict scanning preserves the scanner's normal
+exit semantics without that flag: JSON can legitimately retain only uncalled or
+unimportant findings with exit 0. Those records still require full SARIF coverage;
+exit 0 with actionable findings (or any findings under `--all-vulns`) is rejected
+as inconsistent evidence. Release scans keep the reviewed, time-bounded exceptions in `osv-scanner.toml`
 and fail on unsuppressed findings after retaining reports.
 
 `Code Quality Advisory` independently runs ESLint, stable Rust format checking,

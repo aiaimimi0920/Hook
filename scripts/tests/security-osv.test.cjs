@@ -1,12 +1,11 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
+const { id, finding, sarif, pkg } = require('./security-osv-fixtures.cjs');
 const { validateScan, validateSarif, verdict, summary } = require('../security/osv-result-policy.cjs');
 const { classifyReleaseScan } = require('../../.github/scripts/security-run-context.cjs');
 const locks = ['package-lock.json', 'src-tauri/Cargo.lock'];
-const evidence = (vulnerable = false) => ({ results: locks.map(lock => ({ source: { type: 'lockfile', path: `/github/workspace/${lock}` }, packages: [{ package: { name: 'fixture', version: '1', ecosystem: 'npm' }, ...(vulnerable ? { vulnerabilities: [{ id: 'GHSA-aaaa-bbbb-cccc' }] } : {}) }] })) });
+const evidence = (vulnerable = false) => ({ results: locks.map(lock => ({ source: { type: 'lockfile', path: `/github/workspace/${lock}` }, packages: [vulnerable ? pkg() : { package: { name: 'fixture', version: '1', ecosystem: 'npm' } }] })) });
 test('complete clean and finding reports preserve original scanner exit and release enforcement', () => {
   for (const exit of [0, 1]) { const scan = validateScan(evidence(Boolean(exit)), exit, locks); assert.equal(verdict(scan, 'advisory'), 0); assert.equal(verdict(scan, 'enforce'), exit); }
 });
@@ -15,12 +14,26 @@ test('unknown exits, empty findings exit, missing/duplicate sources and bad pack
   assert.throws(() => validateScan(evidence(), 1, locks));
   for (const mutate of [r => r.results.pop(), r => r.results.push(r.results[0]), r => r.results[0].packages = [], r => delete r.results[0].packages[0].package.version, r => r.results[0].packages[0].vulnerabilities = {}]) { const r = evidence(true); mutate(r); assert.throws(() => validateScan(r, 1, locks)); }
 });
-test('SARIF must be parseable and retain findings; summary excludes arbitrary package text', () => {
+test('SARIF retains both package locations even when the vulnerability ID is shared', () => {
   const scan = validateScan(evidence(true), 1, locks);
   assert.throws(() => validateSarif({}, scan));
-  assert.throws(() => validateSarif({ version: '2.1.0', runs: [{ tool: { driver: { name: 'OSV', rules: [{ id: 'GHSA-aaaa-bbbb-cccc' }] } } }] }, scan));
-  assert.equal(validateSarif({ version: '2.1.0', runs: [{ tool: { driver: { name: 'OSV', rules: [{ id: 'GHSA-aaaa-bbbb-cccc' }] } }, results: [{ ruleId: 'GHSA-aaaa-bbbb-cccc', message: { text: 'fixture' } }] }] }, scan), 1);
+  assert.throws(() => validateSarif(sarif([]), scan));
+  assert.throws(() => validateSarif(sarif([finding(locks[0])]), scan));
+  assert.equal(validateSarif(sarif(locks.map(lock => finding(lock))), scan), 2);
   scan.ids.push('<script>secret</script>'); assert.ok(!summary(scan, 'advisory', 'owner/repo').includes('<script>'));
+});
+test('exit zero with analysis-only vulnerabilities is legal only under normal strict scanner semantics', () => {
+  for (const analysis of [{ called: false, unimportant: false }, { called: true, unimportant: true }]) {
+    const r = evidence(true);
+    for (const source of r.results) source.packages[0].groups[0].experimental_analysis = { fixture: analysis };
+    const scan = validateScan(r, 0, locks);
+    assert.equal(verdict(scan, 'enforce'), 0);
+    assert.equal(validateSarif(sarif(locks.map(lock => finding(lock))), scan), 2);
+    assert.throws(() => validateScan(r, 0, locks, { allVulns: true }));
+    const advisory = validateScan(r, 1, locks, { allVulns: true });
+    assert.equal(verdict(advisory, 'advisory'), 0);
+  }
+  assert.throws(() => validateScan(evidence(true), 0, locks));
 });
 test('only explicit release events and valid tags can publish; PR/main and maintenance cannot', () => {
   const base = { sha: 'a'.repeat(40), tag: 'V1.2.3' };

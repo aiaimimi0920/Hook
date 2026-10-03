@@ -30,11 +30,11 @@ function runScan({ root = process.cwd(), mode = process.env.SECURITY_MODE, env =
     throw new Error('Scanner startup/version validation failed.');
   }
   console.log('OSV scanner startup/version validated.');
-  const scan = docker('osv-scanner', ['scan', '--format=json', '--all-packages', '--all-vulns',
+  const scan = docker('osv-scanner', ['scan', '--format=json', '--all-packages', ...(mode === 'advisory' ? ['--all-vulns'] : []),
     `--output-file=${json}`, `--config=${config}`, ...policy.lockfiles.map((file) => `--lockfile=${file}`)]);
   if (scan.error || scan.signal) throw new Error('Scanner process failed.');
   console.log(`OSV scanner completed with exit ${scan.status}.`);
-  const result = validateScan(readJson(path.join(root, json)), scan.status, policy.lockfiles);
+  const result = validateScan(readJson(path.join(root, json)), scan.status, policy.lockfiles, { allVulns: mode === 'advisory' });
   console.log('OSV JSON inventory validated.');
   const report = docker('/root/osv-reporter', [
     `--new=${json}`, `--output-files=sarif:${sarif}`, '--all-vulns', '--fail-on-vuln=false',

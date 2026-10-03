@@ -1,5 +1,6 @@
 // Validate scanner evidence before distinguishing findings from operational errors.
 const fs = require('node:fs');
+const { packageFindings, validateSarif } = require('./osv-sarif-coverage.cjs');
 
 function requireCondition(condition, message) {
   if (!condition) throw new Error(message);
@@ -9,13 +10,14 @@ function readJson(file) {
   requireCondition(stat.isFile() && stat.size > 0 && stat.size <= 64 * 1024 * 1024, 'Invalid report size.');
   return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
-function validateScan(result, exitCode, lockfiles) {
+function validateScan(result, exitCode, lockfiles, { allVulns = false } = {}) {
   requireCondition(exitCode === 0 || exitCode === 1, 'Scanner operational failure.');
   requireCondition(result && Array.isArray(result.results), 'Missing scanner result array.');
   const expected = new Set(lockfiles);
   const sources = new Set();
   const ids = new Set();
   let packages = 0;
+  const occurrences = [];
   for (const source of result.results) {
     requireCondition(source?.source?.type === 'lockfile' && typeof source.source.path === 'string', 'Invalid scanner source.');
     const normalized = source.source.path.replaceAll('\\', '/');
@@ -31,34 +33,14 @@ function validateScan(result, exitCode, lockfiles) {
         requireCondition(typeof vulnerability?.id === 'string' && vulnerability.id.length > 0 && vulnerability.id.length <= 200, 'Invalid vulnerability identity.');
         ids.add(vulnerability.id);
       }
+      occurrences.push(...packageFindings(entry, normalized, relative));
     }
   }
   requireCondition(sources.size === expected.size && [...expected].every((lock) => sources.has(lock)), 'Incomplete lockfile scan.');
   requireCondition(exitCode !== 1 || ids.size > 0, 'Finding exit code has no findings.');
-  return { exitCode, packages, sources: sources.size, ids: [...ids].sort() };
-}
-function validateSarif(report, scan) {
-  requireCondition(report?.version === '2.1.0' && Array.isArray(report.runs) && report.runs.length > 0, 'Invalid SARIF report.');
-  let results = 0;
-  const covered = new Set();
-  for (const run of report.runs) {
-    const driver = run?.tool?.driver;
-    requireCondition(typeof driver?.name === 'string' && driver.name.length > 0 && (run.results === undefined || Array.isArray(run.results)), 'Invalid SARIF run.');
-    requireCondition(driver.rules === undefined || Array.isArray(driver.rules), 'Invalid SARIF rules.');
-    const rules = new Map();
-    for (const rule of driver.rules || []) {
-      requireCondition(typeof rule?.id === 'string' && rule.id.length > 0 && !rules.has(rule.id), 'Invalid SARIF rule identity.');
-      requireCondition(rule.deprecatedIds === undefined || (Array.isArray(rule.deprecatedIds) && rule.deprecatedIds.every(id => typeof id === 'string')), 'Invalid SARIF aliases.');
-      rules.set(rule.id, [rule.id, ...(rule.deprecatedIds || [])]);
-    }
-    for (const finding of run.results || []) {
-      requireCondition(rules.has(finding?.ruleId) && typeof finding?.message?.text === 'string' && finding.message.text.length > 0, 'Invalid SARIF finding.');
-      for (const id of rules.get(finding.ruleId)) covered.add(id);
-      results++;
-    }
-  }
-  requireCondition(scan.ids.every(id => covered.has(id)), 'SARIF lost scanner findings.');
-  return results;
+  // OSV can legitimately return 0 for analysis-only findings without --all-vulns.
+  requireCondition(exitCode !== 0 || !occurrences.some(item => allVulns || item.actionable), 'Scanner exit disagrees with finding analysis.');
+  return { exitCode, packages, sources: sources.size, ids: [...ids].sort(), occurrences };
 }
 function verdict(scan, mode) {
   requireCondition(mode === 'advisory' || mode === 'enforce', 'Unknown security mode.');

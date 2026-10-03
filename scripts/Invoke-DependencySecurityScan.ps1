@@ -41,7 +41,8 @@ New-Item -ItemType Directory -Force -Path (Split-Path -Parent $OutputPath) | Out
 
 $configPath = if ($Mode -eq "Advisory") { $policy.advisoryConfig } else { $policy.config }
 if (Test-Path -LiteralPath $OutputPath) { Remove-Item -LiteralPath $OutputPath -Force }
-$arguments = @("scan", "--format=json", "--all-packages", "--all-vulns", "--output-file=$OutputPath", "--config=$(Join-Path $repoRoot ([string]$configPath))")
+$arguments = @("scan", "--format=json", "--all-packages", "--output-file=$OutputPath", "--config=$(Join-Path $repoRoot ([string]$configPath))")
+if ($Mode -eq "Advisory") { $arguments += "--all-vulns" }
 foreach ($relativePath in $policy.lockfiles) {
     $lockfile = Join-Path $repoRoot ([string]$relativePath)
     if (-not (Test-Path -LiteralPath $lockfile -PathType Leaf)) {
