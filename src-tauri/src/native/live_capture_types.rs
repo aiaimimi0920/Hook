@@ -92,18 +92,21 @@ struct LiveCapturePollResponse {
 #[derive(Clone, Debug)]
 struct LiveCaptureFrame {
     descriptor: LiveCaptureFrameDescriptor,
-    bytes: Vec<u8>,
+    bytes: Arc<Vec<u8>>,
 }
 
 #[derive(Debug)]
 struct LiveCaptureFrameBuffer {
     frames: std::collections::VecDeque<LiveCaptureFrame>,
+    // Local IPC drains its queue, not the relay's immutable latest-frame snapshot.
+    latest: Option<LiveCaptureFrame>,
 }
 
 impl LiveCaptureFrameBuffer {
     fn new() -> Self {
         Self {
             frames: std::collections::VecDeque::with_capacity(LIVE_CAPTURE_FRAME_BUFFER),
+            latest: None,
         }
     }
 
@@ -113,6 +116,8 @@ impl LiveCaptureFrameBuffer {
             dropped_frames.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
         frame.descriptor.dropped_frames = dropped_frames.load(std::sync::atomic::Ordering::Relaxed);
+        // Both references share the JPEG allocation; snapshotting never copies pixels under this lock.
+        self.latest = Some(frame.clone());
         self.frames.push_back(frame);
     }
 
@@ -124,13 +129,13 @@ impl LiveCaptureFrameBuffer {
     }
 
     fn clone_latest_after(&self, frame_id: u64) -> Option<LiveCaptureFrame> {
-        self.frames
-            .back()
+        self.latest
+            .as_ref()
             .filter(|frame| frame.descriptor.frame_id > frame_id)
             .cloned()
     }
 
-    fn take_bytes_for(&mut self, frame_id: u64) -> Option<Vec<u8>> {
+    fn take_bytes_for(&mut self, frame_id: u64) -> Option<Arc<Vec<u8>>> {
         let position = self
             .frames
             .iter()
@@ -143,6 +148,7 @@ impl LiveCaptureFrameBuffer {
 
     fn clear(&mut self) {
         self.frames.clear();
+        self.latest = None;
     }
 }
 
@@ -431,6 +437,7 @@ mod live_capture_sessions_tests {
 #[cfg(test)]
 mod live_capture_type_tests {
     use super::*;
+    include!("tests/live_capture_consumer_tests.rs");
 
     fn frame(id: u64) -> LiveCaptureFrame {
         LiveCaptureFrame {
@@ -446,7 +453,7 @@ mod live_capture_type_tests {
                 byte_length: 1,
                 dropped_frames: 0,
             },
-            bytes: vec![id as u8],
+            bytes: Arc::new(vec![id as u8]),
         }
     }
 
@@ -459,7 +466,7 @@ mod live_capture_type_tests {
         }
         assert_eq!(dropped.load(std::sync::atomic::Ordering::Relaxed), 1);
         assert!(buffer.take_bytes_for(1).is_none());
-        assert_eq!(buffer.take_bytes_for(4), Some(vec![4]));
+        assert_eq!(buffer.take_bytes_for(4).unwrap().as_slice(), &[4]);
         assert!(buffer.latest_after(0).is_none());
     }
 
@@ -495,8 +502,15 @@ mod live_capture_type_tests {
         assert_eq!((state.width, state.height), (800, 600));
         state.mark_capture(1, 100);
         assert_eq!(state.last_frame_at_ms, Some(100));
-        assert_eq!(state.frame_id, 1, "GPU arrival must not invent an encoded frame ID");
+        assert_eq!(
+            state.frame_id, 1,
+            "GPU arrival must not invent an encoded frame ID"
+        );
         state.mark_frame(&physical_frame);
-        assert_eq!(state.last_frame_at_ms, Some(100), "late JPEG cannot rewind capture health");
+        assert_eq!(
+            state.last_frame_at_ms,
+            Some(100),
+            "late JPEG cannot rewind capture health"
+        );
     }
 }

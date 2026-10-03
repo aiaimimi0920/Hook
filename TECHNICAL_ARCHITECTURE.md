@@ -29,6 +29,13 @@ Live capture uses the native backend directly for every application, including
 browsers. It binds window-local pixels, not webpage elements. The browser
 extension shortcut relay, document provider, and import lifecycle were removed;
 the generic Loom extension bridge remains independent of Live capture.
+
+The native `LiveCaptureFrameBuffer` owns a three-item local IPC queue and an
+independent latest-frame snapshot for relay consumers. Immutable JPEG bytes are
+shared across these references; draining a local read cannot starve the relay.
+Clearing capture state releases both owners. Tauri's owned response buffer is
+obtained or copied only after releasing the capture mutex; NLLV framing remains
+connection-owned and is not a zero-copy transport.
 The app-settings command and dialog remain implemented, but their tray entry is
 temporarily hidden.
 

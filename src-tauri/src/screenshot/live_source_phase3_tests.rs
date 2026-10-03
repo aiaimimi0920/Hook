@@ -119,7 +119,7 @@ fn collect_frames(
             {
                 after = descriptor.frame_id;
                 count += 1;
-                digests.insert(Sha256::digest(bytes).to_vec());
+                digests.insert(Sha256::digest(bytes.as_slice()).to_vec());
             }
         }
         std::thread::sleep(Duration::from_millis(20));

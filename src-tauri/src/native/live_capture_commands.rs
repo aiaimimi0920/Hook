@@ -129,7 +129,8 @@ fn read_live_capture_frame(
         .map_err(|_| "live capture frame buffer poisoned".to_string())?
         .take_bytes_for(frame_id)
         .ok_or_else(|| "live capture frame was evicted".to_string())?;
-    Ok(tauri::ipc::Response::new(bytes))
+    // Tauri requires owned bytes. Copy only if still shared, after releasing the capture mutex.
+    Ok(tauri::ipc::Response::new(Arc::unwrap_or_clone(bytes)))
 }
 
 #[tauri::command]

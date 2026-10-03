@@ -213,7 +213,13 @@ fn run_live_capture_worker(
                             "frame buffer lock poisoned".to_string(),
                         )
                     })?;
-                    queue.push(LiveCaptureFrame { descriptor, bytes }, &dropped_frames);
+                    queue.push(
+                        LiveCaptureFrame {
+                            descriptor,
+                            bytes: std::sync::Arc::new(bytes),
+                        },
+                        &dropped_frames,
+                    );
                     queue.latest_after(frame_id.saturating_sub(1)).ok_or((
                         "frame_buffer_failed",
                         "实时画面缓冲失败",

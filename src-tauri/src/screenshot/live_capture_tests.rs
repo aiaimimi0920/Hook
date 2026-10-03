@@ -216,7 +216,7 @@ fn phase_two_live_worker_soaks_recovers_and_cleans_up() {
                 {
                     window_region_move_followed = true;
                 }
-                digests.insert(Sha256::digest(&bytes).to_vec());
+                digests.insert(Sha256::digest(bytes.as_slice()).to_vec());
                 received += 1;
             }
         }

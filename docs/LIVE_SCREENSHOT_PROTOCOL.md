@@ -146,6 +146,14 @@ LiveRelay 媒体连接同时提供 `loom.live.jpeg.v1,loom.live.v1`，以服务�
 - 新 Loom 给旧观看端和屏幕墙按帧懒转换回 raw；屏幕墙仍使用其独立的 NLWM
   raw/PNG adapter，不更改公共时序或协议。具体缓存/并发边界见 Loom 协议文档。
 
+源端本地预览与 relay 各自消费：本地 IPC 仍一次性取走指定帧及之前的队列项，
+但不移除 relay 的最新帧快照。三个本地队列项和至多一个最新快照共享不可变 JPEG
+字节；队列非空时最新快照与尾帧使用同一分配，队列清空后只保留最新一帧。
+relay 按自己的 frame ID 取新快照，不在采集锁内复制 JPEG。IPC 需要的独占 Vec
+在释放采集锁后取得或复制；NLLV 封包仍需要独立发送缓冲，不宣称全链路零复制。
+停止或显式清空时同时释放队列与最新快照，在途消费者引用按既有生命周期释放。
+`live_capture_type_tests` 覆盖消费先后顺序、共享字节、淘汰、单次读取及最终释放。
+
 两仓库的 `protocol/fixtures/live-jpeg-v1.nllv` 是同一个 64×32 合成图像 wire fixture，
 不是桌面截图。Rust 测试覆盖原 JPEG 字节不变、实际 legacy 解码像素、真实握手
 回退和坏帧；浏览器脚本实际解码 BMP/JPEG，并覆盖坏图、尺寸错误和取消。

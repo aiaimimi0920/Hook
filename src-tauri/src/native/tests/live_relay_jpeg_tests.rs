@@ -16,7 +16,7 @@ mod live_relay_jpeg_tests {
                 byte_length: FIXTURE.len() - 64,
                 dropped_frames: 0,
             },
-            bytes: FIXTURE[64..].to_vec(),
+            bytes: Arc::new(FIXTURE[64..].to_vec()),
         }
     }
 
