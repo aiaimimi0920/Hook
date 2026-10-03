@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$ScannerPath,
-    [string]$OutputPath
+    [string]$OutputPath,
+    [ValidateSet("Advisory", "Enforce")][string]$Mode = "Enforce"
 )
 
 Set-StrictMode -Version Latest
@@ -38,7 +39,9 @@ if ([string]::IsNullOrWhiteSpace($OutputPath)) {
 $OutputPath = [System.IO.Path]::GetFullPath($OutputPath)
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $OutputPath) | Out-Null
 
-$arguments = @("scan", "--format=json", "--output-file=$OutputPath", "--config=$(Join-Path $repoRoot ([string]$policy.config))")
+$configPath = if ($Mode -eq "Advisory") { $policy.advisoryConfig } else { $policy.config }
+if (Test-Path -LiteralPath $OutputPath) { Remove-Item -LiteralPath $OutputPath -Force }
+$arguments = @("scan", "--format=json", "--all-packages", "--all-vulns", "--output-file=$OutputPath", "--config=$(Join-Path $repoRoot ([string]$configPath))")
 foreach ($relativePath in $policy.lockfiles) {
     $lockfile = Join-Path $repoRoot ([string]$relativePath)
     if (-not (Test-Path -LiteralPath $lockfile -PathType Leaf)) {
@@ -48,7 +51,9 @@ foreach ($relativePath in $policy.lockfiles) {
 }
 
 & $ScannerPath @arguments
+$scannerExit = $LASTEXITCODE
+& node (Join-Path $PSScriptRoot "security\evaluate-osv-result.cjs") $OutputPath $scannerExit $Mode.ToLowerInvariant()
 if ($LASTEXITCODE -ne 0) {
     throw "Dependency vulnerability scan failed with exit code $LASTEXITCODE. Evidence: $OutputPath"
 }
-Write-Output "Hook dependency vulnerability scan passed. Evidence: $OutputPath"
+Write-Output "Hook dependency scan completed in $Mode mode. Evidence: $OutputPath"

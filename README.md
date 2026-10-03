@@ -359,3 +359,8 @@ MIT. See [`LICENSE`](LICENSE).
 
 - [linux.do](https://linux.do/) — thanks to the linux.do community for helping
   introduce Hook to more users.
+
+Development CI policy: valid vulnerability, license, lint, format, and size findings
+are advisory in independent reporting workflows. Tool/report/upload failures remain
+errors; typechecking, builds, and functional tests stay blocking. Release checks and
+`npm run verify:local` remain strict. See [dependency security policy](docs/DEPENDENCY_SECURITY.md).

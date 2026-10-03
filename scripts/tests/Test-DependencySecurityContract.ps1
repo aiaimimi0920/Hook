@@ -19,7 +19,7 @@ function Read-RepoText {
 $policy = Read-RepoText "security\dependency-security-policy.json" | ConvertFrom-Json
 Assert-True ([int]$policy.schemaVersion -eq 1) "Unsupported dependency security policy schema."
 Assert-True ($policy.scanner.version -eq "2.5.1") "Dependency scanner version is not pinned."
-Assert-True ($policy.scanner.reusableWorkflow -eq "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@ffa0a5f39214d80778c9b494822d94d0d9668458") "OSV workflow pin changed without review."
+Assert-True ($policy.scanner.upstreamWorkflow -eq "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@ffa0a5f39214d80778c9b494822d94d0d9668458") "OSV workflow pin changed without review."
 Assert-True ($policy.scanner.actionCommit -eq "baa4139e56d6312335d899e6ba045fa16d1d3d0b") "OSV action pin changed without review."
 Assert-True ($policy.scanner.windowsX64Sha256 -eq "25e42f5ef6711fd8c0fb45390972205891dd44c6bd02ac93f0f63e8e98d9bfb6") "OSV Windows hash changed without review."
 Assert-True ([int]$policy.maximumExceptionDays -gt 0 -and [int]$policy.maximumExceptionDays -le 90) "Exception lifetime must be at most 90 days."
@@ -58,12 +58,16 @@ foreach ($match in $blocks) {
 }
 
 $workflow = Read-RepoText ".github\workflows\dependency-security.yml"
-foreach ($required in @($policy.scanner.reusableWorkflow, "fail-on-vuln: true", "upload-sarif: true", "security-events: write", "checkout-ref") + $expectedLockfiles) {
+foreach ($required in @("osv-scan:", "run-osv-scan.cjs", "upload-sarif@", "security-events: write", "checkout-ref", "evaluate-osv-result.cjs", "if-no-files-found: error")) {
     Assert-True $workflow.Contains($required) "Dependency workflow lost required contract: $required"
 }
+Assert-True (-not $workflow.Contains("continue-on-error:")) "Scanner operational failures must remain blocking."
+Assert-True ($policy.scanner.containerImage -match '^ghcr\.io/google/osv-scanner-action@sha256:[a-f0-9]{64}$') "Scanner container must be immutable."
+$advisory = Read-RepoText ([string]$policy.advisoryConfig)
+Assert-True (-not ($advisory -match '(?m)^\s*\[')) "Development advisory scans must not suppress findings."
 $release = Read-RepoText ".github\workflows\release-hook-tag.yml"
 Assert-True $release.Contains("uses: ./.github/workflows/dependency-security.yml") "Tag release does not call dependency security."
-Assert-True $release.Contains("needs: dependency-security") "Tag release is not blocked on dependency security."
+Assert-True $release.Contains("needs: [scan-context, dependency-security]") "Tag release is not blocked on dependency security."
 
 foreach ($scriptAndTerms in @(
     @("scripts\Install-OsvScanner.ps1", "Assert-ScannerHash", "Invoke-WebRequest"),

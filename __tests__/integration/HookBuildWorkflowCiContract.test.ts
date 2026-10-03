@@ -26,7 +26,7 @@ describe("Hook build workflow CI contract", () => {
         expect(workflowSource).not.toContain("tags:");
     });
 
-    it("runs effective-line, type, frontend, and Rust verification before packaging", () => {
+    it("runs checker tests, type, frontend, and Rust verification before packaging", () => {
         const primaryJob = workflowSource.slice(
             workflowSource.indexOf("build-windows-exe:"),
             workflowSource.indexOf("parallel-race:"),
@@ -34,15 +34,15 @@ describe("Hook build workflow CI contract", () => {
         expect(primaryJob).toContain("fetch-depth: 0");
         expect(workflowSource).toContain("components: rustfmt");
         expect(workflowSource).toContain("run: npm run test:effective-lines");
-        expect(workflowSource).toContain("run: npm run check:effective-lines");
+        expect(workflowSource).not.toContain("run: npm run check:effective-lines");
         expect(workflowSource).toContain("run: npm run typecheck");
         expect(workflowSource).toContain("run: npm test");
-        expect(workflowSource).toContain("run: cargo fmt --check");
+        expect(workflowSource).not.toContain("run: cargo fmt --check");
         expect(workflowSource).toContain("run-rust-tests-ci.ps1");
         expect(workflowSource.indexOf("run: npm run typecheck")).toBeLessThan(
             workflowSource.indexOf("Build portable Hook EXE"),
         );
-        expect(workflowSource.indexOf("run: npm run check:effective-lines")).toBeLessThan(
+        expect(workflowSource.indexOf("run: npm run test:effective-lines")).toBeLessThan(
             workflowSource.indexOf("Build portable Hook EXE"),
         );
         expect(workflowSource.indexOf("run-rust-tests-ci.ps1")).toBeLessThan(

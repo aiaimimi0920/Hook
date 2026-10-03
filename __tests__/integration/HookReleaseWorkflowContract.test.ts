@@ -55,7 +55,7 @@ describe("Hook release workflow contract", () => {
     expect(workflowSource).toContain("-RequireReachableFromBranch \"origin/main\"");
     expect(workflowSource).toContain("-RequireCleanSource");
     expect(workflowSource).toContain("uses: ./.github/workflows/dependency-security.yml");
-    expect(workflowSource).toContain("needs: dependency-security");
+    expect(workflowSource).toContain("needs: [scan-context, dependency-security]");
     expect(workflowSource).toContain("id-token: write");
     expect(workflowSource).toContain("attestations: write");
     expect(workflowSource.indexOf("Verify release provenance and product versions")).toBeLessThan(
