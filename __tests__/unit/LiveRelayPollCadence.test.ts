@@ -43,10 +43,11 @@ beforeEach(() => {
     vi.mocked(api.stopLiveRelaySession).mockResolvedValue(undefined);
     vi.mocked(api.pollLiveRelayFrame).mockResolvedValue({ status: { ...status } });
     vi.mocked(api.readLiveRelayFrame).mockResolvedValue(new Uint8Array(4));
+    vi.stubGlobal("Image", class { src = ""; naturalWidth = 1; naturalHeight = 1; decode() { return Promise.resolve(); } });
     controller = createLiveRelayController();
 });
 afterEach(() => {
-    controller.dispose(); vi.restoreAllMocks(); vi.useRealTimers();
+    controller.dispose(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers();
 });
 
 describe("LiveRelay viewer cadence", () => {
@@ -58,7 +59,7 @@ describe("LiveRelay viewer cadence", () => {
             await wait(20); return new Uint8Array(4);
         });
         await join(); await vi.advanceTimersByTimeAsync(79);
-        expect(liveRelayViews[0].renderedFrameId).toBe(1);
+        expect(liveRelayViews[0].submittedFrameId).toBe(1);
         expect(api.pollLiveRelayFrame).toHaveBeenCalledTimes(1);
         await vi.advanceTimersByTimeAsync(1);
         expect(api.pollLiveRelayFrame).toHaveBeenLastCalledWith(status.relayId, 1);
@@ -102,7 +103,7 @@ describe("LiveRelay viewer cadence", () => {
         });
         await join(); await vi.advanceTimersByTimeAsync(80);
         expect(api.pollLiveRelayFrame).toHaveBeenCalledTimes(2);
-        expect(liveRelayViews[0].renderedFrameId).toBe(0);
+        expect(liveRelayViews[0].submittedFrameId).toBe(0);
     });
 
     it.each(["stop", "dispose"] as const)("rejects late read output after %s", async (action) => {
@@ -160,7 +161,7 @@ describe("LiveRelay viewer cadence", () => {
         await join();
         for (let tick = 0; tick < 1000; tick++) {
             await vi.advanceTimersByTimeAsync(10);
-            const id = liveRelayViews[0]?.renderedFrameId;
+            const id = liveRelayViews[0]?.submittedFrameId;
             if (id && tick >= 100) ages.push(Date.now() - start - (id - 1) * (1000 / 30));
         }
         const intervals = updates.slice(1).map((time, i) => time - updates[i]).sort((a, b) => a - b);

@@ -1,5 +1,6 @@
 import type { LiveCaptureView } from "./liveCapture";
 import type { LiveTriggerCondition } from "./liveProtocol";
+import type { LiveRelayPresentation } from "./liveRelayPresentation";
 
 export type LiveRelayConnectionState = "connecting" | "connected" | "recovering" | "closed";
 export type LiveRelayObservationState =
@@ -172,7 +173,8 @@ export interface LiveRelayView {
     status: LiveRelaySnapshot;
     title: string;
     imageUrl?: string;
-    renderedFrameId: number;
+    submittedFrameId: number;
+    presentation?: LiveRelayPresentation;
     frameWidth: number;
     frameHeight: number;
     x: number;
@@ -194,7 +196,7 @@ export const relayGeometry = (
     return { x: 48 + offset * 28, y: 92 + offset * 28, width, height };
 };
 
-export function encodeBgraAsBmp(bytes: Uint8Array, width: number, height: number): Uint8Array {
+export function encodeBgraAsBmp(bytes: Uint8Array, width: number, height: number): Uint8Array<ArrayBuffer> {
     if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) {
         throw new Error("live relay frame dimensions are invalid");
     }

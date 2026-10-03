@@ -69,7 +69,7 @@ latest frames; a slow viewer never blocks capture.
 
 The LiveRelay viewer schedules its next native poll against an 80ms interval
 measured from the start of the current iteration using a monotonic clock. The
-descriptor read, payload IPC and BMP construction count toward that interval.
+descriptor read, payload IPC, BMP construction and bounded browser decoding count toward that interval.
 Only one iteration is in flight per viewer; an overrun yields at least 1ms and
 does not replay missed ticks. Empty polls retain the same cadence, source status
 polls retain their 400ms completion delay, and errors retain a 500ms backoff.
@@ -80,11 +80,51 @@ the screen-wall selection buffer and QR image synchronization.
 `LiveRelayPollCadence.test.ts` exercises the controller with delayed reads,
 eviction, closure and cancellation. Its `measures synthetic` cases report
 store-update cadence and sampled held-frame age for a simulated 30fps source.
-These are deterministic scheduling measurements, not native IPC/CPU, browser
+These use a mocked decoder and are deterministic scheduling measurements, not native IPC/CPU, browser
 decode/paint, physical display or cross-device latency measurements. More local
 frame updates can increase receiver work even though the poll ceiling stays at
 12.5/s; native receiver CPU and real two-device presentation need separate
 acceptance before claiming an end-to-end speedup.
+
+### Decoded submission and bounded measurement
+
+The viewer keeps the previous decoded bitmap until `Image.decode()` succeeds
+for the next frame and its dimensions match. Only one candidate decode is owned
+by each viewer, with a 1000ms timeout and cancellation on stop/dispose. Failed,
+cancelled, closed-session and old-generation/epoch candidates release their Blob
+URLs without replacing the current frame. Epoch changes clear the old frame and
+poll cursor. Unknown codecs and non-sRGB pixels are rejected before payload IPC;
+the H.264 wire enum is not a functioning Hook decoder or a negotiated video path.
+
+`submittedFrameId` is the local poll cursor, not a render acknowledgement.
+The transient `presentation` field retains only the latest sample:
+
+- `liveSessionId`, `epoch`, `frameId`, and `evidence=decoded_submitted`;
+- `payloadBytes` and `bitmapBytes` (raw IPC bytes and the BMP including its header);
+- `readMs`, `bitmapMs`, `decodeMs`, and `submittedAtMs`, using the receiver
+  WebView's monotonic clock.
+
+This sample proves successful browser decoding followed by a store submission.
+It does **not** prove that a visible DOM image was composited, that a physical
+screen changed, or measure capture-to-display latency. No sender timestamp is
+subtracted from a receiver clock. The sample contains no image data or Blob URL,
+does not grow a history, is cleared with the frame and is not persisted.
+The BMP buffer is passed directly to Blob construction without the previous
+additional full-size ArrayBuffer copy; Blob/IPC themselves are not zero-copy claims.
+
+Run `LiveRelayPresentation.test.ts` for cancellation, timeout, identity/profile
+rejection and delayed-output regressions. The real Chromium decoder and canvas
+readback check is:
+
+```powershell
+node scripts/test-live-relay-presentation-browser.mjs <evidence-directory>
+```
+
+Its synthetic pixels are not native capture or cross-device acceptance. For
+[Loom #67](https://github.com/aiaimimi0920/Loom/issues/67), the two-device A baseline
+still requires exact packages, device/network identity, static/scroll/motion
+workloads, slow viewers, recovery/revocation, resource sampling and calibrated
+or external presentation timing before selecting a new codec.
 
 ## Security boundary
 

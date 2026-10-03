@@ -11,6 +11,7 @@ import {
 } from "./liveRelay";
 import { liveRelayActions, liveRelayViews } from "../store/liveRelayStore";
 import { liveRelayPointerDelayMs } from "./liveRelayInputQos";
+import { decodeRelayBitmap, validateRelayPresentationFrame } from "./liveRelayPresentation";
 
 const RETRY_MS = 500;
 const VIEWER_POLL_INTERVAL_MS = 80;
@@ -29,10 +30,12 @@ export function createLiveRelayController() {
     const timers = new Map<string, number>();
     const generations = new Map<string, number>();
     const objectUrls = new Map<string, string>();
+    const decodes = new Map<string, AbortController>();
     const inputQueues = new Map<string, InputQueue>();
     const recoveryAfter = new Map<string, number>();
     const publications = new Map<string, Promise<void>>();
     let disposed = false;
+    let nextGeneration = 0;
 
     const releaseObjectUrl = (relayId: string): void => {
         const objectUrl = objectUrls.get(relayId);
@@ -59,15 +62,40 @@ export function createLiveRelayController() {
         frame: LiveRelayFrameDescriptor,
         generation: number,
     ): Promise<void> => {
+        const view = liveRelayViews.find((candidate) => candidate.relayId === relayId);
+        if (!view) return;
+        validateRelayPresentationFrame(frame, view.status);
+        const startedAt = performance.now();
         const bytes = await api.readLiveRelayFrame(relayId, frame.frameId);
         if (disposed || generations.get(relayId) !== generation) return;
+        const readAt = performance.now();
         const bmp = encodeBgraAsBmp(bytes, frame.width, frame.height);
-        const buffer = new ArrayBuffer(bmp.byteLength);
-        new Uint8Array(buffer).set(bmp);
-        const nextUrl = URL.createObjectURL(new Blob([buffer], { type: "image/bmp" }));
+        const bitmapAt = performance.now();
+        const decode = new AbortController();
+        decodes.set(relayId, decode);
+        let nextUrl: string;
+        try {
+            nextUrl = await decodeRelayBitmap(bmp, frame, decode.signal);
+        } finally {
+            if (decodes.get(relayId) === decode) decodes.delete(relayId);
+        }
+        const decodedAt = performance.now();
+        const current = liveRelayViews.find((candidate) => candidate.relayId === relayId);
+        if (disposed || generations.get(relayId) !== generation || !current
+            || current.status.connectionState === "closed" || current.status.epoch !== frame.epoch
+            || current.status.liveSessionId !== frame.liveSessionId) {
+            URL.revokeObjectURL(nextUrl);
+            return;
+        }
         const previousUrl = objectUrls.get(relayId);
         objectUrls.set(relayId, nextUrl);
-        liveRelayActions.updateFrame(relayId, nextUrl, frame);
+        liveRelayActions.updateFrame(relayId, nextUrl, frame, {
+            liveSessionId: frame.liveSessionId, epoch: frame.epoch, frameId: frame.frameId,
+            evidence: "decoded_submitted", payloadBytes: bytes.byteLength, bitmapBytes: bmp.byteLength,
+            readMs: readAt - startedAt, bitmapMs: bitmapAt - readAt,
+            decodeMs: decodedAt - bitmapAt, submittedAtMs: decodedAt,
+        });
+        liveRelayActions.setError(relayId);
         if (previousUrl) URL.revokeObjectURL(previousUrl);
     };
 
@@ -78,10 +106,15 @@ export function createLiveRelayController() {
         const startedAt = performance.now();
         try {
             if (view.status.role === "viewer") {
-                const response = await api.pollLiveRelayFrame(relayId, view.renderedFrameId);
+                const response = await api.pollLiveRelayFrame(relayId, view.submittedFrameId);
                 if (disposed || generations.get(relayId) !== generation) return;
+                if (response.status.epoch !== view.status.epoch) {
+                    releaseObjectUrl(relayId);
+                    liveRelayActions.clearFrame(relayId);
+                }
                 liveRelayActions.updateStatus(relayId, response.status);
-                if (response.frame && response.frame.frameId > view.renderedFrameId) {
+                if (response.status.connectionState !== "closed"
+                    && response.frame && response.frame.frameId > view.submittedFrameId) {
                     try {
                         await updateFrame(relayId, response.frame, generation);
                     } catch (error) {
@@ -105,8 +138,7 @@ export function createLiveRelayController() {
                 releaseObjectUrl(relayId);
                 liveRelayActions.clearFrame(relayId);
             } else {
-                // Include IPC/BMP work in the viewer interval. Awaiting the whole
-                // iteration keeps one read in flight; overruns yield without catch-up.
+                // IPC、BMP 和有界解码共用帧预算；每个 viewer 只保留一个在途候选。
                 const delay = current?.status.role === "viewer"
                     ? Math.max(1, VIEWER_POLL_INTERVAL_MS - (performance.now() - startedAt))
                     : 400;
@@ -125,7 +157,7 @@ export function createLiveRelayController() {
         source: { width: number; height: number },
     ): void => {
         liveRelayActions.add(status, title, relayGeometry(source, liveRelayViews.length));
-        generations.set(status.relayId, 1);
+        generations.set(status.relayId, ++nextGeneration);
         inputQueues.set(status.relayId, {
             sequence: status.lastInputSequence,
             tail: Promise.resolve(),
@@ -267,6 +299,8 @@ export function createLiveRelayController() {
 
     const stop = async (relayId: string): Promise<void> => {
         generations.delete(relayId);
+        decodes.get(relayId)?.abort();
+        decodes.delete(relayId);
         recoveryAfter.delete(relayId);
         const timer = timers.get(relayId);
         if (timer !== undefined) window.clearTimeout(timer);
@@ -293,6 +327,8 @@ export function createLiveRelayController() {
 
     const dispose = (): void => {
         disposed = true;
+        for (const decode of decodes.values()) decode.abort();
+        decodes.clear();
         for (const view of [...liveRelayViews]) {
             const timer = timers.get(view.relayId);
             if (timer !== undefined) window.clearTimeout(timer);

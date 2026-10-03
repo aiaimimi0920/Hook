@@ -6,6 +6,7 @@ import type {
     LiveRelaySnapshot,
     LiveRelayView,
 } from "../services/liveRelay";
+import type { LiveRelayPresentation } from "../services/liveRelayPresentation";
 
 const [liveRelayViews, setLiveRelayViews] = createStore<LiveRelayView[]>([]);
 const [liveRelayDiscovery, setLiveRelayDiscovery] = createStore<LiveRelayDiscovery>({
@@ -24,7 +25,7 @@ export const liveRelayActions = {
             relayId: status.relayId,
             status,
             title,
-            renderedFrameId: 0,
+            submittedFrameId: 0,
             frameWidth: 1,
             frameHeight: 1,
             ...geometry,
@@ -35,16 +36,19 @@ export const liveRelayActions = {
     updateStatus(relayId: string, status: LiveRelaySnapshot): void {
         setLiveRelayViews((view) => view.relayId === relayId, "status", status);
     },
-    updateFrame(relayId: string, imageUrl: string, frame: LiveRelayFrameDescriptor): void {
+    updateFrame(relayId: string, imageUrl: string, frame: LiveRelayFrameDescriptor, presentation: LiveRelayPresentation): void {
         setLiveRelayViews((view) => view.relayId === relayId, {
             imageUrl,
-            renderedFrameId: frame.frameId,
+            submittedFrameId: frame.frameId,
+            presentation,
             frameWidth: frame.width,
             frameHeight: frame.height,
         });
     },
     clearFrame(relayId: string): void {
-        setLiveRelayViews((view) => view.relayId === relayId, "imageUrl", undefined);
+        setLiveRelayViews((view) => view.relayId === relayId, {
+            imageUrl: undefined, submittedFrameId: 0, presentation: undefined,
+        });
     },
     setError(relayId: string, error?: string): void {
         setLiveRelayViews((view) => view.relayId === relayId, "controlError", error);
