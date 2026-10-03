@@ -35,10 +35,17 @@ test('stable rustfmt diff parser requires existing in-repo Rust paths, complete 
 test('runner rejects missing, malformed, stale reports, spawn failure and unknown exits', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'quality-runner-'));
   try {
-    for (const result of [{ status: 1 }, { status: 2 }, { status: null, error: new Error('spawn') }]) {
-      const dir = path.join(root, 'artifacts/quality/eslint'); fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'results.json'), '[]');
-      assert.throws(() => runQuality('eslint', { root, env: {}, execute: () => ({ stdout: '', stderr: '', ...result }) }));
+    for (const tool of ['eslint', 'lines']) for (const result of [{ status: 1 }, { status: 2 }, { status: null, error: new Error('spawn') }]) {
+      const dir = path.join(root, 'artifacts/quality', tool); fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'results.json'), '[]');
+      assert.throws(() => runQuality(tool, { root, env: {}, execute: () => ({ stdout: '', stderr: '', ...result }) }));
       assert.ok(!fs.existsSync(path.join(dir, 'results.json')));
     }
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('quality checkout retains history required by the fixed line-checker baseline', () => {
+  const workflow = fs.readFileSync(path.join(__dirname, '../../.github/workflows/code-quality-advisory.yml'), 'utf8');
+  assert.match(workflow, /fetch-depth: 0/);
+  assert.ok(!workflow.includes('continue-on-error:'));
+  assert.match(workflow, /if-no-files-found: error/);
 });
