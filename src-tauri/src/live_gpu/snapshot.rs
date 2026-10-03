@@ -150,6 +150,10 @@ fn mapped_length(width: u32, height: u32, pitch: u32, non_null: bool) -> Result<
 }
 
 #[cfg(test)]
+#[path = "snapshot_native_tests.rs"]
+mod native_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     #[test]

@@ -2,6 +2,7 @@
 import { wallApi } from './apiWall';
 import { WALL_PROTOCOL_VERSION, type TileEndpoint, type TileInputCapability, type TileRenderMode, type WallIdentification, type WallLayout, type WallPresentation, type WallPresentationReport, type WallScene, type WallSceneReport } from './wallTypes';
 import type { TileClock } from './tileClock';
+import { parseTileEndpoint } from './wallProtocol';
 
 export interface TileOutput { outputId: string; name: string; x: number; y: number; width: number; height: number }
 export interface TilePresentationResult { appliedRevision: number | null; presentation?: WallPresentationReport; scene?: WallSceneReport }
@@ -95,11 +96,12 @@ export function createTilePresenter(host: TilePresenterHost, api: typeof wallApi
             if (!isCurrent()) return;
             const endpointId = await tileEndpointId(current.deviceId, output.outputId);
             if (!isCurrent()) return;
-            const endpoint: TileEndpoint = { protocolVersion: WALL_PROTOCOL_VERSION, endpointId,
+            // Compare the same canonical DTO shape as the wire parser, not construction key order.
+            const endpoint: TileEndpoint = parseTileEndpoint({ protocolVersion: WALL_PROTOCOL_VERSION, endpointId,
                 deviceId: current.deviceId, outputId: output.outputId, pixelSize: { width: output.width, height: output.height },
                 renderModes: host.renderModes ?? ['image', 'raw_bgra'], inputCapabilities: host.inputCapabilities ?? [],
                 ...(host.clock ? { scheduledPresentation: true } : {}),
-                ...(host.identify ? { display: { name: output.name, canIdentify: true } } : {}) };
+                ...(host.identify ? { display: { name: output.name, canIdentify: true } } : {}) });
             const registered = current.state.endpoints.find((e) => e.endpoint.endpointId === endpointId)?.endpoint;
             if (JSON.stringify(registered) !== JSON.stringify(endpoint)) {
                 await disconnect();

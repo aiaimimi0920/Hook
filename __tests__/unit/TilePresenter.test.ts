@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTilePresenter, tileEndpointId, type TilePresenterHost } from '../../src/services/tilePresenter';
 import type { wallApi } from '../../src/services/apiWall';
+import { createTileClock } from '../../src/services/tileClock';
+import { parseTileEndpoint } from '../../src/services/wallProtocol';
 import { WALL_PROTOCOL_VERSION, type TileEndpoint, type WallPresenterLease, type WallStateSnapshot } from '../../src/services/wallTypes';
 
 const output = { outputId: `monitor-${'a'.repeat(64)}`, name: 'test display', x: -1920, y: 0, width: 1920, height: 1080 };
@@ -30,6 +32,44 @@ async function eventually(check: () => boolean) {
 describe('tile presenter resource ownership', () => {
     beforeEach(() => { vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] }); });
     afterEach(() => { vi.useRealTimers(); });
+
+    it('retains the lease when wire parsing reorders display and scheduled presentation fields', async () => {
+        const { api, host, state, endpoint } = await fixture();
+        // Use the real wire parser: a handwritten DTO with matching key order masked lease churn.
+        const registered = parseTileEndpoint({ ...endpoint, scheduledPresentation: true,
+            display: { name: output.name, canIdentify: true } });
+        api.readState.mockResolvedValue({ deviceId: 'device-1', state: { ...state,
+            endpoints: [{ endpoint: registered, online: true, appliedRevision: null }] } });
+        host.clock = createTileClock(); host.identify = vi.fn().mockResolvedValue(false);
+        const presenter = createTilePresenter(host, api); presenter.start();
+        try {
+            await eventually(() => api.heartbeat.mock.calls.length === 1);
+            await eventually(() => vi.getTimerCount() >= 1);
+            await vi.advanceTimersByTimeAsync(3000);
+            await eventually(() => api.heartbeat.mock.calls.length === 2);
+            expect(api.register).not.toHaveBeenCalled();
+            expect(api.connect).toHaveBeenCalledTimes(1);
+            expect(api.disconnect).not.toHaveBeenCalled();
+            expect(api.heartbeat).toHaveBeenLastCalledWith(endpoint.endpointId, 'lease-1', 2, null, undefined);
+        } finally { await presenter.stop(); }
+        expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('still registers a genuine scheduled-presentation capability change', async () => {
+        const { api, host, state, endpoint } = await fixture();
+        const registered = parseTileEndpoint({ ...endpoint, scheduledPresentation: false,
+            display: { name: output.name, canIdentify: true } });
+        api.readState.mockResolvedValue({ deviceId: 'device-1', state: { ...state,
+            endpoints: [{ endpoint: registered, online: true, appliedRevision: null }] } });
+        host.clock = createTileClock(); host.identify = vi.fn().mockResolvedValue(false);
+        const presenter = createTilePresenter(host, api); presenter.start();
+        try {
+            await eventually(() => api.heartbeat.mock.calls.length === 1);
+            expect(api.register).toHaveBeenCalledTimes(1);
+            expect(api.register).toHaveBeenCalledWith(3, expect.objectContaining({ scheduledPresentation: true }));
+        } finally { await presenter.stop(); }
+        expect(vi.getTimerCount()).toBe(0);
+    });
 
     it('identifies an unassigned output without waiting for content and without granting input', async () => {
         const { api, host, state, endpoint } = await fixture();
