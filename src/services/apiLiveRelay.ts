@@ -61,8 +61,8 @@ export const liveRelayApi = {
     pollLiveRelayFrame: (relayId: string, afterFrameId: number): Promise<LiveRelayPollResponse> =>
         safeInvoke("poll_live_relay_frame", { relayId, afterFrameId }),
 
-    readLiveRelayFrame: async (relayId: string, frameId: number): Promise<Uint8Array> => {
-        const response = await safeInvoke<ArrayBuffer | Uint8Array>(
+    readLiveRelayFrame: async (relayId: string, frameId: number): Promise<Uint8Array<ArrayBuffer>> => {
+        const response = await safeInvoke<ArrayBuffer | Uint8Array<ArrayBuffer>>(
             "read_live_relay_frame",
             { relayId, frameId },
         );

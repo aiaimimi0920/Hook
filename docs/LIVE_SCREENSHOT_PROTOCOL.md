@@ -5,8 +5,8 @@ Status: Phase 9 network-readiness candidate for the declared Win32/WinForms base
 Hook implements the source and viewer sides of `loom.live.v1`. The matching Loom
 candidate and canonical schema live in `protocol/LIVE_SCREENSHOT_PROTOCOL.md`
 and `protocol/schemas/live-control.v1.schema.json` in the independent Loom
-repository. Hook keeps an independent TypeScript contract, strict parser, binary
-codec, and sequence tracker so protocol drift fails tests in either repository.
+repository. Hook keeps its Rust media codec/sequence checks and TypeScript
+presentation contract independent, with shared wire fixtures in both repositories.
 
 ## Hook responsibilities
 
@@ -69,12 +69,12 @@ latest frames; a slow viewer never blocks capture.
 
 The LiveRelay viewer schedules its next native poll against an 80ms interval
 measured from the start of the current iteration using a monotonic clock. The
-descriptor read, payload IPC, BMP construction and bounded browser decoding count toward that interval.
+descriptor read, payload IPC, image preparation and bounded browser decoding count toward that interval.
 Only one iteration is in flight per viewer; an overrun yields at least 1ms and
 does not replay missed ticks. Empty polls retain the same cadence, source status
 polls retain their 400ms completion delay, and errors retain a 500ms backoff.
-This changes local receiver scheduling only: NLLV/raw BGRA, latest-frame buffers,
-authorization and old-client compatibility are unchanged. It is separate from
+The scheduling policy is independent of the media profile: latest-frame buffers,
+authorization and old-client compatibility remain in place. It is separate from
 the screen-wall selection buffer and QR image synchronization.
 
 `LiveRelayPollCadence.test.ts` exercises the controller with delayed reads,
@@ -100,8 +100,8 @@ the H.264 wire enum is not a functioning Hook decoder or a negotiated video path
 The transient `presentation` field retains only the latest sample:
 
 - `liveSessionId`, `epoch`, `frameId`, and `evidence=decoded_submitted`;
-- `payloadBytes` and `bitmapBytes` (raw IPC bytes and the BMP including its header);
-- `readMs`, `bitmapMs`, `decodeMs`, and `submittedAtMs`, using the receiver
+- `codec`, `payloadBytes` and `imageBytes` (IPC bytes and the actual decoder input);
+- `readMs`, `prepareMs`, `decodeMs`, and `submittedAtMs`, using the receiver
   WebView's monotonic clock.
 
 This sample proves successful browser decoding followed by a store submission.
@@ -124,7 +124,33 @@ Its synthetic pixels are not native capture or cross-device acceptance. For
 [Loom #67](https://github.com/aiaimimi0920/Loom/issues/67), the two-device A baseline
 still requires exact packages, device/network identity, static/scroll/motion
 workloads, slow viewers, recovery/revocation, resource sampling and calibrated
-or external presentation timing before selecting a new codec.
+or external presentation timing before claiming a performance improvement.
+
+### JPEG 压缩直通与旧端回退
+
+LiveRelay 媒体连接同时提供 `loom.live.jpeg.v1,loom.live.v1`，以服务端返回的
+单个子协议作为本次连接的实际能力。列表不加空格，以兼容当前 tungstenite
+0.24 的解析行为；旧 Loom 可直接选择 `loom.live.v1`。控制协议、发现结果中的
+`frameStream.codec` 和持久业务数据不切换为 JPEG。
+
+- 选择 JPEG 后，源端沿用已有采集 JPEG 的内容与质量，NLLV codec 字节为 `3`。
+  不先解码为 BGRA、不重复 JPEG 编码。压缩帧超过 16 MiB 时仍可走原 raw 回退。
+- 旧 Loom 选择 v1 时，源端仍发送 raw BGRA。新 Hook 也接受新连接中的 raw 回退；
+  未协商 JPEG 的连接收到 codec `3` 必须拒绝，不能尝试当作 BMP 像素。
+- 新观看端以 `image/jpeg` 直接构建 Blob，由同一有界 decoder 完成实际解码和
+  尺寸复核。JPEG 不经过 BMP 包装；`imageBytes === payloadBytes`。raw 路径保持
+  BMP 包装，两个路径沿用完全相同的 80ms 调度与 generation/取消规则。
+- JPEG 必须是独立关键帧、sRGB，压缩数据至多 16 MiB，单边至多 16384，解码为
+  BGRA 后至多 64 MiB。native 先校验 NLLV 和 JPEG 头尺寸，再允许像素分配；
+  浏览器拒绝损坏的实际图像或尺寸不符结果，不把头解析当作解码成功。
+- 新 Loom 给旧观看端和屏幕墙按帧懒转换回 raw；屏幕墙仍使用其独立的 NLWM
+  raw/PNG adapter，不更改公共时序或协议。具体缓存/并发边界见 Loom 协议文档。
+
+两仓库的 `protocol/fixtures/live-jpeg-v1.nllv` 是同一个 64×32 合成图像 wire fixture，
+不是桌面截图。Rust 测试覆盖原 JPEG 字节不变、实际 legacy 解码像素、真实握手
+回退和坏帧；浏览器脚本实际解码 BMP/JPEG，并覆盖坏图、尺寸错误和取消。
+该开发候选尚不代表跨设备帧龄、CPU、物理显示或长期稳定性的验收。
+回滚任一端到旧版本仍会选择 raw 路径，无持久数据迁移。
 
 ## Security boundary
 

@@ -57,6 +57,33 @@ afterEach(() => {
 });
 
 describe("LiveRelay decoded submission", () => {
+    it("passes JPEG bytes directly to the image decoder without a BMP wrapper", async () => {
+        const payload = new Uint8Array([255, 216, 1, 255, 217]);
+        vi.mocked(api.pollLiveRelayFrame).mockResolvedValue({ status, frame: { ...frame(1), codec: "jpeg", byteLength: payload.length } });
+        vi.mocked(api.readLiveRelayFrame).mockResolvedValue(payload);
+        await join(); await vi.advanceTimersByTimeAsync(1);
+        const blob = vi.mocked(URL.createObjectURL).mock.calls[0][0] as Blob;
+        expect(blob.type).toBe("image/jpeg"); expect(blob.size).toBe(payload.length);
+        expect(liveRelayViews[0].submittedFrameId).toBe(0);
+        finishDecode(); await vi.advanceTimersByTimeAsync(1);
+        expect(liveRelayViews[0].presentation).toMatchObject({ codec: "jpeg", payloadBytes: 5, imageBytes: 5 });
+    });
+
+    it("rejects a JPEG IPC length mismatch before creating a decoder", async () => {
+        vi.mocked(api.pollLiveRelayFrame).mockResolvedValue({ status, frame: { ...frame(1), codec: "jpeg", byteLength: 8 } });
+        await join(); await vi.advanceTimersByTimeAsync(1);
+        expect(decode).not.toHaveBeenCalled();
+        expect(liveRelayViews[0].controlError).toBe("live_relay_payload_length_mismatch");
+    });
+
+    it("cancels a JPEG decode without accepting its late result", async () => {
+        vi.mocked(api.pollLiveRelayFrame).mockResolvedValue({ status, frame: { ...frame(1), codec: "jpeg" } });
+        await join(); await vi.advanceTimersByTimeAsync(1);
+        await controller.stop(status.relayId); finishDecode(); await vi.advanceTimersByTimeAsync(1000);
+        expect(images[0].src).toBe(""); expect(liveRelayViews).toHaveLength(0);
+        expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1); expect(vi.getTimerCount()).toBe(0);
+    });
+
     it("does not replace pixels or claim progress before decoding completes", async () => {
         await join(); await vi.advanceTimersByTimeAsync(20);
         expect(liveRelayViews[0].imageUrl).toBeUndefined();
@@ -66,7 +93,7 @@ describe("LiveRelay decoded submission", () => {
         expect(liveRelayViews[0].submittedFrameId).toBe(1);
         expect(liveRelayViews[0].presentation).toMatchObject({
             liveSessionId: "live:a", epoch: 1, frameId: 1, evidence: "decoded_submitted",
-            payloadBytes: 4, bitmapBytes: 58, decodeMs: 20,
+            codec: "raw_bgra", payloadBytes: 4, imageBytes: 58, decodeMs: 20,
         });
     });
 

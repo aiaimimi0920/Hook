@@ -338,6 +338,7 @@ include!("native/live_observation_state.rs");
 include!("native/live_relay_types.rs");
 
 include!("native/live_relay_protocol.rs");
+include!("native/live_relay_jpeg.rs");
 
 include!("native/live_relay_http.rs");
 

@@ -11,7 +11,7 @@ import {
 } from "./liveRelay";
 import { liveRelayActions, liveRelayViews } from "../store/liveRelayStore";
 import { liveRelayPointerDelayMs } from "./liveRelayInputQos";
-import { decodeRelayBitmap, validateRelayPresentationFrame } from "./liveRelayPresentation";
+import { decodeRelayImage, validateRelayPresentationFrame } from "./liveRelayPresentation";
 
 const RETRY_MS = 500;
 const VIEWER_POLL_INTERVAL_MS = 80;
@@ -69,13 +69,14 @@ export function createLiveRelayController() {
         const bytes = await api.readLiveRelayFrame(relayId, frame.frameId);
         if (disposed || generations.get(relayId) !== generation) return;
         const readAt = performance.now();
-        const bmp = encodeBgraAsBmp(bytes, frame.width, frame.height);
-        const bitmapAt = performance.now();
+        if (bytes.byteLength !== frame.byteLength) throw new Error("live_relay_payload_length_mismatch");
+        const imageBytes = frame.codec === "jpeg" ? bytes : encodeBgraAsBmp(bytes, frame.width, frame.height);
+        const preparedAt = performance.now();
         const decode = new AbortController();
         decodes.set(relayId, decode);
         let nextUrl: string;
         try {
-            nextUrl = await decodeRelayBitmap(bmp, frame, decode.signal);
+            nextUrl = await decodeRelayImage(imageBytes, frame, decode.signal);
         } finally {
             if (decodes.get(relayId) === decode) decodes.delete(relayId);
         }
@@ -91,9 +92,9 @@ export function createLiveRelayController() {
         objectUrls.set(relayId, nextUrl);
         liveRelayActions.updateFrame(relayId, nextUrl, frame, {
             liveSessionId: frame.liveSessionId, epoch: frame.epoch, frameId: frame.frameId,
-            evidence: "decoded_submitted", payloadBytes: bytes.byteLength, bitmapBytes: bmp.byteLength,
-            readMs: readAt - startedAt, bitmapMs: bitmapAt - readAt,
-            decodeMs: decodedAt - bitmapAt, submittedAtMs: decodedAt,
+            evidence: "decoded_submitted", codec: frame.codec, payloadBytes: bytes.byteLength, imageBytes: imageBytes.byteLength,
+            readMs: readAt - startedAt, prepareMs: preparedAt - readAt,
+            decodeMs: decodedAt - preparedAt, submittedAtMs: decodedAt,
         });
         liveRelayActions.setError(relayId);
         if (previousUrl) URL.revokeObjectURL(previousUrl);

@@ -120,7 +120,7 @@ export interface LiveRelayFrameDescriptor {
     receivedTimestampMs: number;
     width: number;
     height: number;
-    codec: "raw_bgra";
+    codec: "raw_bgra" | "jpeg";
     colorSpace: "srgb";
     byteLength: number;
     droppedFrames: number;

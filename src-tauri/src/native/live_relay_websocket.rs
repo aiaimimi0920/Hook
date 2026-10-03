@@ -28,7 +28,10 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
             break;
         }
         let connection = connect_live_relay_socket(&relay, 0, 0);
-        let mut socket = match connection {
+        let LiveRelayMediaConnection {
+            mut socket,
+            profile,
+        } = match connection {
             Ok(socket) => {
                 mark_live_relay_connected(&relay);
                 socket
@@ -58,13 +61,19 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
                 .ok()
                 .and_then(|frames| frames.clone_latest_after(last_frame_id));
             if let Some(frame) = frame {
-                let network_frame = match encode_live_relay_capture_frame(&frame) {
+                let network_frame = match encode_live_relay_capture_frame(&frame, profile) {
                     Ok(frame) => frame,
                     Err(error) => {
                         mark_live_relay_recovering(&relay, "source_frame_invalid", error);
                         break;
                     }
                 };
+                if relay.stop.load(Ordering::SeqCst)
+                    || relay.reconnect.load(Ordering::SeqCst)
+                    || live_relay_capture_ended(&capture)
+                {
+                    break;
+                }
                 if let Err(error) = socket.send(tungstenite::Message::Binary(network_frame)) {
                     mark_live_relay_recovering(
                         &relay,
@@ -130,7 +139,10 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
             .map(|state| (state.epoch, state.last_frame_id))
             .unwrap_or((0, 0));
         let connection = connect_live_relay_socket(&relay, after_epoch, after_frame_id);
-        let mut socket = match connection {
+        let LiveRelayMediaConnection {
+            mut socket,
+            profile,
+        } = match connection {
             Ok(socket) => {
                 mark_live_relay_connected(&relay);
                 connected_once = true;
@@ -186,7 +198,10 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
             }
             match socket.read() {
                 Ok(tungstenite::Message::Binary(bytes)) => {
-                    match accept_live_relay_viewer_frame(&relay, &bytes) {
+                    match profile
+                        .validate_wire(&bytes)
+                        .and_then(|()| accept_live_relay_viewer_frame(&relay, &bytes))
+                    {
                         Ok(()) => {}
                         Err(error) => {
                             mark_live_relay_recovering(&relay, "viewer_frame_invalid", error);
@@ -271,8 +286,7 @@ fn connect_live_relay_socket(
     relay: &LiveRelaySession,
     after_epoch: u64,
     after_frame_id: u64,
-) -> Result<tungstenite::WebSocket<tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>, String>
-{
+) -> Result<LiveRelayMediaConnection, String> {
     use tungstenite::client::IntoClientRequest;
     use tungstenite::http::{header::SEC_WEBSOCKET_PROTOCOL, HeaderValue};
 
@@ -298,7 +312,7 @@ fn connect_live_relay_socket(
         .map_err(|error| format!("build Loom live WebSocket request: {error}"))?;
     request.headers_mut().insert(
         SEC_WEBSOCKET_PROTOCOL,
-        HeaderValue::from_static(LIVE_RELAY_PROTOCOL_VERSION),
+        HeaderValue::from_static(LIVE_RELAY_MEDIA_OFFER),
     );
     relay.authorization.apply_websocket(&mut request)?;
     connect_live_relay_transport(request, &url, relay.role)

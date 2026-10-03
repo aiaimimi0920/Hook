@@ -3,8 +3,7 @@ fn connect_live_relay_transport(
     request: tungstenite::http::Request<()>,
     url: &reqwest::Url,
     role: LiveRelayRole,
-) -> Result<tungstenite::WebSocket<tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>, String>
-{
+) -> Result<LiveRelayMediaConnection, String> {
     use std::net::{TcpStream, ToSocketAddrs};
     let addresses = (
         url.host_str().ok_or("live relay host is missing")?,
@@ -33,14 +32,12 @@ fn connect_live_relay_transport(
     };
     let (socket, response) = tungstenite::client_tls_with_config(request, tcp, Some(config), None)
         .map_err(|_| "live relay WebSocket handshake failed")?;
-    if response
-        .headers()
-        .get(tungstenite::http::header::SEC_WEBSOCKET_PROTOCOL)
-        .and_then(|value| value.to_str().ok())
-        != Some(LIVE_RELAY_PROTOCOL_VERSION)
-    {
-        return Err("Loom live WebSocket did not negotiate loom.live.v1".to_owned());
-    }
+    let profile = LiveRelayMediaProfile::negotiated(
+        response
+            .headers()
+            .get(tungstenite::http::header::SEC_WEBSOCKET_PROTOCOL)
+            .and_then(|value| value.to_str().ok()),
+    )?;
     let tcp = match socket.get_ref() {
         tungstenite::stream::MaybeTlsStream::Plain(tcp) => tcp,
         tungstenite::stream::MaybeTlsStream::Rustls(tls) => &tls.sock,
@@ -56,7 +53,7 @@ fn connect_live_relay_transport(
     .map_err(|_| "live relay read deadline failed")?;
     tcp.set_write_timeout(Some(Duration::from_millis(250)))
         .map_err(|_| "live relay write deadline failed")?;
-    Ok(socket)
+    Ok(LiveRelayMediaConnection { socket, profile })
 }
 
 fn live_relay_read_timeout(error: &tungstenite::Error) -> bool {

@@ -7,9 +7,10 @@ export interface LiveRelayPresentation {
     frameId: number;
     evidence: "decoded_submitted";
     payloadBytes: number;
-    bitmapBytes: number;
+    codec: LiveRelayFrameDescriptor["codec"];
+    imageBytes: number;
     readMs: number;
-    bitmapMs: number;
+    prepareMs: number;
     decodeMs: number;
     submittedAtMs: number;
 }
@@ -20,25 +21,28 @@ export function validateRelayPresentationFrame(frame: LiveRelayFrameDescriptor, 
         || !Number.isSafeInteger(frame.frameId) || frame.frameId <= 0) {
         throw new Error("live_relay_frame_identity_mismatch");
     }
-    if (frame.codec !== "raw_bgra" || frame.colorSpace !== "srgb") {
+    if ((frame.codec !== "raw_bgra" && frame.codec !== "jpeg") || frame.colorSpace !== "srgb") {
         throw new Error("live_relay_presentation_profile_unsupported");
     }
     if (!Number.isSafeInteger(frame.width) || !Number.isSafeInteger(frame.height)
         || frame.width < 1 || frame.height < 1 || frame.width > 16_384 || frame.height > 16_384
-        || frame.byteLength !== frame.width * frame.height * 4 || frame.byteLength > 64 * 1024 * 1024) {
+        || frame.width * frame.height * 4 > 64 * 1024 * 1024
+        || !Number.isSafeInteger(frame.byteLength) || frame.byteLength < 1
+        || (frame.codec === "raw_bgra" && frame.byteLength !== frame.width * frame.height * 4)
+        || (frame.codec === "jpeg" && frame.byteLength > 16 * 1024 * 1024)) {
         throw new Error("live_relay_frame_dimensions_invalid");
     }
 }
 
 /** 解码器只拥有候选帧；成功后 URL 所有权移交给 controller，失败或取消即释放。 */
-export function decodeRelayBitmap(
-    bitmap: Uint8Array<ArrayBuffer>,
-    frame: Pick<LiveRelayFrameDescriptor, "width" | "height">,
+export function decodeRelayImage(
+    bytes: Uint8Array<ArrayBuffer>,
+    frame: Pick<LiveRelayFrameDescriptor, "width" | "height" | "codec">,
     signal: AbortSignal,
 ): Promise<string> {
     if (signal.aborted) return Promise.reject(new Error("live_relay_decode_cancelled"));
     const image = new Image();
-    const url = URL.createObjectURL(new Blob([bitmap], { type: "image/bmp" }));
+    const url = URL.createObjectURL(new Blob([bytes], { type: frame.codec === "jpeg" ? "image/jpeg" : "image/bmp" }));
     return new Promise<string>((resolve, reject) => {
         let settled = false;
         const finish = (error?: string) => {

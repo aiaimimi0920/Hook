@@ -1,4 +1,4 @@
-// Exact NLLV binary framing and the JPEG-to-BGRA boundary used by Phase 4 transport.
+// Exact NLLV framing; JPEG payloads stay compressed unless the connection selected legacy v1.
 const LIVE_RELAY_BINARY_HEADER_LEN: usize = 64;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -15,27 +15,32 @@ struct LiveRelayBinaryMetadata {
     codec: &'static str,
 }
 
-fn encode_live_relay_capture_frame(frame: &LiveCaptureFrame) -> Result<Vec<u8>, String> {
-    let decoded = image::load_from_memory(&frame.bytes)
-        .map_err(|error| format!("decode local live JPEG for relay: {error}"))?;
-    let mut bgra = decoded.to_rgba8().into_raw();
-    for pixel in bgra.chunks_exact_mut(4) {
-        pixel.swap(0, 2);
+fn encode_live_relay_capture_frame(
+    frame: &LiveCaptureFrame,
+    profile: LiveRelayMediaProfile,
+) -> Result<Vec<u8>, String> {
+    if frame.descriptor.mime != "image/jpeg" || frame.bytes.len() != frame.descriptor.byte_length {
+        return Err("live relay capture representation is invalid".to_owned());
     }
-    let expected = usize::try_from(frame.descriptor.width)
-        .ok()
-        .and_then(|width| {
-            usize::try_from(frame.descriptor.height)
-                .ok()
-                .and_then(|height| width.checked_mul(height))
-        })
-        .and_then(|pixels| pixels.checked_mul(4))
-        .ok_or_else(|| "live relay BGRA dimensions overflow".to_owned())?;
-    if bgra.len() != expected {
-        return Err("decoded live relay frame dimensions do not match capture metadata".to_owned());
-    }
-    if bgra.is_empty() || bgra.len() > LIVE_RELAY_MAX_FRAME_BYTES {
-        return Err("live relay BGRA frame exceeds the 64 MiB protocol limit".to_owned());
+    let profile = if frame.bytes.len() > LIVE_RELAY_MAX_JPEG_BYTES {
+        LiveRelayMediaProfile::Legacy
+    } else {
+        profile
+    };
+    let decoder = live_relay_jpeg_decoder(
+        &frame.bytes,
+        frame.descriptor.width,
+        frame.descriptor.height,
+    )?;
+    let mut bgra = Vec::new();
+    if profile == LiveRelayMediaProfile::Legacy {
+        bgra = image::DynamicImage::from_decoder(decoder)
+            .map_err(|_| "decode local live JPEG for legacy relay".to_owned())?
+            .into_rgba8()
+            .into_raw();
+        for pixel in bgra.chunks_exact_mut(4) {
+            pixel.swap(0, 2);
+        }
     }
     let dropped_frames = frame.descriptor.dropped_frames.min(u64::from(u32::MAX)) as u32;
     encode_live_relay_binary_frame(
@@ -49,9 +54,17 @@ fn encode_live_relay_capture_frame(frame: &LiveCaptureFrame) -> Result<Vec<u8>, 
             dropped_frames,
             keyframe: true,
             color_space: "srgb",
-            codec: "raw_bgra",
+            codec: if profile == LiveRelayMediaProfile::Jpeg {
+                "jpeg"
+            } else {
+                "raw_bgra"
+            },
         },
-        &bgra,
+        if profile == LiveRelayMediaProfile::Jpeg {
+            &frame.bytes
+        } else {
+            &bgra
+        },
     )
 }
 
@@ -83,6 +96,7 @@ fn encode_live_relay_binary_frame(
     bytes[57] = match metadata.codec {
         "raw_bgra" => 1,
         "h264" => 2,
+        "jpeg" => 3,
         _ => return Err("live relay frame codec is unsupported".to_owned()),
     };
     bytes[LIVE_RELAY_BINARY_HEADER_LEN..].copy_from_slice(payload);
@@ -122,6 +136,7 @@ fn decode_live_relay_binary_frame(
     let codec = match bytes[57] {
         1 => "raw_bgra",
         2 => "h264",
+        3 => "jpeg",
         _ => return Err("live relay frame codec is invalid".to_owned()),
     };
     let metadata = LiveRelayBinaryMetadata {
@@ -137,6 +152,13 @@ fn decode_live_relay_binary_frame(
         codec,
     };
     validate_live_relay_binary_metadata(&metadata, payload_len)?;
+    if metadata.codec == "jpeg" {
+        live_relay_jpeg_decoder(
+            &bytes[LIVE_RELAY_BINARY_HEADER_LEN..],
+            metadata.width,
+            metadata.height,
+        )?;
+    }
     Ok(LiveRelayFrame {
         descriptor: LiveRelayFrameDescriptor {
             relay_id: relay_id.to_owned(),
@@ -164,6 +186,9 @@ fn validate_live_relay_binary_metadata(
     if metadata.epoch == 0 || metadata.frame_id == 0 {
         return Err("live relay frame epoch and frame id must be positive".to_owned());
     }
+    if metadata.encode_timestamp_ms < metadata.capture_timestamp_ms {
+        return Err("live relay frame timestamps are invalid".to_owned());
+    }
     if metadata.width == 0
         || metadata.height == 0
         || metadata.width > 16_384
@@ -173,6 +198,15 @@ fn validate_live_relay_binary_metadata(
     }
     if payload_len == 0 || payload_len > LIVE_RELAY_MAX_FRAME_BYTES {
         return Err("live relay frame payload is outside protocol bounds".to_owned());
+    }
+    if metadata.codec == "jpeg"
+        && (!metadata.keyframe
+            || metadata.color_space != "srgb"
+            || payload_len > LIVE_RELAY_MAX_JPEG_BYTES
+            || u64::from(metadata.width) * u64::from(metadata.height) * 4
+                > LIVE_RELAY_MAX_FRAME_BYTES as u64)
+    {
+        return Err("live relay JPEG profile is invalid".to_owned());
     }
     if metadata.codec == "raw_bgra" {
         let expected = usize::try_from(metadata.width)
