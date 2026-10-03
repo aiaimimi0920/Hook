@@ -1,7 +1,21 @@
 name: Release Hook Tag
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/release-hook-tag.yml"
+      - ".github/workflows/dependency-security.yml"
+      - ".github/scripts/*osv*.cjs"
+      - ".github/scripts/security-run-context.cjs"
+      - "scripts/security/**"
+      - "scripts/tests/*security*.cjs"
+      - "scripts/tests/Test-DependencySecurityContract.ps1"
+      - "scripts/Invoke-DependencySecurityScan.ps1"
+      - "security/**"
+      - "package-lock.json"
+      - "src-tauri/**/Cargo.lock"
   push:
+    branches: [main]
     tags:
       - 'V*.*.*'
       - 'v*.*.*'
@@ -21,19 +35,38 @@ on:
 
 concurrency:
   # Keep maintenance scans separate from release publication for the same ref.
-  group: release-hook-${{ inputs['scan-only'] && github.ref || (github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name) }}
+  group: release-hook-${{ github.event_name }}-${{ github.event.pull_request.number || (github.event_name == 'workflow_dispatch' && inputs.tag) || github.ref }}-${{ inputs['scan-only'] }}
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
+  scan-context:
+    name: Classify scan and release intent
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.context.outputs.publish }}
+      mode: ${{ steps.context.outputs.mode }}
+      ref: ${{ steps.context.outputs.ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: context
+        env:
+          SCAN_ONLY_JSON: ${{ toJSON(inputs['scan-only']) }}
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: node .github/scripts/security-run-context.cjs
+
   dependency-security:
-    name: Verify release dependency security
+    name: Verify dependency scan evidence
+    needs: scan-context
     uses: ./.github/workflows/dependency-security.yml
     with:
       # Keep this caller/job identity: default-branch scans refresh its existing SARIF configuration.
-      checkout-ref: ${{ inputs['scan-only'] && github.sha || (github.event_name == 'workflow_dispatch' && inputs.tag || github.ref) }}
+      checkout-ref: ${{ needs.scan-context.outputs.ref }}
+      security-mode: ${{ needs.scan-context.outputs.mode }}
     permissions:
       actions: read
       contents: read
@@ -42,8 +75,8 @@ jobs:
   release:
     name: Build and publish Hook release
     # Job-level gating also excludes its always()/failure() artifact and cleanup steps.
-    if: ${{ !inputs['scan-only'] }}
-    needs: dependency-security
+    if: ${{ needs.scan-context.outputs.publish == 'true' && ((github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && toJSON(inputs['scan-only']) == 'false' && inputs.tag != '')) }}
+    needs: [scan-context, dependency-security]
     runs-on: windows-latest
     permissions:
       contents: write
@@ -64,7 +97,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $tag = if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") { $env:REQUESTED_TAG } else { $env:GITHUB_REF_NAME }
-          if ($tag -notmatch '^V\d+\.\d+\.\d+$') { throw "Release tag must match Vx.x.x. Received: $tag" }
+          if ($tag -notmatch '^[vV]\d+\.\d+\.\d+$') { throw "Release tag must match Vx.x.x. Received: $tag" }
           "HOOK_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Verify release provenance and product versions

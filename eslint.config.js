@@ -3,7 +3,8 @@
 // the rules here focus on catching real bugs (no-unused-vars as warnings,
 // solid-specific reactivity foot-guns) rather than enforcing a style rewrite.
 // `npm run lint` is a blocking gate: it runs with `--max-warnings 0` in
-// `verify:local` and in the build-hook-exe workflow, so a new warning fails CI.
+// `verify:local` and release workflows. Development CI retains findings as
+// advisory reports; parser/configuration/tool failures still fail that report job.
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import solid from "eslint-plugin-solid";

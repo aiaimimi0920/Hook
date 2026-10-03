@@ -88,8 +88,8 @@ budgets must not compete with other test workers. CI immediately runs that exact
 file through `test:performance` with one worker and unchanged thresholds. The
 serial `npm test` packaging gate still includes every test.
 
-`npm run lint` is a blocking gate (`--max-warnings 0`), so a new warning fails
-the build. `npm run test:surface-browser` drives a real Chromium through
+`npm run lint` remains strict (`--max-warnings 0`) for local/release verification.
+Development CI publishes valid findings through the independent advisory workflow. `npm run test:surface-browser` drives a real Chromium through
 Playwright; run `npx playwright install chromium` once before its first use.
 
 `npm run verify:local` runs the full serial verification and also creates a local
@@ -138,3 +138,8 @@ unless release behavior or embedded assets changed.
 - [ ] Documentation matches the final code.
 - [ ] `git diff --check` is clean.
 - [ ] The verification results and remaining risks are reported accurately.
+
+Development CI policy: valid vulnerability, license, lint, format, and size findings
+are advisory in independent reporting workflows. Tool/report/upload failures remain
+errors; typechecking, builds, and functional tests stay blocking. Release checks and
+`npm run verify:local` remain strict. See [dependency security policy](docs/DEPENDENCY_SECURITY.md).

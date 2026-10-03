@@ -25,10 +25,6 @@ jobs:
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-release-version.ps1
 
-      - name: Validate dependency security contract
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\Test-DependencySecurityContract.ps1
-
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -52,23 +48,6 @@ jobs:
       - name: Test effective-code-line checker
         run: npm run test:effective-lines
 
-      - name: Enforce effective-code-line migration ratchet
-        run: npm run check:effective-lines
-
-      - name: Upload effective-code-line report
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: hook-effective-code-lines
-          path: artifacts/effective-code-lines.json
-          if-no-files-found: warn
-
-      - name: Audit open-source dependency metadata
-        run: npm run audit:licenses
-
-      - name: ESLint
-        run: npm run lint
-
       - name: TypeScript typecheck
         run: npm run typecheck
 
@@ -77,9 +56,6 @@ jobs:
 
       - name: Run frontend tests
         run: npm test
-
-      - name: Rust format check
-        run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
 
       - name: Rust tests
         shell: powershell

@@ -1,0 +1,40 @@
+name: Code Quality Advisory
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tool: [eslint, format, licenses, lines]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The line ratchet validates its recorded historical commit/tree.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - uses: dtolnay/rust-toolchain@a5f673d0ba8626c3977bb416a1612774bc82181b # 1.95.0
+        with:
+          components: rustfmt
+      - run: npm ci --no-audit --no-fund
+      - name: Test evidence classifiers
+        run: node --test scripts/tests/security-*.test.cjs
+      - name: Produce complete advisory report
+        run: node .github/scripts/run-quality-advisory.cjs ${{ matrix.tool }}
+      - name: Retain complete quality evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: quality-${{ matrix.tool }}
+          path: artifacts/quality/${{ matrix.tool }}/
+          if-no-files-found: error
+          retention-days: 14

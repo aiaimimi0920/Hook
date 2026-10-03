@@ -23,16 +23,55 @@ release run on `main` can leave that workflow's configuration reporting failure
 even when its OSV job succeeded; later successful tag runs do not refresh the
 default-branch record. Check the failing job before changing scanner settings.
 
-To refresh that configuration, manually run **Release Hook Tag** from `main`
-with **scan-only** enabled and leave **tag** empty. This scans the exact workflow
-commit using the existing OSV job and SARIF configuration. The entire release
-job is skipped, including build, signing-candidate, publication, and failure
-cleanup steps. Its write/OIDC permissions are unavailable to the scan job.
-Verify the scan and SARIF upload succeed, then recheck the tool-status page.
+`Release Hook Tag` now runs pure advisory scans on `main` pushes and relevant
+pull requests, preserving its existing `release-hook-tag.yml:osv-scan` identity.
+Manual **scan-only=true** still scans the exact workflow commit. PR/main and
+maintenance events skip the entire publication job, including its cleanup and
+signing steps. Explicit typed false plus a valid three-part tag is required for
+manual publication; valid tag pushes retain strict release enforcement.
 
-`scan-only` defaults to false. Normal manual publication still requires a valid
-release tag, checked before building; tag-triggered release behavior is unchanged.
 Do not rerun an old release, move a tag, or delete scan history to clear a banner.
+Verify scan completion and SARIF processing against the exact new main commit.
+
+## Development advisory policy
+
+During private development, valid vulnerability and static-quality findings are
+reported without blocking ordinary product compilation or functional tests.
+OSV runs the same pinned 2.5.1 binary from an immutable container digest, directly
+instead of the upstream shell wrapper. Its full inventory JSON must cover all
+four lockfiles, and its SARIF must cover each vulnerability alias group at every affected package,
+version and lockfile location before a findings exit of 1 can become
+advisory success. Unknown exits, missing/corrupt/incomplete evidence, startup,
+network, reporter, and upload failures remain failed jobs. No blanket
+`continue-on-error` is used.
+
+Development uses `security/osv-advisory.toml` without release suppressions.
+Full JSON/SARIF artifacts, step summaries, and existing deduplicated Security
+alerts retain findings. No duplicate issues or additional credentials are needed.
+The pinned reporter aggregates aliases, but emits a result per package/source.
+Validation checks alias-group membership, package/version messages, physical
+locations and the reporter's SHA-256 fingerprints; a retained ID alone is not
+coverage. JSON evidence is never rewritten or reduced.
+
+Development enables `--all-vulns`. Strict scanning preserves the scanner's normal
+exit semantics without that flag: JSON can legitimately retain only uncalled or
+unimportant findings with exit 0. Those records still require full SARIF coverage;
+exit 0 with actionable findings (or any findings under `--all-vulns`) is rejected
+as inconsistent evidence. Release scans keep the reviewed, time-bounded exceptions in `osv-scanner.toml`
+and fail on unsuppressed findings after retaining reports.
+
+`Code Quality Advisory` independently runs ESLint, stable Rust format checking,
+license inventory, and the effective-line ratchet. It retains complete tool and
+JSON evidence. ESLint fatal parsing/configuration errors, missing dependency
+manifests, incomplete Cargo metadata, unknown line-checker diagnostics, and
+unrecognized Rust format output remain errors. Format findings require a valid
+in-repository diff with no stderr. Actual typechecking, compilation, checker
+unit tests, frontend/native tests, and browser/performance tests stay blocking
+in `Build Hook EXE`. Release and `npm run verify:local` keep their strict checks;
+`verify:local` also creates release packages and is not a scan-only command.
+
+Native repository protection settings are not changed by these workflows.
+Any separate required-check policy must be reviewed explicitly.
 
 ## Machine-authoritative inventory
 
@@ -55,7 +94,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-Depende
 
 The installer downloads only the pinned Windows scanner, verifies its SHA-256,
 and caches it under ignored `.tmp`. The scan also verifies the reported scanner
-version and writes JSON evidence under `.tmp/dependency-security`.
+version and writes validated JSON evidence under `.tmp/dependency-security`.
+
+For a local development report, pass `-Mode Advisory`. The default is `Enforce`,
+so existing release/local callers retain their strict behavior.
 
 ## Triage and remediation
 

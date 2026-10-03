@@ -13,9 +13,14 @@ on:
         description: Exact branch, tag, or commit to scan
         required: false
         type: string
+      security-mode:
+        description: Development advisory or release enforcement
+        required: false
+        type: string
+        default: enforce
 
 concurrency:
-  group: dependency-security-${{ github.event.pull_request.number || inputs.checkout-ref || github.ref }}
+  group: dependency-security-${{ github.workflow }}-${{ github.event.pull_request.number || inputs.checkout-ref || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -24,20 +29,55 @@ permissions:
   security-events: write
 
 jobs:
-  osv:
+  policy-contract:
+    name: Validate scanner policy and release exceptions
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.checkout-ref || github.ref }}
+          persist-credentials: false
+      - shell: powershell
+        run: .\scripts\tests\Test-DependencySecurityContract.ps1
+
+  # Preserve the leaf job ID and default SARIF category of existing callers.
+  osv-scan:
     name: Scan committed dependency locks
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@ffa0a5f39214d80778c9b494822d94d0d9668458
-    with:
-      ref: ${{ inputs.checkout-ref || github.ref }}
-      scan-args: |-
-        --config=./security/osv-scanner.toml
-        --lockfile=./package-lock.json
-        --lockfile=./src-tauri/Cargo.lock
-        --lockfile=./src-tauri/crates/drag/Cargo.lock
-        --lockfile=./src-tauri/crates/scap-direct3d/Cargo.lock
-      upload-sarif: true
-      fail-on-vuln: true
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
+    runs-on: ubuntu-latest
+    env:
+      SECURITY_MODE: ${{ inputs.security-mode || 'advisory' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.checkout-ref || github.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - name: Test scan evidence and publication guards
+        run: node --test scripts/tests/security-*.test.cjs
+      - name: Scan and validate complete JSON and SARIF
+        id: scan
+        run: node .github/scripts/run-osv-scan.cjs
+      - name: Retain complete scan reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: osv-${{ github.workflow }}-${{ github.run_attempt }}
+          path: |
+            .tmp/dependency-security/osv-results.json
+            .tmp/dependency-security/osv-results.sarif
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+      - name: Upload to existing code-scanning configuration
+        if: ${{ !cancelled() && steps.scan.outcome == 'success' }}
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        with:
+          sarif_file: .tmp/dependency-security/osv-results.sarif
+          wait-for-processing: true
+      - name: Enforce release findings after reports are retained
+        if: ${{ !cancelled() && steps.scan.outcome == 'success' }}
+        env:
+          SCANNER_EXIT: ${{ steps.scan.outputs.scanner-exit }}
+        run: node scripts/security/evaluate-osv-result.cjs .tmp/dependency-security/osv-results.json "$SCANNER_EXIT" "$SECURITY_MODE"
