@@ -12,7 +12,7 @@ const main = readFileSync(resolve(root, "src-tauri/src/main.rs"), "utf8");
 const lib = readHookLibRustSources();
 
 describe("Hook emergency exit watchdog contract", () => {
-    it("runs outside the Tauri event loop and terminates the parent on physical triple Escape", () => {
+    it("runs outside the Tauri event loop and uses the shared triple Esc+Delete tracker", () => {
         expect(main).toContain("emergency_watchdog::parse_parent_pid");
         expect(main.indexOf("emergency_watchdog::parse_parent_pid")).toBeLessThan(
             main.indexOf("hook_lib::run()"),
@@ -20,9 +20,13 @@ describe("Hook emergency exit watchdog contract", () => {
         expect(lib).toContain("emergency_watchdog::spawn_for_current_process()");
         expect(watchdog).toContain("GetAsyncKeyState");
         expect(watchdog).toContain("TerminateProcess");
-        expect(watchdog).toContain("EMERGENCY_ESCAPE_WINDOW");
-        expect(watchdog).toContain("consecutive_presses");
-        expect(watchdog).toContain('"triple_escape"');
+        expect(watchdog).toContain("emergency_exit::EmergencyExitTracker::default()");
+        expect(watchdog).toContain("exit_tracker.record_state(");
+        expect(watchdog).toContain("physical_key_down(VK_ESCAPE)");
+        expect(watchdog).toContain("physical_key_down(VK_DELETE)");
+        expect(watchdog).toContain("== Some(3)");
+        expect(watchdog).toContain('"triple_esc_delete"');
+        expect(watchdog).not.toContain('"triple_escape"');
         expect(watchdog).toContain("Duration::from_millis(8)");
         expect(watchdog).toContain("validate_direct_parent(parent_pid, actual_parent_pid)");
         expect(watchdog).toContain("creation_flags(CREATE_NO_WINDOW.0)");

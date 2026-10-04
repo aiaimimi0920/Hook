@@ -3,17 +3,17 @@
     use super::{
         claim_capture_button_transition, claim_overlay_pointer_down, claim_overlay_pointer_up,
         coalesce_capture_mouse_move_until_emit, coalesce_overlay_mouse_move_until_emit,
-        handle_emergency_escape_transition_with, rect_covers_rect_with_tolerance,
+        handle_emergency_exit_transition_with, rect_covers_rect_with_tolerance,
         resolve_overlay_pointer_release, select_overlay_mouse_move_emit_interval,
         set_capture_input_runtime_active,
         should_passthrough_foreign_alt_input, should_passthrough_foreign_alt_mouse_input,
         should_suppress_overlay_interaction_for_occlusion, wait_for_capture_mouse_up_debounce,
         wait_for_overlay_mouse_up_debounce, CaptureMouseEventEnqueueResult, CaptureMouseEventQueue,
         CaptureMouseEventReceiver, CaptureMouseHookEvent, CaptureMouseMoveCoalesceResult,
-        CaptureMouseUpDebounceResult, EmergencyEscapeTracker, ModifierSnapshot,
+        CaptureMouseUpDebounceResult, ModifierSnapshot,
         OverlayMouseMoveCoalesceResult, OverlayMouseUpDebounceResult, OverlayPointerDownTransition,
         OverlayPointerReleaseResult, OverlayPointerSource, OverlayPointerUpTransition,
-        CAPTURE_MOUSE_HOOK_ACTIVE, CAPTURE_MOUSE_HOOK_BUTTON_DOWN, EMERGENCY_ESCAPE_WINDOW,
+        CAPTURE_MOUSE_HOOK_ACTIVE, CAPTURE_MOUSE_HOOK_BUTTON_DOWN,
         OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE, OVERLAY_MOUSE_DRAG_MOVE_EMIT_INTERVAL,
         OVERLAY_MOUSE_HOOK_DRAG_ACTIVE, OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE,
         OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE, OVERLAY_MOUSE_MOVE_EMIT_INTERVAL,
@@ -25,6 +25,7 @@
     use std::thread;
     use std::time::{Duration, Instant};
     use windows::Win32::Foundation::RECT;
+    use crate::emergency_exit::{EmergencyExitKey, EmergencyExitTracker};
 
     fn modifiers() -> ModifierSnapshot {
         ModifierSnapshot {

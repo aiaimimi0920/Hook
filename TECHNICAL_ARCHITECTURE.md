@@ -371,8 +371,12 @@ rounding remain covered by deterministic tests that run without external apps.
 
 - `single_instance.rs` prevents two normal Hook instances from running;
 - `mouse_monitor.rs` supports overlay hit testing and click-through decisions;
-- `emergency_watchdog.rs` is an independent process that can terminate the main
-  process after three Escape presses within 400 ms or `Ctrl+Alt+Shift+F12`, and restores cursor/input state;
+- `emergency_exit.rs` owns the shared Esc+Delete chord state machine: three
+  overlapping press cycles, both keys released between cycles, and adjacent
+  chords less than 400 ms apart. Native keyboard/rdev trackers remain independent;
+- `emergency_watchdog.rs` polls the same state machine in an independent process
+  and can terminate the main process after three Esc+Delete chords or the preserved
+  `Ctrl+Alt+Shift+F12` backup chord, then restores cursor/input state;
 - `app_settings.rs` and `file_naming.rs` own validated settings and atomic visible
   filename allocation.
 

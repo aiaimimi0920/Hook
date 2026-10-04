@@ -1,14 +1,19 @@
 # Hook unexpected-exit investigation (2026-09-25)
 
-Status: root cause of the reported non-Escape, non-shutdown exit is not yet
-confirmed. The current change improves exit attribution; it is not evidence
-that the reported intermittent failure has been fixed.
+Status: the captured 2026-10-02 overnight exit was caused by the old triple-Escape
+emergency shortcut, not an observed crash. Its input origin is unknown. The earlier
+unattributed exits below remain unresolved; this finding does not explain all
+historical disappearances.
 
-## Preserved emergency behavior
+## Emergency behavior
 
-Triple Escape remains mandatory and unchanged, including both native input
-trackers and the independent watchdog. Ctrl+Alt+Shift+F12 also remains available.
-Do not classify these intentional emergency exits as the reported failure.
+At the time of the historical observations below, three Escape presses triggered
+emergency exit. The current behavior replaces that trigger with three Esc+Delete
+chords, using the same state machine in both native input trackers and the
+independent watchdog. Both keys must be released between chords; adjacent chords
+must be less than 400 ms apart. Ctrl+Alt+Shift+F12 remains available. Historical
+triple-Escape log markers below retain their original meaning; they do not prove
+human input and must not be relabelled as the new chord.
 
 ## Observations
 
@@ -16,6 +21,13 @@ Source: the local runtime log at
 C:/Users/vmjcv/AppData/Local/Hook/logs/hook-runtime.log and Windows event logs.
 Times below use America/Los_Angeles (UTC-07:00).
 
+- 2026-10-02 23:43:35 (PID 39300): Escape inputs at 23:43:34.470,
+  23:43:34.664 and 23:43:34.830 were followed by
+  `emergency_triple_escape_exit :: source=rdev` and cleanup reason
+  `triple_escape`. The independent process observer and watchdog both recorded
+  exit status `0x00000000`. This establishes an emergency exit, not human input;
+  the old log did not record injected-input flags. The replacement chord above
+  prevents Escape-only sequences from taking this path.
 - 2026-09-21 03:02:44: v0.2.31 recorded a Tao 0.35.3
   `cannot move state from Destroyed` panic after `tauri_exit`.
   Windows System event 1074 preceded it by approximately 8.5 seconds.
@@ -38,8 +50,9 @@ Times below use America/Los_Angeles (UTC-07:00).
 - Record the original panic before native cleanup can re-enter window code.
 - The independent watchdog queries and records the parent's decimal and
   hexadecimal exit status even when the parent cannot log its own termination.
-- No automatic restart, global exception swallowing, data reset, or change to
-  emergency shortcuts was introduced.
+- That diagnostic correction introduced no automatic restart, global exception
+  swallowing, data reset, or change to emergency shortcuts. The later chord
+  change is described separately above.
 
 `scripts/tests/Test-WatchdogExitDiagnostics.ps1` exercises a real watchdog
 against disposable parent processes returning 0, 23, and 0xC0000005. The last

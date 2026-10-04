@@ -310,52 +310,27 @@
     }
 
     #[test]
-    fn triple_escape_requires_three_distinct_presses_inside_the_emergency_window() {
-        let started_at = Instant::now();
-        let mut tracker = EmergencyEscapeTracker::default();
-
-        assert!(!tracker.record_press(started_at));
-        assert!(!tracker.record_press(started_at + Duration::from_millis(100)));
-        assert!(tracker.record_press(started_at + Duration::from_millis(200)));
-
-        let mut expired_tracker = EmergencyEscapeTracker::default();
-        assert!(!expired_tracker.record_press(started_at));
-        assert!(!expired_tracker.record_press(started_at + EMERGENCY_ESCAPE_WINDOW));
-        assert!(!expired_tracker
-            .record_press(started_at + EMERGENCY_ESCAPE_WINDOW + Duration::from_millis(100)));
+    fn single_escapes_and_deletes_do_not_trigger_main_process_emergency_exit() {
+        let tracker = OnceLock::<Mutex<EmergencyExitTracker>>::new();
+        for _ in 0..20 {
+            for key in [EmergencyExitKey::Escape, EmergencyExitKey::Delete] {
+                assert!(!handle_emergency_exit_transition_with(&tracker, key, true, "single_key_test"));
+                assert!(!handle_emergency_exit_transition_with(&tracker, key, false, "single_key_test"));
+            }
+        }
     }
 
     #[test]
-    fn keyboard_hook_and_rdev_escape_edges_do_not_suppress_each_other() {
-        let keyboard_down = AtomicBool::new(false);
-        let keyboard_tracker = OnceLock::<Mutex<EmergencyEscapeTracker>>::new();
-        let rdev_down = AtomicBool::new(false);
-        let rdev_tracker = OnceLock::<Mutex<EmergencyEscapeTracker>>::new();
-
-        assert!(handle_emergency_escape_transition_with(
-            &keyboard_down,
-            &keyboard_tracker,
-            true,
-            "keyboard_test",
-        ));
-        assert!(handle_emergency_escape_transition_with(
-            &rdev_down,
-            &rdev_tracker,
-            true,
-            "rdev_test",
-        ));
-        assert!(!handle_emergency_escape_transition_with(
-            &keyboard_down,
-            &keyboard_tracker,
-            true,
-            "keyboard_test",
-        ));
-        assert!(!handle_emergency_escape_transition_with(
-            &rdev_down,
-            &rdev_tracker,
-            true,
-            "rdev_test",
-        ));
+    fn keyboard_hook_and_rdev_esc_delete_trackers_are_independent() {
+        let keyboard_tracker = OnceLock::<Mutex<EmergencyExitTracker>>::new();
+        let rdev_tracker = OnceLock::<Mutex<EmergencyExitTracker>>::new();
+        for (tracker, source) in [(&keyboard_tracker, "keyboard_test"), (&rdev_tracker, "rdev_test")] {
+            assert!(!handle_emergency_exit_transition_with(tracker, EmergencyExitKey::Escape, true, source));
+            assert!(handle_emergency_exit_transition_with(tracker, EmergencyExitKey::Delete, true, source));
+            assert!(!handle_emergency_exit_transition_with(tracker, EmergencyExitKey::Delete, true, source));
+            assert!(!handle_emergency_exit_transition_with(tracker, EmergencyExitKey::Escape, false, source));
+            assert!(!handle_emergency_exit_transition_with(tracker, EmergencyExitKey::Escape, true, source));
+        }
     }
 
     #[test]

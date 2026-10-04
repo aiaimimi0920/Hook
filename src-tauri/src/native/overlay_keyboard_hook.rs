@@ -28,12 +28,17 @@ unsafe extern "system" fn overlay_keyboard_hook_proc(
         _ => {}
     }
 
-    if vk_code == VK_ESCAPE.0 as u32 {
+    let emergency_key = match vk_code {
+        value if value == VK_ESCAPE.0 as u32 => Some(emergency_exit::EmergencyExitKey::Escape),
+        value if value == VK_DELETE.0 as u32 => Some(emergency_exit::EmergencyExitKey::Delete),
+        _ => None,
+    };
+    if let Some(key) = emergency_key {
         if key_pressed {
-            handle_emergency_escape_transition(true, "keyboard_hook");
+            handle_emergency_exit_transition(key, true, "keyboard_hook");
         }
         if key_released {
-            handle_emergency_escape_transition(false, "keyboard_hook");
+            handle_emergency_exit_transition(key, false, "keyboard_hook");
         }
     }
 

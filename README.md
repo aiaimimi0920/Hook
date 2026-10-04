@@ -148,7 +148,9 @@ annotation effects do not expose this editing capability.
 - optional Talk voice capture and Tea ticket creation through local capability
   bridges;
 - single-instance enforcement, tray residency, runtime diagnostics, and an
-  independent emergency-exit watchdog.
+  independent emergency-exit watchdog. Emergency exit uses three `Esc+Delete`
+  press/release cycles with less than 400 ms between chords; both keys must be
+  released between cycles. Esc alone no longer exits the application.
 
 See [`docs/FEATURES.md`](docs/FEATURES.md) for the current shortcut and manual
 regression matrix. The implementation remains the source of truth when a

@@ -23,6 +23,7 @@ mod capture_coords;
 mod capture_protected_target;
 mod capture_windows;
 mod device_session;
+mod emergency_exit;
 pub mod emergency_watchdog;
 mod file_naming;
 mod long_capture;
@@ -114,11 +115,11 @@ use windows::Win32::UI::Controls::Dialogs::{
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, VK_CONTROL, VK_ESCAPE, VK_LBUTTON, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU,
-    VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SHIFT,
+    GetAsyncKeyState, VK_CONTROL, VK_DELETE, VK_ESCAPE, VK_LBUTTON, VK_LMENU, VK_LSHIFT, VK_LWIN,
+    VK_MENU, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SHIFT,
 };
 #[cfg(all(test, target_os = "windows"))]
-use windows::Win32::UI::Input::KeyboardAndMouse::{VK_BACK, VK_DELETE, VK_TAB};
+use windows::Win32::UI::Input::KeyboardAndMouse::{VK_BACK, VK_TAB};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Shell::{
     IShellWindows, IWebBrowser2, SHChangeNotify, ShellWindows, SHCNE_UPDATEDIR, SHCNE_UPDATEITEM,

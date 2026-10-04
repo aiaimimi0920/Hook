@@ -1,5 +1,6 @@
 param(
-    [string]$HookExe = ""
+    [string]$HookExe = "",
+    [switch]$SkipKeyboardInjection
 )
 
 $ErrorActionPreference = "Stop"
@@ -126,27 +127,6 @@ function Wait-ProcessGone {
     return $true
 }
 
-function Send-Key {
-    param(
-        [Parameter(Mandatory=$true)][byte]$VirtualKey,
-        [int]$HoldMs = 40
-    )
-
-    [HookWatchdogKeyboardTest]::keybd_event(
-        $VirtualKey,
-        0,
-        0,
-        [UIntPtr]::Zero
-    )
-    Start-Sleep -Milliseconds $HoldMs
-    [HookWatchdogKeyboardTest]::keybd_event(
-        $VirtualKey,
-        0,
-        [HookWatchdogKeyboardTest]::KeyEventKeyUp,
-        [UIntPtr]::Zero
-    )
-}
-
 try {
     $mismatchProcess = Start-Process `
         -FilePath $HookExe `
@@ -166,63 +146,71 @@ try {
         throw "The watchdog remained after its parent exited normally"
     }
 
-    $escape = Start-WatchdogParent -Name "triple-escape" -LifetimeMs 600000
-    Start-Sleep -Milliseconds 150
-    Send-Key -VirtualKey 0x1B
-    Start-Sleep -Milliseconds 90
-    Send-Key -VirtualKey 0x1B
-    Start-Sleep -Milliseconds 90
-    Send-Key -VirtualKey 0x1B
-    if (-not (Wait-ProcessGone -ProcessId $escape.ParentPid)) {
-        throw "Triple Escape did not terminate the watchdog parent"
-    }
-    if (-not (Wait-ProcessGone -ProcessId $escape.WatchdogPid)) {
-        throw "The watchdog remained after Triple Escape"
-    }
-    $escapeLog = [IO.File]::ReadAllText(
-        (Join-Path $escape.Directory "hook-runtime.log")
-    )
-    if ($escapeLog -notmatch "source=triple_escape") {
-        throw "The Triple Escape termination source was not logged"
-    }
+    if (-not $SkipKeyboardInjection) {
+        $escape = Start-WatchdogParent -Name "triple-esc-delete" -LifetimeMs 600000
+        Start-Sleep -Milliseconds 150
+        foreach ($attempt in 1..3) {
+            try {
+                [HookWatchdogKeyboardTest]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero)
+                [HookWatchdogKeyboardTest]::keybd_event(0x2E, 0, 0, [UIntPtr]::Zero)
+                Start-Sleep -Milliseconds 50
+            } finally {
+                [HookWatchdogKeyboardTest]::keybd_event(0x2E, 0, [HookWatchdogKeyboardTest]::KeyEventKeyUp, [UIntPtr]::Zero)
+                [HookWatchdogKeyboardTest]::keybd_event(0x1B, 0, [HookWatchdogKeyboardTest]::KeyEventKeyUp, [UIntPtr]::Zero)
+            }
+            Start-Sleep -Milliseconds 90
+        }
+        if (-not (Wait-ProcessGone -ProcessId $escape.ParentPid)) {
+            throw "Triple Esc+Delete did not terminate the watchdog parent"
+        }
+        if (-not (Wait-ProcessGone -ProcessId $escape.WatchdogPid)) {
+            throw "The watchdog remained after Triple Esc+Delete"
+        }
+        $escapeLog = [IO.File]::ReadAllText(
+            (Join-Path $escape.Directory "hook-runtime.log")
+        )
+        if ($escapeLog -notmatch "source=triple_esc_delete") {
+            throw "The Triple Esc+Delete termination source was not logged"
+        }
 
-    $chord = Start-WatchdogParent -Name "backup-chord" -LifetimeMs 600000
-    Start-Sleep -Milliseconds 150
-    foreach ($virtualKey in [byte[]](0x11, 0x12, 0x10, 0x7B)) {
-        [HookWatchdogKeyboardTest]::keybd_event(
-            $virtualKey,
-            0,
-            0,
-            [UIntPtr]::Zero
+        $chord = Start-WatchdogParent -Name "backup-chord" -LifetimeMs 600000
+        Start-Sleep -Milliseconds 150
+        foreach ($virtualKey in [byte[]](0x11, 0x12, 0x10, 0x7B)) {
+            [HookWatchdogKeyboardTest]::keybd_event(
+                $virtualKey,
+                0,
+                0,
+                [UIntPtr]::Zero
+            )
+        }
+        Start-Sleep -Milliseconds 80
+        foreach ($virtualKey in [byte[]](0x7B, 0x10, 0x12, 0x11)) {
+            [HookWatchdogKeyboardTest]::keybd_event(
+                $virtualKey,
+                0,
+                [HookWatchdogKeyboardTest]::KeyEventKeyUp,
+                [UIntPtr]::Zero
+            )
+        }
+        if (-not (Wait-ProcessGone -ProcessId $chord.ParentPid)) {
+            throw "Ctrl+Alt+Shift+F12 did not terminate the watchdog parent"
+        }
+        if (-not (Wait-ProcessGone -ProcessId $chord.WatchdogPid)) {
+            throw "The watchdog remained after Ctrl+Alt+Shift+F12"
+        }
+        $chordLog = [IO.File]::ReadAllText(
+            (Join-Path $chord.Directory "hook-runtime.log")
         )
-    }
-    Start-Sleep -Milliseconds 80
-    foreach ($virtualKey in [byte[]](0x7B, 0x10, 0x12, 0x11)) {
-        [HookWatchdogKeyboardTest]::keybd_event(
-            $virtualKey,
-            0,
-            [HookWatchdogKeyboardTest]::KeyEventKeyUp,
-            [UIntPtr]::Zero
-        )
-    }
-    if (-not (Wait-ProcessGone -ProcessId $chord.ParentPid)) {
-        throw "Ctrl+Alt+Shift+F12 did not terminate the watchdog parent"
-    }
-    if (-not (Wait-ProcessGone -ProcessId $chord.WatchdogPid)) {
-        throw "The watchdog remained after Ctrl+Alt+Shift+F12"
-    }
-    $chordLog = [IO.File]::ReadAllText(
-        (Join-Path $chord.Directory "hook-runtime.log")
-    )
-    if ($chordLog -notmatch "source=ctrl_alt_shift_f12") {
-        throw "The backup chord termination source was not logged"
+        if ($chordLog -notmatch "source=ctrl_alt_shift_f12") {
+            throw "The backup chord termination source was not logged"
+        }
     }
 
     [pscustomobject]@{
         mismatchRejected = $true
         normalExitCleanup = $true
-        doubleEscape = $true
-        backupChord = $true
+        escDeleteTriple = (-not $SkipKeyboardInjection)
+        backupChord = (-not $SkipKeyboardInjection)
         residualTestProcesses = @(
             $testProcesses | Where-Object {
                 Get-Process -Id $_ -ErrorAction SilentlyContinue

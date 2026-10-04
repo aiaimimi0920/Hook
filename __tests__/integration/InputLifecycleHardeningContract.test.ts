@@ -49,7 +49,7 @@ describe("input lifecycle hardening contract", () => {
     const queueBlock = sourceBetween(
       rustSource,
       "fn queue_capture_mouse_hook_event",
-      "fn handle_emergency_escape_transition",
+      "fn handle_emergency_exit_transition",
     );
     const installBlock = sourceBetween(
       rustSource,
@@ -189,8 +189,9 @@ describe("input lifecycle hardening contract", () => {
     );
   });
 
-  it("counts triple Escape before every focus, cursor, and native-dialog gate", () => {
+  it("counts Esc+Delete chords before every focus, cursor, and native-dialog gate", () => {
     const rustSource = readHookLibRustSources();
+    const tracker = readSource("src-tauri/src/emergency_exit.rs");
     const keyboardHook = sourceBetween(
       rustSource,
       'unsafe extern "system" fn overlay_keyboard_hook_proc',
@@ -202,14 +203,19 @@ describe("input lifecycle hardening contract", () => {
       'append_runtime_log_line(&format!("rdev_listen_failed',
     );
 
-    expect(rustSource).toContain("static ESCAPE_KEY_DOWN: AtomicBool");
-    expect(rustSource).toContain("struct EmergencyEscapeTracker");
-    expect(rustSource).toContain("emergency_triple_escape_exit");
-    expect(rustSource).toContain("consecutive_presses");
-    expect(keyboardHook.indexOf("handle_emergency_escape_transition")).toBeLessThan(
+    expect(rustSource).toContain("static EMERGENCY_EXIT_TRACKER:");
+    expect(tracker).toContain("struct EmergencyExitTracker");
+    expect(tracker).toContain("if !escape_down && !delete_down");
+    expect(tracker).toContain("!escape_down || !delete_down || self.chord_latched");
+    expect(rustSource).toContain("emergency_triple_esc_delete_exit");
+    expect(keyboardHook).toContain("VK_DELETE");
+    expect(rdevListener).toContain("rdev::Key::Delete");
+    expect(keyboardHook.indexOf("handle_emergency_exit_transition")).toBeGreaterThanOrEqual(0);
+    expect(keyboardHook.indexOf("handle_emergency_exit_transition")).toBeLessThan(
       keyboardHook.indexOf("overlay_keyboard_capture_should_handle_current_cursor"),
     );
-    expect(rdevListener.indexOf("handle_emergency_escape_transition")).toBeLessThan(
+    expect(rdevListener.indexOf("handle_rdev_emergency_exit_transition")).toBeGreaterThanOrEqual(0);
+    expect(rdevListener.indexOf("handle_rdev_emergency_exit_transition")).toBeLessThan(
       rdevListener.indexOf("NATIVE_FILE_DIALOG_ACTIVE.load"),
     );
     expect(rustSource).not.toContain("last_esc:");
@@ -232,7 +238,7 @@ describe("input lifecycle hardening contract", () => {
     expect(rustSource).toContain("SystemParametersInfoW(SPI_SETCURSORS");
     expect(setupBlock).toContain("restore_system_cursors_unconditionally();");
     expect(panicBlock).toContain('prepare_for_hook_process_exit("panic")');
-    expect(rustSource).toContain('prepare_for_hook_process_exit("triple_escape")');
+    expect(rustSource).toContain('prepare_for_hook_process_exit("triple_esc_delete")');
     expect(rustSource).toContain('prepare_for_hook_process_exit("tauri_exit_requested")');
     expect(rustSource).toContain('prepare_for_hook_process_exit("tauri_exit")');
     expect(rustSource).toContain('prepare_for_hook_process_exit("tauri_run_returned")');

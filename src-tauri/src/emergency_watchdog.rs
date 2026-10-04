@@ -41,35 +41,6 @@ pub fn spawn_for_current_process() -> Result<u32, String> {
 }
 
 #[cfg(target_os = "windows")]
-#[derive(Default)]
-struct WatchdogEscapeTracker {
-    last_press: Option<Instant>,
-    consecutive_presses: u8,
-}
-
-#[cfg(target_os = "windows")]
-impl WatchdogEscapeTracker {
-    fn record_press(&mut self, now: Instant) -> bool {
-        let continues_sequence = self
-            .last_press
-            .map(|last| now.duration_since(last) < super::EMERGENCY_ESCAPE_WINDOW)
-            .unwrap_or(false);
-        self.consecutive_presses = if continues_sequence {
-            self.consecutive_presses.saturating_add(1)
-        } else {
-            1
-        };
-        self.last_press = Some(now);
-        if self.consecutive_presses < 3 {
-            return false;
-        }
-        self.consecutive_presses = 0;
-        self.last_press = None;
-        true
-    }
-}
-
-#[cfg(target_os = "windows")]
 fn physical_key_down(key: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY) -> bool {
     use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
     (unsafe { GetAsyncKeyState(key.0 as i32) }) < 0
@@ -140,7 +111,7 @@ pub fn run(parent_pid: u32) -> i32 {
         GetExitCodeProcess, OpenProcess, TerminateProcess, WaitForSingleObject,
         PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
     };
-    use windows::Win32::UI::Input::KeyboardAndMouse::VK_ESCAPE;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{VK_DELETE, VK_ESCAPE};
 
     if parent_pid == std::process::id() {
         return 2;
@@ -184,8 +155,7 @@ pub fn run(parent_pid: u32) -> i32 {
         parent_pid,
         std::process::id()
     ));
-    let mut escape_tracker = WatchdogEscapeTracker::default();
-    let mut escape_was_down = false;
+    let mut exit_tracker = super::emergency_exit::EmergencyExitTracker::default();
     let mut chord_was_down = false;
 
     loop {
@@ -224,18 +194,19 @@ pub fn run(parent_pid: u32) -> i32 {
             }
         }
 
-        let escape_is_down = physical_key_down(VK_ESCAPE);
-        let triple_escape =
-            escape_is_down && !escape_was_down && escape_tracker.record_press(Instant::now());
-        escape_was_down = escape_is_down;
+        let triple_esc_delete = exit_tracker.record_state(
+            physical_key_down(VK_ESCAPE),
+            physical_key_down(VK_DELETE),
+            Instant::now(),
+        ) == Some(3);
 
         let chord_is_down = emergency_chord_down();
         let emergency_chord = chord_is_down && !chord_was_down;
         chord_was_down = chord_is_down;
 
-        if triple_escape || emergency_chord {
-            let source = if triple_escape {
-                "triple_escape"
+        if triple_esc_delete || emergency_chord {
+            let source = if triple_esc_delete {
+                "triple_esc_delete"
             } else {
                 "ctrl_alt_shift_f12"
             };
@@ -292,19 +263,17 @@ mod tests {
 
     #[cfg(target_os = "windows")]
     #[test]
-    fn watchdog_uses_the_same_triple_escape_window_as_the_main_hook() {
+    fn watchdog_uses_the_shared_esc_delete_tracker_and_full_release_gate() {
         let started_at = Instant::now();
-        let mut tracker = WatchdogEscapeTracker::default();
-        assert!(!tracker.record_press(started_at));
-        assert!(!tracker.record_press(started_at + Duration::from_millis(100)));
-        assert!(tracker.record_press(started_at + Duration::from_millis(200)));
-
-        let mut expired = WatchdogEscapeTracker::default();
-        assert!(!expired.record_press(started_at));
-        assert!(!expired.record_press(started_at + super::super::EMERGENCY_ESCAPE_WINDOW));
-        assert!(!expired.record_press(
-            started_at + super::super::EMERGENCY_ESCAPE_WINDOW + Duration::from_millis(100)
-        ));
+        let mut tracker = super::super::emergency_exit::EmergencyExitTracker::default();
+        assert_eq!(tracker.record_state(true, false, started_at), None);
+        for count in 1..=3 {
+            let at = started_at + Duration::from_millis(count * 100);
+            assert_eq!(tracker.record_state(true, true, at), Some(count as u8));
+            assert_eq!(tracker.record_state(false, true, at), None);
+            assert_eq!(tracker.record_state(true, true, at), None);
+            tracker.record_state(false, false, at);
+        }
     }
 
     #[cfg(target_os = "windows")]

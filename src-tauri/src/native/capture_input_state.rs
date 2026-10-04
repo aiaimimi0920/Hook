@@ -128,44 +128,9 @@ static UIACCESS_FRONTEND_MOUNTED: AtomicBool = AtomicBool::new(false);
 static UIACCESS_PENDING_OVERLAY_CLICK_THROUGH: AtomicBool = AtomicBool::new(true);
 
 #[cfg(target_os = "windows")]
-const EMERGENCY_ESCAPE_WINDOW: Duration = Duration::from_millis(400);
+static EMERGENCY_EXIT_TRACKER: OnceLock<Mutex<emergency_exit::EmergencyExitTracker>> = OnceLock::new();
 #[cfg(target_os = "windows")]
-static ESCAPE_KEY_DOWN: AtomicBool = AtomicBool::new(false);
-#[cfg(target_os = "windows")]
-static EMERGENCY_ESCAPE_TRACKER: OnceLock<Mutex<EmergencyEscapeTracker>> = OnceLock::new();
-#[cfg(target_os = "windows")]
-static RDEV_ESCAPE_KEY_DOWN: AtomicBool = AtomicBool::new(false);
-#[cfg(target_os = "windows")]
-static RDEV_EMERGENCY_ESCAPE_TRACKER: OnceLock<Mutex<EmergencyEscapeTracker>> = OnceLock::new();
-
-#[cfg(target_os = "windows")]
-#[derive(Default)]
-struct EmergencyEscapeTracker {
-    last_press: Option<Instant>,
-    consecutive_presses: u8,
-}
-
-#[cfg(target_os = "windows")]
-impl EmergencyEscapeTracker {
-    fn record_press(&mut self, now: Instant) -> bool {
-        let continues_sequence = self
-            .last_press
-            .map(|last_press| now.duration_since(last_press) < EMERGENCY_ESCAPE_WINDOW)
-            .unwrap_or(false);
-        self.consecutive_presses = if continues_sequence {
-            self.consecutive_presses.saturating_add(1)
-        } else {
-            1
-        };
-        self.last_press = Some(now);
-        if self.consecutive_presses < 3 {
-            return false;
-        }
-        self.consecutive_presses = 0;
-        self.last_press = None;
-        true
-    }
-}
+static RDEV_EMERGENCY_EXIT_TRACKER: OnceLock<Mutex<emergency_exit::EmergencyExitTracker>> = OnceLock::new();
 
 fn uiaccess_build_enabled() -> bool {
     cfg!(target_os = "windows") && option_env!("HOOK_WINDOWS_UIACCESS_BUILD").is_some()
@@ -345,57 +310,51 @@ fn overlay_primary_button_physically_down() -> bool {
 }
 
 #[cfg(target_os = "windows")]
-fn handle_emergency_escape_transition_with(
-    key_down: &AtomicBool,
-    tracker: &OnceLock<Mutex<EmergencyEscapeTracker>>,
+fn handle_emergency_exit_transition_with(
+    tracker: &OnceLock<Mutex<emergency_exit::EmergencyExitTracker>>,
+    key: emergency_exit::EmergencyExitKey,
     pressed: bool,
     source: &str,
 ) -> bool {
-    if !pressed {
-        key_down.store(false, Ordering::SeqCst);
-        return false;
-    }
-
-    if key_down.swap(true, Ordering::SeqCst) {
-        return false;
-    }
-
-    let should_exit = tracker
-        .get_or_init(|| Mutex::new(EmergencyEscapeTracker::default()))
+    let count = tracker
+        .get_or_init(|| Mutex::new(emergency_exit::EmergencyExitTracker::default()))
         .lock()
-        .map(|mut tracker| tracker.record_press(Instant::now()))
-        .unwrap_or(false);
-    append_runtime_log_line(&format!("emergency_escape_press :: source={}", source));
-    if should_exit {
+        .ok()
+        .and_then(|mut tracker| tracker.record_key(key, pressed, Instant::now()));
+    let Some(count) = count else {
+        return false;
+    };
+    append_runtime_log_line(&format!(
+        "emergency_esc_delete_press :: pid={} source={} count={}",
+        std::process::id(),
+        source,
+        count
+    ));
+    if count == 3 {
         append_runtime_log_line_sync(&format!(
-            "[{}] emergency_triple_escape_exit :: source={}",
+            "[{}] emergency_triple_esc_delete_exit :: pid={} source={}",
             runtime_log_timestamp(),
+            std::process::id(),
             source
         ));
-        prepare_for_hook_process_exit("triple_escape");
+        prepare_for_hook_process_exit("triple_esc_delete");
         std::process::exit(0);
     }
     true
 }
 
 #[cfg(target_os = "windows")]
-fn handle_emergency_escape_transition(pressed: bool, source: &str) -> bool {
-    handle_emergency_escape_transition_with(
-        &ESCAPE_KEY_DOWN,
-        &EMERGENCY_ESCAPE_TRACKER,
-        pressed,
-        source,
-    )
+fn handle_emergency_exit_transition(
+    key: emergency_exit::EmergencyExitKey,
+    pressed: bool,
+    source: &str,
+) -> bool {
+    handle_emergency_exit_transition_with(&EMERGENCY_EXIT_TRACKER, key, pressed, source)
 }
 
 #[cfg(target_os = "windows")]
-fn handle_rdev_emergency_escape_transition(pressed: bool) -> bool {
-    handle_emergency_escape_transition_with(
-        &RDEV_ESCAPE_KEY_DOWN,
-        &RDEV_EMERGENCY_ESCAPE_TRACKER,
-        pressed,
-        "rdev",
-    )
+fn handle_rdev_emergency_exit_transition(key: emergency_exit::EmergencyExitKey, pressed: bool) -> bool {
+    handle_emergency_exit_transition_with(&RDEV_EMERGENCY_EXIT_TRACKER, key, pressed, "rdev")
 }
 
 #[cfg(target_os = "windows")]

@@ -31,7 +31,7 @@ another application has focus.
 | `Ctrl+3` | Enter vertical long-capture mode. | Capture a scrollable page, then cancel and retry to confirm session cleanup. |
 | `Ctrl+E` | Toggle sticker editing, including projection invitations, device/group multiselect and opt-in two-way v1 annotation editing. Enabled Capability Plugins may contribute namespaced menus and actions. | Select overlapping targets, retry partial sends, switch source-only direction, merge separate objects and explicitly resolve same-object conflicts. Check durable restart, Escape focus and native popup clicks. Shared Loom needs no official login; account mode keeps its login requirement and does not support two-way editing. |
 | `Ctrl+Alt+Space` | Toggle the configured Talk voice session between start and stop. | Verify both edges and confirm dictated text is inserted only after a completed session. |
-| Double `Escape` within 400 ms | Emergency exit. The main process and independent watchdog both observe distinct key presses. | Verify exit from canvas, capture, overlay, and a conflicting fullscreen application. |
+| Three `Esc+Delete` chords, with less than 400 ms between chords | Emergency exit. Both keys must overlap, then both must be released before the next chord counts. The main process and independent watchdog share this rule. | Verify three full press/release cycles exit; repeated Esc alone, Delete alone, autorepeat, and releasing only one key must not exit. |
 | `Ctrl+Alt+Shift+F12` | Backup emergency-exit chord handled by the watchdog. | Verify it terminates Hook and restores cursor/input state. |
 
 The tray currently exposes **Capture**, **Live capture**, **Long capture**,
@@ -72,9 +72,13 @@ cancel/delete semantics.
 | `Ctrl+Shift+4` | canvas | Toggle clean view. |
 | `Q` / `W` / `E` / `R` | selected unit or sticker editing | Select the annotation transform mode: select, move, rotate, or scale. |
 
-Single-`Escape` context actions and Double-`Escape` emergency exit are separate
-mechanisms. Do not lengthen the 400 ms emergency window to compensate for missed
-input; fix the input path instead.
+Ordinary `Escape`/`Delete` context actions and triple-`Esc+Delete` emergency exit
+are separate mechanisms. Either key may complete a chord; simultaneous means
+overlapping down states, not identical event timestamps. Every cycle must release
+both keys, and adjacent chord presses must be less than 400 ms apart. Holding one
+key and repeatedly pressing the other does not advance the counter. Three Esc
+presses alone no longer close Hook. Do not lengthen the emergency window to
+compensate for missed input; fix the input path instead.
 
 OCR text overlays preserve native substring selection. A plain block click copies
 that block; `Shift+click` toggles bounded multi-block selection without moving the

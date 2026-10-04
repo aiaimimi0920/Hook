@@ -141,13 +141,12 @@ describe("Hook Escape delete contract", () => {
     expect(deleteHandlerBlock).toContain("dependencies.deleteSelectedUnitOrAnnotation();");
   });
 
-  it("keeps rdev and the low-level hook on independent Escape edge trackers", () => {
+  it("keeps rdev and the low-level hook on independent Esc+Delete trackers", () => {
     const rustSource = readHookLibRustSources();
 
-    expect(rustSource).toContain("static ESCAPE_KEY_DOWN: AtomicBool");
-    expect(rustSource).toContain("static RDEV_ESCAPE_KEY_DOWN: AtomicBool");
-    expect(rustSource).toContain("static EMERGENCY_ESCAPE_TRACKER:");
-    expect(rustSource).toContain("static RDEV_EMERGENCY_ESCAPE_TRACKER:");
-    expect(rustSource).toContain("fn handle_rdev_emergency_escape_transition(pressed: bool)");
+    expect(rustSource).toContain("static EMERGENCY_EXIT_TRACKER:");
+    expect(rustSource).toContain("static RDEV_EMERGENCY_EXIT_TRACKER:");
+    expect(rustSource).toContain("fn handle_rdev_emergency_exit_transition(");
+    expect(rustSource).not.toContain("static RDEV_ESCAPE_KEY_DOWN:");
   });
 });

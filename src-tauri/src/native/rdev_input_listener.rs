@@ -34,11 +34,29 @@ fn spawn_rdev_input_listener(
 
             match &event.event_type {
                 rdev::EventType::KeyPress(rdev::Key::Escape) => {
-                    handle_rdev_emergency_escape_transition(true);
+                    handle_rdev_emergency_exit_transition(
+                        emergency_exit::EmergencyExitKey::Escape,
+                        true,
+                    );
                 }
                 rdev::EventType::KeyRelease(rdev::Key::Escape) => {
-                    handle_rdev_emergency_escape_transition(false);
+                    handle_rdev_emergency_exit_transition(
+                        emergency_exit::EmergencyExitKey::Escape,
+                        false,
+                    );
                     return;
+                }
+                rdev::EventType::KeyPress(rdev::Key::Delete) => {
+                    handle_rdev_emergency_exit_transition(
+                        emergency_exit::EmergencyExitKey::Delete,
+                        true,
+                    );
+                }
+                rdev::EventType::KeyRelease(rdev::Key::Delete) => {
+                    handle_rdev_emergency_exit_transition(
+                        emergency_exit::EmergencyExitKey::Delete,
+                        false,
+                    );
                 }
                 _ => {}
             }
