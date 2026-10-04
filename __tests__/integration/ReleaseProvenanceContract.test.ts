@@ -21,9 +21,16 @@ describe("release provenance contract", () => {
     expect(releaseWorkflow.indexOf("Verify release provenance and product versions")).toBeLessThan(
       releaseWorkflow.indexOf("Install npm dependencies"),
     );
-    expect(buildWorkflow.indexOf("Validate product versions before build setup")).toBeLessThan(
-      buildWorkflow.indexOf("Install npm dependencies"),
-    );
+    for (const job of ["frontend-serial", "build-windows-candidate", "parallel-race"]) {
+      const section = buildWorkflow.replaceAll("\r\n", "\n").match(
+        new RegExp(`^  ${job}:\\n([\\s\\S]*?)(?=^  [\\w-]+:|$(?![\\s\\S]))`, "m"),
+      )?.[1];
+      expect(section, `missing job ${job}`).toBeDefined();
+      expect(section).toContain("assert-release-version.ps1");
+      expect(section!.indexOf("assert-release-version.ps1")).toBeLessThan(
+        section!.indexOf("Install npm dependencies"),
+      );
+    }
   });
 
   it("binds SignPath submission to the reviewed Actions artifact and original workflow run", () => {

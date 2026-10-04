@@ -26,27 +26,41 @@ describe("Hook build workflow CI contract", () => {
         expect(workflowSource).not.toContain("tags:");
     });
 
-    it("runs checker tests, type, frontend, and Rust verification before packaging", () => {
-        const primaryJob = workflowSource.slice(
-            workflowSource.indexOf("build-windows-exe:"),
-            workflowSource.indexOf("parallel-race:"),
-        );
+    it("requires parallel source verification before promoting the native candidate", () => {
+        const source = workflowSource.replaceAll("\r\n", "\n");
+        const job = (name: string) => {
+            const match = source.match(new RegExp(`^  ${name}:\\n([\\s\\S]*?)(?=^  [\\w-]+:|$(?![\\s\\S]))`, "m"));
+            expect(match, `missing job ${name}`).not.toBeNull();
+            return match![1];
+        };
+        const primaryJob = job("build-windows-candidate");
+        const frontendJob = job("frontend-serial");
+        const aggregateJob = job("build-windows-exe");
         expect(primaryJob).toContain("fetch-depth: 0");
-        expect(workflowSource).toContain("components: rustfmt");
-        expect(workflowSource).toContain("run: npm run test:effective-lines");
+        expect(primaryJob).toContain("components: rustfmt");
+        expect(frontendJob).toContain("run: npm run test:effective-lines");
         expect(workflowSource).not.toContain("run: npm run check:effective-lines");
-        expect(workflowSource).toContain("run: npm run typecheck");
-        expect(workflowSource).toContain("run: npm test");
+        expect(frontendJob).toContain("run: npm run typecheck");
+        expect(frontendJob).toContain("run: npm run typecheck:test");
+        expect(frontendJob).toContain("run: npm test");
         expect(workflowSource).not.toContain("run: cargo fmt --check");
-        expect(workflowSource).toContain("run-rust-tests-ci.ps1");
-        expect(workflowSource.indexOf("run: npm run typecheck")).toBeLessThan(
-            workflowSource.indexOf("Build portable Hook EXE"),
+        expect(primaryJob).toContain("run-rust-tests-ci.ps1");
+        expect(primaryJob.indexOf("run-rust-tests-ci.ps1")).toBeLessThan(
+            primaryJob.indexOf("Build portable Hook EXE"),
         );
-        expect(workflowSource.indexOf("run: npm run test:effective-lines")).toBeLessThan(
-            workflowSource.indexOf("Build portable Hook EXE"),
+        expect(primaryJob).toContain("name: hook-build-candidate");
+        expect(primaryJob).not.toContain("name: hook-portable-windows-x64");
+        expect(frontendJob).not.toContain("needs:");
+        expect(primaryJob).not.toContain("needs:");
+        expect(aggregateJob).toContain("needs: [frontend-serial, build-windows-candidate, parallel-race]");
+        expect(aggregateJob).toContain("if: ${{ always() }}");
+        for (const result of ["FRONTEND", "BUILD", "PARALLEL"]) {
+            expect(aggregateJob).toContain(`test "$${result}" = success`);
+        }
+        expect(aggregateJob.indexOf('test "$PARALLEL" = success')).toBeLessThan(
+            aggregateJob.indexOf("Download same-run candidate"),
         );
-        expect(workflowSource.indexOf("run-rust-tests-ci.ps1")).toBeLessThan(
-            workflowSource.indexOf("Build portable Hook EXE"),
-        );
+        expect(aggregateJob).toContain("name: hook-portable-windows-x64");
+        expect(aggregateJob).not.toMatch(/run-id:|repository:|github-token:/);
     });
 });

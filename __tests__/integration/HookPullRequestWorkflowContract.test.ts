@@ -12,9 +12,9 @@ describe("Hook pull request workflow contract", () => {
     expect(source).toContain("permissions:\n  contents: read");
     expect(source).not.toMatch(/^\s+[\w-]+: write$/m);
     expect(source).not.toContain("secrets.");
-    expect(source.match(/persist-credentials: false/g)).toHaveLength(2);
-    expect(source.match(/runs-on: windows-latest/g)).toHaveLength(2);
-    expect(source.match(/actions\/setup-node@820762786026740c76f36085b0efc47a31fe5020/g)).toHaveLength(2);
+    expect(source.match(/persist-credentials: false/g)).toHaveLength(3);
+    expect(source.match(/runs-on: windows-latest/g)).toHaveLength(3);
+    expect(source.match(/actions\/setup-node@820762786026740c76f36085b0efc47a31fe5020/g)).toHaveLength(3);
   });
 
   it("preserves blocking source, browser and native checks without publication", () => {
