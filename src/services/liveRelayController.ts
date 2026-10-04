@@ -8,6 +8,7 @@ import {
     type LiveRelaySessionSummary,
     type LiveRelaySnapshot,
     type LiveRelayTriggerConfigureRequest,
+    type LiveRelayView,
 } from "./liveRelay";
 import { liveRelayActions, liveRelayViews } from "../store/liveRelayStore";
 import { liveRelayPointerDelayMs } from "./liveRelayInputQos";
@@ -93,6 +94,8 @@ export function createLiveRelayController() {
         objectUrls.set(relayId, nextUrl);
         liveRelayActions.updateFrame(relayId, nextUrl, frame, {
             liveSessionId: frame.liveSessionId, epoch: frame.epoch, frameId: frame.frameId,
+            generation, captureTimestampMs: frame.captureTimestampMs, encodeTimestampMs: frame.encodeTimestampMs,
+            receivedTimestampMs: frame.receivedTimestampMs,
             evidence: "decoded_submitted", codec: frame.codec, payloadBytes: bytes.byteLength, imageBytes: imageBytes.byteLength,
             readMs: readAt - startedAt, prepareMs: preparedAt - readAt,
             decodeMs: decodedAt - preparedAt, submittedAtMs: decodedAt,
@@ -157,8 +160,9 @@ export function createLiveRelayController() {
         status: LiveRelaySnapshot,
         title: string,
         source: { width: number; height: number },
+        sourceIdentity?: LiveRelayView["sourceIdentity"],
     ): void => {
-        liveRelayActions.add(status, title, relayGeometry(source, liveRelayViews.length));
+        liveRelayActions.add(status, title, relayGeometry(source, liveRelayViews.length), sourceIdentity);
         generations.set(status.relayId, ++nextGeneration);
         inputQueues.set(status.relayId, {
             sequence: status.lastInputSequence,
@@ -227,7 +231,9 @@ export function createLiveRelayController() {
                 await api.stopLiveRelaySession(status.relayId);
                 return;
             }
-            track(status, titleFor(session), session.session.frameStream);
+            track(status, titleFor(session), session.session.frameStream, {
+                deviceId: session.session.sourceDeviceId, hookId: session.session.sourceHookId,
+            });
         } finally {
             joins.delete(sessionId);
         }

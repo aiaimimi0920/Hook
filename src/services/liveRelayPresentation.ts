@@ -5,6 +5,10 @@ export interface LiveRelayPresentation {
     liveSessionId: string;
     epoch: number;
     frameId: number;
+    generation: number;
+    captureTimestampMs: number;
+    encodeTimestampMs: number;
+    receivedTimestampMs: number;
     evidence: "decoded_submitted";
     payloadBytes: number;
     codec: LiveRelayFrameDescriptor["codec"];

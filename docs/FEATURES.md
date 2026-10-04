@@ -56,6 +56,9 @@ rectangles and direct synthetic input handling keep the prompt interactive.
 - 服务端决定观看权限。加入不会请求 controller；观看窗口中的“请求控制”仍是独立操作。
 - 检查空列表、长标题/设备 ID、键盘选择、错误/重试、连续点击、面板关闭及 Surface 换代。
   已打开窗口不因关闭参数面板而结束；未完成的加入被取消后不应留下新 viewer。
+- 观看窗口的[只读诊断槽](LIVE_RELAY_DIAGNOSTICS.md)输出 source/epoch/frame、接收计数、
+  codec/字节和解码提交耗时；epoch/停止使旧提交失效，无图像、标题或错误正文。
+  原生基线必须另绑实际 EXE/进程 SHA；不把这些字段当物理 FPS 或跨机延迟。
 - 原生两机、权限撤销和性能矩阵仍须按实际包验证，不把组件测试当作网络/物理显示验收。
 
 These controls are context-sensitive. Most are ignored while the event target is

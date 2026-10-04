@@ -92,7 +92,8 @@ describe("LiveRelay decoded submission", () => {
         expect(liveRelayViews[0].imageUrl).toBe("blob:frame-1");
         expect(liveRelayViews[0].submittedFrameId).toBe(1);
         expect(liveRelayViews[0].presentation).toMatchObject({
-            liveSessionId: "live:a", epoch: 1, frameId: 1, evidence: "decoded_submitted",
+            liveSessionId: "live:a", epoch: 1, frameId: 1, generation: 1, evidence: "decoded_submitted",
+            captureTimestampMs: 1, encodeTimestampMs: 2, receivedTimestampMs: 3,
             codec: "raw_bgra", payloadBytes: 4, imageBytes: 58, decodeMs: 20,
         });
     });

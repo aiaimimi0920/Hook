@@ -46,6 +46,10 @@ Join admission and late-result cleanup live in `liveRelayController`, not in a
 second transport. Closing the panel cancels only an unfinished join; established
 viewer windows retain the global owner. Native/Loom attachment and viewer authorization
 remain authoritative, and input ownership is acquired separately.
+`liveRelayPresentation` holds one decoded-submitted sample owned by that controller;
+`liveRelayDiagnostics` projects fixed bounded fields into each viewer's DOM attribute.
+No new transport, timer, media copy or persistent history is introduced. Package/process
+binding remains an external acceptance step, described in `docs/LIVE_RELAY_DIAGNOSTICS.md`.
 
 ## 2. Repository layout
 

@@ -59,6 +59,7 @@ it('requires explicit discovery, selection and joining with the mounted attachme
         liveSessionId: 'live:a', surfaceInstanceId: 'instance:a', attachmentId: 'attachment:a',
     });
     expect(api.changeLiveRelayController).not.toHaveBeenCalled();
+    expect(liveRelayViews[0].sourceIdentity).toEqual({ deviceId: 'source:a', hookId: 'hook:a' });
     expect(document.body.textContent).toContain('观看窗口已打开');
     unmount(); unmount = undefined;
     expect(liveRelayViews).toHaveLength(1);

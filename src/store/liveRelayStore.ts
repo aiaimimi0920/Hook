@@ -19,11 +19,13 @@ export const liveRelayActions = {
     setDiscovery(discovery: LiveRelayDiscovery): void {
         setLiveRelayDiscovery(discovery);
     },
-    add(status: LiveRelaySnapshot, title: string, geometry: Pick<LiveRelayView, "x" | "y" | "width" | "height">): void {
+    add(status: LiveRelaySnapshot, title: string, geometry: Pick<LiveRelayView, "x" | "y" | "width" | "height">,
+        sourceIdentity?: LiveRelayView["sourceIdentity"]): void {
         nextZIndex += 1;
         setLiveRelayViews((views) => [...views, {
             relayId: status.relayId,
             status,
+            sourceIdentity,
             title,
             submittedFrameId: 0,
             frameWidth: 1,

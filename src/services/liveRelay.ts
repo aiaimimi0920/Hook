@@ -171,6 +171,7 @@ export interface LiveRelayBinding {
 export interface LiveRelayView {
     relayId: string;
     status: LiveRelaySnapshot;
+    sourceIdentity?: { deviceId: string; hookId: string };
     title: string;
     imageUrl?: string;
     submittedFrameId: number;

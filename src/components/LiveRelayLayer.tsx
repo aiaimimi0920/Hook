@@ -13,6 +13,7 @@ import type { LiveRelayObservation, LiveRelayTriggerAudit } from "../services/li
 import { liveRelayActions, liveRelayViews } from "../store/liveRelayStore";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import { syncService } from "../services/syncService";
+import { liveRelayDiagnostic } from "../services/liveRelayDiagnostics";
 import "./LiveCaptureLayer.css";
 
 type DragState = {
@@ -233,6 +234,7 @@ const LiveRelayWindow: Component<{ view: typeof liveRelayViews[number]; controll
             class={`hook-live-window hook-live-window--${props.view.status.connectionState}`}
             aria-label={`远端实时画面：${props.view.title}`}
             data-overlay-synthetic-target="direct"
+            data-live-relay-diagnostic={JSON.stringify(liveRelayDiagnostic(props.view))}
             style={{
                 left: `${props.view.x}px`,
                 top: `${props.view.y}px`,

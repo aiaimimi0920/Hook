@@ -36,6 +36,11 @@ by `LiveFeatures` and can be closed from the viewer window independently of the 
 This entry has component/controller coverage; real two-device networking, input grants,
 revocation and display/performance acceptance remain separate package-bound gates.
 
+The viewer exposes a fixed, read-only `data-live-relay-diagnostic` slot with source,
+epoch/frame, received counters and decoded-submitted stages. It retains no frame history
+or pixels. See [receiver diagnostics](LIVE_RELAY_DIAGNOSTICS.md) for bounded collection
+and actual executable/process SHA binding; these counters are not physical display FPS.
+
 ## Failure notices
 
 Failures with an existing bound Unit use that Unit's top-right notice stack.

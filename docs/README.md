@@ -15,6 +15,8 @@ tests remain the source of truth.
 - [`HDR_CAPTURE.md`](HDR_CAPTURE.md) - HDR capture behavior and SDR fallback rules.
 - [`LIVE_CAPTURE.md`](LIVE_CAPTURE.md) - native capture scope, browser behavior,
   failure notices, and the current implementation/verification entrypoints.
+- [`LIVE_RELAY_DIAGNOSTICS.md`](LIVE_RELAY_DIAGNOSTICS.md) - bounded receiver evidence,
+  timestamp semantics and actual executable/process binding requirements.
 - [`LIVE_RESOURCE_ADMISSION.md`](LIVE_RESOURCE_ADMISSION.md) - resource admission and pressure.
 - [`LIVE_GPU_PRESENTATION.md`](LIVE_GPU_PRESENTATION.md) - GPU presentation and fallback.
 - [`LIVE_SHARED_SOURCE_CAPTURE.md`](LIVE_SHARED_SOURCE_CAPTURE.md) - shared window capture ownership.

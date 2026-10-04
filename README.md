@@ -66,6 +66,9 @@ Surface attachment and server authorization; it does not grant remote control.
 Closing the parameter panel keeps an established viewer open; closing it during
 joining cancels that pending result. See [Live capture](docs/LIVE_CAPTURE.md).
 This UI path has focused coverage; native two-device performance acceptance is pending.
+The viewer also exposes [bounded receiver diagnostics](docs/LIVE_RELAY_DIAGNOSTICS.md)
+for source/epoch/frame and decoded-submitted stages, without pixels or private errors.
+Actual executable/process SHA binding is external; these counters are not display FPS.
 
 ### Capture
 
