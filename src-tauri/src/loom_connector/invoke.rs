@@ -43,7 +43,8 @@ pub async fn invoke_brain_plan_with_manifest(
     );
 
     let mut builder =
-        crate::network_proxy::shared_client(&endpoint, Some(Duration::from_millis(timeout_ms)))?
+        crate::network_proxy::shared_client(&endpoint, Some(Duration::from_millis(timeout_ms)))
+            .map_err(|error| LoomConnectorError::InvokeClient(error.to_string()))?
             .post(endpoint)
             .json(&envelope);
     if manifest

@@ -402,6 +402,10 @@ transform.
 
 - `loom_hook.rs` maps the local Art/workflow surface;
 - `loom_config.rs` and `loom_connector.rs` discover and invoke Loom capabilities;
+- `loom_tls.rs` owns optional origin-scoped, certificate-only private CA trust
+  for Loom HTTP and media WSS. `network_proxy.rs` partitions shared clients by
+  that trust identity and disables redirects for scoped clients; live and wall
+  sockets obtain the same Rustls connector without modifying OS trust.
 - `talk_connector.rs` invokes the local Talk voice capability;
 - `tea_client.rs` submits tickets to the local Tea service and redacts sensitive
   error content;

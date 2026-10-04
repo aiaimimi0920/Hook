@@ -25,6 +25,8 @@ pub enum LoomConnectorError {
     InvokeResponseParse(String),
     #[error("Loom invoke failed: {0}")]
     InvokeHttp(#[from] reqwest::Error),
+    #[error("Loom HTTP client configuration failed: {0}")]
+    InvokeClient(String),
     #[error("Loom invoke timed out after {0} ms")]
     InvokeTimeout(u64),
     #[error("Loom invoke response exceeded the {0}-byte limit")]

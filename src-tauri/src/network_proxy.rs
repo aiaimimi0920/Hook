@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, OnceLock, RwLock};
 use std::time::Duration;
 
+use crate::loom_tls::{ClientBuildError, ScopedTrust, TrustKey};
 use reqwest::{Client, ClientBuilder, Proxy, Url};
 use serde::Deserialize;
 
@@ -76,12 +77,13 @@ static PROXY_GENERATION: AtomicU64 = AtomicU64::new(0);
 /// which is what `reqwest` is designed for: one long-lived `Client` owning one connection
 /// pool, cloned per request. Only the inputs that change how the client is *built* belong
 /// in the key — `reqwest` already pools connections per host internally, so the endpoint
-/// itself does not.
+/// itself does not, except for explicitly origin-scoped private CA trust.
 #[derive(Clone, Eq, Hash, PartialEq)]
 struct ClientKey {
     loopback: bool,
     timeout_millis: Option<u64>,
     flavor: &'static str,
+    trust: Option<TrustKey>,
 }
 
 #[derive(Default)]
@@ -206,14 +208,18 @@ pub fn apply_to_url(
 /// configuration every time, so nothing is ever reused and every call pays a fresh
 /// handshake — on a polling path, once per iteration. Prefer this over
 /// `apply_to_url(Client::builder(), ..).build()` at any call site that runs more than once.
-pub fn shared_client(endpoint: &str, timeout: Option<Duration>) -> Result<Client, reqwest::Error> {
+pub(crate) fn shared_client(
+    endpoint: &str,
+    timeout: Option<Duration>,
+) -> Result<Client, ClientBuildError> {
     shared_client_with(endpoint, timeout, "default", |builder| builder)
 }
 
-pub fn blocking_client(
+pub(crate) fn blocking_client(
     endpoint: &str,
     timeout: Option<Duration>,
-) -> Result<reqwest::blocking::Client, reqwest::Error> {
+) -> Result<reqwest::blocking::Client, ClientBuildError> {
+    let trust = crate::loom_tls::for_endpoint(endpoint)?;
     let mut builder = reqwest::blocking::Client::builder();
     if endpoint_is_loopback(endpoint) {
         builder = builder.no_proxy();
@@ -227,22 +233,38 @@ pub fn blocking_client(
     if let Some(timeout) = timeout {
         builder = builder.timeout(timeout);
     }
-    builder.build()
+    if let Some(trust) = trust {
+        builder = trust.apply_blocking(builder);
+    }
+    Ok(builder.build()?)
 }
 
 /// [`shared_client`] for call sites that need extra builder options. `flavor` names the
 /// customization and is part of the cache key, so two different customizations never share
 /// a client; it must be a distinct constant per call site.
-pub fn shared_client_with(
+pub(crate) fn shared_client_with(
     endpoint: &str,
     timeout: Option<Duration>,
     flavor: &'static str,
     configure: impl FnOnce(ClientBuilder) -> ClientBuilder,
-) -> Result<Client, reqwest::Error> {
+) -> Result<Client, ClientBuildError> {
+    let trust = crate::loom_tls::for_endpoint(endpoint)?;
+    shared_client_with_trust(endpoint, timeout, flavor, configure, trust)
+}
+
+fn shared_client_with_trust(
+    endpoint: &str,
+    timeout: Option<Duration>,
+    flavor: &'static str,
+    configure: impl FnOnce(ClientBuilder) -> ClientBuilder,
+    trust: Option<&ScopedTrust>,
+) -> Result<Client, ClientBuildError> {
+    let trust = trust.filter(|trust| trust.matches(endpoint));
     let key = ClientKey {
         loopback: endpoint_is_loopback(endpoint),
         timeout_millis: timeout.map(|timeout| timeout.as_millis() as u64),
         flavor,
+        trust: trust.map(|trust| trust.key.clone()),
     };
     let generation = PROXY_GENERATION.load(Ordering::Acquire);
     // Scoped so the cache guard is dropped before `apply_to_url` takes the proxy lock below.
@@ -263,7 +285,11 @@ pub fn shared_client_with(
     if let Some(timeout) = timeout {
         builder = builder.timeout(timeout);
     }
-    let client = configure(builder).build()?;
+    builder = configure(builder);
+    if let Some(trust) = trust {
+        builder = trust.apply_http(builder);
+    }
+    let client = builder.build()?;
 
     {
         let mut cache = lock_client_cache();
@@ -291,6 +317,58 @@ mod tests {
 
     fn cached_client_count() -> usize {
         lock_client_cache().clients.len()
+    }
+
+    #[test]
+    fn private_ca_clients_do_not_share_trust_with_other_origins_or_ca_versions() {
+        let _guard = TEST_GUARD.lock().unwrap();
+        use_system_proxy();
+        lock_client_cache().clients.clear();
+        let first = crate::loom_tls::tests_support::TlsFixture::new(false, false);
+        let second = crate::loom_tls::tests_support::TlsFixture::new(false, false);
+        let a = ScopedTrust::from_pem("https://loom.test", first.ca_pem.as_bytes()).unwrap();
+        let b = ScopedTrust::from_pem("https://loom.test", second.ca_pem.as_bytes()).unwrap();
+        let build = |endpoint, trust| {
+            shared_client_with_trust(endpoint, None, "tls-test", |b| b, trust).unwrap()
+        };
+        build("https://loom.test", None);
+        build("https://loom.test", Some(&a));
+        assert_eq!(cached_client_count(), 2);
+        build("https://other.test", Some(&a));
+        assert_eq!(cached_client_count(), 2);
+        build("https://loom.test/v1/live/discover", Some(&a));
+        assert_eq!(cached_client_count(), 2);
+        build("https://loom.test", Some(&b));
+        assert_eq!(cached_client_count(), 3);
+    }
+
+    #[test]
+    fn scoped_private_ca_forces_no_redirect_after_caller_configuration() {
+        let _guard = TEST_GUARD.lock().unwrap();
+        use_system_proxy();
+        let fixture = crate::loom_tls::tests_support::TlsFixture::new(false, false);
+        let (origin, thread) = fixture.serve(Some("HTTP/1.1 302 Found\r\nLocation: https://other.test/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"));
+        let trust = ScopedTrust::from_pem(&origin, fixture.ca_pem.as_bytes()).unwrap();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let client = shared_client_with_trust(
+                &origin,
+                Some(Duration::from_secs(3)),
+                "tls-redirect",
+                |builder| {
+                    builder
+                        .no_proxy()
+                        .redirect(reqwest::redirect::Policy::limited(10))
+                },
+                Some(&trust),
+            )
+            .unwrap();
+            assert_eq!(
+                client.get(&origin).send().await.unwrap().status(),
+                reqwest::StatusCode::FOUND
+            );
+        });
+        thread.join().unwrap().unwrap();
     }
 
     /// Poisons `lock` by panicking while it is held, which is the only way a lock becomes

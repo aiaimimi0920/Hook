@@ -30,6 +30,7 @@ mod long_capture;
 mod loom_config;
 pub mod loom_connector;
 mod loom_hook;
+mod loom_tls;
 mod mouse_monitor;
 mod network_proxy;
 mod qr_projection;

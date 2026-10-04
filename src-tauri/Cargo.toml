@@ -22,6 +22,7 @@ tauri-build = { version = "2", features = [] }
 
 [dev-dependencies]
 filetime = "0.2"
+rcgen = { version = "0.13.2", default-features = false, features = ["crypto", "ring", "pem"] }
 
 [features]
 default = ["remote-surface"]
@@ -45,6 +46,8 @@ thiserror = "1"
 hound = "3"
 async-trait = "0.1"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls", "stream"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-roots = "1"
 futures-util = "0.3"
 image = "0.25.9"
 half = "2.7"

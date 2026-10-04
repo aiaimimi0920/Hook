@@ -19,6 +19,13 @@ This document records currently implemented user-facing controls. It is a manual
 verification guide, not an implementation specification. When behavior changes,
 verify the code first and update this file with the same change.
 
+Self-hosted HTTPS Loom with a private CA supports [origin-scoped process trust](SECURITY_BOUNDARIES.md#origin-scoped-loom-https-trust).
+Check async/blocking HTTP and LiveRelay/wall WSS together: the selected origin
+accepts its valid certificate, while a wrong hostname, expired/untrusted
+certificate, malformed configuration or redirect fails closed. Other origins
+retain WebPKI trust. Restart Hook after a CA change; device pairing remains
+mandatory. These TLS checks do not replace native two-machine projection proof.
+
 ## 1. Native global shortcuts
 
 These shortcuts are registered by the Tauri host and can be triggered while

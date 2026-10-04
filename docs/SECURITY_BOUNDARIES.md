@@ -17,6 +17,45 @@ This storage protection does not replace paired-device authorization, token
 expiry, revocation or the operating system's account security. Do not include
 private keys or tokens in diagnostics or ordinary application state.
 
+## Origin-scoped Loom HTTPS trust
+
+Public HTTPS Loom origins use the normal Rustls/WebPKI roots. For a self-hosted
+private CA, an operator may set both `HOOK_LOOM_TLS_ORIGIN` (one HTTPS origin,
+scheme/host/port only) and `HOOK_LOOM_TLS_CA_FILE` (an absolute certificate-only
+PEM file path) in the Hook process environment. This does not install OS roots,
+enable plaintext remote access, or change device pairing/session authority.
+
+`src-tauri/src/loom_tls.rs` owns this immutable process configuration. It reads
+at most 32769 bytes and accepts at most 32768 bytes / eight certificates; empty,
+malformed, key-containing or mixed-content files and incomplete environment
+pairs fail closed before trust-aware requests are sent. Invalid configuration
+rejects all such HTTP/WSS client construction, including loopback, rather than
+silently selecting another trust policy. Correcting or rotating it requires a
+Hook restart. Errors never print PEM content or the configured file path.
+Use a local regular file: the byte budget does not place a timeout on a stalled
+network filesystem during this one-time initialization.
+
+For example, set the process environment before starting the isolated Hook:
+
+```powershell
+$env:HOOK_LOOM_TLS_ORIGIN = "https://loom.example.test:8443"
+$env:HOOK_LOOM_TLS_CA_FILE = "C:\LoomTrust\ca.pem"
+```
+
+Only the exact canonical HTTPS origin, and its equivalent WSS origin, receives
+the additional CA. Other origins retain default WebPKI trust. Shared HTTP
+client cache keys include the configured origin and CA digest; scoped clients
+disable redirects after caller configuration. Async and blocking Loom HTTP,
+LiveRelay WSS, and wall media WSS share the same Rustls certificate, hostname
+and validity checks. Windows certificate-store changes are not this mechanism.
+Remote-image, Tea and voice clients using the proxy-only builder are unchanged.
+
+TLS termination is still an operator deployment responsibility: use a real
+HTTPS/WebSocket terminator in front of a loopback daemon, preserve device
+authorization headers, validate any external browser Origin before rewriting
+the backend Host, and never treat `LOOM_TLS_TERMINATED=1` as proof of encryption.
+Do not distribute daemon administrator tokens in remote discovery manifests.
+
 ## Remote image retrieval
 
 `src-tauri/src/native/remote_image_cache.rs` validates destinations, rejects

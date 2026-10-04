@@ -23,6 +23,8 @@ pub enum TalkConnectorError {
     ManifestRead(String),
     #[error("Talk invoke failed: {0}")]
     InvokeHttp(#[from] reqwest::Error),
+    #[error("Talk HTTP client configuration failed: {0}")]
+    InvokeClient(String),
     #[error("Talk invoke timed out after {0} ms")]
     InvokeTimeout(u64),
     #[error("Talk invoke returned HTTP {status}: {body}")]
@@ -380,7 +382,8 @@ pub async fn capture_voice_once_with_manifest(
     );
 
     let mut builder =
-        crate::network_proxy::shared_client(&endpoint, Some(Duration::from_millis(timeout_ms)))?
+        crate::network_proxy::shared_client(&endpoint, Some(Duration::from_millis(timeout_ms)))
+            .map_err(|error| TalkConnectorError::InvokeClient(error.to_string()))?
             .post(endpoint)
             .json(&envelope);
     if manifest

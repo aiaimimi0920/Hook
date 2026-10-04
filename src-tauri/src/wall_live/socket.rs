@@ -39,6 +39,8 @@ fn connect(
     authorization
         .apply_websocket(&mut request)
         .map_err(|_| "wall_pairing_required")?;
+    let connector =
+        crate::loom_tls::websocket_connector(&url).map_err(|_| "wall_tls_configuration_invalid")?;
     let addresses = (
         url.host_str().ok_or("wall_invalid_origin")?,
         url.port_or_known_default().ok_or("wall_invalid_origin")?,
@@ -58,11 +60,13 @@ fn connect(
         max_frame_size: Some(MAX_FRAME_BYTES + packet::HEADER_LEN),
         ..Default::default()
     };
-    let (socket, response) = tungstenite::client_tls_with_config(request, tcp, Some(config), None)
-        .map_err(|error| match error {
-            tungstenite::HandshakeError::Failure(error) => connect_error(error),
-            tungstenite::HandshakeError::Interrupted(_) => "wall_live_connect_failed",
-        })?;
+    let (socket, response) =
+        tungstenite::client_tls_with_config(request, tcp, Some(config), connector).map_err(
+            |error| match error {
+                tungstenite::HandshakeError::Failure(error) => connect_error(error),
+                tungstenite::HandshakeError::Interrupted(_) => "wall_live_connect_failed",
+            },
+        )?;
     if response
         .headers()
         .get(SEC_WEBSOCKET_PROTOCOL)

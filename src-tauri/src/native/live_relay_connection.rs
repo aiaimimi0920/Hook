@@ -5,6 +5,7 @@ fn connect_live_relay_transport(
     role: LiveRelayRole,
 ) -> Result<LiveRelayMediaConnection, String> {
     use std::net::{TcpStream, ToSocketAddrs};
+    let connector = crate::loom_tls::websocket_connector(url).map_err(|error| error.to_string())?;
     let addresses = (
         url.host_str().ok_or("live relay host is missing")?,
         url.port_or_known_default()
@@ -30,7 +31,7 @@ fn connect_live_relay_transport(
         max_frame_size: Some(limit),
         ..Default::default()
     };
-    let (socket, response) = tungstenite::client_tls_with_config(request, tcp, Some(config), None)
+    let (socket, response) = tungstenite::client_tls_with_config(request, tcp, Some(config), connector)
         .map_err(|_| "live relay WebSocket handshake failed")?;
     let profile = LiveRelayMediaProfile::negotiated(
         response
