@@ -86,7 +86,10 @@ npm run build
 `test:parallel` excludes only `RuntimePerformanceGates.test.ts`: its wall-clock
 budgets must not compete with other test workers. CI immediately runs that exact
 file through `test:performance` with one worker and unchanged thresholds. The
-serial `npm test` packaging gate still includes every test.
+serial `npm test` packaging gate still includes every test. It runs in
+`frontend-serial` alongside the native build and `parallel-race` jobs.
+The stable `build-windows-exe` check fails unless all three succeed and only
+then promotes the same-run candidate to `hook-portable-windows-x64`.
 
 `npm run lint` remains strict (`--max-warnings 0`) for local/release verification.
 Development CI publishes valid findings through the independent advisory workflow. `npm run test:surface-browser` drives a real Chromium through

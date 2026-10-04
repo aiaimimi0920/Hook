@@ -11,7 +11,33 @@ permissions:
   contents: read
 
 jobs:
-  build-windows-exe:
+  frontend-serial:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install npm dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Check CI cache and gate contracts
+        run: python scripts/tests/test_ci_build_gates.py
+      - name: Test effective-code-line checker
+        run: npm run test:effective-lines
+      - name: TypeScript typecheck
+        run: npm run typecheck
+      - name: TypeScript typecheck (tests)
+        run: npm run typecheck:test
+      - name: Run frontend tests
+        run: npm test
+
+  build-windows-candidate:
     runs-on: windows-latest
 
     steps:
@@ -45,18 +71,6 @@ jobs:
       - name: Install npm dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Test effective-code-line checker
-        run: npm run test:effective-lines
-
-      - name: TypeScript typecheck
-        run: npm run typecheck
-
-      - name: TypeScript typecheck (tests)
-        run: npm run typecheck:test
-
-      - name: Run frontend tests
-        run: npm test
-
       - name: Rust tests
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-rust-tests-ci.ps1
@@ -66,16 +80,49 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-hook-exe.ps1 -OutputDir "release\Hook\portable" -Force
 
+      - name: Stage unvalidated Hook build candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: hook-build-candidate
+          path: release/Hook/portable/hook.exe
+          if-no-files-found: error
+          retention-days: 1
+
+  # Preserve the required-check identity; a skipped or failed dependency is not
+  # success. Only this aggregate promotes the portable artifact after all gates.
+  build-windows-exe:
+    needs: [frontend-serial, build-windows-candidate, parallel-race]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require every product gate
+        shell: bash
+        env:
+          FRONTEND: ${{ needs.frontend-serial.result }}
+          BUILD: ${{ needs.build-windows-candidate.result }}
+          PARALLEL: ${{ needs.parallel-race.result }}
+        run: |
+          test "$FRONTEND" = success
+          test "$BUILD" = success
+          test "$PARALLEL" = success
+      - name: Download same-run candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: hook-build-candidate
+          path: candidate
       - name: Upload portable Hook EXE artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: hook-portable-windows-x64
-          path: release/Hook/portable/hook.exe
+          path: candidate/hook.exe
           if-no-files-found: error
 
   parallel-race:
     runs-on: windows-latest
     timeout-minutes: 45
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
 
     steps:
       - name: Checkout
@@ -115,6 +162,12 @@ jobs:
       # with the shipped Tauri CSP, so it needs the Playwright browser payload.
       # It lives in this job rather than the release build to keep the artifact
       # path free of the browser download.
+      - name: Cache pinned Playwright browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          key: playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
+      # Keep install and both browser gates even on a cache hit.
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
