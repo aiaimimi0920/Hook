@@ -48,6 +48,16 @@ rectangles and direct synthetic input handling keep the prompt interactive.
 
 ## 2. Frontend shortcuts
 
+### 实时投射（LiveRelay，不是二维码投射或屏幕墙）
+
+- 源端：`Ctrl+2` 创建实时截图，在其 Unit 参数面板中“发布到 Loom”。
+- 观看端：使用已配对的默认 Loom，打开支持 Surface 的 Art Unit 参数面板；等待 Surface
+  挂载后，刷新列表、选择会话、“加入观看”。缺少绑定、源未连接或正在加入时禁用加入按钮。
+- 服务端决定观看权限。加入不会请求 controller；观看窗口中的“请求控制”仍是独立操作。
+- 检查空列表、长标题/设备 ID、键盘选择、错误/重试、连续点击、面板关闭及 Surface 换代。
+  已打开窗口不因关闭参数面板而结束；未完成的加入被取消后不应留下新 viewer。
+- 原生两机、权限撤销和性能矩阵仍须按实际包验证，不把组件测试当作网络/物理显示验收。
+
 These controls are context-sensitive. Most are ignored while the event target is
 an input, textarea, or content-editable element; `Escape` remains active for
 cancel/delete semantics.

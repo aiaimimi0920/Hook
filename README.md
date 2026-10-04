@@ -57,6 +57,16 @@ annotation effects do not expose this editing capability.
 
 ## Core capabilities
 
+### Cross-device LiveRelay
+
+The Live capture Unit's **实时投射** panel publishes to the paired default Loom.
+On the receiver, open a Surface-capable Art Unit's parameter panel, refresh the
+LiveRelay list, select a session and explicitly join. This reuses the mounted
+Surface attachment and server authorization; it does not grant remote control.
+Closing the parameter panel keeps an established viewer open; closing it during
+joining cancels that pending result. See [Live capture](docs/LIVE_CAPTURE.md).
+This UI path has focused coverage; native two-device performance acceptance is pending.
+
 ### Capture
 
 - region capture through `Ctrl+1`;

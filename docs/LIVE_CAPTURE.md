@@ -18,6 +18,24 @@ Deleting experimental source does not uninstall historical candidates, browser
 registrations or already installed packages on a user's machine. Use a newly
 built candidate to exercise current behavior.
 
+## Cross-device LiveRelay entry
+
+The source Live Unit's parameter panel exposes **实时投射 → 发布到 Loom**. The receiver
+uses a Surface-capable Art Unit on its paired default Loom: open the parameter panel,
+refresh the session list, select a connected source and choose **加入观看**. A real,
+non-disposed Surface attachment is required. This is not a QR image import or a tile wall.
+
+`UnitLiveViewer.tsx` reads the mounted attachment from `surfaceStore`; the existing
+`liveRelayController.join` and native command revalidate the session and device on Loom.
+No permission is synthesized, and joining does not acquire controller ownership.
+The global controller rejects concurrent joins for the same session and admits at most
+four pending join requests. An obsolete Surface generation/attachment or a closed panel
+causes a late join to stop only its newly created relay. Established viewers remain owned
+by `LiveFeatures` and can be closed from the viewer window independently of the Art panel.
+
+This entry has component/controller coverage; real two-device networking, input grants,
+revocation and display/performance acceptance remain separate package-bound gates.
+
 ## Failure notices
 
 Failures with an existing bound Unit use that Unit's top-right notice stack.

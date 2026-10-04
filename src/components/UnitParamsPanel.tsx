@@ -5,6 +5,8 @@ import { ArtCapability, ArtParam } from "../services/protocol";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import { UnitActionsMenu } from "./UnitActionsMenu";
 import { UnitLivePublication } from "./UnitLivePublication";
+import { UnitLiveViewer } from "./UnitLiveViewer";
+import { supportsSurface } from "../services/artCapabilities";
 import { openProjection } from "../store/qrProjectionStore";
 import { UnitParamControl } from "./params/UnitParamControl";
 import { UnitParamsCandidateResults } from "./UnitParamsCandidateResults";
@@ -343,6 +345,9 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
         </Show>
 
         <UnitLivePublication unitId={props.unit.id} />
+        <Show when={isArt() && supportsSurface(props.capability)}>
+            <UnitLiveViewer unitId={props.unit.id} />
+        </Show>
         <button type="button" class="hook-terminal-btn" onClick={() => openProjection(props.unit.id)}>二维码投射</button>
 
         <UnitParamsPortRows

@@ -1,0 +1,16 @@
+.hook-unit-live-viewer {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    padding: 8px;
+    border-top: 1px solid var(--theme-border);
+    color: var(--theme-text);
+    font-size: 11px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+.hook-unit-live-viewer header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.hook-unit-live-viewer .hook-terminal-btn { min-height: 28px; font-size: 11px; }
+.hook-unit-live-viewer select { width: 100%; min-width: 0; height: 30px; cursor: pointer; }
+.hook-unit-live-viewer code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hook-unit-live-viewer :is(button, select):focus-visible { outline: 2px solid var(--theme-signal); outline-offset: 2px; }

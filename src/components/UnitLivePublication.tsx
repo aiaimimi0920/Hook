@@ -34,9 +34,9 @@ export const UnitLivePublication: Component<{ unitId: string }> = (props) => {
         if (!disposed) liveRelayActions.updateStatus(current.relayId, status);
     }
     return <Show when={capture()}>
-        <section class="hook-unit-publication" aria-label="屏幕墙发布"
+        <section class="hook-unit-publication" aria-label="实时投射发布"
             data-capture-session-id={props.unitId} data-relay-id={source()?.relayId}>
-            <strong>屏幕墙</strong>
+            <strong>实时投射</strong>
             <Show when={source()} fallback={<>
                 <span class="hook-inline-muted">将当前实时采集发布给已配对的 Loom。</span>
                 <button type="button" class="hook-terminal-btn hook-terminal-btn--active"

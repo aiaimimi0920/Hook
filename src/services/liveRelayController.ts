@@ -34,6 +34,7 @@ export function createLiveRelayController() {
     const inputQueues = new Map<string, InputQueue>();
     const recoveryAfter = new Map<string, number>();
     const publications = new Map<string, Promise<void>>();
+    const joins = new Set<string>();
     let disposed = false;
     let nextGeneration = 0;
 
@@ -203,16 +204,33 @@ export function createLiveRelayController() {
         return operation;
     };
 
-    const join = async (session: LiveRelaySessionSummary, binding: LiveRelayBinding): Promise<void> => {
-        if (disposed) return;
-        if (liveRelayViews.some((view) => view.status.liveSessionId === session.session.sessionId)) return;
-        const status = await api.joinLiveRelaySession({
-            liveSessionId: session.session.sessionId,
-            surfaceInstanceId: binding.instanceId,
-            attachmentId: binding.attachmentId,
-        });
-        if (disposed) { await api.stopLiveRelaySession(status.relayId); return; }
-        track(status, titleFor(session), session.session.frameStream);
+    const join = async (
+        session: LiveRelaySessionSummary,
+        binding: LiveRelayBinding,
+        stillCurrent: () => boolean = () => true,
+    ): Promise<void> => {
+        if (disposed || !stillCurrent()) return;
+        const sessionId = session.session.sessionId;
+        if (session.closed) throw new Error("实时投射已关闭，请刷新列表");
+        if (liveRelayViews.some((view) => view.status.liveSessionId === sessionId)) return;
+        if (joins.has(sessionId)) throw new Error("正在加入此实时投射，请稍候");
+        if (joins.size >= 4) throw new Error("同时加入的请求过多，请稍后重试");
+        joins.add(sessionId);
+        try {
+            const status = await api.joinLiveRelaySession({
+                liveSessionId: sessionId,
+                surfaceInstanceId: binding.instanceId,
+                attachmentId: binding.attachmentId,
+            });
+            // 面板关闭或绑定换代只取消本次未完成的加入，不影响已打开的观看窗口。
+            if (disposed || !stillCurrent()) {
+                await api.stopLiveRelaySession(status.relayId);
+                return;
+            }
+            track(status, titleFor(session), session.session.frameStream);
+        } finally {
+            joins.delete(sessionId);
+        }
     };
 
     const queueFor = (relayId: string): InputQueue => {

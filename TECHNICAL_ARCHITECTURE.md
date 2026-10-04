@@ -39,6 +39,14 @@ connection-owned and is not a zero-copy transport.
 The app-settings command and dialog remain implemented, but their tray entry is
 temporarily hidden.
 
+The normal LiveRelay UI shares one controller in `LiveFeatures`. `UnitLivePublication`
+publishes a local Live Unit; `UnitLiveViewer` discovers and explicitly joins from a
+Surface-capable Art parameter panel using its mounted `surfaceStore` identity.
+Join admission and late-result cleanup live in `liveRelayController`, not in a
+second transport. Closing the panel cancels only an unfinished join; established
+viewer windows retain the global owner. Native/Loom attachment and viewer authorization
+remain authoritative, and input ownership is acquired separately.
+
 ## 2. Repository layout
 
 ```text
