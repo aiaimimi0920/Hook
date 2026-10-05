@@ -23,7 +23,7 @@ mod live_relay_jpeg_tests {
     #[test]
     fn live_relay_jpeg_preserves_capture_bytes_and_legacy_pixels() {
         let frame = capture();
-        let jpeg = encode_live_relay_capture_frame(&frame, LiveRelayMediaProfile::Jpeg).unwrap();
+        let jpeg = encode_live_relay_capture_frame(&frame, LiveRelayMediaProfile::Jpeg, 1).unwrap();
         assert_eq!(&jpeg[64..], &FIXTURE[64..]);
         let decoded = decode_live_relay_binary_frame("relay:a", "live:a", &jpeg).unwrap();
         assert_eq!(decoded.descriptor.codec, "jpeg");
@@ -31,7 +31,8 @@ mod live_relay_jpeg_tests {
             (decoded.descriptor.width, decoded.descriptor.height),
             (64, 32)
         );
-        let raw = encode_live_relay_capture_frame(&frame, LiveRelayMediaProfile::Legacy).unwrap();
+        let raw =
+            encode_live_relay_capture_frame(&frame, LiveRelayMediaProfile::Legacy, 1).unwrap();
         assert_eq!(raw[57], 1);
         let raw = decode_live_relay_binary_frame("relay:a", "live:a", &raw).unwrap();
         let mut expected = image::load_from_memory(&frame.bytes)
@@ -62,8 +63,9 @@ mod live_relay_jpeg_tests {
         }
         assert!(decode_live_relay_binary_frame("a", "b", &FIXTURE[..FIXTURE.len() - 1]).is_err());
         let mut frame = capture();
+        assert!(encode_live_relay_capture_frame(&frame, LiveRelayMediaProfile::Jpeg, 0).is_err());
         frame.descriptor.width = 63;
-        assert!(encode_live_relay_capture_frame(&frame, LiveRelayMediaProfile::Jpeg).is_err());
+        assert!(encode_live_relay_capture_frame(&frame, LiveRelayMediaProfile::Jpeg, 1).is_err());
         assert!(live_relay_jpeg_decoder(&FIXTURE[64..], 16_384, 16_384).is_err());
     }
 

@@ -369,6 +369,8 @@ mod live_relay_viewer_lifecycle_tests {
     use super::*;
     include!("native/tests/live_relay_viewer_http_fixture.rs");
     include!("native/tests/live_relay_viewer_lifecycle.rs");
+    include!("native/tests/live_relay_source_epoch_fixture.rs");
+    include!("native/tests/live_relay_source_epoch.rs");
     #[cfg(feature = "remote-surface")]
     include!("native/tests/live_relay_media_close_fixture.rs");
     #[cfg(feature = "remote-surface")]

@@ -32,6 +32,8 @@ fn spawn_live_relay_viewer_worker(
 }
 
 fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureSession>) {
+    // Loom owns this epoch; local WGC generations can change without a new session.
+    let session_epoch = relay.state.lock().map(|state| state.epoch).unwrap_or(0);
     let mut last_frame_id = 0_u64;
     while !relay.stop.load(Ordering::SeqCst) {
         if live_relay_capture_ended(&capture) {
@@ -76,13 +78,14 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
                 .ok()
                 .and_then(|frames| frames.clone_latest_after(last_frame_id));
             if let Some(frame) = frame {
-                let network_frame = match encode_live_relay_capture_frame(&frame, profile) {
-                    Ok(frame) => frame,
-                    Err(error) => {
-                        mark_live_relay_recovering(&relay, "source_frame_invalid", error);
-                        break;
-                    }
-                };
+                let network_frame =
+                    match encode_live_relay_capture_frame(&frame, profile, session_epoch) {
+                        Ok(frame) => frame,
+                        Err(error) => {
+                            mark_live_relay_recovering(&relay, "source_frame_invalid", error);
+                            break;
+                        }
+                    };
                 if relay.stop.load(Ordering::SeqCst)
                     || relay.reconnect.load(Ordering::SeqCst)
                     || live_relay_capture_ended(&capture)
@@ -100,7 +103,7 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
                 }
                 last_frame_id = frame.descriptor.frame_id;
                 if let Ok(mut state) = relay.state.lock() {
-                    state.mark_frame(frame.descriptor.epoch, last_frame_id);
+                    state.mark_frame(session_epoch, last_frame_id);
                 }
                 last_ping = Instant::now();
             } else if last_ping.elapsed() >= Duration::from_secs(2) {
