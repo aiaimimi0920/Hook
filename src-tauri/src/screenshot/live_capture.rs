@@ -61,6 +61,14 @@ pub(crate) fn spawn_live_capture_worker(
     stop_rx: std::sync::mpsc::Receiver<()>,
 ) -> Result<std::thread::JoinHandle<()>, String> {
     let reservation = reserve_live_source(&mut config)?;
+    // 在会话可发布前注册预算；不依赖新线程何时首次获得调度。
+    let (frame_ready_tx, frame_ready_rx) = std::sync::mpsc::sync_channel(1);
+    let mailbox = std::sync::Arc::new(FrameMailbox::new(
+        &config.session_id,
+        config.target_fps,
+        dropped_frames.clone(),
+        frame_ready_tx,
+    ));
     std::thread::Builder::new()
         .name(format!("hook-live-capture-{}", config.session_id))
         .spawn(move || {
@@ -71,6 +79,8 @@ pub(crate) fn spawn_live_capture_worker(
                 frames.clone(),
                 dropped_frames,
                 stop_rx,
+                mailbox,
+                frame_ready_rx,
             ) {
                 append_runtime_log_line(&format!(
                     "live_capture_failed :: code={code} detail={detail}"
@@ -97,14 +107,9 @@ fn run_live_capture_worker(
     frames: std::sync::Arc<std::sync::Mutex<LiveCaptureFrameBuffer>>,
     dropped_frames: std::sync::Arc<AtomicU64>,
     stop_rx: std::sync::mpsc::Receiver<()>,
+    mailbox: std::sync::Arc<FrameMailbox>,
+    frame_ready_rx: std::sync::mpsc::Receiver<()>,
 ) -> Result<(), (&'static str, &'static str, String)> {
-    let (frame_ready_tx, frame_ready_rx) = std::sync::mpsc::sync_channel(1);
-    let mailbox = std::sync::Arc::new(FrameMailbox::new(
-        &config.session_id,
-        config.target_fps,
-        dropped_frames.clone(),
-        frame_ready_tx,
-    ));
     let item_closed = std::sync::Arc::new(AtomicBool::new(false));
     let mut epoch = 1u64;
     let mut frame_id = 0u64;

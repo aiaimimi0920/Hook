@@ -6,9 +6,19 @@ fn spawn_live_relay_source_worker(
     relay: Arc<LiveRelaySession>,
     capture: Arc<LiveCaptureSession>,
 ) -> Result<std::thread::JoinHandle<()>, String> {
+    let capture_id = capture
+        .state
+        .lock()
+        .map_err(|_| "live capture state poisoned")?
+        .session_id
+        .clone();
+    let encoded = crate::live_gpu::work_budget::EncodedFrameConsumer::acquire(&capture_id)?;
     std::thread::Builder::new()
         .name("hook-live-relay-source".to_owned())
-        .spawn(move || run_live_relay_source(relay, capture))
+        .spawn(move || {
+            let _encoded = encoded;
+            run_live_relay_source(relay, capture);
+        })
         .map_err(|error| format!("spawn live relay source worker: {error}"))
 }
 

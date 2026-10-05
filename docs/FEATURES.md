@@ -152,7 +152,9 @@ gate must prove native pixels plus the existing Unit/editor/input behavior;
 ordinary browser screenshots and submission counters alone do not prove native
 compositor visibility or monitor FPS. Copy/save/native Shift-drag can request a
 bounded lossless GPU snapshot, with stale-result rejection and exported-file cache
-invalidation. Healthy native presentation skips continuous CPU readback/JPEG;
+invalidation. Healthy native presentation skips continuous CPU readback/JPEG when
+no relay publisher needs encoded frames; publishing keeps budgeted JPEG production
+without disabling the native plane or multiplying CPU permits.
 editing, Art, stop and unsupported composition retain ordinary Unit behavior.
 The gate also covers static-source fallback, capture health without encoded frames,
 and an animated-source CPU sample; submission counts are not monitor FPS.
@@ -179,7 +181,7 @@ and an animated-source CPU sample; submission counts are not monitor FPS.
   use two full-source buffers. GPU contention retains/retries the newest owned
   texture, not synchronous CPU readback. Automatic fallback is globally serialized
   before staging/Map through JPEG and uses a pixel/rate budget plus measured cooldown.
-  Hidden/offscreen consumers keep 1 FPS capture health but no automatic JPEG work;
+  Hidden/offscreen consumers without relay publication keep 1 FPS capture health but no automatic JPEG work;
   showing them resumes budgeted work. Explicit user snapshots remain independently bounded.
   Windows WIC performs full-resolution quality-82 JPEG encoding with 4:4:4 chroma;
   a logged software fallback preserves capture if the system codec fails.

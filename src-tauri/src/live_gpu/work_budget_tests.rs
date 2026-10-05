@@ -12,6 +12,7 @@ fn fixture(count: usize, pixels: u64) -> (Budget, Instant) {
                 output_pixels: pixels,
                 shared_source: None,
                 visible: true,
+                encoded_consumers: Arc::new(()),
                 ticket: None,
                 requested_at: now,
             },
@@ -69,6 +70,57 @@ fn hidden_and_abandoned_requests_cannot_starve_visible_consumers() {
         .admit("0", 100, now + Duration::from_secs(1))
         .is_none());
     assert!(budget.demands["0"].ticket.is_none());
+}
+
+#[test]
+fn hidden_encoded_consumer_keeps_capture_and_cpu_admission_active() {
+    let (mut budget, now) = fixture(1, 100);
+    budget.demands.get_mut("0").unwrap().visible = false;
+    let _consumer = EncodedFrameConsumer::for_demand(&budget.demands["0"]);
+    assert!(budget.interval("0") < Duration::from_secs(1));
+    assert_eq!(budget.work(), (60.0, 6000.0, 6000.0));
+    assert!(budget.admit("0", 100, now).is_some());
+}
+
+#[test]
+fn encoded_demand_is_reference_counted_and_scoped_to_capture_registration() {
+    let (budget, _) = fixture(1, 100);
+    let shared = Arc::new(Mutex::new(budget));
+    let owner = CaptureBudget {
+        id: "0".into(),
+        shared: shared.clone(),
+    };
+    assert!(!owner.needs_encoded_frames());
+    let first = EncodedFrameConsumer::for_demand(&shared.lock().unwrap().demands["0"]);
+    let second = EncodedFrameConsumer::for_demand(&shared.lock().unwrap().demands["0"]);
+    assert!(owner.needs_encoded_frames());
+    drop(first);
+    assert!(owner.needs_encoded_frames());
+    drop(second);
+    assert!(!owner.needs_encoded_frames());
+    let old = EncodedFrameConsumer::for_demand(&shared.lock().unwrap().demands["0"]);
+    let (replacement, _) = fixture(1, 100);
+    *shared.lock().unwrap() = replacement;
+    assert!(!owner.needs_encoded_frames());
+    let current = EncodedFrameConsumer::for_demand(&shared.lock().unwrap().demands["0"]);
+    drop(old);
+    assert!(owner.needs_encoded_frames());
+    drop(current);
+    assert!(!owner.needs_encoded_frames());
+}
+
+#[test]
+fn abandoned_worker_closure_releases_demand_and_hidden_capture_returns_to_idle() {
+    let (mut budget, now) = fixture(1, 100);
+    budget.demands.get_mut("0").unwrap().visible = false;
+    let consumer = EncodedFrameConsumer::for_demand(&budget.demands["0"]);
+    let pending_worker = move || drop(consumer);
+    assert!(budget.demands["0"].encoded_required());
+    drop(pending_worker);
+    assert_eq!(budget.interval("0"), Duration::from_secs(1));
+    assert_eq!(budget.work(), (1.0, 100.0, 100.0));
+    assert!(budget.admit("0", 100, now).is_none());
+    assert!(EncodedFrameConsumer::acquire("missing-encoded-demand-test").is_err());
 }
 
 #[test]

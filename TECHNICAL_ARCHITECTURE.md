@@ -329,8 +329,14 @@ clock. Callbacks never Map or encode; contended native submissions retain one
 owned texture and transfer it later without overwriting a newer native frame.
 Startup/fault/unsupported-layout fallback acquires one process-wide CPU permit
 before staging/Map and holds it through JPEG. The permit imposes pixel/rate and
-measured wall-time cooldown budgets. Hidden/offscreen consumers retain source
-health at 1 FPS without JPEG production. `liveGpuPreviewScheduler.ts` supplies one
+measured wall-time cooldown budgets. Each source relay worker holds an
+`EncodedFrameConsumer` lease in `work_budget.rs`, including during reconnect.
+The capture registration owns its identity; worker exit or failed spawn releases
+the lease without affecting other publishers or a replacement capture. Encoded
+demand keeps capture/CPU admission active independently of local visibility and
+bypasses only GPU-only JPEG suppression, not the shared resource limits.
+Hidden/offscreen consumers without that demand retain source health at 1 FPS
+without JPEG production. `liveGpuPreviewScheduler.ts` supplies one
 layout lease clock and a lazy shared geometry sample; CPU compatibility and GPU
 fault modes continue publishing visibility demand.
 Retained textures restore a static source even without another WGC update.

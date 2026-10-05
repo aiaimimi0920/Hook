@@ -25,6 +25,7 @@ use super::{worker, Layout};
 
 // Both probes share the process-wide compositor; their owned HWND lifetimes cannot overlap.
 static PROBE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+mod encoded_demand_tests;
 mod shared_source_tests;
 
 struct OwnedWindows(Vec<HWND>, windows::Win32::UI::HiDpi::DPI_AWARENESS_CONTEXT);
@@ -374,6 +375,8 @@ fn native_capture_worker_suppresses_cpu_and_restores_static_fallback() {
         stop_rx,
     )
     .unwrap();
+    let startup_demand = super::work_budget::EncodedFrameConsumer::acquire(id).unwrap();
+    drop(startup_demand);
     let _capture = CaptureGuard(crate::LiveCaptureSession {
         state: state.clone(),
         frames: frames.clone(),
@@ -421,6 +424,8 @@ fn native_capture_worker_suppresses_cpu_and_restores_static_fallback() {
         before.frame_id < latest.cpu_readbacks_skipped,
         "JPEG must not run in parallel for every frame"
     );
+    encoded_demand_tests::exercise(source, target, id, layout, &_capture.0);
+    let before = state.lock().unwrap().snapshot(0);
     worker::configure(target.0 as usize, id, None).unwrap();
     let deadline = Instant::now() + Duration::from_secs(3);
     let restored = loop {

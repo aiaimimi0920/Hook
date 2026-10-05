@@ -95,7 +95,7 @@ Actual executable/process SHA binding is external; these counters are not displa
   encoding, and decode-before-display presentation. Actual rate depends on source
   updates, region size, hardware, and concurrent captures; queues remain bounded;
 - multiple Live sources share a capture pixel/rate budget and one automatic CPU
-  readback/encode permit. Hidden/offscreen views reduce capture to 1 FPS and pause
+  readback/encode permit. Hidden/offscreen views without a relay publisher reduce capture to 1 FPS and pause
   JPEG production; visible unsupported effects use bounded-rate fallback rather
   than unrestricted CPU pipelines. Layout polling shares one clock and Unit
   geometry sample. Same-window regions now [share one WGC source](docs/LIVE_SHARED_SOURCE_CAPTURE.md)
@@ -104,7 +104,9 @@ Actual executable/process SHA binding is external; these counters are not displa
   WGC textures into native swapchains without JPEG on that display branch. The
   copy/save and native Shift-drag export can request lossless GPU snapshots. The
   ordinary JPEG branch pauses CPU readback/encoding while GPU presentation is
-  healthy. Unsupported composition uses fresh decoded fallback pixels; set
+  healthy and no relay publisher needs encoded frames. Publishing retains budgeted JPEG
+  production independently of local visibility, without disabling GPU preview.
+  Unsupported composition uses fresh decoded fallback pixels; set
   `HOOK_LIVE_GPU_PREVIEW=0` to force JPEG compatibility. This is not an FPS guarantee;
 - the local live view starts at the selected screen position and contains only
   the current pixels, a theme-green border, and theme-yellow move corners.

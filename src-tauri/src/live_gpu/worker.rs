@@ -248,7 +248,7 @@ pub(crate) fn fallback(
         let Some(slot) = slots.get(id) else {
             return Ok(None);
         };
-        if slot.cpu_suppressed() {
+        if slot.cpu_suppressed() && !budget.needs_encoded_frames() {
             budget.cancel_cpu();
             return Ok(None);
         }
