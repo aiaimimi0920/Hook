@@ -15,6 +15,15 @@ Hook's default Cargo feature set includes `remote-surface`. It provides:
 - the long-poll `GET /v1/surfaces/stream` client;
 - strict Surface stream protocol and reset handling.
 
+Device-authorized Surface actions converge through that same device-filtered
+stream. Hook binds the acknowledgement to the submitted instance/event/request,
+waits for terminal success, then recovers the current attachment snapshot. Old
+generations, other attachments and unrelated results cannot complete the action;
+failure, lost stream history and the 25-second deadline remain explicit errors.
+The administrator-only full instance lookup is not opened to device credentials.
+Event-only Surface Arts do not receive generic parameter/upstream execution;
+hybrid Arts that declare formal execution keep the ordinary execution path.
+
 On Windows, the Ed25519 private key is encrypted at rest for the current user
 with DPAPI. A valid legacy schema-1 plaintext identity is migrated atomically to
 protected schema 2 on first read. Older Hook builds cannot read schema 2; a

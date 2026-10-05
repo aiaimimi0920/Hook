@@ -23,6 +23,7 @@ include!("loom_hook/remote_surface_listener.rs");
 include!("loom_hook/handshake.rs");
 include!("loom_hook/action_dispatch.rs");
 include!("loom_hook/surface_event.rs");
+include!("loom_hook/surface_event_stream.rs");
 include!("loom_hook/surface_attachment.rs");
 include!("loom_hook/surface_control.rs");
 include!("loom_hook/resource_transfer.rs");
@@ -37,6 +38,7 @@ mod loom_hook_listener_subscription_tests {
     include!("loom_hook/tests/delivery.rs");
     include!("loom_hook/tests/hardening.rs");
     include!("loom_hook/tests/routing.rs");
+    include!("loom_hook/tests/surface_event_stream.rs");
 }
 
 #[cfg(test)]

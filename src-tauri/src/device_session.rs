@@ -60,6 +60,14 @@ impl fmt::Debug for DeviceSessionAuthorization {
 }
 
 impl DeviceSessionAuthorization {
+    pub(crate) fn uses_device_session(&self) -> bool {
+        #[cfg(feature = "remote-surface")]
+        if matches!(&self.credential, SurfaceRequestCredential::Device(_)) {
+            return true;
+        }
+        false
+    }
+
     #[cfg(test)]
     pub(crate) fn none_for_test(device_id: &str) -> Self {
         Self {
