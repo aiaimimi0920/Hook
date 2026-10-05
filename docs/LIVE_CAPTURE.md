@@ -52,6 +52,13 @@ and actual executable/process SHA binding; these counters are not physical displ
 
 ## Failure notices
 
+WGC may stop emitting frames when a captured window is static. After a valid
+encoded image, silence without callback errors preserves the capture owner,
+latest image and epoch rather than restarting every five seconds. Initial-frame
+timeouts and callback failures still recover; source closure, HWND identity and
+geometry checks remain active while idle. This does not complete LiveRelay epoch
+coordination after genuine device loss or resize recovery.
+
 Failures with an existing bound Unit use that Unit's top-right notice stack.
 An unbound failure, or a failure whose asynchronous owner was deleted, uses the
 last remaining ordinary sticker. An explicitly bound Art node keeps its notice;

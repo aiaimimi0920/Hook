@@ -16,6 +16,9 @@ mod handoff {
 mod shared {
     include!("live_shared_source.rs");
 }
+mod idle {
+    include!("live_capture_idle.rs");
+}
 pub(crate) fn live_shared_pool_count() -> usize {
     shared::active_pool_count()
 }
@@ -286,6 +289,10 @@ fn run_live_capture_worker(
             }
             if last_frame_at.elapsed() >= LIVE_CAPTURE_FRAME_TIMEOUT {
                 let errors = mailbox.take_errors();
+                if !idle::requires_idle_recovery(encoded_at != 0, errors) {
+                    last_frame_at = std::time::Instant::now();
+                    continue;
+                }
                 mark_recovering(&state, epoch, "frame_timeout", "实时画面超时，正在恢复");
                 append_runtime_log_line(&format!(
                     "live_capture_frame_timeout :: session={} callback_errors={errors}",
