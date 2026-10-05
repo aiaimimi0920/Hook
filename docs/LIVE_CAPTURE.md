@@ -34,7 +34,10 @@ causes a late join to stop only its newly created relay. Established viewers rem
 by `LiveFeatures` and can be closed from the viewer window independently of the Art panel.
 
 Late join begins at the exact acknowledged `viewer_joined` event rather than
-replaying pre-join control history. If that anchor or subsequent events are missing,
+replaying pre-join control history. The same attachment snapshot initializes each
+UIA observation's latest sequence before workers start; subsequent updates must
+still be contiguous. Invalid, duplicate or oversized observation snapshots fail
+joining. If that anchor or subsequent events are missing,
 joining fails instead of silently skipping required control events. A source stop
 is confirmed through the authorized session snapshot; the viewer then closes and
 clears its last pixels. A temporary transport failure alone keeps recovery available.

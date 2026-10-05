@@ -78,6 +78,83 @@ fn late_join_anchors_to_its_ack_and_preserves_subsequent_events() {
     assert!(relay.snapshot().unwrap().error_code.is_none());
 }
 
+fn viewer_observation(sequence: u64) -> serde_json::Value {
+    serde_json::json!({
+        "observationId": "uia:test", "sequence": sequence, "state": "stable",
+        "source": "ui_automation", "confidence": "exact", "observedAtMs": 1,
+        "locator": { "automationId": "target", "controlType": "Text", "ancestorPath": [] },
+        "value": { "name": "Frame: 501" }
+    })
+}
+
+#[test]
+fn late_join_hydrates_observation_sequence_and_still_rejects_gaps() {
+    let mut attached = viewer_snapshot(false);
+    attached["observations"] = serde_json::json!([viewer_observation(501)]);
+    let mut value = joined_events();
+    value["events"][2]["messageType"] = serde_json::json!("observation");
+    value["events"][2]["payload"] = viewer_observation(502);
+    let mut events = parse_live_relay_events_response(value, 0).unwrap();
+    let mut cursor =
+        live_viewer_join_cursor(&events, &attached, "live:test", "viewer:test").unwrap();
+    let relay = viewer_relay("http://127.0.0.1:1".to_owned());
+    {
+        let mut state = relay.state.lock().unwrap();
+        state.observation_capabilities = vec!["uia_tree".to_owned()];
+        state.observations = parse_live_viewer_observations(&attached).unwrap();
+    }
+    refresh_live_observation_summary(&relay).unwrap();
+    assert_eq!(relay.snapshot().unwrap().observation_state, "stable");
+    events.events.retain(|event| event.sequence > cursor);
+    events.reset = false;
+    apply_live_relay_events(&relay, &events, &mut cursor).unwrap();
+    assert_eq!(relay.snapshot().unwrap().observations[0].sequence, 502);
+    assert_eq!(cursor, 302);
+    assert!(!relay.snapshot().unwrap().controller_owned);
+    assert!(apply_live_relay_observation_event(&relay, &viewer_observation(504)).is_err());
+    assert!(apply_live_relay_observation_event(&relay, &viewer_observation(502)).is_err());
+    let mut unknown = viewer_observation(2);
+    unknown["observationId"] = serde_json::json!("uia:new");
+    assert!(apply_live_relay_observation_event(&relay, &unknown).is_err());
+    apply_live_relay_observation_event(&relay, &viewer_observation(503)).unwrap();
+    assert_eq!(relay.snapshot().unwrap().observations[0].sequence, 503);
+}
+
+#[test]
+fn late_join_rejects_invalid_duplicate_or_oversized_observation_snapshots() {
+    for mutation in 0..8 {
+        let mut attached = viewer_snapshot(false);
+        attached["observations"] = serde_json::json!([viewer_observation(501)]);
+        match mutation {
+            0 => {
+                attached.as_object_mut().unwrap().remove("observations");
+            }
+            1 => attached["observations"] = serde_json::Value::Null,
+            2 => attached["observations"] = serde_json::json!(vec![viewer_observation(501); 2]),
+            3 => {
+                attached["observations"] =
+                    serde_json::json!(vec![viewer_observation(501); LIVE_OBSERVATION_LIMIT + 1])
+            }
+            4 => attached["observations"][0]["sequence"] = serde_json::json!(0),
+            5 => attached["observations"][0]["state"] = serde_json::json!("stale"),
+            6 => attached["observations"][0]["invented"] = serde_json::json!(true),
+            _ => {
+                attached["observations"][0]["value"] =
+                    serde_json::json!("x".repeat(LIVE_OBSERVATION_VALUE_LIMIT + 1))
+            }
+        }
+        assert!(
+            parse_live_viewer_observations(&attached).is_err(),
+            "mutation {mutation}"
+        );
+    }
+    let mut attached = viewer_snapshot(false);
+    attached["observations"] = serde_json::json!([]);
+    assert!(parse_live_viewer_observations(&attached)
+        .unwrap()
+        .is_empty());
+}
+
 #[test]
 fn late_join_rejects_missing_anchor_gaps_foreign_epochs_and_wrong_ack() {
     for mutation in 0..6 {

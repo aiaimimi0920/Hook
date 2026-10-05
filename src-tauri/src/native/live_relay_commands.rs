@@ -98,6 +98,8 @@ async fn join_live_relay_session(
     );
     runtime_state.trigger_registrations = trigger_registrations;
     runtime_state.trigger_audits = trigger_audits;
+    // 使用与 viewer_joined 游标同一锁内快照，在 worker 启动前恢复每个观察的序号。
+    runtime_state.observations = parse_live_viewer_observations(&remote)?;
     let relay = Arc::new(LiveRelaySession {
         relay_id: next_live_relay_id(LiveRelayRole::Viewer),
         live_session_id: request.live_session_id,
@@ -120,6 +122,7 @@ async fn join_live_relay_session(
         control_sequence: Mutex::new(1),
         input_sequence: Mutex::new(0),
     });
+    refresh_live_observation_summary(&relay)?;
     let worker = spawn_live_relay_viewer_worker(Arc::clone(&relay))?;
     *relay
         .join

@@ -1,4 +1,29 @@
 // viewer 的初始事件边界及权威关闭状态；兼容既有 Loom，不把断网/404 当作关闭。
+fn parse_live_viewer_observations(
+    attached: &serde_json::Value,
+) -> Result<std::collections::BTreeMap<String, LiveRelayObservation>, String> {
+    let values = attached
+        .get("observations")
+        .and_then(serde_json::Value::as_array)
+        .ok_or("Loom viewer attachment has no observation snapshot")?;
+    if values.len() > LIVE_OBSERVATION_LIMIT {
+        return Err("Loom viewer observation snapshot exceeds the limit".to_owned());
+    }
+    let mut observations = std::collections::BTreeMap::new();
+    for value in values {
+        let observation: LiveRelayObservation = serde_json::from_value(value.clone())
+            .map_err(|error| format!("parse Loom viewer observation snapshot: {error}"))?;
+        observation.validate()?;
+        if observations
+            .insert(observation.observation_id.clone(), observation)
+            .is_some()
+        {
+            return Err("Loom viewer observation snapshot repeats an id".to_owned());
+        }
+    }
+    Ok(observations)
+}
+
 async fn bootstrap_live_viewer_cursor(
     base_url: &str,
     authorization: &crate::device_session::DeviceSessionAuthorization,

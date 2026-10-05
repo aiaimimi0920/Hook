@@ -54,7 +54,9 @@ binding remains an external acceptance step, described in `docs/LIVE_RELAY_DIAGN
 `native/live_relay_viewer_state.rs` owns viewer control bootstrap and terminal
 confirmation. Bootstrap anchors to the exact attach revision's `viewer_joined`
 event; only pre-join history is skipped, and missing post-join events still fail
-closed. On control poll failure, an authenticated, identity/epoch/member-checked
+closed. The same attach snapshot seeds the bounded observation map before either
+worker starts, preserving strict per-observation ordering after late join. On
+control poll failure, an authenticated, identity/epoch/member-checked
 snapshot must explicitly report `closed=true` before stopping workers and clearing
 pixels. Transport errors and generic 404 responses remain recoverable. Terminal
 cleanup and frame acceptance share the state-to-frame lock order so late media or
