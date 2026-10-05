@@ -120,6 +120,9 @@ fn run_live_relay_control(relay: Arc<LiveRelaySession>) {
                 }
             }
             Err(error) => {
+                if close_live_viewer_if_terminal(&relay).unwrap_or(false) {
+                    break;
+                }
                 fail_live_relay_control(&relay, "control_poll_failed", error);
                 live_relay_reconnect_delay(&relay.stop);
             }
@@ -143,6 +146,13 @@ fn poll_live_relay_events_blocking(
         relay.authorization.apply_blocking(client.get(url)),
         "poll Loom live control events",
     )?;
+    parse_live_relay_events_response(value, after)
+}
+
+fn parse_live_relay_events_response(
+    value: serde_json::Value,
+    after: u64,
+) -> Result<LiveRelayEventsResponse, String> {
     let response: LiveRelayEventsResponse = serde_json::from_value(value)
         .map_err(|error| format!("parse Loom live control events: {error}"))?;
     if response.protocol_version != LIVE_RELAY_PROTOCOL_VERSION || response.next < after {
@@ -355,6 +365,9 @@ fn clear_live_relay_authority(relay: &LiveRelaySession) {
 fn fail_live_relay_control(relay: &LiveRelaySession, code: &str, error: impl Into<String>) {
     clear_live_relay_authority(relay);
     if let Ok(mut state) = relay.state.lock() {
+        if relay.stop.load(Ordering::SeqCst) {
+            return;
+        }
         state.error_code = Some(code.to_owned());
         state.error_message = Some(sanitize_live_relay_error(error.into()));
     }

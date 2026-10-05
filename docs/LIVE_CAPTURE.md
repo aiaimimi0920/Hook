@@ -33,6 +33,12 @@ four pending join requests. An obsolete Surface generation/attachment or a close
 causes a late join to stop only its newly created relay. Established viewers remain owned
 by `LiveFeatures` and can be closed from the viewer window independently of the Art panel.
 
+Late join begins at the exact acknowledged `viewer_joined` event rather than
+replaying pre-join control history. If that anchor or subsequent events are missing,
+joining fails instead of silently skipping required control events. A source stop
+is confirmed through the authorized session snapshot; the viewer then closes and
+clears its last pixels. A temporary transport failure alone keeps recovery available.
+
 This entry has component/controller coverage; real two-device networking, input grants,
 revocation and display/performance acceptance remain separate package-bound gates.
 

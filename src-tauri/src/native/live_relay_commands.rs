@@ -85,6 +85,8 @@ async fn join_live_relay_session(
     let epoch = validate_live_session_snapshot(preview, &request.live_session_id)?;
     let remote = attach_live_viewer_http(&base_url, &authorization, &request, epoch).await?;
     let epoch = validate_live_session_snapshot(&remote, &request.live_session_id)?;
+    let event_cursor =
+        bootstrap_live_viewer_cursor(&base_url, &authorization, &request, &remote).await?;
     let observation_capabilities = parse_live_observation_capabilities(&remote)?;
     let (trigger_registrations, trigger_audits) = parse_live_trigger_snapshot(&remote)?;
     let mut runtime_state = LiveRelayRuntimeState::starting(
@@ -106,7 +108,7 @@ async fn join_live_relay_session(
         authorization,
         publication: None,
         recovery_busy: AtomicBool::new(false),
-        event_cursor: std::sync::atomic::AtomicU64::new(0),
+        event_cursor: std::sync::atomic::AtomicU64::new(event_cursor),
         capture: None,
         state: Arc::new(Mutex::new(runtime_state)),
         frames: Arc::new(Mutex::new(LiveRelayFrameBuffer::new())),
@@ -257,11 +259,15 @@ fn change_live_relay_controller(
     }
     let relay = relays.get(&request.relay_id)?;
     change_live_controller_blocking(&relay, request.action, request.lease_duration_ms)?;
-    relay
+    let mut state = relay
         .state
         .lock()
-        .map_err(|_| "live relay state poisoned".to_owned())?
-        .controller_owned = matches!(request.action, LiveRelayControlAction::Acquire);
+        .map_err(|_| "live relay state poisoned".to_owned())?;
+    if relay.stop.load(Ordering::SeqCst) {
+        return Err("live relay session is stopping".to_owned());
+    }
+    state.controller_owned = matches!(request.action, LiveRelayControlAction::Acquire);
+    drop(state);
     relay.snapshot()
 }
 

@@ -255,17 +255,19 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
 
 fn accept_live_relay_viewer_frame(relay: &LiveRelaySession, bytes: &[u8]) -> Result<(), String> {
     let frame = decode_live_relay_binary_frame(&relay.relay_id, &relay.live_session_id, bytes)?;
+    // 与 terminal 清理共用 state → frames 锁序，迟到帧不能重新填充已关闭的槽。
+    let mut state = relay
+        .state
+        .lock()
+        .map_err(|_| "live relay state poisoned".to_owned())?;
+    if relay.stop.load(Ordering::SeqCst) || state.connection_state == "closed" {
+        return Err("live relay viewer is closed".to_owned());
+    }
+    if frame.descriptor.epoch < state.epoch
+        || (frame.descriptor.epoch == state.epoch
+            && frame.descriptor.frame_id <= state.last_frame_id)
     {
-        let state = relay
-            .state
-            .lock()
-            .map_err(|_| "live relay state poisoned".to_owned())?;
-        if frame.descriptor.epoch < state.epoch
-            || (frame.descriptor.epoch == state.epoch
-                && frame.descriptor.frame_id <= state.last_frame_id)
-        {
-            return Err("Loom delivered a stale or duplicate live frame".to_owned());
-        }
+        return Err("Loom delivered a stale or duplicate live frame".to_owned());
     }
     let epoch = frame.descriptor.epoch;
     let frame_id = frame.descriptor.frame_id;
@@ -274,11 +276,7 @@ fn accept_live_relay_viewer_frame(relay: &LiveRelaySession, bytes: &[u8]) -> Res
         .lock()
         .map_err(|_| "live relay frame buffer poisoned".to_owned())?
         .push(frame);
-    relay
-        .state
-        .lock()
-        .map_err(|_| "live relay state poisoned".to_owned())?
-        .mark_frame(epoch, frame_id);
+    state.mark_frame(epoch, frame_id);
     Ok(())
 }
 
@@ -320,13 +318,17 @@ fn connect_live_relay_socket(
 
 fn mark_live_relay_connected(relay: &LiveRelaySession) {
     if let Ok(mut state) = relay.state.lock() {
-        state.mark_connected();
+        if !relay.stop.load(Ordering::SeqCst) {
+            state.mark_connected();
+        }
     }
 }
 
 fn mark_live_relay_recovering(relay: &LiveRelaySession, code: &str, message: impl Into<String>) {
     if let Ok(mut state) = relay.state.lock() {
-        state.mark_recovering(code, message);
+        if !relay.stop.load(Ordering::SeqCst) {
+            state.mark_recovering(code, message);
+        }
     }
 }
 
