@@ -65,6 +65,11 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
                 );
                 break;
             }
+            // Consume an available terminal Close before attempting another publication.
+            if let Err(error) = service_live_relay_source_socket(&relay, &mut socket) {
+                mark_live_relay_recovering(&relay, "source_read_failed", error);
+                break;
+            }
             let frame = capture
                 .frames
                 .lock()
@@ -85,6 +90,7 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
                     break;
                 }
                 if let Err(error) = socket.send(tungstenite::Message::Binary(network_frame)) {
+                    let _ = service_live_relay_source_socket(&relay, &mut socket);
                     mark_live_relay_recovering(
                         &relay,
                         "source_send_failed",
@@ -99,6 +105,7 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
                 last_ping = Instant::now();
             } else if last_ping.elapsed() >= Duration::from_secs(2) {
                 if socket.send(tungstenite::Message::Ping(Vec::new())).is_err() {
+                    let _ = service_live_relay_source_socket(&relay, &mut socket);
                     mark_live_relay_recovering(
                         &relay,
                         "source_ping_failed",
@@ -107,10 +114,6 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
                     break;
                 }
                 last_ping = Instant::now();
-            }
-            if let Err(error) = service_live_relay_source_socket(&mut socket) {
-                mark_live_relay_recovering(&relay, "source_read_failed", error);
-                break;
             }
             std::thread::sleep(Duration::from_millis(10));
         }
@@ -235,7 +238,10 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
                         }
                     }
                 }
-                Ok(tungstenite::Message::Close(_)) => break,
+                Ok(tungstenite::Message::Close(close)) => {
+                    close_live_relay_if_device_revoked(&relay, close.as_ref());
+                    break;
+                }
                 Ok(_) => {
                     mark_live_relay_recovering(
                         &relay,

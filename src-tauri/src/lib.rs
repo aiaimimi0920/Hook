@@ -355,6 +355,7 @@ include!("native/live_relay_input_source.rs");
 include!("native/live_relay_websocket.rs");
 
 include!("native/live_relay_connection.rs");
+include!("native/live_relay_device_revocation.rs");
 
 include!("native/live_relay_source.rs");
 
@@ -368,6 +369,10 @@ mod live_relay_viewer_lifecycle_tests {
     use super::*;
     include!("native/tests/live_relay_viewer_http_fixture.rs");
     include!("native/tests/live_relay_viewer_lifecycle.rs");
+    #[cfg(feature = "remote-surface")]
+    include!("native/tests/live_relay_media_close_fixture.rs");
+    #[cfg(feature = "remote-surface")]
+    include!("native/tests/live_relay_device_revocation.rs");
 }
 
 #[cfg(all(test, target_os = "windows", feature = "remote-surface"))]

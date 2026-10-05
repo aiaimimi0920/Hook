@@ -99,6 +99,7 @@ impl SharedLiveRelaySessions {
             return Err("source recovery cancelled: relay was removed or replaced".to_owned());
         }
         // Start and publish ownership under the same map lock so stop sees every worker handle.
+        ensure_live_relay_not_revoked(old)?;
         start_live_relay_source_workers(&next)?;
         sessions.insert(old.relay_id.clone(), next);
         Ok(())

@@ -170,6 +170,17 @@ UIPI; an elevated Hook does not require an ordinary source to be elevated.
 Source titles, pixels, UIA text, keyboard data, and OCR text are
 sensitive and must not be written to normal logs.
 
+An admitted Device media socket can receive WebSocket Close code `1008` (Policy)
+with the exact reason `live_media_device_revoked`. Only that pair on a Device-authenticated
+connection is a terminal authorization signal. Hook stops the local source/viewer relay,
+clears controller authority and native viewer frames, and retains that error through shutdown.
+An in-flight source recovery cannot replace that terminated relay; starting a new relay after
+reapproval is a separate user action. This does not declare the entire Loom session closed.
+Ordinary Close, HTTP 401/403/404, expiry, nonce exhaustion and network failures are not this signal.
+The frontend clears the displayed image on its next closed snapshot and rejects candidates
+after a known closed/generation transition. A decode already in flight may precede that snapshot;
+this is not instantaneous server-to-display revocation or guaranteed Close delivery during network loss.
+
 See [Live compatibility](LIVE_CAPTURE.md#compatibility-and-validation) for the
 controlled support declaration. The contract intentionally contains capabilities for later
 phases without claiming they are currently implemented.

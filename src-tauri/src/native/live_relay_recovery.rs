@@ -11,6 +11,7 @@ async fn recover_live_relay_source(
     relays: &SharedLiveRelaySessions,
     old: Arc<LiveRelaySession>,
 ) -> Result<LiveRelaySnapshot, String> {
+    ensure_live_relay_not_revoked(&old)?;
     if old.recovery_busy.swap(true, Ordering::SeqCst) {
         return Err("source_recovery_busy".to_owned());
     }
@@ -62,7 +63,8 @@ async fn recover_live_relay_source_inner(
     tokio::task::spawn_blocking(move || old_worker.stop_and_join())
         .await
         .map_err(|_| "source recovery shutdown worker failed")??;
-    // User stop removes the old Arc. A late restore must not resurrect it.
+    // User stop removes the old Arc; a sticky terminal error also forbids a late restore.
+    ensure_live_relay_not_revoked(&old)?;
     if !Arc::ptr_eq(&relays.get(&old.relay_id)?, &old) {
         return Err("source recovery was superseded".to_owned());
     }

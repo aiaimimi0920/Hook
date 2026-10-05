@@ -31,8 +31,9 @@ fn connect_live_relay_transport(
         max_frame_size: Some(limit),
         ..Default::default()
     };
-    let (socket, response) = tungstenite::client_tls_with_config(request, tcp, Some(config), connector)
-        .map_err(|_| "live relay WebSocket handshake failed")?;
+    let (socket, response) =
+        tungstenite::client_tls_with_config(request, tcp, Some(config), connector)
+            .map_err(|_| "live relay WebSocket handshake failed")?;
     let profile = LiveRelayMediaProfile::negotiated(
         response
             .headers()
@@ -63,6 +64,7 @@ fn live_relay_read_timeout(error: &tungstenite::Error) -> bool {
 }
 
 fn service_live_relay_source_socket(
+    relay: &LiveRelaySession,
     socket: &mut tungstenite::WebSocket<tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>,
 ) -> Result<(), &'static str> {
     match socket.read() {
@@ -70,6 +72,10 @@ fn service_live_relay_source_socket(
             .send(tungstenite::Message::Pong(bytes))
             .map_err(|_| "source liveness response failed"),
         Ok(tungstenite::Message::Pong(_)) => Ok(()),
+        Ok(tungstenite::Message::Close(close)) => {
+            close_live_relay_if_device_revoked(relay, close.as_ref());
+            Err("source connection closed")
+        }
         Err(error) if live_relay_read_timeout(&error) => Ok(()),
         _ => Err("source connection closed or sent invalid control data"),
     }
