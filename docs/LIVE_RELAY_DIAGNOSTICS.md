@@ -62,6 +62,10 @@ Chromium setup connection 会启用网络记录；开始资源观察前须断开
 的记录，不能仅凭采样器自己没有调用 `Network.enable` 就认定环境无干扰。
 本机原生 WebView2 的受控 JPEG 解码对照已证明这项记录能显著保留私有内存；它不是
 双机真实投射无泄漏的证明。保留历史失败与原阈值，消除观察工具干扰后另做真实媒体验收。
+raw CDP 建连前的 `/json/version` 探测应关闭 HTTP keep-alive，否则探测连接可能与
+WebSocket 同时占用调试端口。`TargetInfo.attached` 不携带 session 身份，不能单凭
+该布尔值认定 Playwright setup 仍连接；应分别核对建连前零条、观察中唯一一条
+loopback CDP TCP 连接及其进程归属，并保留实际发送的 CDP methods。
 
 ## 实际包与进程绑定
 
