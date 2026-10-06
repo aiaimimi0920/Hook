@@ -56,6 +56,13 @@ JSON.stringify(snapshot);
 证据目录，不覆盖旧文件。若外部工具做重复采样，最多 600 秒/6000 次，串行读取；
 document 重载或 `clockOriginMs` 变化时重新分段。单槽会漏掉中间帧，必须报告缺口。
 
+资源和内存测量应使用唯一的 raw CDP 观察连接，不启用 `Network` 域。Playwright 的
+Chromium setup connection 会启用网络记录；开始资源观察前须断开所有 setup connection，
+并记录实际发出的 CDP methods。另一条连接上的 `Network.disable` 不会清除原 session
+的记录，不能仅凭采样器自己没有调用 `Network.enable` 就认定环境无干扰。
+本机原生 WebView2 的受控 JPEG 解码对照已证明这项记录能显著保留私有内存；它不是
+双机真实投射无泄漏的证明。保留历史失败与原阈值，消除观察工具干扰后另做真实媒体验收。
+
 ## 实际包与进程绑定
 
 DOM 无权读取本机 EXE；版本相同也可能是不同构建。原生试验必须另外记录：

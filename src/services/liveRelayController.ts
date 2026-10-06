@@ -36,6 +36,7 @@ export function createLiveRelayController() {
     const recoveryAfter = new Map<string, number>();
     const publications = new Map<string, Promise<void>>();
     const joins = new Set<string>();
+    let pairing: Promise<void> | undefined;
     let disposed = false;
     let nextGeneration = 0;
 
@@ -178,6 +179,16 @@ export function createLiveRelayController() {
         if (!disposed) liveRelayActions.setDiscovery(discovery);
     };
 
+    const requestPairing = (): Promise<void> => {
+        if (disposed) return Promise.reject(new Error("live relay owner is disposed"));
+        if (pairing) return pairing;
+        // Registration is explicit and shared across panels; it never discovers, joins or controls.
+        pairing = api.requestLiveRelayPairing().then(() => {
+            if (!disposed) liveRelayActions.setDiscovery({ protocolVersion: "loom.live.v1", sessions: [] });
+        }).finally(() => { pairing = undefined; });
+        return pairing;
+    };
+
     const publish = async (
         captureSessionId: string,
         title: string,
@@ -216,7 +227,8 @@ export function createLiveRelayController() {
         if (disposed || !stillCurrent()) return;
         const sessionId = session.session.sessionId;
         if (session.closed) throw new Error("实时投射已关闭，请刷新列表");
-        if (liveRelayViews.some((view) => view.status.liveSessionId === sessionId)) return;
+        if (liveRelayViews.some((view) => view.status.liveSessionId === sessionId
+            && view.status.connectionState !== "closed")) return;
         if (joins.has(sessionId)) throw new Error("正在加入此实时投射，请稍候");
         if (joins.size >= 4) throw new Error("同时加入的请求过多，请稍后重试");
         joins.add(sessionId);
@@ -377,6 +389,7 @@ export function createLiveRelayController() {
 
     return {
         discover,
+        requestPairing,
         publish,
         join,
         sendInput,

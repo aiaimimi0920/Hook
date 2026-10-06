@@ -39,6 +39,7 @@ mod loom_hook_listener_subscription_tests {
     include!("loom_hook/tests/hardening.rs");
     include!("loom_hook/tests/routing.rs");
     include!("loom_hook/tests/surface_event_stream.rs");
+    include!("loom_hook/tests/surface_attachment.rs");
 }
 
 #[cfg(test)]

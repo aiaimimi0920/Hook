@@ -264,6 +264,27 @@ fn validate_secure_loom_base_url(base_url: &str) -> Result<(), String> {
         .map_err(|error| format!("invalid Loom Surface origin: {error}"))
 }
 
+/// Re-register the existing identity only on an explicit user request, without approval or joining.
+#[cfg_attr(not(feature = "remote-surface"), allow(clippy::unused_async))]
+pub(crate) async fn request_surface_pairing(
+    app: &AppHandle,
+    manifest: &crate::loom_connector::LoomManifest,
+) -> Result<bool, String> {
+    #[cfg(feature = "remote-surface")]
+    {
+        pairing::request_pairing_at(
+            &manifest.transport.base_url,
+            &crate::effective_app_data_dir(app)?,
+        )
+        .await
+    }
+    #[cfg(not(feature = "remote-surface"))]
+    {
+        let _ = app;
+        Err(disabled_remote_surface_error(&manifest.transport.base_url))
+    }
+}
+
 /// Drop every cached device session for one Loom endpoint. Loopback-only builds have no cache.
 pub(crate) fn invalidate_surface_sessions(base_url: &str) {
     #[cfg(not(feature = "remote-surface"))]

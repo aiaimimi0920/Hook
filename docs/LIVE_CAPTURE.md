@@ -33,6 +33,16 @@ four pending join requests. An obsolete Surface generation/attachment or a close
 causes a late join to stop only its newly created relay. Established viewers remain owned
 by `LiveFeatures` and can be closed from the viewer window independently of the Art panel.
 
+After Loom deletes a device, choose **重新配对** in the receiver panel. This explicit
+request reuses the persisted Ed25519 key pair, submits registration without requesting
+approval or a session token, and invalidates only that Loom origin's cached sessions.
+If the device ID changes, the existing Surface reset/attach owner obtains new bindings;
+the user must approve the device in Loom, then refresh, select and join again. Closed
+viewers remain terminal with their old authorization and do not block a new relay for
+the same live session. Connected/recovering viewers still prevent duplicate joining.
+The pending operation is shared across panels; a disposed owner cannot publish its
+late result, and this operation never requests controller ownership.
+
 Late join begins at the exact acknowledged `viewer_joined` event rather than
 replaying pre-join control history. The same attachment snapshot initializes each
 UIA observation's latest sequence before workers start; subsequent updates must

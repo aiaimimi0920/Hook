@@ -11,7 +11,7 @@ import { deferred, relayBinding, relaySession, relayStatus, relaySurface } from 
 import type { LiveRelaySnapshot } from '../../src/services/liveRelay';
 
 vi.mock('../../src/services/api', () => ({ api: {
-    discoverLiveRelaySessions: vi.fn(), joinLiveRelaySession: vi.fn(), stopLiveRelaySession: vi.fn(),
+    discoverLiveRelaySessions: vi.fn(), requestLiveRelayPairing: vi.fn(), joinLiveRelaySession: vi.fn(), stopLiveRelaySession: vi.fn(),
     pollLiveRelayFrame: vi.fn(), changeLiveRelayController: vi.fn(),
 } }));
 let controller: LiveRelayController;
@@ -37,6 +37,7 @@ beforeEach(() => {
     vi.mocked(api.discoverLiveRelaySessions).mockResolvedValue({ protocolVersion: 'loom.live.v1', sessions: [relaySession] });
     vi.mocked(api.joinLiveRelaySession).mockResolvedValue({ ...relayStatus });
     vi.mocked(api.stopLiveRelaySession).mockResolvedValue(undefined);
+    vi.mocked(api.requestLiveRelayPairing).mockResolvedValue(undefined);
     vi.mocked(api.pollLiveRelayFrame).mockResolvedValue({ status: { ...relayStatus } });
     controller = createLiveRelayController();
     unregister = registerLiveRelayOwner(controller);
@@ -146,4 +147,76 @@ it('never starts a closed or stale join', async () => {
     await controller.join(relaySession, relayBinding, () => false);
     await expect(controller.join({ ...relaySession, closed: true }, relayBinding)).rejects.toThrow('已关闭');
     expect(api.joinLiveRelaySession).not.toHaveBeenCalled();
+});
+
+it('re-pairs only after an explicit click and neither discovers, joins, controls nor removes the old relay', async () => {
+    const old = { ...relayStatus, connectionState: 'closed' as const, errorCode: 'live_media_device_revoked' };
+    liveRelayActions.add(old, 'Revoked', { x: 0, y: 0, width: 4, height: 4 });
+    unmount = render(() => <UnitLiveViewer unitId="unit:a" />, document.body);
+    expect(api.requestLiveRelayPairing).not.toHaveBeenCalled();
+    button('重新配对').click();
+    await vi.waitFor(() => expect(document.body.textContent).toContain('配对请求已提交'));
+    expect(api.requestLiveRelayPairing).toHaveBeenCalledTimes(1);
+    expect(api.discoverLiveRelaySessions).not.toHaveBeenCalled();
+    expect(api.joinLiveRelaySession).not.toHaveBeenCalled();
+    expect(api.changeLiveRelayController).not.toHaveBeenCalled();
+    expect(api.stopLiveRelaySession).not.toHaveBeenCalled();
+    expect(liveRelayViews[0].status).toEqual(old);
+});
+
+it('bounds pairing admission and exposes failure before an explicit retry', async () => {
+    const pending = deferred<void>();
+    vi.mocked(api.requestLiveRelayPairing).mockReturnValueOnce(pending.promise);
+    unmount = render(() => <UnitLiveViewer unitId="unit:a" />, document.body);
+    button('重新配对').click();
+    expect(button('重新配对').disabled).toBe(true);
+    expect([...document.querySelectorAll('button')].every((item) => item.disabled)).toBe(true);
+    button('重新配对').click();
+    pending.reject(new Error('pairing denied'));
+    await vi.waitFor(() => expect(document.querySelector('[role="alert"]')?.textContent).toBe('pairing denied'));
+    button('重新配对').click();
+    await vi.waitFor(() => expect(document.body.textContent).toContain('配对请求已提交'));
+    expect(api.requestLiveRelayPairing).toHaveBeenCalledTimes(2);
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+});
+
+it.each(['unmount', 'replace-owner'] as const)('ignores a late pairing result after %s', async (change) => {
+    const pending = deferred<void>();
+    vi.mocked(api.requestLiveRelayPairing).mockReturnValueOnce(pending.promise);
+    unmount = render(() => <UnitLiveViewer unitId="unit:a" />, document.body);
+    button('重新配对').click();
+    if (change === 'unmount') { unmount?.(); unmount = undefined; }
+    else { unregister(); controller.dispose(); controller = createLiveRelayController(); unregister = registerLiveRelayOwner(controller); }
+    pending.resolve();
+    await pending.promise; await Promise.resolve();
+    expect(document.body.textContent).not.toContain('配对请求已提交');
+    expect(api.discoverLiveRelaySessions).not.toHaveBeenCalled();
+    expect(api.joinLiveRelaySession).not.toHaveBeenCalled();
+});
+
+it('allows a new viewer for the same live session while preserving a revoked terminal viewer', async () => {
+    const old = { ...relayStatus, connectionState: 'closed' as const, errorCode: 'live_media_device_revoked' };
+    liveRelayActions.add(old, 'Revoked', { x: 0, y: 0, width: 4, height: 4 });
+    vi.mocked(api.joinLiveRelaySession).mockResolvedValue({ ...relayStatus, relayId: 'relay:new' });
+    vi.mocked(api.pollLiveRelayFrame).mockResolvedValue({ status: { ...relayStatus, relayId: 'relay:new' } });
+    await open();
+    expect(button('加入观看').disabled).toBe(false);
+    button('加入观看').click();
+    await vi.waitFor(() => expect(liveRelayViews).toHaveLength(2));
+    expect(liveRelayViews[0].status).toEqual(old);
+    expect(liveRelayViews[0].imageUrl).toBeUndefined();
+    expect(liveRelayViews[1].relayId).toBe('relay:new');
+    expect(button('加入观看').disabled).toBe(true);
+    await controller.join(relaySession, relayBinding);
+    expect(api.joinLiveRelaySession).toHaveBeenCalledTimes(1);
+});
+
+it('still deduplicates a recovering viewer and suppresses joining without an owner', async () => {
+    liveRelayActions.add({ ...relayStatus, connectionState: 'recovering' }, 'Recovering', { x: 0, y: 0, width: 4, height: 4 });
+    await open();
+    expect(button('加入观看').disabled).toBe(true);
+    await controller.join(relaySession, relayBinding);
+    expect(api.joinLiveRelaySession).not.toHaveBeenCalled();
+    unregister();
+    expect(button('重新配对').disabled).toBe(true);
 });

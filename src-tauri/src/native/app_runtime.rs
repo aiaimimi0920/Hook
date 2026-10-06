@@ -233,6 +233,7 @@ pub fn run() {
             send_live_capture_input,
             stop_live_capture,
             publish_live_capture_to_loom,
+            request_live_relay_pairing,
             discover_live_relay_sessions,
             join_live_relay_session,
             get_live_relay_status,

@@ -67,6 +67,19 @@ async fn publish_live_capture_to_loom(
 }
 
 #[tauri::command]
+async fn request_live_relay_pairing(app: tauri::AppHandle) -> Result<(), String> {
+    let manifest = crate::loom_connector::read_default_loom_manifest()
+        .map_err(|error| format!("read Loom manifest for live pairing: {error}"))?;
+    if crate::device_session::request_surface_pairing(&app, &manifest).await? {
+        // Old attachments belong to the revoked identity. The existing Surface owner reattaches;
+        // existing relays retain their immutable authorization and terminal state.
+        app.emit("surface/reset", serde_json::json!({ "reason": "device_repaired" }))
+            .map_err(|error| format!("reset Surface bindings after pairing: {error}"))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 async fn discover_live_relay_sessions(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     let (base_url, authorization) = live_relay_context(&app).await?;
     discover_live_sessions_http(&base_url, &authorization).await

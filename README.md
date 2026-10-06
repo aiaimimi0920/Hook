@@ -69,6 +69,8 @@ LiveRelay list, select a session and explicitly join. This reuses the mounted
 Surface attachment and server authorization; it does not grant remote control.
 Closing the parameter panel keeps an established viewer open; closing it during
 joining cancels that pending result. See [Live capture](docs/LIVE_CAPTURE.md).
+If Loom deleted this device, choose **重新配对** to submit its existing public key again.
+Loom approval, refreshing and joining remain explicit; a revoked old viewer stays closed.
 This UI path has focused coverage; native two-device performance acceptance is pending.
 The viewer also exposes [bounded receiver diagnostics](docs/LIVE_RELAY_DIAGNOSTICS.md)
 for source/epoch/frame and decoded-submitted stages, without pixels or private errors.
