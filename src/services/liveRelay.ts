@@ -1,6 +1,7 @@
 import type { LiveCaptureView } from "./liveCapture";
 import type { LiveTriggerCondition } from "./liveProtocol";
 import type { LiveRelayPresentation } from "./liveRelayPresentation";
+import type { LiveRelayRenderProof } from "./liveRelayRenderEvidence";
 
 export type LiveRelayConnectionState = "connecting" | "connected" | "recovering" | "closed";
 export type LiveRelayObservationState =
@@ -176,6 +177,8 @@ export interface LiveRelayView {
     imageUrl?: string;
     submittedFrameId: number;
     presentation?: LiveRelayPresentation;
+    renderEvidenceSupported?: boolean;
+    renderProof?: LiveRelayRenderProof;
     frameWidth: number;
     frameHeight: number;
     x: number;
