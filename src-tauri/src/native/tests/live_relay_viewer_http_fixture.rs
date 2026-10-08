@@ -25,6 +25,16 @@ impl ViewerHttpFixture {
         events_status: u16,
         snapshot_status: u16,
     ) -> Self {
+        Self::with_response_override(events, snapshot, events_status, snapshot_status, None)
+    }
+
+    fn with_response_override(
+        events: Option<serde_json::Value>,
+        snapshot: serde_json::Value,
+        events_status: u16,
+        snapshot_status: u16,
+        response_override: Option<String>,
+    ) -> Self {
         use std::io::{Read, Write};
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
@@ -66,6 +76,10 @@ impl ViewerHttpFixture {
                 let request = String::from_utf8_lossy(&bytes);
                 let path = request.lines().next().unwrap_or("").to_owned();
                 requests.lock().unwrap().push(path.clone());
+                if let Some(response) = &response_override {
+                    let _ = stream.write_all(response.as_bytes());
+                    continue;
+                }
                 let is_events = path.contains("/events?");
                 let (status, value) = if is_events {
                     events.as_ref().map_or(
