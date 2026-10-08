@@ -58,6 +58,7 @@ struct LiveCaptureFrameDescriptor {
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LiveCaptureStatusSnapshot {
+    capture_timing: Option<LiveCaptureTiming>,
     session_id: String,
     source_kind: String,
     source_window_id: Option<String>,
@@ -154,6 +155,7 @@ impl LiveCaptureFrameBuffer {
 
 #[derive(Debug)]
 struct LiveCaptureSessionState {
+    capture_timing: Option<LiveCaptureTiming>,
     session_id: String,
     source_kind: String,
     source_window_id: Option<String>,
@@ -200,6 +202,7 @@ impl LiveCaptureSessionState {
             });
         Self {
             session_id: config.session_id.clone(),
+            capture_timing: None,
             source_kind: if config.window_id.is_some() {
                 "window"
             } else {
@@ -286,6 +289,7 @@ impl LiveCaptureSessionState {
 
     fn snapshot(&self, dropped_frames: u64) -> LiveCaptureStatusSnapshot {
         LiveCaptureStatusSnapshot {
+            capture_timing: self.capture_timing.clone(),
             session_id: self.session_id.clone(),
             source_kind: self.source_kind.clone(),
             source_window_id: self.source_window_id.clone(),

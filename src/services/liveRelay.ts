@@ -2,6 +2,7 @@ import type { LiveCaptureView } from "./liveCapture";
 import type { LiveTriggerCondition } from "./liveProtocol";
 import type { LiveRelayPresentation } from "./liveRelayPresentation";
 import type { LiveRelayRenderProof } from "./liveRelayRenderEvidence";
+import type { LiveRelaySourceTiming } from "./liveTiming";
 
 export type LiveRelayConnectionState = "connecting" | "connected" | "recovering" | "closed";
 export type LiveRelayObservationState =
@@ -109,6 +110,7 @@ export interface LiveRelaySnapshot {
     triggerAudits: LiveRelayTriggerAudit[];
     errorCode?: string | null;
     errorMessage?: string | null;
+    sourceTiming?: LiveRelaySourceTiming | null;
 }
 
 export interface LiveRelayFrameDescriptor {

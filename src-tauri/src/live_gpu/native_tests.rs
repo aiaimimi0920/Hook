@@ -280,13 +280,16 @@ fn native_gpu_crop_present_multi_surface_and_cleanup() {
     );
     worker::configure(target.0 as usize, "gpu-probe-a", None).unwrap();
     let budget = super::work_budget::CaptureBudget::register("gpu-probe-a", 60);
-    let (fallback, at, _permit) = worker::fallback("gpu-probe-a", 0, &budget)
+    let mut timing = crate::LiveReadbackTiming::default();
+    let (fallback, at, _permit) = worker::fallback("gpu-probe-a", 0, &budget, &mut timing)
         .unwrap()
         .expect("static GPU fallback");
     assert_eq!(fallback.get_pixel(16, 16).0, [255, 255, 0]);
-    assert!(worker::fallback("gpu-probe-a", at, &budget)
+    assert!(worker::fallback("gpu-probe-a", at, &budget, &mut timing)
         .unwrap()
         .is_none());
+    assert_eq!(timing.staging_copy.succeeded, 1);
+    assert_eq!(timing.map_rgb.succeeded, 1);
     assert_snapshot(snapshot(), [255, 255, 0]);
     std::thread::sleep(Duration::from_millis(100));
     pump();

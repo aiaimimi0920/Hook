@@ -134,6 +134,7 @@ impl LiveRelayFrameBuffer {
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LiveRelaySnapshot {
+    source_timing: Option<LiveRelaySourceTiming>,
     relay_id: String,
     live_session_id: String,
     role: String,
@@ -165,6 +166,7 @@ struct LiveRelaySnapshot {
 
 #[derive(Clone, Debug)]
 struct LiveRelayRuntimeState {
+    source_timing: Option<LiveRelaySourceTiming>,
     connection_state: String,
     epoch: u64,
     last_frame_id: u64,
@@ -199,6 +201,7 @@ impl LiveRelayRuntimeState {
         };
         Self {
             connection_state: "connecting".to_owned(),
+            source_timing: None,
             epoch,
             last_frame_id: 0,
             received_frames: 0,
@@ -313,6 +316,7 @@ impl LiveRelaySession {
             (LiveRelayRole::Viewer, Some(_)) => "high",
         };
         Ok(LiveRelaySnapshot {
+            source_timing: state.source_timing,
             relay_id: self.relay_id.clone(),
             live_session_id: self.live_session_id.clone(),
             role: self.role.as_str().to_owned(),

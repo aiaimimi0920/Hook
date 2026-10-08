@@ -338,6 +338,10 @@ include!("native/live_observation_uia_sample.rs");
 include!("native/live_observation_state.rs");
 
 include!("native/live_relay_types.rs");
+include!("native/live_relay_source_timing.rs");
+include!("native/live_stage_timing.rs");
+include!("native/live_readback_timing.rs");
+include!("native/live_capture_timing.rs");
 
 include!("native/live_relay_protocol.rs");
 include!("native/live_relay_jpeg.rs");

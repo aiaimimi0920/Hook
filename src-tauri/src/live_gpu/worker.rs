@@ -5,8 +5,11 @@ use std::sync::{mpsc, Arc, LazyLock, Mutex};
 use std::time::{Duration, Instant};
 use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_MULTITHREADED};
 
-use super::work_budget::{CaptureBudget, CpuPermit};
 use super::{frame::GpuFrame, presenter::Presenter, Layout, PreviewStatus, SubmitOutcome};
+
+#[path = "worker_fallback.rs"]
+mod cpu_fallback;
+pub(crate) use cpu_fallback::fallback;
 
 #[path = "worker_schedule.rs"]
 mod schedule;
@@ -230,44 +233,6 @@ pub(crate) fn submit_pending(id: &str, pending: &mut Option<GpuFrame>) -> Submit
         let _ = service.wake.try_send(());
     }
     SubmitOutcome::Queued
-}
-
-// A static source need not send another WGC update when a plane is hidden or
-// loses its lease. Retain bounded textures and materialize that last frame once.
-pub(crate) fn fallback(
-    id: &str,
-    after_ms: u64,
-    budget: &CaptureBudget,
-) -> Result<Option<(image::RgbImage, u64, CpuPermit)>, String> {
-    let (readback, permit) = {
-        let service = SERVICE.lock().map_err(|_| "GPU service poisoned")?;
-        let Some(service) = service.as_ref() else {
-            return Ok(None);
-        };
-        let slots = service.slots.lock().map_err(|_| "GPU slots poisoned")?;
-        let Some(slot) = slots.get(id) else {
-            return Ok(None);
-        };
-        if slot.cpu_suppressed() && !budget.needs_encoded_frames() {
-            budget.cancel_cpu();
-            return Ok(None);
-        }
-        let Some(frame) = slot
-            .latest
-            .as_ref()
-            .or(slot.in_flight.as_ref())
-            .or(slot.spare.as_ref())
-            .filter(|frame| frame.captured_at_ms > after_ms)
-        else {
-            return Ok(None);
-        };
-        let Some(permit) = budget.try_cpu(frame.width, frame.height) else {
-            return Ok(None);
-        };
-        (super::snapshot::Readback::copy(frame)?, permit)
-    };
-    let (image, timestamp) = readback.into_rgb()?;
-    Ok(Some((image, timestamp, permit)))
 }
 
 pub(crate) fn invalidate(id: &str) {
