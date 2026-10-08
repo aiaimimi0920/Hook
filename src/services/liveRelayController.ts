@@ -22,6 +22,7 @@ type InputQueue = {
     sequence: number;
     tail: Promise<void>;
     pendingMove?: LiveCaptureInputPayload;
+    pendingMoveOwner?: () => boolean;
     moveTimer?: number;
     lastMoveSentAtMs?: number;
     closed: boolean;
@@ -106,14 +107,26 @@ export function createLiveRelayController() {
     };
 
     const poll = async (relayId: string, generation: number): Promise<void> => {
-        if (disposed || generations.get(relayId) !== generation) return;
+        const isCurrent = (): boolean => {
+            if (disposed || generations.get(relayId) !== generation) return false;
+            const current = liveRelayViews.find((candidate) => candidate.relayId === relayId);
+            if (!current) return false;
+            // 控制响应也可确认终态；同一generation的迟到轮询/恢复不得将其复活。
+            if (current.status.connectionState === "closed") {
+                releaseObjectUrl(relayId);
+                liveRelayActions.clearFrame(relayId);
+                return false;
+            }
+            return true;
+        };
+        if (!isCurrent()) return;
         const view = liveRelayViews.find((candidate) => candidate.relayId === relayId);
         if (!view) return;
         const startedAt = performance.now();
         try {
             if (view.status.role === "viewer") {
                 const response = await api.pollLiveRelayFrame(relayId, view.submittedFrameId);
-                if (disposed || generations.get(relayId) !== generation) return;
+                if (!isCurrent()) return;
                 if (response.status.epoch !== view.status.epoch) {
                     releaseObjectUrl(relayId);
                     liveRelayActions.clearFrame(relayId);
@@ -129,13 +142,15 @@ export function createLiveRelayController() {
                 }
             } else {
                 let status = await api.getLiveRelayStatus(relayId);
-                if (disposed || generations.get(relayId) !== generation) return;
-                if ((status.connectionState === "recovering" || status.errorCode === "control_poll_failed")
+                if (!isCurrent()) return;
+                // 终态优先于残留的瞬态错误，不能因错误码重新发起源恢复。
+                if (status.connectionState !== "closed"
+                    && (status.connectionState === "recovering" || status.errorCode === "control_poll_failed")
                     && status.errorCode !== "source_recovery_unavailable"
                     && Date.now() >= (recoveryAfter.get(relayId) ?? 0)) {
                     recoveryAfter.set(relayId, Date.now() + 5000);
                     status = await api.reconnectLiveRelaySession(relayId);
-                    if (disposed || generations.get(relayId) !== generation) return;
+                    if (!isCurrent()) return;
                 }
                 liveRelayActions.updateStatus(relayId, status);
             }
@@ -151,7 +166,7 @@ export function createLiveRelayController() {
                 schedule(relayId, delay);
             }
         } catch (error) {
-            if (disposed || generations.get(relayId) !== generation) return;
+            if (!isCurrent()) return;
             liveRelayActions.setError(relayId, error instanceof Error ? error.message : String(error));
             schedule(relayId, RETRY_MS);
         }
@@ -258,18 +273,19 @@ export function createLiveRelayController() {
     };
 
     const enqueueInput = (relayId: string, payload: LiveCaptureInputPayload): Promise<void> => {
+        const isCurrent = controlOwnerIsCurrent(relayId);
         const queue = queueFor(relayId);
-        queue.sequence += 1;
-        const sequence = queue.sequence;
         const operation = queue.tail.then(async () => {
-            if (queue.closed) return;
+            if (queue.closed || !isCurrent()) return;
+            // 丢弃旧 owner 的排队项不占用 native 要求连续的输入序号。
+            const sequence = ++queue.sequence;
             const status = await api.sendLiveRelayInput(relayId, { ...payload, sequence });
-            if (queue.closed) return;
+            if (queue.closed || !isCurrent()) return;
             liveRelayActions.updateStatus(relayId, status);
             liveRelayActions.setError(relayId);
         });
         queue.tail = operation.catch((error) => {
-            if (!queue.closed) {
+            if (!queue.closed && isCurrent()) {
                 liveRelayActions.setError(relayId, error instanceof Error ? error.message : String(error));
             }
         });
@@ -281,24 +297,32 @@ export function createLiveRelayController() {
         if (queue.moveTimer !== undefined) window.clearTimeout(queue.moveTimer);
         queue.moveTimer = undefined;
         const pending = queue.pendingMove;
+        const pendingOwner = queue.pendingMoveOwner;
         queue.pendingMove = undefined;
-        if (!pending) return queue.tail;
+        queue.pendingMoveOwner = undefined;
+        if (!pending || !pendingOwner?.()) return queue.tail;
         queue.lastMoveSentAtMs = Date.now();
         return enqueueInput(relayId, pending);
     };
 
     const sendInput = async (relayId: string, payload: LiveCaptureInputPayload): Promise<void> => {
+        const isCurrent = controlOwnerIsCurrent(relayId);
+        if (!isCurrent()) return;
         const queue = queueFor(relayId);
         if (payload.kind === "mouse_move") {
             queue.pendingMove = payload;
+            // 合并槽中的最新坐标和归属一起替换，刷新不能把旧坐标转交给新epoch。
+            queue.pendingMoveOwner = isCurrent;
             const latency = liveRelayViews.find((view) => view.relayId === relayId)
                 ?.status.roundTripLatencyMs;
             const delay = liveRelayPointerDelayMs(queue.lastMoveSentAtMs, Date.now(), latency);
             queue.moveTimer ??= window.setTimeout(() => {
                 queue.moveTimer = undefined;
                 const pending = queue.pendingMove;
+                const pendingOwner = queue.pendingMoveOwner;
                 queue.pendingMove = undefined;
-                if (pending) {
+                queue.pendingMoveOwner = undefined;
+                if (pending && pendingOwner?.()) {
                     queue.lastMoveSentAtMs = Date.now();
                     void enqueueInput(relayId, pending).catch(() => undefined);
                 }
@@ -306,30 +330,58 @@ export function createLiveRelayController() {
             return;
         }
         await flushMove(relayId);
+        // 等待旧队列期间可能已停止并复用relayId，不能把旧按键送入新owner。
+        if (!isCurrent()) return;
         await enqueueInput(relayId, payload);
     };
 
+    const controlOwnerIsCurrent = (relayId: string, checkEpoch = true): (() => boolean) => {
+        const generation = generations.get(relayId);
+        const status = liveRelayViews.find((view) => view.relayId === relayId)?.status;
+        const sessionId = status?.liveSessionId;
+        const epoch = status?.epoch;
+        // relayId可被后续owner复用；异步完成必须仍属于同一代、会话和epoch。
+        return () => {
+            const current = liveRelayViews.find((view) => view.relayId === relayId)?.status;
+            return !disposed && generation !== undefined && generations.get(relayId) === generation
+                && !!current && current.connectionState !== "closed"
+                && current.liveSessionId === sessionId && (!checkEpoch || current.epoch === epoch);
+        };
+    };
+
     const changeController = async (relayId: string, acquire: boolean): Promise<void> => {
+        const isCurrent = controlOwnerIsCurrent(relayId, acquire);
+        if (!isCurrent()) return;
         const queue = queueFor(relayId);
         if (!acquire) await flushMove(relayId);
+        if (!isCurrent()) return;
+        // 显式 release 跨过排队输入带来的 epoch 更新，但返回仍绑定实际发请求时的 epoch。
+        const requestIsCurrent = controlOwnerIsCurrent(relayId);
         const status = await api.changeLiveRelayController(
             relayId,
             acquire ? "acquire" : "release",
             acquire ? 30_000 : undefined,
         );
+        if (!requestIsCurrent()) return;
         queue.sequence = Math.max(queue.sequence, status.lastInputSequence);
         liveRelayActions.updateStatus(relayId, status);
         liveRelayActions.setError(relayId);
     };
 
     const reclaim = async (relayId: string): Promise<void> => {
+        const isCurrent = controlOwnerIsCurrent(relayId);
+        if (!isCurrent()) return;
         const status = await api.reclaimLiveRelayControl(relayId);
+        if (!isCurrent()) return;
         liveRelayActions.updateStatus(relayId, status);
         liveRelayActions.setError(relayId);
     };
 
     const configureTrigger = async (request: LiveRelayTriggerConfigureRequest): Promise<void> => {
+        const isCurrent = controlOwnerIsCurrent(request.relayId);
+        if (!isCurrent()) return;
         const status = await api.configureLiveRelayTrigger(request);
+        if (!isCurrent()) return;
         liveRelayActions.updateStatus(request.relayId, status);
         liveRelayActions.setError(request.relayId);
     };
@@ -346,6 +398,7 @@ export function createLiveRelayController() {
         if (queue) {
             queue.closed = true;
             queue.pendingMove = undefined;
+            queue.pendingMoveOwner = undefined;
             let drainTimer: number | undefined;
             await Promise.race([
                 queue.tail,
@@ -375,6 +428,7 @@ export function createLiveRelayController() {
             if (queue) {
                 queue.closed = true;
                 queue.pendingMove = undefined;
+                queue.pendingMoveOwner = undefined;
                 if (queue.moveTimer !== undefined) window.clearTimeout(queue.moveTimer);
             }
             void api.stopLiveRelaySession(view.relayId).catch(() => undefined);
