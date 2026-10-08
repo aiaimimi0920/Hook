@@ -275,10 +275,10 @@ export function createLiveRelayController() {
     const enqueueInput = (relayId: string, payload: LiveCaptureInputPayload): Promise<void> => {
         const isCurrent = controlOwnerIsCurrent(relayId);
         const queue = queueFor(relayId);
-        queue.sequence += 1;
-        const sequence = queue.sequence;
         const operation = queue.tail.then(async () => {
             if (queue.closed || !isCurrent()) return;
+            // 丢弃旧 owner 的排队项不占用 native 要求连续的输入序号。
+            const sequence = ++queue.sequence;
             const status = await api.sendLiveRelayInput(relayId, { ...payload, sequence });
             if (queue.closed || !isCurrent()) return;
             liveRelayActions.updateStatus(relayId, status);
@@ -335,7 +335,7 @@ export function createLiveRelayController() {
         await enqueueInput(relayId, payload);
     };
 
-    const controlOwnerIsCurrent = (relayId: string): (() => boolean) => {
+    const controlOwnerIsCurrent = (relayId: string, checkEpoch = true): (() => boolean) => {
         const generation = generations.get(relayId);
         const status = liveRelayViews.find((view) => view.relayId === relayId)?.status;
         const sessionId = status?.liveSessionId;
@@ -345,22 +345,24 @@ export function createLiveRelayController() {
             const current = liveRelayViews.find((view) => view.relayId === relayId)?.status;
             return !disposed && generation !== undefined && generations.get(relayId) === generation
                 && !!current && current.connectionState !== "closed"
-                && current.liveSessionId === sessionId && current.epoch === epoch;
+                && current.liveSessionId === sessionId && (!checkEpoch || current.epoch === epoch);
         };
     };
 
     const changeController = async (relayId: string, acquire: boolean): Promise<void> => {
-        const isCurrent = controlOwnerIsCurrent(relayId);
+        const isCurrent = controlOwnerIsCurrent(relayId, acquire);
         if (!isCurrent()) return;
         const queue = queueFor(relayId);
         if (!acquire) await flushMove(relayId);
         if (!isCurrent()) return;
+        // 显式 release 跨过排队输入带来的 epoch 更新，但返回仍绑定实际发请求时的 epoch。
+        const requestIsCurrent = controlOwnerIsCurrent(relayId);
         const status = await api.changeLiveRelayController(
             relayId,
             acquire ? "acquire" : "release",
             acquire ? 30_000 : undefined,
         );
-        if (!isCurrent()) return;
+        if (!requestIsCurrent()) return;
         queue.sequence = Math.max(queue.sequence, status.lastInputSequence);
         liveRelayActions.updateStatus(relayId, status);
         liveRelayActions.setError(relayId);

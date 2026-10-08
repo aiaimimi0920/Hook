@@ -6,7 +6,7 @@ import { liveRelayActions, liveRelayViews } from "../../src/store/liveRelayStore
 
 vi.mock("../../src/services/api", () => ({ api: {
     joinLiveRelaySession: vi.fn(), pollLiveRelayFrame: vi.fn(), stopLiveRelaySession: vi.fn(),
-    sendLiveRelayInput: vi.fn(),
+    sendLiveRelayInput: vi.fn(), changeLiveRelayController: vi.fn(),
 } }));
 const connected: LiveRelaySnapshot = {
     relayId: "relay:a", liveSessionId: "live:a", role: "viewer", connectionState: "connected",
@@ -51,6 +51,34 @@ afterEach(() => { controller.dispose(); vi.restoreAllMocks(); vi.useRealTimers()
 
 // 仅验证前端排队和返回顺序；native/daemon仍负责实际输入权限和释放按键。
 describe("LiveRelay input owner", () => {
+    it("does not consume a sequence for a stale move queued behind in-flight input", async () => {
+        let finish!: (status: LiveRelaySnapshot) => void;
+        vi.mocked(api.sendLiveRelayInput).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+        await join(); const first = key(); await vi.advanceTimersByTimeAsync(0);
+        await move(); await vi.advanceTimersByTimeAsync(0);
+        invalidate("epoch");
+        finish({ ...connected, lastInputSequence: 1 }); await first;
+        await Promise.resolve(); await Promise.resolve();
+        vi.mocked(api.sendLiveRelayInput).mockResolvedValue({ ...connected, epoch: 2, lastInputSequence: 2 });
+        await key();
+        expect(api.sendLiveRelayInput).toHaveBeenCalledTimes(2);
+        expect(api.sendLiveRelayInput).toHaveBeenLastCalledWith(connected.relayId, {
+            kind: "key_down", virtualKey: 65, sequence: 2,
+        });
+    });
+
+    it("releases the same session after draining input advances its epoch", async () => {
+        let finish!: (status: LiveRelaySnapshot) => void;
+        vi.mocked(api.sendLiveRelayInput).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+        vi.mocked(api.changeLiveRelayController).mockResolvedValue({ ...connected, epoch: 2, controllerOwned: false });
+        await join(); const first = key(); await vi.advanceTimersByTimeAsync(0);
+        const release = controller.changeController(connected.relayId, false);
+        finish({ ...connected, epoch: 2, lastInputSequence: 1 });
+        await Promise.all([first, release]);
+        expect(api.changeLiveRelayController).toHaveBeenCalledWith(connected.relayId, "release", undefined);
+        expect(liveRelayViews[0].status.controllerOwned).toBe(false);
+    });
+
     it.each(boundaries)("rejects a pending input result after %s", async (boundary) => {
         let finish!: (status: LiveRelaySnapshot) => void;
         vi.mocked(api.sendLiveRelayInput).mockReturnValue(new Promise(resolve => { finish = resolve; }));
