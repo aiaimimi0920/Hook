@@ -58,7 +58,14 @@ export function relayRenderProof(
     };
 }
 
-/** One observer per mounted viewer; never retains entries, pixels, URLs or a timer. */
+type PaintListener = (entry: ImagePaint) => void;
+interface DocumentPaints {
+    observer: PerformanceObserver;
+    listeners: Map<Element, PaintListener>;
+}
+const documentPaints = new WeakMap<Document, DocumentPaints>();
+
+/** One observer per document routes each entry once, without retaining paint history. */
 export function observeRelayImage(
     image: HTMLImageElement,
     current: () => LiveRelayView | undefined,
@@ -73,18 +80,39 @@ export function observeRelayImage(
     let validAfterMs = 0;
     // Visibility/error invalidation also fences entries queued before the invalidation.
     const invalidate = () => { validAfterMs = performance.now(); };
-    let observer: PerformanceObserver | undefined;
-    const disconnect = () => { active = false; observer?.disconnect(); };
+    let hub: DocumentPaints | undefined;
+    const listener: PaintListener = (entry) => {
+        if (!active) return;
+        const proof = relayRenderProof(entry, image, current());
+        if (proof && proof.renderTimeMs >= validAfterMs) accept(proof);
+    };
+    const disconnect = () => {
+        active = false;
+        if (!hub || hub.listeners.get(image) !== listener) return;
+        hub.listeners.delete(image);
+        if (hub.listeners.size === 0) {
+            hub.observer.disconnect();
+            documentPaints.delete(image.ownerDocument);
+        }
+    };
     try {
-        observer = new Observer((list) => {
-            if (!active) return;
-            for (const entry of list.getEntries()) {
-                const proof = relayRenderProof(entry, image, current());
-                if (proof && proof.renderTimeMs >= validAfterMs) accept(proof);
-            }
-        });
-        // No buffered entries: a remount must not authenticate an earlier node's paint.
-        observer.observe({ type: "element" });
+        hub = documentPaints.get(image.ownerDocument);
+        if (!hub) {
+            const listeners = new Map<Element, PaintListener>();
+            const observer = new Observer((list) => {
+                for (const entry of list.getEntries() as ImagePaint[]) {
+                    if (entry.element) listeners.get(entry.element)?.(entry);
+                }
+            });
+            hub = { observer, listeners };
+            // No buffered entries: a remount must not authenticate an earlier node's paint.
+            try { observer.observe({ type: "element" }); }
+            catch (error) { observer.disconnect(); throw error; }
+            documentPaints.set(image.ownerDocument, hub);
+        }
+        // A node has one component owner; a duplicate must not replace its subscription.
+        if (hub.listeners.has(image)) return { supported: false, disconnect, invalidate };
+        hub.listeners.set(image, listener);
         return { supported: true, disconnect, invalidate };
     } catch {
         disconnect();

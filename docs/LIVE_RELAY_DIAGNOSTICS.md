@@ -1,97 +1,6 @@
 # LiveRelay 收端诊断与包绑定
 
-## 源端四阶段累计耗时（待新包原生验证）
-
-`get_live_relay_status`的native快照新增可空`sourceTiming`。尚未进入源端工作循环及
-viewer为null；现有`.25`包不含此接线，不能用旧EXE验收新字段。它是源会话内累计
-统计，重连不归零，新会话独立；不是逐帧历史、分位数或跨机帧龄。
-
-| 阶段 | 测量范围 |
-| --- | --- |
-| `socketService` | 源循环入口的控制/关闭帧处理调用，不含连接建立及失败后的补充service |
-| `latestFrame` | 最新帧锁定与clone；empty包括无新帧和原路径锁失败，不是预算拒绝计数 |
-| `adaptation` | 已有JPEG到协商representation及wire framing，含legacy展开/回退，不是capture侧JPEG编码 |
-| `socketSend` | binary socket.send返回，成功不是远端ACK，不含ping发送 |
-
-每阶段仅6个u64字段：attempts、succeeded、failed、empty、totalMicros、maxMicros。
-耗时由同进程Instant测量，总量包含成功/失败/empty，均值只能除以attempts；不能把
-成功次数当全部耗时分母。计数与总和饱和相加，固定内存，不保存像素、URL或错误正文。
-只记录正常返回的Result/Option，panic内未完成尝试及poisoned诊断锁不保证留证。
-
-每个源循环用局部聚合，退出作用域时合并一次state锁；网络、图像工作期间不持
-诊断锁，错误/停止早退同样合并已返回阶段。正常路径在原10ms sleep之后发布统计，
-但sleep不在阶段耗时内；诊断开销仍需原生测量，不宣称零性能影响。快照中的帧计数
-与该累计统计可能位于同轮合并前后，不能将差值当作精确单帧关联。
-
-不调整预算、目标FPS、sleep、队列或重连策略；尚未计入WGC、readback、capture JPEG
-编码、预算拒绝及GPU。仅此接线和软件回归不能关闭A3-P，也不证明旧低速的根因。
-
-## 采集侧三阶段累计耗时（待新包原生验证）
-
-随后在`get_live_capture_status`增加可空`captureTiming`，与relay的sourceTiming分别
-归各自会话owner管理。采集状态初始为null，每轮正常返回的阶段在作用域退出时合并，
-重建epoch不清零，新session独立。复用LiveStageTiming的六个固定数值字段，不复用
-relay状态或观测列表。三阶段含义如下：
-
-- `handoff`包围整个mailbox.next，包含锁、候选检查、admission、可能的GPU fallback、
-  readback及RGB转换，**不是纯readback**。empty只能说明Ok(None)，不能推出预算拒绝。
-- `jpegEncode`仅为encode_live_jpeg调用，失败Err同样计时；它不同于relay adaptation。
-- `frameStore`包括帧队列锁、Arc包装、push及latest查询，不包括随后state.mark_frame。
-
-原始Result与raw/CPU permit继续由原作用域管理；计时器不拥有或延迟释放它们，网络、
-编码及队列工作期间不持诊断state锁。新调用仍有计时与合并开销，不能声称零性能影响。
-frameId可能先更新、当轮计时稍后合并，不能强制逐点相等。既有panic/poisoned锁统计
-缺失边界仍存在。没有WGC acquisition计时、单独GPU readback计时、admission拒绝分类。
-
-3项新增回归保护handoff结果分类、编码失败不虚构存帧、返回payload所有权和恢复累计。
-capture聚焦25 passed/2 ignored，relay聚焦38 passed/4 ignored，预算回归10 passed；
-staged投影29项Node检查通过。ignored原生入口未运行；payload夹具不是实际CPU permit
-原生释放证明。新包性能验收必须明确要求captureTiming和sourceTiming存在且attempts
-推进，不能仅凭兼容旧包的observer passed来声称新诊断生效。
-
-### CPU admission 分类累计（后续接线，待新包原生验证）
-
-在上述三阶段之后补充`captureTiming.cpuAdmission`，仅含`granted`、`policyDenied`、
-`lockUnavailable`三个饱和u64计数。它们归每个CaptureBudget实例所有，新实例从零开始，
-不是整个进程累计。granted仅表示admit许可，不保证后续readback、JPEG或存帧成功；
-policyDenied涵盖全部admit返回None，不能单独解释成CPU算力不足；lockUnavailable
-同时包括try_lock竞争与poisoned。没有新帧或提前suppression不会形成try_cpu尝试。
-
-handoff返回后、传播Err之前取得快照；iteration退出时覆盖最新累计值，不重复相加。
-三个Relaxed原子读不是整体原子快照，与帧状态及阶段发布也不原子，不强制计数总和
-等于handoff attempts。budget实例重建可能归零，当前staged单调校验会拒绝该窗口，
-不能据captureTiming跨epoch累计推断budget计数也跨所有恢复累计。
-
-不改变admit判定、ticket公平性、permit构造或Drop cooldown；不新增mutex。但许可和
-策略拒绝的原子计数仍在既有预算锁内执行，不能宣称锁持有时间完全不变或零开销。
-这些计数不提供拒绝耗时、排队等待时长，也不单独证明JPEG低速因果。
-
-本次预算12 passed、capture26 passed/2 ignored、relay38 passed/4 ignored及staged
-30项Node回归通过；快照覆盖、三类真实try_cpu结果、permit释放/cooldown与饱和有回归。
-尚未打包或运行新包WGC双机验收，独立readback计时仍缺。兼容旧包的observer通过
-不证明新计数存在或推进。证据见`linshi/issue67-source-stage-timing-20261007/admission-receipt.json`。
-
 这是现有实时投射观看窗口的只读证据入口，不是另一套传输或持续遥测服务。
-
-### 消费端 readback 子阶段（后续接线，待新包原生验证）
-
-`captureTiming.readback`新增`stagingCopy`和`mapRgb`，分别复用六字段固定累计统计。
-mailbox直接路径和GPU slot fallback路径都接入同一累计值，不区分路径来源。
-stagingCopy仅包围Readback::copy的同步CPU调用，包括staging分配及CopyResource提交，
-不是GPU copy完成确认；mapRgb包围into_rgb，包含Map重试/等待、分配、BGRA到RGB转换、
-Unmap和消费对象释放，不是纯Map syscall或GPU执行耗时。capture callback内的
-GpuFrame::copy_for_readback不在这两个测点内，WGC acquisition也未覆盖。
-
-二者是handoff的子阶段，分析不得与handoff再相加造成重复计时。失败返回照常计数，
-copy失败不会虚构map或JPEG尝试；panic、poisoned诊断锁边界与已有阶段一致。
-没有新增诊断锁、像素复制或纹理历史，permit仍由原raw/返回值持有；fallback的copy
-计时在原service/slots锁内执行，因此存在少量计时开销，不宣称锁持有时长完全不变。
-
-为保持行数门禁，将既有fallback函数整体移入live_gpu/worker_fallback.rs，保留
-worker::fallback接口与候选顺序、锁作用域、permit释放。最终capture28 passed/2 ignored、
-live_gpu28 passed/6 ignored（含12项budget）、relay38 passed/4 ignored、staged31项
-Node回归通过。真实D3D fallback测试新增统计断言但仍ignored，不能报告为原生已过。
-新候选和两机测量尚未执行；旧`.25`不包含这些测点。
 
 先沿 [正常产品入口](LIVE_CAPTURE.md#cross-device-liverelay-entry) 发布、受权加入。
 QR 图片投射、tile wall、模拟 IPC 或浏览器夹具不能代替原生两机验收。
@@ -128,7 +37,8 @@ QR 图片投射、tile wall、模拟 IPC 或浏览器夹具不能代替原生两
 ## 浏览器绘制证据
 
 实际 `LiveRelayLayer` 图像节点由 `LiveRelayImage` 挂载。当宿主支持 PerformanceObserver
-的 `element` entry 时，单个 observer 只接受该节点的 `image-paint`：identifier、
+的 `element` entry 时，同一 document 共享一个 observer，按 entry.element 分发到对应
+图像节点，避免多窗口逐个扫描整份绘制事件；每个节点只接受自己的 `image-paint`：identifier、
 当前 URL、relay/session/epoch/frame/generation、解码尺寸、可见 document、非空交集与
 当前节点几何必须匹配。绘制时间必须在本帧提交后且不晚于当前收端 `performance.now()`。
 URL 只在进程内校验，不输出到诊断属性。
@@ -139,7 +49,8 @@ URL 只在进程内校验，不输出到诊断属性。
 图像显示路径，不增加 canvas、像素复制、计时器或入站权限。
 
 换帧清单槽；document 隐藏/恢复、图像错误会清记录并设置失效时间，拒绝之前排队的
-迟到 entry。卸载会断开 observer、移除 listener，并拒绝其迟到回调。observer 建立失败
+迟到 entry。清帧或卸载会清除节点支持状态；卸载移除订阅和 listener，最后一个节点
+卸载时断开共享 observer，并拒绝其迟到回调。observer 建立失败
 或 API 不支持时保留原有 `decoded_submitted` 路径，不用 load/rAF 伪造绘制成功。
 记录表示当前帧曾获得浏览器绘制证据；后续 CSS 遮挡、透明度或显示器状态不在其
 持续监测范围内。Element Timing 不是 compositor acknowledgement，更不是物理屏幕扫描证明。
