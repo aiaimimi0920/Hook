@@ -30,6 +30,90 @@ fn viewer_relay(base_url: String) -> Arc<LiveRelaySession> {
     })
 }
 
+mod live_relay_command_owner_tests {
+    use super::*;
+
+    fn source_relay() -> Arc<LiveRelaySession> {
+        let mut relay = viewer_relay("http://127.0.0.1:1".to_owned());
+        Arc::get_mut(&mut relay).unwrap().role = LiveRelayRole::Source;
+        mark_live_relay_connected(&relay);
+        relay
+    }
+
+    #[test]
+    fn active_command_preserves_identity_and_nonterminal_recovery() {
+        let relay = source_relay();
+        *relay.input_sequence.lock().unwrap() = 7;
+        for recovering in [false, true] {
+            if recovering {
+                mark_live_relay_recovering(&relay, "network", "temporary");
+            }
+            let snapshot = relay.command_snapshot().unwrap();
+            assert_eq!(snapshot.relay_id, relay.relay_id);
+            assert_eq!(snapshot.live_session_id, relay.live_session_id);
+            assert_eq!(snapshot.epoch, 1);
+            assert_eq!(snapshot.last_input_sequence, 7);
+            assert_eq!(
+                snapshot.connection_state,
+                if recovering {
+                    "recovering"
+                } else {
+                    "connected"
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn retired_source_cannot_return_closed_as_a_successful_control_result() {
+        let old = source_relay();
+        let pending_command = Arc::clone(&old);
+        old.stop_and_join().unwrap();
+        let replacement = source_relay();
+        assert_eq!(old.relay_id, replacement.relay_id);
+        assert_eq!(
+            old.snapshot().unwrap().epoch,
+            replacement.snapshot().unwrap().epoch
+        );
+        // 恢复保留公开身份；旧 worker 的关闭可供状态读取，但不是新 owner 的控制结果。
+        assert_eq!(
+            pending_command.snapshot().unwrap().connection_state,
+            "closed"
+        );
+        assert_eq!(
+            replacement.command_snapshot().unwrap().connection_state,
+            "connected"
+        );
+        assert_eq!(
+            pending_command.command_snapshot().err().as_deref(),
+            Some("live relay session is stopping")
+        );
+    }
+
+    #[test]
+    fn stopping_command_is_rejected_before_closed_state_is_published() {
+        let relay = source_relay();
+        relay.stop.store(true, Ordering::SeqCst);
+        assert_eq!(relay.snapshot().unwrap().connection_state, "connected");
+        assert_eq!(
+            relay.command_snapshot().err().as_deref(),
+            Some("live relay session is stopping")
+        );
+    }
+
+    #[test]
+    fn terminal_command_is_rejected_even_before_stop_flag_is_set() {
+        let relay = source_relay();
+        relay.state.lock().unwrap().mark_closed();
+        assert!(!relay.stop.load(Ordering::SeqCst));
+        assert_eq!(relay.snapshot().unwrap().connection_state, "closed");
+        assert_eq!(
+            relay.command_snapshot().err().as_deref(),
+            Some("live relay session is stopping")
+        );
+    }
+}
+
 fn frame_bytes() -> Vec<u8> {
     encode_live_relay_binary_frame(
         &LiveRelayBinaryMetadata {
@@ -261,5 +345,162 @@ fn terminal_requires_explicit_closed_and_exact_member_identity() {
             live_viewer_snapshot_closed(&value, "live:test", 1, "viewer:test").is_err(),
             "mutation {mutation}"
         );
+    }
+}
+
+#[cfg(feature = "remote-surface")]
+mod live_viewer_authorization_tests {
+    use super::*;
+
+    fn rejected() -> serde_json::Value {
+        serde_json::json!({"error":{"message":"device session is missing or expired"}})
+    }
+
+    fn assert_rejoin_required(relay: &LiveRelaySession) {
+        let status = relay.snapshot().unwrap();
+        assert!(relay.stop.load(Ordering::SeqCst));
+        assert_eq!(status.connection_state, "closed");
+        assert_eq!(
+            status.error_code.as_deref(),
+            Some("live_viewer_authorization_required")
+        );
+        assert!(!status.controller_owned && !status.remote_control_active);
+        assert!(relay.frames.lock().unwrap().frames.is_empty());
+        assert!(accept_live_relay_viewer_frame(relay, &frame_bytes()).is_err());
+    }
+
+    #[test]
+    fn unauthorized_headers_close_viewer_before_unreadable_body() {
+        for body in [
+            format!("Content-Length: {}\r\n\r\n", LIVE_RELAY_MAX_JSON_BYTES + 1),
+            "Content-Length: 100\r\n\r\n{".to_owned(),
+            "Transfer-Encoding: chunked\r\n\r\ninvalid-chunk\r\n".to_owned(),
+            "Content-Length: 1\r\n\r\n{".to_owned(),
+        ] {
+            let fixture = ViewerHttpFixture::with_response_override(
+                None,
+                rejected(),
+                200,
+                401,
+                Some(format!(
+                    "HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n{body}"
+                )),
+            );
+            let relay = device_viewer(fixture.url.clone());
+            accept_live_relay_viewer_frame(&relay, &frame_bytes()).unwrap();
+            assert!(resume_live_viewer_blocking(&relay)
+                .unwrap_err()
+                .contains("HTTP 401:"));
+            assert_rejoin_required(&relay);
+            assert_eq!(fixture.paths.lock().unwrap().len(), 1);
+        }
+    }
+
+    #[test]
+    fn unauthorized_resume_closes_old_viewer_without_advancing_cursors() {
+        let fixture = ViewerHttpFixture::with_snapshot_status(None, rejected(), 401);
+        let relay = device_viewer(fixture.url.clone());
+        accept_live_relay_viewer_frame(&relay, &frame_bytes()).unwrap();
+        relay.state.lock().unwrap().controller_owned = true;
+        *relay.control_sequence.lock().unwrap() = 41;
+        *relay.input_sequence.lock().unwrap() = 29;
+        let error = resume_live_viewer_blocking(&relay).unwrap_err();
+        assert!(error.contains("HTTP 401:"), "{error}");
+        assert_rejoin_required(&relay);
+        assert_eq!(*relay.control_sequence.lock().unwrap(), 41);
+        assert_eq!(*relay.input_sequence.lock().unwrap(), 29);
+        assert_eq!(fixture.paths.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn unauthorized_event_or_terminal_snapshot_stops_control_worker_retries() {
+        for deny_events in [true, false] {
+            let fixture = if deny_events {
+                ViewerHttpFixture::with_statuses(Some(rejected()), viewer_snapshot(false), 401, 200)
+            } else {
+                ViewerHttpFixture::with_snapshot_status(None, rejected(), 401)
+            };
+            let relay = device_viewer(fixture.url.clone());
+            accept_live_relay_viewer_frame(&relay, &frame_bytes()).unwrap();
+            *relay.control_join.lock().unwrap() =
+                Some(spawn_live_relay_control_worker(Arc::clone(&relay)).unwrap());
+            let stopped = wait_media(|| relay.stop.load(Ordering::SeqCst));
+            // 跨过既有重试间隔，验证真实 worker 不再用已拒绝的固定凭据发请求。
+            std::thread::sleep(Duration::from_millis(650));
+            let requests = fixture.paths.lock().unwrap().len();
+            relay.stop_and_join().unwrap();
+            assert!(stopped, "unauthorized worker kept retrying: {requests}");
+            assert_rejoin_required(&relay);
+            assert_eq!(requests, if deny_events { 1 } else { 2 });
+        }
+    }
+
+    #[test]
+    fn other_http_failures_do_not_masquerade_as_viewer_auth_expiry() {
+        for status in [400, 403, 404, 409, 500, 503] {
+            let fixture = ViewerHttpFixture::with_snapshot_status(
+                None,
+                serde_json::json!({"error":{"message":"upstream text mentions HTTP 401:"}}),
+                status,
+            );
+            let relay = device_viewer(fixture.url.clone());
+            accept_live_relay_viewer_frame(&relay, &frame_bytes()).unwrap();
+            assert!(resume_live_viewer_blocking(&relay).is_err());
+            assert!(!relay.stop.load(Ordering::SeqCst), "HTTP {status}");
+            assert!(!relay.frames.lock().unwrap().frames.is_empty());
+            assert!(relay.snapshot().unwrap().error_code.is_none());
+        }
+    }
+
+    #[test]
+    fn source_and_nondevice_viewers_keep_existing_auth_recovery() {
+        for source in [true, false] {
+            let fixture = ViewerHttpFixture::with_statuses(
+                Some(rejected()),
+                viewer_snapshot(false),
+                401,
+                200,
+            );
+            let mut relay = if source {
+                device_viewer(fixture.url.clone())
+            } else {
+                viewer_relay(fixture.url.clone())
+            };
+            if source {
+                Arc::get_mut(&mut relay).unwrap().role = LiveRelayRole::Source;
+            }
+            assert!(poll_live_relay_events_blocking(&relay, 0).is_err());
+            assert!(!relay.stop.load(Ordering::SeqCst));
+            assert!(relay.snapshot().unwrap().error_code.is_none());
+        }
+    }
+
+    #[test]
+    fn late_unauthorized_response_preserves_stopped_or_revoked_terminal_state() {
+        for code in [None, Some("live_media_device_revoked")] {
+            let fixture = ViewerHttpFixture::with_snapshot_status(None, rejected(), 401);
+            let relay = device_viewer(fixture.url.clone());
+            relay.stop_and_join().unwrap();
+            relay.state.lock().unwrap().error_code = code.map(str::to_owned);
+            assert!(resume_live_viewer_blocking(&relay).is_err());
+            mark_live_relay_recovering(&relay, "late_failure", "late");
+            let status = relay.snapshot().unwrap();
+            assert_eq!(status.connection_state, "closed");
+            assert_eq!(status.error_code.as_deref(), code);
+        }
+    }
+
+    #[test]
+    fn terminal_snapshot_does_not_erase_an_already_closed_error() {
+        let fixture = ViewerHttpFixture::new(None, viewer_snapshot(true));
+        let relay = device_viewer(fixture.url.clone());
+        accept_live_relay_viewer_frame(&relay, &frame_bytes()).unwrap();
+        {
+            let mut state = relay.state.lock().unwrap();
+            state.mark_closed();
+            state.error_code = Some("live_viewer_authorization_required".to_owned());
+        }
+        assert!(close_live_viewer_if_terminal(&relay).unwrap());
+        assert_rejoin_required(&relay);
     }
 }
