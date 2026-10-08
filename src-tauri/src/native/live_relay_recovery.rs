@@ -23,9 +23,34 @@ async fn recover_live_relay_source(
         } else {
             "source_recovery_failed"
         };
-        mark_live_relay_recovering(&old, code, error.clone());
+        mark_live_source_recovery_failed(relays, &old, code, error);
     }
     result
+}
+
+fn mark_live_source_recovery_failed(
+    relays: &SharedLiveRelaySessions,
+    old: &Arc<LiveRelaySession>,
+    code: &str,
+    error: &str,
+) {
+    let Ok(sessions) = relays.0.lock() else {
+        return;
+    };
+    if old.role != LiveRelayRole::Source
+        || !old.recovery_busy.load(Ordering::SeqCst)
+        || !sessions
+            .get(&old.relay_id)
+            .is_some_and(|current| Arc::ptr_eq(current, old))
+    {
+        return;
+    }
+    if let Ok(mut state) = old.state.lock() {
+        // worker 退役不等于用户停止；保留可重试状态，但不复活已移除、替换或撤销的 owner。
+        if state.error_code.as_deref() != Some("live_media_device_revoked") {
+            state.mark_recovering(code, error);
+        }
+    }
 }
 
 async fn recover_live_relay_source_inner(
@@ -110,7 +135,7 @@ async fn recover_live_relay_source_inner(
         {
             return Err("source recovery snapshot owner changed".to_owned());
         }
-        runtime_state.observations = parse_live_viewer_observations(&response)?;
+        runtime_state.observations = recovery_source_observations(&response)?;
         let (registrations, audits) = parse_live_trigger_snapshot(&response)?;
         runtime_state.trigger_registrations = registrations;
         runtime_state.trigger_audits = audits;

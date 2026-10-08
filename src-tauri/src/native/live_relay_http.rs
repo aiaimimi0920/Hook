@@ -385,13 +385,14 @@ fn send_live_relay_json_blocking(
     request: reqwest::blocking::RequestBuilder,
     context: &str,
 ) -> Result<serde_json::Value, String> {
-    let (status, bytes) = read_live_relay_json_blocking(request, context)?;
+    let (status, bytes) = read_live_relay_json_blocking(request, context, |_| Ok(()))?;
     parse_live_relay_response(status, &bytes, context)
 }
 
 fn read_live_relay_json_blocking(
     request: reqwest::blocking::RequestBuilder,
     context: &str,
+    on_status: impl Fn(u16) -> Result<(), String>,
 ) -> Result<(u16, Vec<u8>), String> {
     for attempt in 0..=LIVE_RELAY_BUSY_RETRIES {
         let mut response = request
@@ -400,6 +401,8 @@ fn read_live_relay_json_blocking(
             .send()
             .map_err(|error| format!("{context}: {error}"))?;
         let status = response.status().as_u16();
+        // 认证终态依据响应头，不能被后续响应体超限、截断或解析失败绕过。
+        on_status(status)?;
         if response
             .content_length()
             .is_some_and(|length| length > LIVE_RELAY_MAX_JSON_BYTES as u64)

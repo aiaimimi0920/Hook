@@ -36,10 +36,28 @@ fn parse_live_requester_cursor(
             .and_then(serde_json::Value::as_u64)
             .ok_or_else(|| format!("Loom live recovery cursor has invalid {key}"))
     };
+    let input = read("inputSequence")?;
+    if input >= LIVE_INPUT_MAX_SAFE_SEQUENCE {
+        return Err("Loom live recovery input sequence exhausted".to_owned());
+    }
     Ok(LiveRequesterCursor {
         control: read("controlSequence")?,
-        input: read("inputSequence")?,
+        input,
     })
+}
+
+fn recovery_source_observations(
+    snapshot: &serde_json::Value,
+) -> Result<std::collections::BTreeMap<String, LiveRelayObservation>, String> {
+    let mut observations = parse_live_viewer_observations(snapshot)?;
+    for observation in observations.values_mut() {
+        // 共享快照也必须失去旧稳定性和值；首次重发失败时仍不得暴露旧触发依据。
+        observation.state = LiveRelayObservationState::Observing;
+        observation.stable_since_ms = None;
+        observation.value = None;
+        observation.reason = None;
+    }
+    Ok(observations)
 }
 
 async fn get_live_member_snapshot_http(
