@@ -1,6 +1,7 @@
 # LiveRelay 收端诊断与包绑定
 
 这是现有实时投射观看窗口的只读证据入口，不是另一套传输或持续遥测服务。
+
 先沿 [正常产品入口](LIVE_CAPTURE.md#cross-device-liverelay-entry) 发布、受权加入。
 QR 图片投射、tile wall、模拟 IPC 或浏览器夹具不能代替原生两机验收。
 
@@ -19,6 +20,8 @@ QR 图片投射、tile wall、模拟 IPC 或浏览器夹具不能代替原生两
 | `epoch` / `receivedFrames` / `overwrittenFrames` / `reconnectCount` | native 状态计数；不等于不同显示画面数或物理 FPS |
 | `hasError` | 是否存在错误；不输出错误正文、标题、URL、观察值或凭证 |
 | `presentation` | 当前已解码并提交的单帧；没有有效证据时为 null |
+| `renderEvidenceSupported` | 当前图像节点的宿主是否支持 Element Timing；true/false，尚未挂载为 null |
+| `rendering` | 当前提交帧收到过浏览器 image-paint 记录；无有效记录为 null，不是当前物理可见性或显示确认 |
 
 `presentation` 绑定当前 relay/session、epoch、已提交 frame ID；需要图片仍存在且连接未关闭。
 它记录提交时的 controller `generation`、尺寸、JPEG/raw codec、payload/image 字节、
@@ -29,7 +32,79 @@ QR 图片投射、tile wall、模拟 IPC 或浏览器夹具不能代替原生两
 仅用于关联；**不直接跨设备相减**。`submittedAtMs` 是收端当前 document 的
 `performance.now()`，不是 Unix 时间。epoch 换代、停止或图片清理使旧 presentation 失效。
 后续帧解码失败时可能仍保留上一帧，必须看 `presentation.frameId`，不能用 `lastFrameId`
-或接收计数冒充最新呈现。没有合成回调、物理显示确认或全帧分位数。
+或接收计数冒充最新呈现。`decoded_submitted` 自身没有合成或物理显示确认，也没有全帧分位数。
+
+## 浏览器绘制证据
+
+实际 `LiveRelayLayer` 图像节点由 `LiveRelayImage` 挂载。当宿主支持 PerformanceObserver
+的 `element` entry 时，同一 document 共享一个 observer，按 entry.element 分发到对应
+图像节点，避免多窗口逐个扫描整份绘制事件；每个节点只接受自己的 `image-paint`：identifier、
+当前 URL、relay/session/epoch/frame/generation、解码尺寸、可见 document、非空交集与
+当前节点几何必须匹配。绘制时间必须在本帧提交后且不晚于当前收端 `performance.now()`。
+URL 只在进程内校验，不输出到诊断属性。
+
+`rendering.evidence` 为 `browser_element_render`，包含 generation、frame ID、
+`renderTimeMs` 和 `sinceSubmittedMs`。后二者仅使用同一 document 时钟，表示本次
+提交到浏览器记录的绘制时间；不是网络、全链路或跨机帧龄。JPEG/raw 继续使用同一
+图像显示路径，不增加 canvas、像素复制、计时器或入站权限。
+
+换帧清单槽；document 隐藏/恢复、图像错误会清记录并设置失效时间，拒绝之前排队的
+迟到 entry。清帧或卸载会清除节点支持状态；卸载移除订阅和 listener，最后一个节点
+卸载时断开共享 observer，并拒绝其迟到回调。observer 建立失败
+或 API 不支持时保留原有 `decoded_submitted` 路径，不用 load/rAF 伪造绘制成功。
+记录表示当前帧曾获得浏览器绘制证据；后续 CSS 遮挡、透明度或显示器状态不在其
+持续监测范围内。Element Timing 不是 compositor acknowledgement，更不是物理屏幕扫描证明。
+
+从 Hook 根目录运行 `node scripts/test-live-relay-render-browser.mjs <output-directory>`
+可挂载生产观看组件并验证实际 Chromium image-paint、换图、CSS 隐藏/恢复、坏图、
+epoch 换代、关闭与卸载。只有 native rect sync 与入站 store 数据使用夹具；不代表
+真实 WGC、跨设备或目标 WebView2 已通过。输出目录应放在本地临时工作区。
+
+2026-10-07 已另用独立 Wry/Tao 嵌入式宿主，在 WebView2 Runtime `154.0.4258.62`
+中复用同一生产观看组件夹具，验证 image-paint、连续换帧、隐藏/恢复、坏图、epoch/
+generation 换代、关闭和卸载后迟到结果；图片 URL 归零。该宿主使用隔离 profile、
+loopback 页面和进程退出清理边界，不注册全局输入 Hook、不启用 CDP，也不退出日常 Hook。
+此结果补充目标 runtime 的软件层兼容证据，**不是 v0.2.32.25 Hook EXE 的运行验收**：
+入站 store 与 native rect sync 仍是夹具，真实采集、跨机、合成确认和物理显示均未测试。
+上述 Chromium 命令不运行这个原生宿主；不能用浏览器版本号或诊断 buildVersion 替代包绑定。
+
+### 已绑定 .25 候选的双机原生补验
+
+2026-10-07 随后完成重新打包的内部 `.25` 候选实测，SHA-256 为
+`401c0c94f7953d3eeb2a993a940e7a622920618e6f5844f44ee512e172db15a1`。
+两台 Windows 的实际 EXE、PID、创建时间和 CDP 父链均已绑定；从正常产品界面发布、
+经 Surface 参数面板加入，使用真实 WGC 采集和 LAN HTTPS/WSS 媒体。SSH 仅用于管理，
+不转发媒体。接收端页面为 `http://tauri.localhost/`，WebView2 为 `154.0.4258.62`。
+
+各阶段使用唯一 raw CDP 连接、250 ms 间隔串行采样，不启用 `Network.enable`：
+
+| 原生窗口阶段 | 样本数 | 不同的已核验绘制帧 | 当次无当前绘制证据的样本 | 实际 document 状态 |
+| --- | --- | --- | --- | --- |
+| 可见 | 80 | 55 | 25 | `visible` |
+| 最小化 | 8 | 6 | 2 | `visible` |
+| 恢复后 | 80 | 63 | 17 | `visible` |
+
+最小化采样前后均确认同一原生窗口 `IsIconic=true`，恢复后为 false；恢复阶段的绘制帧
+推进到 1843，晚于最小化阶段最后提交的 1142。上述数量是离散采样，不是 FPS、全帧历史
+或漏帧率；单槽没有当前绘制记录的样本也保留，不能用接收计数填补。
+可见、恢复后与关闭截图均已核看。正常停止后图片归零，`presentation`、`rendering`
+均为 null；双机专用进程和监听清理、日常 `.23` 恢复通过。
+
+**原生最小化不等于网页隐藏。** 该宿主的最小化窗口仍报告 `document.visibilityState`
+为 `visible`；仅 raw CDP 和断开 Playwright 后的对照也如此，不归因于 Playwright。
+旧的“最小化必须进入 hidden”失败记录保留，不重命名为通过、不伪造网页状态或放宽权限。
+本候选的真正 document-hidden 失效场景仍未覆盖，既有组件夹具的隐藏回归不能代替它。
+本次只通过实际候选的软件绘制、最小化/恢复推进与停止清帧；未验证合成确认、物理显示
+或完整性能矩阵，也不把内部 dirty candidate 当作正式发布或关闭整个 A3-D。
+
+同日再对相同 SHA 的 `.25` EXE 做单机隔离入口探测：通过现有 `hide_to_tray` /
+`show_canvas_window` 产品命令隐藏到托盘并恢复，原生 `IsWindowVisible` 依次为
+true/false/true；各阶段 8 次、250 ms 间隔的 raw CDP 采样均为 document `visible`。
+因此托盘隐藏也不能提供本包的 document-hidden 验收前提。探测未启动媒体、未修改
+网页状态或产品权限，不能证明隐藏时的 LiveRelay 清帧；候选正常退出及专用监听清理通过。
+实际调用链只转发原生窗口 hide/show，没有调用 Wry 的 WebView `SetIsVisible`。
+后续若验证真正网页隐藏，应先建立合法可达的宿主转换，再执行媒体失效断言；
+不重复用最小化或托盘隐藏冒充该转换，也不因当前路径未触发而删除隐藏防护。
 
 ## 有界读取
 
@@ -102,4 +177,4 @@ A1 的 `identity` 是 UTF-8 `JSON.stringify([liveSessionId, sourceDeviceId])` �
 
 原始设备/会话 ID 只留受信本地证据；公开报告使用与 A1 一致的指纹，不发布原始 ID、
 图像、OCR、授权 URL 或环境变量。生产代码不主动落盘、不保留图像副本或持久采样数组。
-真实网络、CPU/GPU、首次画面、恢复/撤销、慢 viewer 与物理显示属于后续包绑定原生基线。
+其他网络/设备/性能与物理显示矩阵仍需各自的包绑定原生基线；本页单场景通过不覆盖它们。
