@@ -118,7 +118,17 @@ fn send_live_relay_worker_json_blocking(
     request: reqwest::blocking::RequestBuilder,
     context: &str,
 ) -> Result<serde_json::Value, String> {
-    let (status, bytes) = read_live_relay_json_blocking(request, context)?;
+    let (status, bytes) = read_live_relay_json_blocking(request, context, |status| {
+        close_live_viewer_on_http_status(relay, status, context)
+    })?;
+    parse_live_relay_response(status, &bytes, context)
+}
+
+fn close_live_viewer_on_http_status(
+    relay: &LiveRelaySession,
+    status: u16,
+    context: &str,
+) -> Result<(), String> {
     // 固定的 Device 凭据不能靠原地重试续签；HTTP 401 只终止旧观看，不代表设备已撤销。
     if status == 401
         && relay.role == LiveRelayRole::Viewer
@@ -140,8 +150,11 @@ fn send_live_relay_worker_json_blocking(
                 .map_err(|_| "live relay frame buffer poisoned")?
                 .clear();
         }
+        return Err(format!(
+            "{context}: HTTP 401: viewer authorization required"
+        ));
     }
-    parse_live_relay_response(status, &bytes, context)
+    Ok(())
 }
 
 fn close_live_viewer_if_terminal(relay: &LiveRelaySession) -> Result<bool, String> {

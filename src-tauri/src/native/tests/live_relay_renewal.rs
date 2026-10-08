@@ -64,6 +64,12 @@ mod live_relay_renewal_tests {
         old.sequence = 73;
         old.state = LiveRelayObservationState::Stable;
         old.stable_since_ms = Some(10);
+        let snapshot = serde_json::json!({"observations": [old.clone()]});
+        let restored = recovery_source_observations(&snapshot).unwrap();
+        let shared = restored.get("uia:renewed").unwrap();
+        assert_eq!(shared.state, LiveRelayObservationState::Observing);
+        assert_eq!(shared.sequence, 73);
+        assert!(shared.value.is_none() && shared.stable_since_ms.is_none());
         let mut observations =
             std::collections::BTreeMap::from([(old.observation_id.clone(), old)]);
         let tracks = seed_live_uia_tracks(&observations).unwrap();
@@ -81,5 +87,22 @@ mod live_relay_renewal_tests {
         assert!(seed_live_uia_tracks(&std::collections::BTreeMap::new())
             .unwrap()
             .is_empty());
+    }
+
+    #[test]
+    fn recovery_input_cursor_requires_room_for_a_safe_next_sequence() {
+        for (sequence, accepted) in [
+            (LIVE_INPUT_MAX_SAFE_SEQUENCE - 1, true),
+            (LIVE_INPUT_MAX_SAFE_SEQUENCE, false),
+            (LIVE_INPUT_MAX_SAFE_SEQUENCE + 1, false),
+            (u64::MAX, false),
+        ] {
+            let mut value = member();
+            value["requesterControl"]["inputSequence"] = sequence.into();
+            assert_eq!(
+                parse_live_requester_cursor(&value, "live:a", "device:a", 3).is_ok(),
+                accepted
+            );
+        }
     }
 }

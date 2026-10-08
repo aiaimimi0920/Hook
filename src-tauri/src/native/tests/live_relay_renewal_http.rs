@@ -15,6 +15,58 @@ fn assert_one_cursor_get(fixture: &ViewerHttpFixture) {
 }
 
 #[tokio::test]
+async fn renewal_http_post_retirement_failure_remains_retryable_only_for_current_source() {
+    for boundary in ["active", "removed", "replaced", "revoked"] {
+        let fixture = ViewerHttpFixture::with_snapshot_status(None, serde_json::json!({}), 500);
+        let mut old = viewer_relay(fixture.url.clone());
+        Arc::get_mut(&mut old).unwrap().role = LiveRelayRole::Source;
+        let relays = SharedLiveRelaySessions::new();
+        relays.insert(Arc::clone(&old)).unwrap();
+        old.recovery_busy.store(true, Ordering::SeqCst);
+        old.stop_and_join().unwrap();
+        let error =
+            get_live_member_snapshot_http(&fixture.url, &old.authorization, &old.live_session_id)
+                .await
+                .unwrap_err();
+        match boundary {
+            "removed" => {
+                relays.0.lock().unwrap().remove(&old.relay_id);
+            }
+            "replaced" => {
+                relays
+                    .0
+                    .lock()
+                    .unwrap()
+                    .insert(old.relay_id.clone(), viewer_relay(fixture.url.clone()));
+            }
+            "revoked" => {
+                old.state.lock().unwrap().error_code = Some("live_media_device_revoked".to_owned());
+            }
+            _ => {}
+        }
+        mark_live_source_recovery_failed(&relays, &old, "source_recovery_failed", &error);
+        let snapshot = old.snapshot().unwrap();
+        assert_eq!(
+            snapshot.connection_state,
+            if boundary == "active" {
+                "recovering"
+            } else {
+                "closed"
+            }
+        );
+        assert!(old.stop.load(Ordering::SeqCst));
+        assert!(!snapshot.controller_owned && !snapshot.remote_control_active);
+        if boundary == "revoked" {
+            assert_eq!(
+                snapshot.error_code.as_deref(),
+                Some("live_media_device_revoked")
+            );
+        }
+        assert_one_cursor_get(&fixture);
+    }
+}
+
+#[tokio::test]
 async fn renewal_http_first_join_keeps_legacy_sequence_without_requesting_cursor() {
     let fixture = ViewerHttpFixture::new(None, viewer_snapshot(false));
     let authorization =

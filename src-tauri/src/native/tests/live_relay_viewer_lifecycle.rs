@@ -370,6 +370,33 @@ mod live_viewer_authorization_tests {
     }
 
     #[test]
+    fn unauthorized_headers_close_viewer_before_unreadable_body() {
+        for body in [
+            format!("Content-Length: {}\r\n\r\n", LIVE_RELAY_MAX_JSON_BYTES + 1),
+            "Content-Length: 100\r\n\r\n{".to_owned(),
+            "Transfer-Encoding: chunked\r\n\r\ninvalid-chunk\r\n".to_owned(),
+            "Content-Length: 1\r\n\r\n{".to_owned(),
+        ] {
+            let fixture = ViewerHttpFixture::with_response_override(
+                None,
+                rejected(),
+                200,
+                401,
+                Some(format!(
+                    "HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n{body}"
+                )),
+            );
+            let relay = device_viewer(fixture.url.clone());
+            accept_live_relay_viewer_frame(&relay, &frame_bytes()).unwrap();
+            assert!(resume_live_viewer_blocking(&relay)
+                .unwrap_err()
+                .contains("HTTP 401:"));
+            assert_rejoin_required(&relay);
+            assert_eq!(fixture.paths.lock().unwrap().len(), 1);
+        }
+    }
+
+    #[test]
     fn unauthorized_resume_closes_old_viewer_without_advancing_cursors() {
         let fixture = ViewerHttpFixture::with_snapshot_status(None, rejected(), 401);
         let relay = device_viewer(fixture.url.clone());
