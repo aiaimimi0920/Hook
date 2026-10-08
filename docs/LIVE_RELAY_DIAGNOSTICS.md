@@ -128,7 +128,8 @@ QR 图片投射、tile wall、模拟 IPC 或浏览器夹具不能代替原生两
 ## 浏览器绘制证据
 
 实际 `LiveRelayLayer` 图像节点由 `LiveRelayImage` 挂载。当宿主支持 PerformanceObserver
-的 `element` entry 时，单个 observer 只接受该节点的 `image-paint`：identifier、
+的 `element` entry 时，同一 document 共享一个 observer，按 entry.element 分发到对应
+图像节点，避免多窗口逐个扫描整份绘制事件；每个节点只接受自己的 `image-paint`：identifier、
 当前 URL、relay/session/epoch/frame/generation、解码尺寸、可见 document、非空交集与
 当前节点几何必须匹配。绘制时间必须在本帧提交后且不晚于当前收端 `performance.now()`。
 URL 只在进程内校验，不输出到诊断属性。
@@ -139,7 +140,8 @@ URL 只在进程内校验，不输出到诊断属性。
 图像显示路径，不增加 canvas、像素复制、计时器或入站权限。
 
 换帧清单槽；document 隐藏/恢复、图像错误会清记录并设置失效时间，拒绝之前排队的
-迟到 entry。卸载会断开 observer、移除 listener，并拒绝其迟到回调。observer 建立失败
+迟到 entry。清帧或卸载会清除节点支持状态；卸载移除订阅和 listener，最后一个节点
+卸载时断开共享 observer，并拒绝其迟到回调。observer 建立失败
 或 API 不支持时保留原有 `decoded_submitted` 路径，不用 load/rAF 伪造绘制成功。
 记录表示当前帧曾获得浏览器绘制证据；后续 CSS 遮挡、透明度或显示器状态不在其
 持续监测范围内。Element Timing 不是 compositor acknowledgement，更不是物理屏幕扫描证明。

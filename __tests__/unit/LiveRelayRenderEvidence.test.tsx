@@ -136,6 +136,7 @@ it("does not reauthenticate a queued pre-hide paint after becoming visible again
 });
 
 it("fails closed when Element Timing is absent or observer registration fails", () => {
+    unmount?.(); unmount = undefined;
     vi.stubGlobal("PerformanceObserver", undefined);
     const accept = vi.fn();
     expect(observeRelayImage(image, () => liveRelayViews[0], accept).supported).toBe(false);
@@ -148,5 +149,36 @@ it("fails closed when Element Timing is absent or observer registration fails", 
     class BrokenConstructor { static supportedEntryTypes = ["element"]; constructor() { throw new Error("unavailable"); } }
     vi.stubGlobal("PerformanceObserver", BrokenConstructor);
     expect(observeRelayImage(image, () => liveRelayViews[0], accept).supported).toBe(false);
+    expect(accept).not.toHaveBeenCalled();
+});
+
+it("clears support when the current image is cleared or unmounted", () => {
+    expect(liveRelayDiagnostic(liveRelayViews[0]).renderEvidenceSupported).toBe(true);
+    liveRelayActions.clearFrame("relay:a");
+    expect(liveRelayDiagnostic(liveRelayViews[0]).renderEvidenceSupported).toBeNull();
+    liveRelayActions.setRenderEvidenceSupport("relay:a", false);
+    unmount?.(); unmount = undefined;
+    expect(liveRelayDiagnostic(liveRelayViews[0]).renderEvidenceSupported).toBeNull();
+});
+
+it("routes document paints only to their owner and disconnects after the last image", () => {
+    const other = document.createElement("img");
+    const current = vi.fn(() => liveRelayViews[0]);
+    const accept = vi.fn();
+    const subscription = observeRelayImage(other, current, accept);
+    expect(subscription.supported).toBe(true);
+    expect(observers).toHaveLength(1);
+    const entry = paint();
+    observers[0].emit(entry);
+    expect(current).not.toHaveBeenCalled();
+    expect(liveRelayViews[0].renderProof?.frameId).toBe(7);
+    unmount?.(); unmount = undefined;
+    expect(observers[0].disconnected).toBe(false);
+    observers[0].emit(entry);
+    expect(current).not.toHaveBeenCalled();
+    subscription.disconnect();
+    expect(observers[0].disconnected).toBe(true);
+    observers[0].emit({ ...entry, element: other });
+    expect(current).not.toHaveBeenCalled();
     expect(accept).not.toHaveBeenCalled();
 });

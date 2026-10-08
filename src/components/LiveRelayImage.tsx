@@ -20,6 +20,7 @@ export const LiveRelayImage: Component<{ view: LiveRelayView }> = (props) => {
         disconnect();
         image.ownerDocument.removeEventListener("visibilitychange", clear);
         clear();
+        liveRelayActions.setRenderEvidenceSupport(props.view.relayId, undefined);
     });
     return <img ref={(node) => { image = node; }} src={props.view.imageUrl}
         alt="远端源窗口实时画面" draggable={false} onError={clear} />;

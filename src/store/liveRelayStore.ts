@@ -52,9 +52,10 @@ export const liveRelayActions = {
     clearFrame(relayId: string): void {
         setLiveRelayViews((view) => view.relayId === relayId, {
             imageUrl: undefined, submittedFrameId: 0, presentation: undefined, renderProof: undefined,
+            renderEvidenceSupported: undefined,
         });
     },
-    setRenderEvidenceSupport(relayId: string, supported: boolean): void {
+    setRenderEvidenceSupport(relayId: string, supported: boolean | undefined): void {
         setLiveRelayViews((view) => view.relayId === relayId, "renderEvidenceSupported", supported);
     },
     clearRenderProof(relayId: string): void {
