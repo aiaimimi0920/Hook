@@ -74,8 +74,8 @@ async fn recover_live_relay_source_inner(
         .map_err(|_| "live relay state poisoned")?
         .clone();
     let recreated = existing.is_none();
-    let response = if let Some(value) = existing {
-        value.clone()
+    let response = if existing.is_some() {
+        get_live_member_snapshot_http(&base_url, &authorization, &old.live_session_id).await?
     } else {
         let body = build_live_session_create_body(
             &request,
@@ -87,26 +87,54 @@ async fn recover_live_relay_source_inner(
         create_live_session_http(&base_url, &authorization, &body).await?
     };
     let epoch = validate_live_session_snapshot(&response, &old.live_session_id)?;
+    let mut runtime_state = LiveRelayRuntimeState::starting(
+        epoch,
+        old_state.observation_capabilities,
+        old_state.observation_reason,
+    );
+    let baseline = if !recreated {
+        let cursor = parse_live_requester_cursor(
+            &response,
+            &old.live_session_id,
+            &authorization.device_id,
+            old_state.epoch,
+        )?;
+        if response
+            .pointer("/session/sourceDeviceId")
+            .and_then(serde_json::Value::as_str)
+            != Some(&authorization.device_id)
+            || response
+                .pointer("/session/sourceHookId")
+                .and_then(serde_json::Value::as_str)
+                != Some(&request.source_hook_id)
+        {
+            return Err("source recovery snapshot owner changed".to_owned());
+        }
+        runtime_state.observations = parse_live_viewer_observations(&response)?;
+        let (registrations, audits) = parse_live_trigger_snapshot(&response)?;
+        runtime_state.trigger_registrations = registrations;
+        runtime_state.trigger_audits = audits;
+        Some(cursor)
+    } else {
+        None
+    };
     let next = new_live_relay_source(
         old.relay_id.clone(),
         request,
         Arc::clone(capture),
         base_url,
         authorization,
-        LiveRelayRuntimeState::starting(
-            epoch,
-            old_state.observation_capabilities,
-            old_state.observation_reason,
-        ),
+        runtime_state,
     );
-    if !recreated {
+    if let Some(cursor) = baseline {
         *next
             .control_sequence
             .lock()
-            .map_err(|_| "live relay control sequence poisoned")? = *old
-            .control_sequence
+            .map_err(|_| "live relay control sequence poisoned")? = cursor.control;
+        *next
+            .input_sequence
             .lock()
-            .map_err(|_| "live relay control sequence poisoned")?;
+            .map_err(|_| "live relay input sequence poisoned")? = cursor.input;
     }
     let next_worker = Arc::clone(&next);
     let relays = relays.clone();

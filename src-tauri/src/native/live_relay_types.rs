@@ -349,6 +349,16 @@ impl LiveRelaySession {
         })
     }
 
+    fn command_snapshot(&self) -> Result<LiveRelaySnapshot, String> {
+        let snapshot = self.snapshot()?;
+        // Recovery retires workers without changing public identity. Check stop after reading
+        // the snapshot so a concurrent retirement cannot return closure as command success.
+        if self.stop.load(Ordering::SeqCst) || snapshot.connection_state == "closed" {
+            return Err("live relay session is stopping".to_owned());
+        }
+        Ok(snapshot)
+    }
+
     fn stop_and_join(&self) -> Result<(), String> {
         self.stop.store(true, Ordering::SeqCst);
         let mut errors = Vec::new();

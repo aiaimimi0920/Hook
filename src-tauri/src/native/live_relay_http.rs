@@ -156,6 +156,7 @@ async fn attach_live_viewer_http(
     authorization: &crate::device_session::DeviceSessionAuthorization,
     request: &LiveRelayJoinRequest,
     epoch: u64,
+    sequence: u64,
 ) -> Result<serde_json::Value, String> {
     let client = crate::network_proxy::shared_client(base_url, Some(Duration::from_secs(15)))
         .map_err(|error| format!("build Loom live viewer client: {error}"))?;
@@ -167,7 +168,7 @@ async fn attach_live_viewer_http(
             "protocolVersion": LIVE_RELAY_PROTOCOL_VERSION,
             "sessionId": request.live_session_id,
             "epoch": epoch,
-            "sequence": 1,
+            "sequence": sequence,
             "messageType": "session_ack",
             "payload": {
                 "accepted": true,
@@ -216,7 +217,8 @@ fn resume_live_viewer_blocking(session: &LiveRelaySession) -> Result<(), String>
         crate::network_proxy::blocking_client(&session.base_url, Some(Duration::from_secs(10)))
             .map_err(|error| format!("build Loom live resume client: {error}"))?;
     let url = live_relay_session_url(&session.base_url, &session.live_session_id, Some("resume"))?;
-    send_live_relay_json_blocking(
+    send_live_relay_worker_json_blocking(
+        session,
         session
             .authorization
             .apply_blocking(client.post(url))
@@ -383,6 +385,14 @@ fn send_live_relay_json_blocking(
     request: reqwest::blocking::RequestBuilder,
     context: &str,
 ) -> Result<serde_json::Value, String> {
+    let (status, bytes) = read_live_relay_json_blocking(request, context)?;
+    parse_live_relay_response(status, &bytes, context)
+}
+
+fn read_live_relay_json_blocking(
+    request: reqwest::blocking::RequestBuilder,
+    context: &str,
+) -> Result<(u16, Vec<u8>), String> {
     for attempt in 0..=LIVE_RELAY_BUSY_RETRIES {
         let mut response = request
             .try_clone()
@@ -405,7 +415,7 @@ fn send_live_relay_json_blocking(
             return Err(format!("{context}: response exceeds the JSON size limit"));
         }
         if !is_retryable_daemon_busy(status, &bytes) || attempt == LIVE_RELAY_BUSY_RETRIES {
-            return parse_live_relay_response(status, &bytes, context);
+            return Ok((status, bytes));
         }
         std::thread::sleep(Duration::from_millis(
             LIVE_RELAY_BUSY_RETRY_MS * (attempt as u64 + 1),

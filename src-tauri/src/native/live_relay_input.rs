@@ -142,7 +142,8 @@ fn poll_live_relay_events_blocking(
     url.query_pairs_mut()
         .append_pair("after", &after.to_string())
         .append_pair("timeoutMs", &LIVE_RELAY_CONTROL_POLL_MS.to_string());
-    let value = send_live_relay_json_blocking(
+    let value = send_live_relay_worker_json_blocking(
+        relay,
         relay.authorization.apply_blocking(client.get(url)),
         "poll Loom live control events",
     )?;

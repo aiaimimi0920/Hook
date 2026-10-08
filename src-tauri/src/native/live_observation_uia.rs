@@ -193,6 +193,13 @@ fn run_live_uia_event_loop(
         .element_from_handle(Handle::from(hwnd))
         .map_err(|_| "uia_root_unavailable".to_owned())?;
     let publish_client = live_relay_observation_client(relay)?;
+    let mut tracks = seed_live_uia_tracks(
+        &relay
+            .state
+            .lock()
+            .map_err(|_| "live relay state poisoned")?
+            .observations,
+    )?;
     let dirty = Arc::new(AtomicBool::new(true));
     let structure_handler: UIStructureChangeEventHandler =
         LiveUiaStructureInvalidator(Arc::clone(&dirty)).into();
@@ -202,7 +209,6 @@ fn run_live_uia_event_loop(
     // Property callbacks expose provider-owned VARIANTs. Periodic re-resolution reads them safely.
     let _ = ready.send(Ok(()));
 
-    let mut tracks = std::collections::BTreeMap::new();
     let mut next_periodic = Instant::now();
     let loop_result = loop {
         if relay.stop.load(Ordering::SeqCst) {

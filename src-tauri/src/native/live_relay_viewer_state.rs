@@ -1,4 +1,4 @@
-// viewer 的初始事件边界及权威关闭状态；兼容既有 Loom，不把断网/404 当作关闭。
+// viewer 的初始事件边界及终态；区分 Device 认证拒绝、权威关闭与断网/404。
 fn parse_live_viewer_observations(
     attached: &serde_json::Value,
 ) -> Result<std::collections::BTreeMap<String, LiveRelayObservation>, String> {
@@ -113,6 +113,37 @@ fn live_viewer_join_cursor(
     Ok(cursor)
 }
 
+fn send_live_relay_worker_json_blocking(
+    relay: &LiveRelaySession,
+    request: reqwest::blocking::RequestBuilder,
+    context: &str,
+) -> Result<serde_json::Value, String> {
+    let (status, bytes) = read_live_relay_json_blocking(request, context)?;
+    // 固定的 Device 凭据不能靠原地重试续签；HTTP 401 只终止旧观看，不代表设备已撤销。
+    if status == 401
+        && relay.role == LiveRelayRole::Viewer
+        && relay.authorization.uses_device_session()
+    {
+        let mut state = relay
+            .state
+            .lock()
+            .map_err(|_| "live relay state poisoned")?;
+        if !relay.stop.load(Ordering::SeqCst) && state.connection_state != "closed" {
+            relay.stop.store(true, Ordering::SeqCst);
+            state.mark_closed();
+            state.error_code = Some("live_viewer_authorization_required".to_owned());
+            state.error_message = Some("观看凭据已失效，请关闭此观看后重新加入。".to_owned());
+            // 与接帧共用 state → frames 锁序；不在 worker 内 join 自己。
+            relay
+                .frames
+                .lock()
+                .map_err(|_| "live relay frame buffer poisoned")?
+                .clear();
+        }
+    }
+    parse_live_relay_response(status, &bytes, context)
+}
+
 fn close_live_viewer_if_terminal(relay: &LiveRelaySession) -> Result<bool, String> {
     if relay.role != LiveRelayRole::Viewer || relay.stop.load(Ordering::SeqCst) {
         return Ok(false);
@@ -122,7 +153,8 @@ fn close_live_viewer_if_terminal(relay: &LiveRelaySession) -> Result<bool, Strin
         crate::network_proxy::blocking_client(&relay.base_url, Some(Duration::from_secs(3)))
             .map_err(|error| format!("build Loom live terminal client: {error}"))?;
     let url = live_relay_session_url(&relay.base_url, &relay.live_session_id, None)?;
-    let value = send_live_relay_json_blocking(
+    let value = send_live_relay_worker_json_blocking(
+        relay,
         relay.authorization.apply_blocking(client.get(url)),
         "read Loom live terminal state",
     )?;
@@ -130,19 +162,25 @@ fn close_live_viewer_if_terminal(relay: &LiveRelaySession) -> Result<bool, Strin
         .state
         .lock()
         .map_err(|_| "live relay state poisoned".to_owned())?;
-    if !live_viewer_snapshot_closed(
-        &value,
-        &relay.live_session_id,
-        state.epoch,
-        &relay.authorization.device_id,
-    )? {
+    let already_closed = relay.stop.load(Ordering::SeqCst) || state.connection_state == "closed";
+    if !already_closed
+        && !live_viewer_snapshot_closed(
+            &value,
+            &relay.live_session_id,
+            state.epoch,
+            &relay.authorization.device_id,
+        )?
+    {
         return Ok(false);
     }
     // 不在 worker 内 join 自己；stop 让所有 worker 有界退出，显式关闭仍负责回收 JoinHandle。
     relay.stop.store(true, Ordering::SeqCst);
     state.mark_closed();
-    state.error_code = None;
-    state.error_message = None;
+    // 迟到的 member 快照不能清除已确认的停止、认证拒绝或撤销原因。
+    if !already_closed {
+        state.error_code = None;
+        state.error_message = None;
+    }
     relay
         .frames
         .lock()

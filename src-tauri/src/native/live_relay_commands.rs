@@ -73,8 +73,11 @@ async fn request_live_relay_pairing(app: tauri::AppHandle) -> Result<(), String>
     if crate::device_session::request_surface_pairing(&app, &manifest).await? {
         // Old attachments belong to the revoked identity. The existing Surface owner reattaches;
         // existing relays retain their immutable authorization and terminal state.
-        app.emit("surface/reset", serde_json::json!({ "reason": "device_repaired" }))
-            .map_err(|error| format!("reset Surface bindings after pairing: {error}"))?;
+        app.emit(
+            "surface/reset",
+            serde_json::json!({ "reason": "device_repaired" }),
+        )
+        .map_err(|error| format!("reset Surface bindings after pairing: {error}"))?;
     }
     Ok(())
 }
@@ -96,8 +99,20 @@ async fn join_live_relay_session(
     let discovery = discover_live_sessions_http(&base_url, &authorization).await?;
     let preview = find_live_session_snapshot(&discovery, &request.live_session_id)?;
     let epoch = validate_live_session_snapshot(preview, &request.live_session_id)?;
-    let remote = attach_live_viewer_http(&base_url, &authorization, &request, epoch).await?;
-    let epoch = validate_live_session_snapshot(&remote, &request.live_session_id)?;
+    let baseline = live_viewer_join_baseline(
+        &base_url,
+        &authorization,
+        &request.live_session_id,
+        preview,
+        epoch,
+    )
+    .await?;
+    let sequence = baseline.next_control()?;
+    let remote =
+        attach_live_viewer_http(&base_url, &authorization, &request, epoch, sequence).await?;
+    if validate_live_session_snapshot(&remote, &request.live_session_id)? != epoch {
+        return Err("Loom viewer attachment epoch changed".to_owned());
+    }
     let event_cursor =
         bootstrap_live_viewer_cursor(&base_url, &authorization, &request, &remote).await?;
     let observation_capabilities = parse_live_observation_capabilities(&remote)?;
@@ -132,8 +147,8 @@ async fn join_live_relay_session(
         join: Mutex::new(None),
         control_join: Mutex::new(None),
         observation_join: Mutex::new(None),
-        control_sequence: Mutex::new(1),
-        input_sequence: Mutex::new(0),
+        control_sequence: Mutex::new(sequence),
+        input_sequence: Mutex::new(baseline.input),
     });
     refresh_live_observation_summary(&relay)?;
     let worker = spawn_live_relay_viewer_worker(Arc::clone(&relay))?;
@@ -195,7 +210,7 @@ async fn configure_live_relay_trigger(
         state.trigger_registrations = registrations;
         state.trigger_audits = audits;
     }
-    relay.snapshot()
+    relay.command_snapshot()
 }
 
 #[tauri::command]
@@ -284,7 +299,7 @@ fn change_live_relay_controller(
     }
     state.controller_owned = matches!(request.action, LiveRelayControlAction::Acquire);
     drop(state);
-    relay.snapshot()
+    relay.command_snapshot()
 }
 
 #[tauri::command]
@@ -295,7 +310,7 @@ fn send_live_relay_input(
     validate_live_relay_identifier(&request.relay_id, "relay id")?;
     let relay = relays.get(&request.relay_id)?;
     send_live_relay_input_blocking(&relay, &request.input)?;
-    relay.snapshot()
+    relay.command_snapshot()
 }
 
 #[tauri::command]
@@ -310,7 +325,7 @@ fn reclaim_live_relay_control(
     if let Ok(mut state) = relay.state.lock() {
         state.remote_control_active = false;
     }
-    relay.snapshot()
+    relay.command_snapshot()
 }
 
 #[tauri::command]
