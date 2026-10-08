@@ -68,31 +68,39 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
                 break;
             }
             // Consume an available terminal Close before attempting another publication.
-            if let Err(error) = service_live_relay_source_socket(&relay, &mut socket) {
+            let mut timing = LiveRelaySourceIteration::new(&relay.state);
+            if let Err(error) = timing.result(LiveRelayTimingStage::SocketService, || {
+                service_live_relay_source_socket(&relay, &mut socket)
+            }) {
                 mark_live_relay_recovering(&relay, "source_read_failed", error);
                 break;
             }
-            let frame = capture
-                .frames
-                .lock()
-                .ok()
-                .and_then(|frames| frames.clone_latest_after(last_frame_id));
+            let frame = timing.latest(|| {
+                capture
+                    .frames
+                    .lock()
+                    .ok()
+                    .and_then(|frames| frames.clone_latest_after(last_frame_id))
+            });
             if let Some(frame) = frame {
-                let network_frame =
-                    match encode_live_relay_capture_frame(&frame, profile, session_epoch) {
-                        Ok(frame) => frame,
-                        Err(error) => {
-                            mark_live_relay_recovering(&relay, "source_frame_invalid", error);
-                            break;
-                        }
-                    };
+                let network_frame = match timing.result(LiveRelayTimingStage::Adaptation, || {
+                    encode_live_relay_capture_frame(&frame, profile, session_epoch)
+                }) {
+                    Ok(frame) => frame,
+                    Err(error) => {
+                        mark_live_relay_recovering(&relay, "source_frame_invalid", error);
+                        break;
+                    }
+                };
                 if relay.stop.load(Ordering::SeqCst)
                     || relay.reconnect.load(Ordering::SeqCst)
                     || live_relay_capture_ended(&capture)
                 {
                     break;
                 }
-                if let Err(error) = socket.send(tungstenite::Message::Binary(network_frame)) {
+                if let Err(error) = timing.result(LiveRelayTimingStage::SocketSend, || {
+                    socket.send(tungstenite::Message::Binary(network_frame))
+                }) {
                     let _ = service_live_relay_source_socket(&relay, &mut socket);
                     mark_live_relay_recovering(
                         &relay,

@@ -1,5 +1,39 @@
 use super::*;
 
+#[test]
+fn admission_diagnostics_distinguish_contention_policy_and_grant_without_changing_permit() {
+    let (budget, _) = fixture(1, 100);
+    let shared = Arc::new(Mutex::new(budget));
+    let owner = CaptureBudget {
+        id: "0".into(),
+        shared: Arc::clone(&shared),
+        admission: CpuAdmissionCounters::default(),
+    };
+    {
+        let guard = shared.lock().unwrap();
+        assert!(owner.try_cpu(10, 10).is_none());
+        assert_eq!(guard.cpu_grants, 0);
+        assert!(guard.demands["0"].ticket.is_none());
+    }
+    let permit = owner.try_cpu(10, 10).unwrap();
+    assert!(shared.lock().unwrap().cpu_busy);
+    assert!(owner.try_cpu(10, 10).is_none());
+    let snapshot = owner.admission_snapshot();
+    assert_eq!(
+        (
+            snapshot.granted,
+            snapshot.policy_denied,
+            snapshot.lock_unavailable
+        ),
+        (1, 1, 1)
+    );
+    assert_eq!(shared.lock().unwrap().cpu_grants, 1);
+    drop(permit);
+    let guard = shared.lock().unwrap();
+    assert!(!guard.cpu_busy);
+    assert!(guard.cpu_due.is_some());
+}
+
 fn fixture(count: usize, pixels: u64) -> (Budget, Instant) {
     let now = Instant::now();
     let mut budget = Budget::default();
@@ -89,6 +123,7 @@ fn encoded_demand_is_reference_counted_and_scoped_to_capture_registration() {
     let owner = CaptureBudget {
         id: "0".into(),
         shared: shared.clone(),
+        admission: CpuAdmissionCounters::default(),
     };
     assert!(!owner.needs_encoded_frames());
     let first = EncodedFrameConsumer::for_demand(&shared.lock().unwrap().demands["0"]);
@@ -130,6 +165,7 @@ fn permit_covers_encode_and_releases_with_cooldown_even_on_error() {
     let owner = CaptureBudget {
         id: "0".into(),
         shared: shared.clone(),
+        admission: CpuAdmissionCounters::default(),
     };
     let permit = owner.try_cpu(10, 10).unwrap();
     assert!(owner.try_cpu(10, 10).is_none());
@@ -183,6 +219,7 @@ fn rebinding_source_releases_old_group_and_private_ids_never_alias_shared_ids() 
         .map(|i| CaptureBudget {
             id: i.to_string(),
             shared: shared.clone(),
+            admission: CpuAdmissionCounters::default(),
         })
         .collect();
     owners[0].source_size(10, 10, 100, Some("1".into()));
