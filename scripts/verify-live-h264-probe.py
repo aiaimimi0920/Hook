@@ -15,7 +15,18 @@ def read_bounded(path, maximum):
     return value
 
 
-def decode(ffmpeg, source, target, first_frame, count):
+def expected_luma(index, input_kind):
+    level = 32 + index * 4
+    if input_kind == "synthetic_cpu_nv12":
+        return level
+    if input_kind == "synthetic_gpu_bgra_nv12":
+        # GPU 输入为 full-range 灰度 RGB；BT.709 limited-range Y = 16 + 219*RGB/255。
+        return (16 * 255 + 219 * level + 127) // 255
+    raise ValueError("unsupported synthetic input contract")
+
+
+def decode(ffmpeg, source, target, first_frame, count, input_kind="synthetic_cpu_nv12"):
+    expected_luma(first_frame, input_kind)
     command = [str(ffmpeg), "-hide_banner", "-loglevel", "error", "-nostdin", "-n",
                "-f", "h264", "-max_pixels", "76800", "-i", str(source),
                "-fps_mode", "passthrough", "-frames:v", str(count + 1),
@@ -32,7 +43,7 @@ def decode(ffmpeg, source, target, first_frame, count):
     worst_luma = worst_chroma = 0
     for index in range(count):
         frame = memoryview(raw)[index * stride:(index + 1) * stride]
-        expected = 32 + (first_frame + index) * 4
+        expected = expected_luma(first_frame + index, input_kind)
         worst_luma = max(worst_luma, max(abs(value - expected) for value in frame[:pixels]))
         worst_chroma = max(worst_chroma, max(abs(value - 128) for value in frame[pixels:]))
     if worst_luma > 4 or worst_chroma > 4:
@@ -61,6 +72,10 @@ def main():
                 or summary.get("forcedKeyframeInput") != 12):
             raise ValueError("probe metadata does not match the fixed synthetic contract")
         frames = summary["frames"]
+        input_kind = summary.get("input")
+        expected_luma(0, input_kind)
+        if input_kind == "synthetic_gpu_bgra_nv12" and summary.get("gpuTextureInput") is not True:
+            raise ValueError("GPU fixture lacks texture-input evidence")
         if len(frames) != 24:
             raise ValueError("expected 24 encoded frames")
         stream = read_bounded(probe / "synthetic.h264", 4 * 1024 * 1024)
@@ -77,15 +92,16 @@ def main():
                                  check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         report["decoder"] = version.stdout.decode("utf-8", errors="replace").splitlines()[0]
         report["encoder"] = summary["encoder"]
+        report["input"] = input_kind
         report["streamSha256"] = hashlib.sha256(stream).hexdigest()
         report["summarySha256"] = hashlib.sha256(summary_bytes).hexdigest()
         # 用读取并校验后的快照，避免解码时源文件变化导致回执绑定错误。
         full = output / "full.h264"
         full.write_bytes(stream)
-        report["fullSequence"] = decode(ffmpeg, full, output / "full.nv12", 0, 24)
+        report["fullSequence"] = decode(ffmpeg, full, output / "full.nv12", 0, 24, input_kind)
         suffix = output / "late-join.h264"
         suffix.write_bytes(stream[frames[12]["offset"]:])
-        report["forcedIdrLateJoin"] = decode(ffmpeg, suffix, output / "late-join.nv12", 12, 12)
+        report["forcedIdrLateJoin"] = decode(ffmpeg, suffix, output / "late-join.nv12", 12, 12, input_kind)
         report["status"] = "passed"
     except Exception as error:
         report["error"] = str(error)

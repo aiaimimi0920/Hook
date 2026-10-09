@@ -1,5 +1,5 @@
 //! 硬件限定的异步 MFT 探针。所有等待有截止时间，关闭时释放激活对象及 MF/COM。
-use super::{annex_b, samples};
+use super::{annex_b, gpu_input::GpuInput, samples};
 use anyhow::{ensure, Context, Result};
 use std::{
     mem::ManuallyDrop,
@@ -75,8 +75,13 @@ pub struct Encoded {
     pub frames: Vec<serde_json::Value>,
 }
 
-pub fn run() -> Result<Encoded> {
+pub fn run(use_gpu: bool) -> Result<Encoded> {
     let _runtime = Runtime::start()?;
+    let gpu = if use_gpu {
+        Some(GpuInput::create()?)
+    } else {
+        None
+    };
     let mut list = Activations::default();
     unsafe {
         let input = MFT_REGISTER_TYPE_INFO {
@@ -87,14 +92,26 @@ pub fn run() -> Result<Encoded> {
             guidMajorType: MFMediaType_Video,
             guidSubtype: MFVideoFormat_H264,
         };
-        MFTEnumEx(
-            MFT_CATEGORY_VIDEO_ENCODER,
-            MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER,
-            Some(&input),
-            Some(&output),
-            &mut list.ptr,
-            &mut list.count,
-        )?;
+        if let Some(gpu) = &gpu {
+            MFTEnum2(
+                MFT_CATEGORY_VIDEO_ENCODER,
+                MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER,
+                Some(&input),
+                Some(&output),
+                &gpu.gpu.enumeration,
+                &mut list.ptr,
+                &mut list.count,
+            )?;
+        } else {
+            MFTEnumEx(
+                MFT_CATEGORY_VIDEO_ENCODER,
+                MFT_ENUM_FLAG_HARDWARE | MFT_ENUM_FLAG_SORTANDFILTER,
+                Some(&input),
+                Some(&output),
+                &mut list.ptr,
+                &mut list.count,
+            )?;
+        }
         ensure!(
             !list.ptr.is_null() && list.count > 0 && list.count <= 64,
             "no bounded hardware H264 encoder inventory"
@@ -123,6 +140,9 @@ pub fn run() -> Result<Encoded> {
         );
         attrs.SetUINT32(&MF_TRANSFORM_ASYNC_UNLOCK, 1)?;
         attrs.SetUINT32(&MF_LOW_LATENCY, 1)?;
+        if let Some(gpu) = &gpu {
+            gpu.gpu.attach(&encoder.transform)?;
+        }
         let codec: ICodecAPI = encoder.transform.cast()?;
         codec.SetValue(&CODECAPI_AVLowLatencyMode, &VARIANT::from(true))?;
         codec.SetValue(&CODECAPI_AVEncMPVGOPSize, &VARIANT::from(60_u32))?;
@@ -138,7 +158,7 @@ pub fn run() -> Result<Encoded> {
         encoder
             .transform
             .ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)?;
-        encode(&encoder.transform, &codec, name)
+        encode(&encoder.transform, &codec, name, gpu.as_ref())
     }
 }
 
@@ -168,7 +188,12 @@ fn receive(transform: &IMFTransform) -> Result<Option<IMFSample>> {
     }
 }
 
-fn encode(transform: &IMFTransform, codec: &ICodecAPI, name: String) -> Result<Encoded> {
+fn encode(
+    transform: &IMFTransform,
+    codec: &ICodecAPI,
+    name: String,
+    gpu: Option<&GpuInput>,
+) -> Result<Encoded> {
     let events: IMFMediaEventGenerator = transform.cast()?;
     let deadline = Instant::now() + Duration::from_secs(20);
     let mut sent = 0;
@@ -239,7 +264,11 @@ fn encode(transform: &IMFTransform, codec: &ICodecAPI, name: String) -> Result<E
                 if sent == samples::FORCE_KEYFRAME_AT {
                     codec.SetValue(&CODECAPI_AVEncVideoForceKeyFrame, &VARIANT::from(1_u32))?;
                 }
-                transform.ProcessInput(0, &samples::input(sent)?, 0)?;
+                let sample = match gpu {
+                    Some(gpu) => gpu.sample(sent)?,
+                    None => samples::input(sent)?,
+                };
+                transform.ProcessInput(0, &sample, 0)?;
                 sent += 1;
                 credits -= 1;
             }
