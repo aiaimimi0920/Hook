@@ -20,6 +20,8 @@ pub(super) fn media_type(format: Format, subtype: &GUID) -> Result<IMFMediaType>
         media.SetUINT32(&MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_16_235.0 as u32)?;
         media.SetUINT32(&MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT709.0 as u32)?;
         media.SetUINT32(&MF_MT_VIDEO_PRIMARIES, MFVideoPrimaries_BT709.0 as u32)?;
+        // BGRA capture values stay sRGB through the YUV matrix; do not emit reserved transfer=0.
+        media.SetUINT32(&MF_MT_TRANSFER_FUNCTION, MFVideoTransFunc_sRGB.0 as u32)?;
         if *subtype == MFVideoFormat_H264 {
             let bitrate =
                 (u64::from(format.width) * u64::from(format.height) * u64::from(format.fps) / 5)

@@ -191,8 +191,14 @@ impl Encoder {
                                         submitted && output.GetSampleTime()? == timestamp,
                                         "encoder output reordered"
                                     );
-                                    let bytes = media::read(&output)?;
+                                    let mut bytes = media::read(&output)?;
                                     let nal = annex_b::inspect(&bytes)?;
+                                    if nal.sps {
+                                        bytes = super::decode_bounds::normalize_encoder_transfer(
+                                            &bytes,
+                                            self.format,
+                                        )?;
+                                    }
                                     let keyframe = nal.idr && nal.sps && nal.pps;
                                     ensure!(
                                         nal.idr || nal.delta,

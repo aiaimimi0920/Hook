@@ -8,8 +8,8 @@ raw/JPEG 回退。跟踪 [Loom #91](https://github.com/aiaimimi0920/Loom/issues/
 本次先交付独立可运行的硬件编码探针，不自动开启产品 H.264、不捕获用户桌面、不连接
 Loom、不退出日常程序。它不是整个 C1 完成，也不是原生双机或物理呈现验收。
 
-当前代码的 `h264` 只是 NLLV codec 预留值。源端实际消费 JPEG，接收端按图片呈现，
-Loom 与 Hook 的缓存会跳过旧帧。不能直接把 delta 帧交给这条图片路径，否则任意丢帧
+Hook 产品 worker 当前仍消费 JPEG，接收端按图片呈现；Loom 已有独立 H.264 连续性和协商
+增量，Hook 的图片缓存仍会跳过旧帧。不能直接把 delta 帧交给这条图片路径，否则任意丢帧
 可能破坏解码参考链；在协商与恢复接线完成之前，默认产品路径必须保持 raw/JPEG。
 
 ## 第一阶段：独立硬件编码探针
@@ -109,9 +109,49 @@ $env:HOOK_C1_NATIVE_OUTPUT = 'C:\absolute\unused-wgc-output'
 cargo test --locked --lib native_wgc_continuous_h264_and_stop -- --ignored --nocapture --test-threads=1
 ```
 
-本增量仅接通内部订阅边界，正常 relay worker 尚未申请 H.264 订阅，产品默认仍为
-JPEG/raw。连续流协商、服务端按序投递和 overflow 重同步、产品 decoder/呈现及一源一收
-仍待完成；不能将这次独立源端验证记为整个 C1 完成。
+正常 relay worker 尚未申请 H.264 订阅，产品默认仍为 JPEG/raw。Loom 已实现显式 profile、
+按序投递、关键帧控制和旧端/墙兼容需求；Hook 产品接线及一源一收仍待完成。
+不能将内部 owner 的独立验证记为整个 C1 完成。
+
+### Windows MF decoder owner 增量
+
+`src-tauri/src/live_video/decoder.rs` 提供连接线程持有的持续 decoder，复用现有 COM/MF
+生命周期；不引入 crate 或捆绑 codec。它使用 Windows 注册的同步 H.264→NV12 MFT，
+再将 limited-range BT.709 NV12 转为 BGRA，供后续接入已有 IPC/图片呈现路径。
+**这不是 GPU 解码、零拷贝呈现，也尚未让产品 viewer 自动 offer H.264。**
+
+- 一进程最多一个 decoder，最多四个未输出输入；基线 8-bit 4:2:0、逐行、最多四个参考
+  图像、coded surface 至多 8,294,400 像素。额外 viewer 或不支持的类型必须回退图片。
+- `decode_bounds.rs` 在调用原生 decoder 之前解析 SPS 的真实 coded/cropped 尺寸和引用
+  预算，与 wire 尺寸比对；限制 SPS/PPS、Exp-Golomb、HRD 和 VUI decoded-picture budget。
+  不把声明的 width/height 当作 decoder 分配证明。
+- C1 是固定 sRGB 原始值、BT.709 limited-range YUV 合同；缺失 VUI 或标准 unspecified
+  值继承该合同，不按分辨率猜 BT.601。显式冲突/HDR/保留 transfer=0 均拒绝；MF 输出
+  属性若明确宣告不同色彩合同也拒绝。四引用及四个 pending 输入不是 MF 内部恰好只分配
+  四张 surface 的证明，内部 DPB 总内存不据此宣称精确上限。
+- `decode_output.rs` 在输出类型变化时重新检查尺寸/NV12、分配上限及 sample/stride；
+  2D buffer 走有界 contiguous copy，其他 buffer 在锁内逐行读取并对称释放。
+- 输出时间戳必须保持顺序；错误或取消使该参考链不可复用。初始化失败和正常退出都释放
+  permit、activation、样本与 COM/MF。底层原生调用本身不是可抢占的，测试父进程仍设超时。
+
+真实接入暴露 NVIDIA MFT 在设置 `MF_MT_TRANSFER_FUNCTION` 后仍输出 VUI transfer=0，
+且拒绝对应 CodecAPI 设置。源端现仅对**自身已知 sRGB 输入**的 SPS 保留值 0 归一化为
+标准 sRGB 值 13，重新进行 emulation-prevention 编码，不改 slice/PPS；网络 decoder 仍
+拒绝 transfer=0 和 HDR，不通过放宽接收校验隐藏源端差异。幂等性、非 SPS 字节保持、
+拒绝 HDR 的单测和 FFprobe 的 `iec61966-2-1` 实际结果覆盖此边界。
+
+本机新 WGC 320×240 自有窗口码流：产品 MF decoder 完整 24 帧及从强制 IDR 起的 12 帧
+均通过，BGRA 最大灰度误差 1（阈值 4），取消后旧参考链不可复用。独立 FFmpeg 同一码流
+24/12 帧通过，亮度误差 1、色度误差 0。它不证明任意尺寸、完整彩色/HDR、网络接线或
+物理显示；BGRA 转换有红色/灰度边界单测，但不是完整彩色原生验收。
+
+原生 decoder 测试要求先生成上述自有 WGC 码流，并使用新的独立输出目录：
+
+```powershell
+$env:HOOK_C1_DECODER_INPUT = 'C:\absolute\owned-wgc-output'
+$env:HOOK_C1_DECODER_OUTPUT = 'C:\absolute\unused-decoder-output'
+cargo test --locked --lib native_decoder_reads_continuous_wgc_h264_and_restarts_at_idr -- --ignored --nocapture --test-threads=1
+```
 
 ### 剩余接线顺序
 

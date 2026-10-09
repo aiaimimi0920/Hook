@@ -1,12 +1,18 @@
 //! Windows 连续视频 owner：捕获交接与硬件编码独立于 JPEG/本地预览。
 pub mod capture;
+mod decode_bounds;
+mod decode_output;
+mod decoder;
 mod encoder;
 mod gpu;
 mod media;
 mod runtime;
+pub use decoder::{DecodedImage, Decoder};
 pub use encoder::Encoder;
 
 mod annex_b;
+#[cfg(test)]
+mod decoder_native_tests;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Format {
