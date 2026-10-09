@@ -1,7 +1,7 @@
 import { api } from "./api";
 import type { LiveCaptureInputPayload } from "./liveCapture";
 import {
-    encodeBgraAsBmp,
+    createBgraBmpBlob,
     relayGeometry,
     type LiveRelayBinding,
     type LiveRelayFrameDescriptor,
@@ -74,13 +74,14 @@ export function createLiveRelayController() {
         if (disposed || generations.get(relayId) !== generation) return;
         const readAt = performance.now();
         if (bytes.byteLength !== frame.byteLength) throw new Error("live_relay_payload_length_mismatch");
-        const imageBytes = frame.codec === "jpeg" ? bytes : encodeBgraAsBmp(bytes, frame.width, frame.height);
+        const imageBlob = frame.codec === "jpeg"
+            ? new Blob([bytes], { type: "image/jpeg" }) : createBgraBmpBlob(bytes, frame.width, frame.height);
         const preparedAt = performance.now();
         const decode = new AbortController();
         decodes.set(relayId, decode);
         let nextUrl: string;
         try {
-            nextUrl = await decodeRelayImage(imageBytes, frame, decode.signal);
+            nextUrl = await decodeRelayImage(imageBlob, frame, decode.signal);
         } finally {
             if (decodes.get(relayId) === decode) decodes.delete(relayId);
         }
@@ -98,7 +99,7 @@ export function createLiveRelayController() {
             liveSessionId: frame.liveSessionId, epoch: frame.epoch, frameId: frame.frameId,
             generation, captureTimestampMs: frame.captureTimestampMs, encodeTimestampMs: frame.encodeTimestampMs,
             receivedTimestampMs: frame.receivedTimestampMs,
-            evidence: "decoded_submitted", codec: frame.codec, payloadBytes: bytes.byteLength, imageBytes: imageBytes.byteLength,
+            evidence: "decoded_submitted", codec: frame.codec, payloadBytes: bytes.byteLength, imageBytes: imageBlob.size,
             readMs: readAt - startedAt, prepareMs: preparedAt - readAt,
             decodeMs: decodedAt - preparedAt, submittedAtMs: decodedAt,
         });
