@@ -63,7 +63,13 @@ impl LiveRelayVideoViewer {
         match self.decode(frame, keyframe, &relay.stop) {
             Ok(Some(frame)) => commit_live_relay_viewer_frame(relay, frame, true),
             Ok(None) => Ok(()),
-            Err(_) => {
+            Err(error) => {
+                // Keep native failure diagnosable without logging media or credentials.
+                let reason: String = error.chars().filter(|c| !c.is_control()).take(512).collect();
+                append_runtime_log_line(&format!(
+                    "live_relay_video_viewer_fallback :: relay={} reason={reason}",
+                    relay.relay_id
+                ));
                 self.reset();
                 self.fallback = true;
                 // Native failure/permit exhaustion never causes a reconnect/probe loop.

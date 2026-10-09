@@ -87,7 +87,13 @@ impl LiveRelayVideoSource {
             match self.video(frame_id, stop, timing) {
                 Ok(None) if self.encoder.is_none() => {}
                 Ok(frame) => return Ok(frame),
-                Err(_) => {
+                Err(error) => {
+                    // One bounded record per failed connection, never a per-frame log.
+                    let reason: String = error.chars().filter(|c| !c.is_control()).take(512).collect();
+                    append_runtime_log_line(&format!(
+                        "live_relay_video_source_fallback :: capture={} reason={reason}",
+                        self.capture_id
+                    ));
                     self.retire_video();
                     self.failed = true; // Probe once per connection, never once per frame.
                 }
