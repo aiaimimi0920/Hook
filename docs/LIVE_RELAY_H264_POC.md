@@ -63,6 +63,30 @@ python scripts/tests/test-live-h264-probe.py
 
 ## 后续接入顺序与完成条件
 
+### GPU 纹理输入增量
+
+在上述探针命令末尾增加 `--gpu`，启用独立 D3D11 合成输入；省略该参数仍运行原 CPU
+NV12 对照。两种模式均使用同一独立解码验证器，验证器按报告中的输入类型选择像素合同。
+
+- 创建首个非软件 DXGI adapter 的视频设备，启用 BGRA/video support 和多线程保护。
+  用该 adapter 的 LUID 限定硬件 MFT，要求 D3D11-aware，并绑定 DXGI device manager。
+  当前不尝试遍历其他硬件 adapter；首个 adapter 不支持时明确失败，不偷偷回退 CPU。
+- GPU 清屏生成 24 个 BGRA 灰度画面，经 D3D11 video processor 从 full-range RGB 转
+  BT.709 limited-range NV12，再用 DXGI surface buffer 送入硬件编码器；没有像素 CPU
+  readback。每帧分配独立纹理，MF sample 持有其引用，不覆盖仍在使用的异步输入。
+- 固定 24 帧、最多四个尚未产生输出的输入；这是有界 POC，不是长期运行纹理池。
+  未引入 crate、软件编码器或额外 codec 库。
+- 首次原生 GPU 合成结果：NVIDIA H.264 Encoder MFT；完整 24 帧和强制 IDR 后 12 帧
+  独立解码通过，最大亮度误差 1、色度误差 0（允许误差仍为 4，未放宽原合同）。
+- `gpuTextureInput=true` 只代表 GPU 合成纹理输入；`gpuCaptureZeroCopy=false` 和
+  `liveRelayIntegrated=false` 保持不变。灰度夹具不证明彩色/HDR 转换正确性或 30 fps 性能。
+
+捕获接入边界已确认：`src-tauri/src/live_gpu/frame.rs::GpuFrame` 持有 texture/device/context，
+复制纹理允许复用，不能将可变捕获纹理直接交给异步编码器。本增量不改该 owner；后续接入
+必须使用捕获设备的 adapter 身份，并在捕获锁内完成独立输入拷贝或取得明确的纹理租约。
+
+### 尚未完成
+
 1. **原生编码成立**：真实硬件输出可独立解码，强制 IDR 能作为中途加入点；可重建并清理。
 2. **GPU 输入接入**：复用捕获设备及 adapter 身份，BGRA→NV12，D3D11 纹理与编码器
    生命周期保持同一所有者；设备失败释放并回到现有路径，不做驱动重置。
@@ -82,6 +106,6 @@ python scripts/tests/test-live-h264-probe.py
 `native/capture/windows/h264_encoder.{h,cpp}`、`h264_decoder.h` 与根 `LICENSE`（MIT）。
 参考点是 hardware-only MFT、异步事件、关键帧请求、输出有界与 activation 清理。
 实现使用现有 Windows SDK Rust bindings 独立编写，未复制 Piik 实质源码或引入其
-WebRTC 依赖。本探针不等于 Piik 的 GPU texture 路线，不外推其性能结果。
+WebRTC 依赖。GPU 增量也只覆盖独立合成输入，不等于 Piik 的完整捕获路线，不外推其性能结果。
 Windows 系统 codec 的使用不等于 H.264 在所有发行地区的专利许可已经完成审查；正式
 分发政策需另行确认，本阶段不捆绑或发布新的 codec 库。

@@ -13,6 +13,21 @@ SPEC.loader.exec_module(VERIFIER)
 
 
 class DecoderContract(unittest.TestCase):
+    def test_gpu_fixture_uses_limited_range_not_cpu_nv12(self):
+        self.assertEqual(VERIFIER.expected_luma(0, "synthetic_gpu_bgra_nv12"), 43)
+        self.assertEqual(VERIFIER.expected_luma(23, "synthetic_gpu_bgra_nv12"), 122)
+        with self.assertRaises(ValueError):
+            VERIFIER.expected_luma(0, "unknown")
+        with tempfile.TemporaryDirectory() as root:
+            target = Path(root) / "gpu.nv12"
+            pixels = 320 * 240
+            target.write_bytes(bytes([43]) * pixels + bytes([128]) * (pixels // 2))
+            with patch.object(VERIFIER.subprocess, "run", return_value=SimpleNamespace(returncode=0)):
+                result = VERIFIER.decode(Path("ffmpeg"), Path("input"), target, 0, 1, "synthetic_gpu_bgra_nv12")
+                self.assertEqual(result["maxLumaError"], 0)
+                with self.assertRaises(ValueError):
+                    VERIFIER.decode(Path("ffmpeg"), Path("input"), target, 0, 1)
+
     def test_read_budget_rejects_overflow(self):
         with tempfile.TemporaryDirectory() as root:
             file = Path(root) / "input"
