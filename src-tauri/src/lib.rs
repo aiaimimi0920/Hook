@@ -348,6 +348,8 @@ include!("native/live_capture_timing.rs");
 
 include!("native/live_relay_protocol.rs");
 include!("native/live_relay_jpeg.rs");
+include!("native/live_relay_video_viewer.rs");
+include!("native/live_relay_video_source.rs");
 
 include!("native/live_relay_http.rs");
 
@@ -384,6 +386,7 @@ mod live_relay_viewer_lifecycle_tests {
     include!("native/tests/live_relay_renewal_http.rs");
     include!("native/tests/live_relay_source_epoch_fixture.rs");
     include!("native/tests/live_relay_source_epoch.rs");
+    include!("native/tests/live_relay_video_workers.rs");
     #[cfg(feature = "remote-surface")]
     include!("native/tests/live_relay_media_close_fixture.rs");
     #[cfg(feature = "remote-surface")]

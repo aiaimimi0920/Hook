@@ -5,12 +5,13 @@
 2026-10-09 用户明确启动 C1，范围是一源一收、Windows、复用现有授权和连接，保留
 raw/JPEG 回退。跟踪 [Loom #91](https://github.com/aiaimimi0920/Loom/issues/91)。
 
-本次先交付独立可运行的硬件编码探针，不自动开启产品 H.264、不捕获用户桌面、不连接
-Loom、不退出日常程序。它不是整个 C1 完成，也不是原生双机或物理呈现验收。
+独立编码和 decoder owner 已交付；当前 v0.2.32.39 开发分支正在接入产品 source/viewer
+worker，尚未交付完整配套候选或完成一源一收验收，不代表整个 C1 完成。
+所有原生测试只使用自有 HWND 或先前生成的自有码流，不退出日常 Hook/Loom。
 
-Hook 产品 worker 当前仍消费 JPEG，接收端按图片呈现；Loom 已有独立 H.264 连续性和协商
-增量，Hook 的图片缓存仍会跳过旧帧。不能直接把 delta 帧交给这条图片路径，否则任意丢帧
-可能破坏解码参考链；在协商与恢复接线完成之前，默认产品路径必须保持 raw/JPEG。
+开发分支显式 offer `loom.live.h264.v1`，旧 Loom 仍选择 JPEG/raw；源端必须收到允许
+策略才发送 H.264。接收端在图片缓存之前顺序解码，缓存只能丢已解码图像，不能跳过
+delta AU。该分支待全链路验收，不据局部 owner 测试宣称正式产品已可交付。
 
 ## 第一阶段：独立硬件编码探针
 
@@ -109,8 +110,8 @@ $env:HOOK_C1_NATIVE_OUTPUT = 'C:\absolute\unused-wgc-output'
 cargo test --locked --lib native_wgc_continuous_h264_and_stop -- --ignored --nocapture --test-threads=1
 ```
 
-正常 relay worker 尚未申请 H.264 订阅，产品默认仍为 JPEG/raw。Loom 已实现显式 profile、
-按序投递、关键帧控制和旧端/墙兼容需求；Hook 产品接线及一源一收仍待完成。
+上述 owner 阶段尚未申请产品 H.264 订阅；当前 worker 接线增量见下文。Loom 已实现显式
+profile、按序投递、关键帧控制和旧端/墙兼容需求，一源一收配套候选仍待验收。
 不能将内部 owner 的独立验证记为整个 C1 完成。
 
 ### Windows MF decoder owner 增量
@@ -118,7 +119,7 @@ cargo test --locked --lib native_wgc_continuous_h264_and_stop -- --ignored --noc
 `src-tauri/src/live_video/decoder.rs` 提供连接线程持有的持续 decoder，复用现有 COM/MF
 生命周期；不引入 crate 或捆绑 codec。它使用 Windows 注册的同步 H.264→NV12 MFT，
 再将 limited-range BT.709 NV12 转为 BGRA，供后续接入已有 IPC/图片呈现路径。
-**这不是 GPU 解码、零拷贝呈现，也尚未让产品 viewer 自动 offer H.264。**
+**这不是 GPU 解码或零拷贝呈现；该 decoder owner 阶段本身不启用产品 offer。**
 
 - 一进程最多一个 decoder，最多四个未输出输入；基线 8-bit 4:2:0、逐行、最多四个参考
   图像、coded surface 至多 8,294,400 像素。额外 viewer 或不支持的类型必须回退图片。
@@ -153,7 +154,31 @@ $env:HOOK_C1_DECODER_OUTPUT = 'C:\absolute\unused-decoder-output'
 cargo test --locked --lib native_decoder_reads_continuous_wgc_h264_and_restarts_at_idr -- --ignored --nocapture --test-threads=1
 ```
 
-### 剩余接线顺序
+### 产品 worker 接线增量（开发中）
+
+- source socket 内持有 encoder/GPU subscription/JPEG demand，按策略切换；硬件失败仅
+  本连接探测一次，之后保持图片回退。已编码 AU 与 JPEG 共用独立 wire frame ID，失败
+  写入也消耗 ID；重连与同 epoch 凭据续期保留游标及 capture timestamp 下界。
+- source 保留最多一张独立输入纹理，静态画面也能响应晚加入的 IDR 请求。取帧与 generation
+  在同一锁内观察，编码完成后复核 generation；重建时旧参考链退役。GPU-only idle 判据
+  使用真实捕获到达，不再把“没编码 JPEG”当作首次帧失败。
+- viewer socket 逐 AU 解码，最多四个 pending descriptors，与 decoder 时间戳一一对应。
+  重连旧 IDR 可预热但不能回退已呈现游标；gap 请求 IDR，native failure 发 sticky
+  `video_fallback`，停止/终态仍由 state → frames 锁序拒绝迟到结果。
+- 解码后沿用 BGRA 二进制 IPC → BMP → Image.decode → img；descriptor 的 codec 和
+  byte_length 描述 IPC 表示，不代表网络压缩大小。没有宣称 GPU viewer 或零拷贝。
+- 策略禁止后释放纹理；重新允许但静态源尚无新 GPU 输入时继续发送可用图片，不要求
+  为了切换编码主动重启 WGC。允许 H.264 表示可用性，不是必须立即切换。
+
+聚焦测试覆盖旧 profile 拒绝、控制预算/epoch/序号、JPEG 回退、gap 请求、sticky fallback
+与停止。原生 viewer owner 使用已有 WGC 24 AU：完整解码以及重连预热20帧后只提交4帧
+通过，灰度误差不超过4。此证据不等于真实 Loom 网络或 WebView 呈现验收。
+
+原生 source owner 使用自有 HWND 的实际 WGC：12个视频输出均由 MF decoder 解码，确认
+GPU 模式释放 JPEG demand、静态 IDR 请求复用有界纹理、策略禁止后恢复 JPEG、停止 join。
+测试直接驱动产品 source owner，并非完整 source WebSocket → Loom → viewer 产品链路。
+
+### 整体完成条件
 
 1. **原生编码成立**：真实硬件输出可独立解码，强制 IDR 能作为中途加入点；可重建并清理。
 2. **GPU 输入接入**：复用捕获设备及 adapter 身份，BGRA→NV12，D3D11 纹理与编码器
@@ -166,7 +191,7 @@ cargo test --locked --lib native_decoder_reads_continuous_wgc_h264_and_restarts_
 5. **一源一收最小链路**：用独立候选验证协商、连续画面、late join、回退和停止。
    不启动旧 A3-P 矩阵，不顺带开发账号或官方中继。
 
-每个阶段独立小改动和聚焦证据。全链路完成前不能把 C1 标为完成或在正式入口默认开启。
+每个阶段独立小改动和聚焦证据。全链路完成前不能把 C1 标为完成或发布正式默认启用版本。
 
 ## Piik 参考与许可边界
 

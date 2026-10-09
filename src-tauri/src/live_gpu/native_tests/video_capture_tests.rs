@@ -1,6 +1,8 @@
 //! 隔离自有 HWND 的真实 WGC -> GPU 转换 -> 持续硬件 H264，输出供独立 decoder 验证。
 use super::*;
 use crate::live_video::{capture::Subscription, Encoder, Format};
+#[cfg(test)]
+include!("video_worker_tests.rs");
 use std::{
     io::Write,
     sync::{

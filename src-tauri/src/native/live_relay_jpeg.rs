@@ -1,5 +1,7 @@
 // Only an explicitly negotiated media connection may carry JPEG; control/discovery stays v1.
 const LIVE_RELAY_JPEG_PROTOCOL: &str = "loom.live.jpeg.v1";
+const LIVE_RELAY_H264_PROTOCOL: &str = "loom.live.h264.v1";
+const LIVE_RELAY_VIDEO_OFFER: &str = "loom.live.h264.v1,loom.live.jpeg.v1,loom.live.v1";
 // tungstenite 0.24 splits without trimming; whitespace would break legacy selection.
 const LIVE_RELAY_MEDIA_OFFER: &str = "loom.live.jpeg.v1,loom.live.v1";
 const LIVE_RELAY_MAX_JPEG_BYTES: usize = 16 * 1024 * 1024;
@@ -8,6 +10,7 @@ const LIVE_RELAY_MAX_JPEG_BYTES: usize = 16 * 1024 * 1024;
 enum LiveRelayMediaProfile {
     Legacy,
     Jpeg,
+    H264,
 }
 
 impl LiveRelayMediaProfile {
@@ -15,12 +18,15 @@ impl LiveRelayMediaProfile {
         match protocol {
             Some(LIVE_RELAY_PROTOCOL_VERSION) => Ok(Self::Legacy),
             Some(LIVE_RELAY_JPEG_PROTOCOL) => Ok(Self::Jpeg),
+            Some(LIVE_RELAY_H264_PROTOCOL) => Ok(Self::H264),
             _ => Err("Loom live WebSocket selected an unsupported media profile".to_owned()),
         }
     }
 
     fn validate_wire(self, bytes: &[u8]) -> Result<(), String> {
-        if self == Self::Legacy && bytes.get(57) == Some(&3) {
+        if self != Self::H264 && bytes.get(57) == Some(&2) {
+            Err("Loom sent H264 without media profile negotiation".to_owned())
+        } else if self == Self::Legacy && bytes.get(57) == Some(&3) {
             Err("Loom sent JPEG without media profile negotiation".to_owned())
         } else {
             Ok(())

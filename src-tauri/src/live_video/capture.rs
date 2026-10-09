@@ -51,6 +51,10 @@ impl Subscription {
     }
 
     pub fn take(&self) -> Result<Option<Captured>, String> {
+        self.take_current().map(|(_, frame)| frame)
+    }
+
+    pub fn take_current(&self) -> Result<(u64, Option<Captured>), String> {
         let mut slot = self
             .slot
             .lock()
@@ -58,7 +62,18 @@ impl Subscription {
         if slot.closed {
             return Err("video capture ended".into());
         }
-        slot.frame.take().transpose()
+        Ok((slot.generation, slot.frame.take().transpose()?))
+    }
+
+    pub fn generation(&self) -> Result<u64, String> {
+        let slot = self
+            .slot
+            .lock()
+            .map_err(|_| "video capture slot poisoned")?;
+        if slot.closed {
+            return Err("video capture ended".into());
+        }
+        Ok(slot.generation)
     }
 }
 

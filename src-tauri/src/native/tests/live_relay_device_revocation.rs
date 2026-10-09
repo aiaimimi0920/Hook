@@ -139,6 +139,10 @@ fn publishing_source_worker_consumes_terminal_close_before_more_frames() {
         },
         source_window: None,
     };
+    let _budget = crate::live_gpu::work_budget::CaptureBudget::register(
+        &config.session_id,
+        config.target_fps,
+    );
     let capture = Arc::new(LiveCaptureSession {
         state: Arc::new(Mutex::new(LiveCaptureSessionState::starting(&config))),
         frames: Arc::new(Mutex::new(LiveCaptureFrameBuffer::new())),
