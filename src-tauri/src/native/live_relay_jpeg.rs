@@ -3,6 +3,7 @@ const LIVE_RELAY_JPEG_PROTOCOL: &str = "loom.live.jpeg.v1";
 const LIVE_RELAY_H264_PROTOCOL: &str = "loom.live.h264.v1";
 const LIVE_RELAY_VIDEO_OFFER: &str = "loom.live.h264.v1,loom.live.jpeg.v1,loom.live.v1";
 // tungstenite 0.24 splits without trimming; whitespace would break legacy selection.
+#[cfg(test)]
 const LIVE_RELAY_MEDIA_OFFER: &str = "loom.live.jpeg.v1,loom.live.v1";
 const LIVE_RELAY_MAX_JPEG_BYTES: usize = 16 * 1024 * 1024;
 

@@ -70,3 +70,36 @@ fn native_decoder_reads_continuous_wgc_h264_and_restarts_at_idr() {
     .unwrap();
     println!("C1_PRODUCT_DECODER passed: full=24 restart=12 grayError={max_error} cancelledChainRejected=true");
 }
+
+#[test]
+#[ignore = "requires HOOK_C1_NETWORK_INPUT with owned WGC network AU evidence"]
+fn native_decoder_reads_non_macroblock_aligned_network_frames() {
+    let input =
+        PathBuf::from(std::env::var_os("HOOK_C1_NETWORK_INPUT").expect("owned input required"));
+    let bytes = std::fs::read(input.join("network.h264")).unwrap();
+    assert!(bytes.len() <= 4 * 1024 * 1024);
+    let packets: Vec<serde_json::Value> =
+        serde_json::from_slice(&std::fs::read(input.join("network-packets.json")).unwrap())
+            .unwrap();
+    assert_eq!(packets.len(), 24);
+    let format = Format::new(680, 430, 30).unwrap();
+    let mut decoder = Decoder::new(format).unwrap();
+    let stop = AtomicBool::new(false);
+    for (index, packet) in packets.iter().enumerate() {
+        assert_eq!(packet["width"], 680);
+        assert_eq!(packet["height"], 430);
+        let offset = packet["offset"].as_u64().unwrap() as usize;
+        let length = packet["length"].as_u64().unwrap() as usize;
+        let image = decoder
+            .decode(
+                &bytes[offset..offset + length],
+                index as i64 + 1,
+                packet["keyframe"].as_bool().unwrap(),
+                &stop,
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(image.bgra.len(), 680 * 430 * 4);
+    }
+    println!("C1_NON_MACROBLOCK_NETWORK_DECODE passed: 24 frames at 680x430");
+}

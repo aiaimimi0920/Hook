@@ -1,5 +1,8 @@
 //! MF NV12 输出的尺寸/stride/分配校验，转换为现有图片呈现路径支持的 BGRA。
-use super::Format;
+use super::{
+    decode_layout::{copy_visible, Layout},
+    Format,
+};
 use anyhow::{ensure, Result};
 use std::mem::ManuallyDrop;
 use windows::{core::Interface, Win32::Media::MediaFoundation::*};
@@ -53,11 +56,7 @@ pub(super) fn select_type(transform: &IMFTransform, format: Format) -> Result<()
             if media.GetGUID(&MF_MT_SUBTYPE)? != MFVideoFormat_NV12 {
                 continue;
             }
-            let size = media.GetUINT64(&MF_MT_FRAME_SIZE)?;
-            ensure!(
-                size >> 32 == u64::from(format.width) && size as u32 == format.height,
-                "decoder negotiated dimensions mismatch"
-            );
+            Layout::read(&media, format)?;
             // An absent/unknown output attribute inherits C1's fixed color contract;
             // an explicit conflicting matrix, transfer or range must fall back, not relabel pixels.
             for (attribute, expected) in [
@@ -90,30 +89,27 @@ pub(super) fn pixels(
     format: Format,
 ) -> Result<Vec<u8>> {
     let (width, height) = (format.width as usize, format.height as usize);
-    let size = width * height * 3 / 2;
     unsafe {
+        let media = transform.GetOutputCurrentType(0)?;
+        let layout = Layout::read(&media, format)?;
         ensure!(
             sample.GetTotalLength()? <= MAX_DECODE_BUFFER,
             "decoded sample budget"
         );
         let buffer = sample.ConvertToContiguousBuffer()?;
-        let mut packed = vec![0; size];
-        if let Ok(surface) = buffer.cast::<IMF2DBuffer>() {
+        let packed = if let Ok(surface) = buffer.cast::<IMF2DBuffer>() {
             ensure!(
-                surface.GetContiguousLength()? as usize == size,
+                surface.GetContiguousLength()? as usize == layout.packed_size(),
                 "decoded surface dimensions mismatch"
             );
-            surface.ContiguousCopyTo(&mut packed)?;
+            let mut storage = vec![0; layout.packed_size()];
+            surface.ContiguousCopyTo(&mut storage)?;
+            copy_visible(&storage, layout.width, layout.height, format)?
         } else {
-            let stride = transform
-                .GetOutputCurrentType(0)?
+            let stride = media
                 .GetUINT32(&MF_MT_DEFAULT_STRIDE)
-                .unwrap_or(format.width) as i32;
-            ensure!(
-                stride >= format.width as i32 && stride <= 8192,
-                "decoder stride bounds"
-            );
-            let stride = stride as usize;
+                .unwrap_or(layout.width as u32) as i32;
+            let stride = layout.checked_stride(stride)?;
             let mut ptr = std::ptr::null_mut();
             let mut capacity = 0;
             let mut length = 0;
@@ -123,14 +119,16 @@ pub(super) fn pixels(
                 !ptr.is_null()
                     && length <= capacity
                     && length <= MAX_DECODE_BUFFER
-                    && length as usize >= stride * height * 3 / 2,
+                    && length as usize >= stride * layout.height * 3 / 2,
                 "decoder buffer bounds"
             );
-            for row in 0..height * 3 / 2 {
-                packed[row * width..(row + 1) * width]
-                    .copy_from_slice(std::slice::from_raw_parts(ptr.add(row * stride), width));
-            }
-        }
+            copy_visible(
+                std::slice::from_raw_parts(ptr, length as usize),
+                stride,
+                layout.height,
+                format,
+            )?
+        };
         Ok(nv12_bgra(&packed, width, height))
     }
 }

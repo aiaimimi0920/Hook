@@ -178,6 +178,23 @@ cargo test --locked --lib native_decoder_reads_continuous_wgc_h264_and_restarts_
 GPU 模式释放 JPEG demand、静态 IDR 请求复用有界纹理、策略禁止后恢复 JPEG、停止 join。
 测试直接驱动产品 source owner，并非完整 source WebSocket → Loom → viewer 产品链路。
 
+### 真实网络接线与尺寸修复
+
+隔离自有窗口通过真实 WGC → Hook source worker → loopback Loom → 两个独立 Hook viewer
+worker 验证连续帧和重连；旁路同授权观看 socket 检查真实 NLLV codec，而不是把 IPC
+`raw_bgra` 当成网络编码。旧 JPEG socket 加入后切换图片，退出后重新收到 SPS/PPS/IDR。
+该入口不安装日常 Hook 的全局输入钩子，不读取其他应用像素；不是 WebView 产品呈现验收。
+
+首次640×432链路通过，但680×430源能编码、viewer却回退。真实网络 AU 对产品 decoder
+复现 `decoder negotiated dimensions mismatch`：MF输出surface按宏块补边，不能要求
+storage尺寸与可见尺寸严格相同。现 `decode_layout.rs` 只允许向16对齐的右/下padding；
+补边输出必须携带精确匹配wire、零整数/小数偏移的MF visible aperture；预算不放宽。
+NV12的UV起点用storage height计算，再裁出visible像素，短buffer和非零offset仍拒绝。
+该680×430网络码流24帧decoder回归已通过；早期带此问题的候选不作最终交付包。
+修复后680×430真实网络重跑通过：source发布265帧，两个viewer分别消费248/240帧且
+无错误；旁路观察到67个H264 AU，旧端加入收到JPEG，退出后H264以IDR恢复。此为22秒
+功能检查，不报告性能收益；UI/WebView端到端与最终修复候选仍待完成。
+
 ### 整体完成条件
 
 1. **原生编码成立**：真实硬件输出可独立解码，强制 IDR 能作为中途加入点；可重建并清理。
