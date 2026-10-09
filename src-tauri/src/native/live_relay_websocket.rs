@@ -7,17 +7,9 @@ fn spawn_live_relay_source_worker(
     relay: Arc<LiveRelaySession>,
     capture: Arc<LiveCaptureSession>,
 ) -> Result<std::thread::JoinHandle<()>, String> {
-    let capture_id = capture
-        .state
-        .lock()
-        .map_err(|_| "live capture state poisoned")?
-        .session_id
-        .clone();
-    let encoded = crate::live_gpu::work_budget::EncodedFrameConsumer::acquire(&capture_id)?;
     std::thread::Builder::new()
         .name("hook-live-relay-source".to_owned())
         .spawn(move || {
-            let _encoded = encoded;
             run_live_relay_source(relay, capture);
         })
         .map_err(|error| format!("spawn live relay source worker: {error}"))
@@ -35,7 +27,18 @@ fn spawn_live_relay_viewer_worker(
 fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureSession>) {
     // Loom owns this epoch; local WGC generations can change without a new session.
     let session_epoch = relay.state.lock().map(|state| state.epoch).unwrap_or(0);
-    let mut last_frame_id = 0_u64;
+    let mut last_frame_id = relay
+        .state
+        .lock()
+        .map(|state| state.last_frame_id)
+        .unwrap_or(0);
+    let capture_id = match capture.state.lock() {
+        Ok(state) => state.session_id.clone(),
+        Err(_) => {
+            mark_live_relay_closed(&relay);
+            return;
+        }
+    };
     while !relay.stop.load(Ordering::SeqCst) {
         if live_relay_capture_ended(&capture) {
             break;
@@ -56,6 +59,12 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
             }
         };
         let mut last_ping = Instant::now();
+        let mut video = LiveRelayVideoSource::new(capture_id.clone(), session_epoch);
+        video.last_capture_ms = relay
+            .state
+            .lock()
+            .map(|state| state.source_capture_timestamp_ms)
+            .unwrap_or(0);
         while !relay.stop.load(Ordering::SeqCst) {
             if live_relay_capture_ended(&capture) {
                 break;
@@ -71,33 +80,38 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
             // Consume an available terminal Close before attempting another publication.
             let mut timing = LiveRelaySourceIteration::new(&relay.state);
             if let Err(error) = timing.result(LiveRelayTimingStage::SocketService, || {
-                service_live_relay_source_socket(&relay, &mut socket)
+                service_live_relay_source_video_socket(
+                    &relay,
+                    &mut socket,
+                    (profile == LiveRelayMediaProfile::H264).then_some(&mut video),
+                )
             }) {
                 mark_live_relay_recovering(&relay, "source_read_failed", error);
                 break;
             }
-            let frame = timing.latest(|| {
-                capture
-                    .frames
-                    .lock()
-                    .ok()
-                    .and_then(|frames| frames.clone_latest_after(last_frame_id))
-            });
-            if let Some(frame) = frame {
-                let network_frame = match timing.result(LiveRelayTimingStage::Adaptation, || {
-                    encode_live_relay_capture_frame(&frame, profile, session_epoch)
-                }) {
-                    Ok(frame) => frame,
-                    Err(error) => {
-                        mark_live_relay_recovering(&relay, "source_frame_invalid", error);
-                        break;
-                    }
-                };
+            let Some(next_id) = last_frame_id.checked_add(1) else {
+                relay.stop.store(true, Ordering::SeqCst);
+                break;
+            };
+            let frame = match video.next(&capture, profile, next_id, &relay.stop, &mut timing) {
+                Ok(frame) => frame,
+                Err(error) => {
+                    mark_live_relay_recovering(&relay, "source_frame_invalid", error);
+                    break;
+                }
+            };
+            if let Some(network_frame) = frame {
                 if relay.stop.load(Ordering::SeqCst)
                     || relay.reconnect.load(Ordering::SeqCst)
                     || live_relay_capture_ended(&capture)
                 {
                     break;
+                }
+                // A failed write may already have reached Loom. Never reuse its AU identity.
+                last_frame_id = next_id;
+                if let Ok(mut state) = relay.state.lock() {
+                    state.last_frame_id = last_frame_id;
+                    state.source_capture_timestamp_ms = video.last_capture_ms;
                 }
                 if let Err(error) = timing.result(LiveRelayTimingStage::SocketSend, || {
                     socket.send(tungstenite::Message::Binary(network_frame))
@@ -110,7 +124,6 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
                     );
                     break;
                 }
-                last_frame_id = frame.descriptor.frame_id;
                 if let Ok(mut state) = relay.state.lock() {
                     state.mark_frame(session_epoch, last_frame_id);
                 }
@@ -185,6 +198,7 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
         let mut pending_ping: Option<(Vec<u8>, Instant)> = None;
         let mut ping_sequence = 0_u64;
         let connected_at = Instant::now();
+        let mut video = LiveRelayVideoViewer::default();
         let disconnect = loop {
             if relay.stop.load(Ordering::SeqCst) {
                 break Disconnect::Stopped;
@@ -225,7 +239,7 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
                 Ok(tungstenite::Message::Binary(bytes)) => {
                     match profile
                         .validate_wire(&bytes)
-                        .and_then(|()| accept_live_relay_viewer_frame(&relay, &bytes))
+                        .and_then(|()| video.receive(&relay, &mut socket, &bytes))
                     {
                         Ok(()) => {}
                         Err(error) => {
@@ -284,6 +298,14 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
 
 fn accept_live_relay_viewer_frame(relay: &LiveRelaySession, bytes: &[u8]) -> Result<(), String> {
     let frame = decode_live_relay_binary_frame(&relay.relay_id, &relay.live_session_id, bytes)?;
+    commit_live_relay_viewer_frame(relay, frame, false)
+}
+
+fn commit_live_relay_viewer_frame(
+    relay: &LiveRelaySession,
+    frame: LiveRelayFrame,
+    allow_warmup: bool,
+) -> Result<(), String> {
     // 与 terminal 清理共用 state → frames 锁序，迟到帧不能重新填充已关闭的槽。
     let mut state = relay
         .state
@@ -296,6 +318,9 @@ fn accept_live_relay_viewer_frame(relay: &LiveRelaySession, bytes: &[u8]) -> Res
         || (frame.descriptor.epoch == state.epoch
             && frame.descriptor.frame_id <= state.last_frame_id)
     {
+        if allow_warmup {
+            return Ok(());
+        }
         return Err("Loom delivered a stale or duplicate live frame".to_owned());
     }
     let epoch = frame.descriptor.epoch;
@@ -339,7 +364,7 @@ fn connect_live_relay_socket(
         .map_err(|error| format!("build Loom live WebSocket request: {error}"))?;
     request.headers_mut().insert(
         SEC_WEBSOCKET_PROTOCOL,
-        HeaderValue::from_static(LIVE_RELAY_MEDIA_OFFER),
+        HeaderValue::from_static(LIVE_RELAY_VIDEO_OFFER),
     );
     relay.authorization.apply_websocket(&mut request)?;
     connect_live_relay_transport(request, &url, relay.role)

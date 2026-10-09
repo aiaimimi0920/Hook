@@ -67,7 +67,18 @@ fn service_live_relay_source_socket(
     relay: &LiveRelaySession,
     socket: &mut tungstenite::WebSocket<tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>,
 ) -> Result<(), &'static str> {
+    service_live_relay_source_video_socket(relay, socket, None)
+}
+
+fn service_live_relay_source_video_socket(
+    relay: &LiveRelaySession,
+    socket: &mut tungstenite::WebSocket<tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>,
+    video: Option<&mut LiveRelayVideoSource>,
+) -> Result<(), &'static str> {
     match socket.read() {
+        Ok(tungstenite::Message::Text(text)) => video
+            .ok_or("video policy without negotiation")?
+            .policy(&text),
         Ok(tungstenite::Message::Ping(bytes)) => socket
             .send(tungstenite::Message::Pong(bytes))
             .map_err(|_| "source liveness response failed"),

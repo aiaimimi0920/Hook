@@ -55,13 +55,13 @@ fn encode_live_relay_capture_frame(
             dropped_frames,
             keyframe: true,
             color_space: "srgb",
-            codec: if profile == LiveRelayMediaProfile::Jpeg {
+            codec: if profile != LiveRelayMediaProfile::Legacy {
                 "jpeg"
             } else {
                 "raw_bgra"
             },
         },
-        if profile == LiveRelayMediaProfile::Jpeg {
+        if profile != LiveRelayMediaProfile::Legacy {
             &frame.bytes
         } else {
             &bgra
@@ -221,6 +221,13 @@ fn validate_live_relay_binary_metadata(
         if expected != Some(payload_len) {
             return Err("raw BGRA live relay payload size is invalid".to_owned());
         }
+    }
+    if metadata.codec == "h264"
+        && (metadata.color_space != "srgb"
+            || payload_len > 1024 * 1024
+            || crate::live_video::Format::new(metadata.width, metadata.height, 30).is_err())
+    {
+        return Err("live relay H264 bounds are invalid".to_owned());
     }
     Ok(())
 }

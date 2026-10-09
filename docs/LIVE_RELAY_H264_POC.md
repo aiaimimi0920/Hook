@@ -5,12 +5,15 @@
 2026-10-09 用户明确启动 C1，范围是一源一收、Windows、复用现有授权和连接，保留
 raw/JPEG 回退。跟踪 [Loom #91](https://github.com/aiaimimi0920/Loom/issues/91)。
 
-本次先交付独立可运行的硬件编码探针，不自动开启产品 H.264、不捕获用户桌面、不连接
-Loom、不退出日常程序。它不是整个 C1 完成，也不是原生双机或物理呈现验收。
+v0.2.32.39 已接入产品 source/viewer worker，并完成下述 PC1/PC3 一源一收功能验收。
+产品接线和验收文档由 [Hook #68](https://github.com/aiaimimi0920/Hook/pull/68) 交付；
+Loom 协商与连续性由 #93/#94 交付。本轮不发布公共 release，不宣称 GPU decoder、
+零拷贝呈现或性能实测提升，A3-P 保持用户豁免。
+所有原生测试只使用自有 HWND 或先前生成的自有码流，不退出日常 Hook/Loom。
 
-Hook 产品 worker 当前仍消费 JPEG，接收端按图片呈现；Loom 已有独立 H.264 连续性和协商
-增量，Hook 的图片缓存仍会跳过旧帧。不能直接把 delta 帧交给这条图片路径，否则任意丢帧
-可能破坏解码参考链；在协商与恢复接线完成之前，默认产品路径必须保持 raw/JPEG。
+开发分支显式 offer `loom.live.h264.v1`，旧 Loom 仍选择 JPEG/raw；源端必须收到允许
+策略才发送 H.264。接收端在图片缓存之前顺序解码，缓存只能丢已解码图像，不能跳过
+delta AU。功能完成依据是独立 owner、真实网络和最终候选产品链路的组合证据。
 
 ## 第一阶段：独立硬件编码探针
 
@@ -109,8 +112,8 @@ $env:HOOK_C1_NATIVE_OUTPUT = 'C:\absolute\unused-wgc-output'
 cargo test --locked --lib native_wgc_continuous_h264_and_stop -- --ignored --nocapture --test-threads=1
 ```
 
-正常 relay worker 尚未申请 H.264 订阅，产品默认仍为 JPEG/raw。Loom 已实现显式 profile、
-按序投递、关键帧控制和旧端/墙兼容需求；Hook 产品接线及一源一收仍待完成。
+上述 owner 阶段尚未申请产品 H.264 订阅；当前 worker 接线增量见下文。Loom 已实现显式
+profile、按序投递、关键帧控制和旧端/墙兼容需求，一源一收配套候选验收见下文。
 不能将内部 owner 的独立验证记为整个 C1 完成。
 
 ### Windows MF decoder owner 增量
@@ -118,7 +121,7 @@ cargo test --locked --lib native_wgc_continuous_h264_and_stop -- --ignored --noc
 `src-tauri/src/live_video/decoder.rs` 提供连接线程持有的持续 decoder，复用现有 COM/MF
 生命周期；不引入 crate 或捆绑 codec。它使用 Windows 注册的同步 H.264→NV12 MFT，
 再将 limited-range BT.709 NV12 转为 BGRA，供后续接入已有 IPC/图片呈现路径。
-**这不是 GPU 解码、零拷贝呈现，也尚未让产品 viewer 自动 offer H.264。**
+**这不是 GPU 解码或零拷贝呈现；该 decoder owner 阶段本身不启用产品 offer。**
 
 - 一进程最多一个 decoder，最多四个未输出输入；基线 8-bit 4:2:0、逐行、最多四个参考
   图像、coded surface 至多 8,294,400 像素。额外 viewer 或不支持的类型必须回退图片。
@@ -153,7 +156,104 @@ $env:HOOK_C1_DECODER_OUTPUT = 'C:\absolute\unused-decoder-output'
 cargo test --locked --lib native_decoder_reads_continuous_wgc_h264_and_restarts_at_idr -- --ignored --nocapture --test-threads=1
 ```
 
-### 剩余接线顺序
+### 产品 worker 接线
+
+- source socket 内持有 encoder/GPU subscription/JPEG demand，按策略切换；硬件失败仅
+  本连接探测一次，之后保持图片回退。已编码 AU 与 JPEG 共用独立 wire frame ID，失败
+  写入也消耗 ID；重连与同 epoch 凭据续期保留游标及 capture timestamp 下界。
+- source 保留最多一张独立输入纹理，静态画面也能响应晚加入的 IDR 请求。取帧与 generation
+  在同一锁内观察，编码完成后复核 generation；重建时旧参考链退役。GPU-only idle 判据
+  使用真实捕获到达，不再把“没编码 JPEG”当作首次帧失败。
+- viewer socket 逐 AU 解码，最多四个 pending descriptors，与 decoder 时间戳一一对应。
+  重连旧 IDR 可预热但不能回退已呈现游标；gap 请求 IDR，native failure 发 sticky
+  `video_fallback`，停止/终态仍由 state → frames 锁序拒绝迟到结果。
+- 解码后沿用 BGRA 二进制 IPC → BMP → Image.decode → img；descriptor 的 codec 和
+  byte_length 描述 IPC 表示，不代表网络压缩大小。没有宣称 GPU viewer 或零拷贝。
+- 策略禁止后释放纹理；重新允许但静态源尚无新 GPU 输入时继续发送可用图片，不要求
+  为了切换编码主动重启 WGC。允许 H.264 表示可用性，不是必须立即切换。
+
+聚焦测试覆盖旧 profile 拒绝、控制预算/epoch/序号、JPEG 回退、gap 请求、sticky fallback
+与停止。原生 viewer owner 使用已有 WGC 24 AU：完整解码以及重连预热20帧后只提交4帧
+通过，灰度误差不超过4。此证据不等于真实 Loom 网络或 WebView 呈现验收。
+
+原生 source owner 使用自有 HWND 的实际 WGC：12个视频输出均由 MF decoder 解码，确认
+GPU 模式释放 JPEG demand、静态 IDR 请求复用有界纹理、策略禁止后恢复 JPEG、停止 join。
+测试直接驱动产品 source owner，并非完整 source WebSocket → Loom → viewer 产品链路。
+
+### 真实网络接线与尺寸修复
+
+隔离自有窗口通过真实 WGC → Hook source worker → loopback Loom → 两个独立 Hook viewer
+worker 验证连续帧和重连；旁路同授权观看 socket 检查真实 NLLV codec，而不是把 IPC
+`raw_bgra` 当成网络编码。旧 JPEG socket 加入后切换图片，退出后重新收到 SPS/PPS/IDR。
+该入口不安装日常 Hook 的全局输入钩子，不读取其他应用像素；不是 WebView 产品呈现验收。
+
+首次640×432链路通过，但680×430源能编码、viewer却回退。真实网络 AU 对产品 decoder
+复现 `decoder negotiated dimensions mismatch`：MF输出surface按宏块补边，不能要求
+storage尺寸与可见尺寸严格相同。现 `decode_layout.rs` 只允许向16对齐的右/下padding；
+补边输出必须携带精确匹配wire、零整数/小数偏移的MF visible aperture；预算不放宽。
+NV12的UV起点用storage height计算，再裁出visible像素，短buffer和非零offset仍拒绝。
+该680×430网络码流24帧decoder回归已通过；早期带此问题的候选不作最终交付包。
+修复后680×430真实网络重跑通过：source发布265帧，两个viewer分别消费248/240帧且
+无错误；旁路观察到67个H264 AU，旧端加入收到JPEG，退出后H264以IDR恢复。此为22秒
+功能检查，不报告性能收益；其后的UI/WebView端到端结果见下文。
+
+补边修复提交 `66658937` 的独立候选 SHA-256 为
+`4cc2ec487d7e0e5ded1409378edf6898a37f65c170e7ea7038d740a15cd8d440`。
+本机隔离60秒原生启动、单实例、设置持久化和两次正常退出通过，首次与重启均加载
+`http://tauri.localhost/`；对应提交 CI 为14 success、2 neutral，无失败。
+
+PC1/PC3 产品联调已恢复既有固定主机密钥校验的 SSH 管理通道。旧测试证书过期后，
+新试验使用短期、仅进程信任的证书，不关闭校验或修改系统信任。正常产品发布和观看
+入口可用，但384×240偶数测试选区尚未出现预期的H264解码呈现，不能用启动检查替代。
+PC3独立decoder对已有680×430网络码流的24帧测试通过；它只排除该码流下decoder完全
+不可用的情况，不证明产品连接已成功。source/viewer的原生回退分支现各保留每连接一次、
+最多512字符的原因日志，不记录媒体或凭据，供定位编码与解码边界；回退语义未改变。
+失败试验和身份绑定清理回执保留于 `linshi/issue91-c1-20261009/product-pair-r1..r3`，
+不能将其记为通过；后续使用新的候选和证据目录。
+
+`product-pair-r4` 的诊断候选定位到源端偶数尺寸校验回退，而非网络断流：Loom实际
+转发JPEG，PC3也有JPEG呈现证明。150% DPI下窗口局部坐标
+`x=9.333333333333258, y=32.66666666666663, width=384, height=240`
+经旧floor/ceil产生577×361物理ROI；其边界原本应是14、49，浮点往返误差却使left/top
+向外多取一像素。`live_capture_region.rs` 现在仅将距整数不超过1e-7物理像素的边界
+归一化，容差同时不超过选区短边的四分之一，避免吞掉合法微小选区。真实小数仍向外
+取整，真实奇数尺寸仍保留并由codec回退；不做强制偶数裁切或放宽编码预算。
+回归测试覆盖实测坐标、输入映射端点、真实小数、奇数及微小选区。修正后的物理ROI
+为576×360；其后的新候选产品联调已验证该修复，不据单测直接结单。
+
+### 最终候选产品功能验收
+
+最终可运行候选来自干净源码 `8a0b137704df0dbe3daf5ded2c27ba644ff17304`，版本
+`v0.2.32.39`，SHA-256
+`9a5c09a5b97aa8a9055d857a7381bc2c667fda78821d1858a323812cb9116b01`。
+同一字节传至PC3并复核SHA，双方使用隔离appdata/WebView配置及测试身份。后续收尾
+提交仅修改文档，不改变该候选源码。Loom使用已含协商/连续性代码的daemon-only候选，
+SHA-256为 `688d905138565a68e1179f4e12909b13706313be78b6cd6e175b8d9cc0d97bb5`。
+
+- `product-pair-r5`：实际Hook通过正常界面捕获自有窗口、发布、在PC3晚加入观看。
+  服务端记录真实wire H264，原生decoder输出576×360 BGRA，经二进制IPC/BMP Blob
+  到WebView图片。80次可见抽样包含64个不同的浏览器呈现帧；不是FPS或每帧历史证明。
+- 同轮旧JPEG观看socket加入后，旧socket和实际PC3观看端均收到JPEG；退出旧socket后，
+  PC3恢复H264解码图像且frame ID继续前进。未把IPC `raw_bgra` 当作网络编码证据。
+- 正常点击停止发布后，Loom权威会话关闭，native viewer进入closed，presentation、
+  rendering和图片元素全部清空；正常退出两端并通过身份绑定的进程/端口清理检查。
+- `product-pair-r6`：另一组隔离身份先完成H264呈现，再禁用实际测试viewer。31次连续
+  抽样均为 `live_media_device_revoked`、closed、无控制权和无旧图像，源仍在发送。
+  原始harness额外要求“不得发出任何登记请求”，因两次重复登记而失败；不覆盖该回执。
+  服务端既有 `device_disabled_approval.rs` 合同允许同身份登记200，但禁止恢复授权。
+  独立合同复核确认设备仍disabled、无新增身份、无新会话/媒体连接获准、无旧帧，清理
+  通过；复核器另用重新启用、残留图像、成功签发三个反例验证拒绝能力。
+
+证据根为 `linshi/issue91-c1-20261009/`：`workers-candidate-r4/provenance.json`、
+`product-pair-r5/native/runner-receipt.json`、`product-pair-r5/native/c1-compatibility.json`、
+`product-pair-r6/native/disabled-viewer-observation.json`、
+`c1-revocation-contract-review.json`及各轮 `part-cleanup-verified.json`。
+最终代码Rust库576项通过、24项默认ignored；原生入口另有显式执行证据。前端未改，
+复用同源码452文件/2181测试、lint、类型检查、Surface browser和production build证据。
+本轮未退出日常Hook、未改系统信任、未物理断网或重置驱动；SSH只转管理/CDP，媒体
+直接使用局域网HTTPS/WSS。2/4端矩阵、真实device loss、物理呈现与公共发行许可不在本轮。
+
+### 整体完成条件
 
 1. **原生编码成立**：真实硬件输出可独立解码，强制 IDR 能作为中途加入点；可重建并清理。
 2. **GPU 输入接入**：复用捕获设备及 adapter 身份，BGRA→NV12，D3D11 纹理与编码器
@@ -166,7 +266,7 @@ cargo test --locked --lib native_decoder_reads_continuous_wgc_h264_and_restarts_
 5. **一源一收最小链路**：用独立候选验证协商、连续画面、late join、回退和停止。
    不启动旧 A3-P 矩阵，不顺带开发账号或官方中继。
 
-每个阶段独立小改动和聚焦证据。全链路完成前不能把 C1 标为完成或在正式入口默认开启。
+每个阶段独立小改动和聚焦证据。全链路完成前不能把 C1 标为完成或发布正式默认启用版本。
 
 ## Piik 参考与许可边界
 

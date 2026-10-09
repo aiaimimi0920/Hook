@@ -298,7 +298,7 @@ fn run_live_capture_worker(
             }
             if last_frame_at.elapsed() >= LIVE_CAPTURE_FRAME_TIMEOUT {
                 let errors = mailbox.take_errors();
-                if !idle::requires_idle_recovery(encoded_at != 0, errors) {
+                if !idle::requires_idle_recovery(observed_capture != 0, errors) {
                     last_frame_at = std::time::Instant::now();
                     continue;
                 }

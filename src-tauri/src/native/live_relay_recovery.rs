@@ -136,6 +136,14 @@ async fn recover_live_relay_source_inner(
             return Err("source recovery snapshot owner changed".to_owned());
         }
         runtime_state.observations = recovery_source_observations(&response)?;
+        runtime_state.source_capture_timestamp_ms = old_state.source_capture_timestamp_ms;
+        // A renewed owner preserves the wire sequence independently of JPEG capture IDs.
+        runtime_state.last_frame_id = old_state.last_frame_id.max(
+            response
+                .get("lastFrameId")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(old_state.last_frame_id),
+        );
         let (registrations, audits) = parse_live_trigger_snapshot(&response)?;
         runtime_state.trigger_registrations = registrations;
         runtime_state.trigger_audits = audits;

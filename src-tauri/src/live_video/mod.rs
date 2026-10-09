@@ -1,6 +1,7 @@
 //! Windows 连续视频 owner：捕获交接与硬件编码独立于 JPEG/本地预览。
 pub mod capture;
 mod decode_bounds;
+mod decode_layout;
 mod decode_output;
 mod decoder;
 mod encoder;

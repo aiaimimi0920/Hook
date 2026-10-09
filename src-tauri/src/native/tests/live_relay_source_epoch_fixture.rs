@@ -4,6 +4,7 @@ struct SourceEpochFixture {
     relay: Arc<LiveRelaySession>,
     received: std::sync::mpsc::Receiver<Vec<u8>>,
     server: Option<std::thread::JoinHandle<()>>,
+    _budget: crate::live_gpu::work_budget::CaptureBudget,
 }
 
 impl SourceEpochFixture {
@@ -30,6 +31,10 @@ impl SourceEpochFixture {
             },
             source_window: None,
         };
+        let budget = crate::live_gpu::work_budget::CaptureBudget::register(
+            &config.session_id,
+            config.target_fps,
+        );
         let capture = Arc::new(LiveCaptureSession {
             state: Arc::new(Mutex::new(LiveCaptureSessionState::starting(&config))),
             frames: Arc::new(Mutex::new(LiveCaptureFrameBuffer::new())),
@@ -66,7 +71,9 @@ impl SourceEpochFixture {
                     response.headers_mut().insert(
                         "sec-websocket-protocol",
                         tungstenite::http::HeaderValue::from_static(
-                            if profile == LiveRelayMediaProfile::Jpeg {
+                            if profile == LiveRelayMediaProfile::H264 {
+                                LIVE_RELAY_H264_PROTOCOL
+                            } else if profile == LiveRelayMediaProfile::Jpeg {
                                 LIVE_RELAY_JPEG_PROTOCOL
                             } else {
                                 LIVE_RELAY_PROTOCOL_VERSION
@@ -103,6 +110,7 @@ impl SourceEpochFixture {
             relay,
             received,
             server: Some(server),
+            _budget: budget,
         }
     }
 

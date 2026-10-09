@@ -145,8 +145,11 @@ for the next frame and its dimensions match. Only one candidate decode is owned
 by each viewer, with a 1000ms timeout and cancellation on stop/dispose. Failed,
 cancelled, closed-session and old-generation/epoch candidates release their Blob
 URLs without replacing the current frame. Epoch changes clear the old frame and
-poll cursor. Unknown codecs and non-sRGB pixels are rejected before payload IPC;
-the H.264 wire enum is not a functioning Hook decoder or a negotiated video path.
+poll cursor. Unknown codecs and non-sRGB pixels are rejected before payload IPC.
+Negotiated H.264 is decoded in order by the socket-owned native MF decoder before
+this latest-image stage; the resulting IPC descriptor is `raw_bgra`, not `h264`.
+The browser never treats an H.264 access unit as an independent image. See the
+[C1 implementation and acceptance scope](LIVE_RELAY_H264_POC.md).
 
 `submittedFrameId` is the local poll cursor, not a render acknowledgement.
 The transient `presentation` field retains only the latest sample:
@@ -180,10 +183,14 @@ or external presentation timing before claiming a performance improvement.
 
 ### JPEG 压缩直通与旧端回退
 
-LiveRelay 媒体连接同时提供 `loom.live.jpeg.v1,loom.live.v1`，以服务端返回的
+LiveRelay 媒体连接同时提供 `loom.live.h264.v1,loom.live.jpeg.v1,loom.live.v1`，以服务端返回的
 单个子协议作为本次连接的实际能力。列表不加空格，以兼容当前 tungstenite
 0.24 的解析行为；旧 Loom 可直接选择 `loom.live.v1`。控制协议、发现结果中的
 `frameStream.codec` 和持久业务数据不切换为 JPEG。
+
+C1 的 H.264 profile 还需收到服务端允许策略才发送连续视频；旧观看端/屏幕墙加入或
+原生 codec 不可用时回到图片。H.264不能由Loom假定转码成raw：source负责回退，
+viewer按序解码AU后才允许最新图片覆盖。控制、IDR、队列及取消边界见C1文档。
 
 - 选择 JPEG 后，源端沿用已有采集 JPEG 的内容与质量，NLLV codec 字节为 `3`。
   不先解码为 BGRA、不重复 JPEG 编码。压缩帧超过 16 MiB 时仍可走原 raw 回退。

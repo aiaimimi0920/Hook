@@ -166,6 +166,7 @@ struct LiveRelaySnapshot {
 
 #[derive(Clone, Debug)]
 struct LiveRelayRuntimeState {
+    source_capture_timestamp_ms: u64,
     source_timing: Option<LiveRelaySourceTiming>,
     connection_state: String,
     epoch: u64,
@@ -201,6 +202,7 @@ impl LiveRelayRuntimeState {
         };
         Self {
             connection_state: "connecting".to_owned(),
+            source_capture_timestamp_ms: 0,
             source_timing: None,
             epoch,
             last_frame_id: 0,
