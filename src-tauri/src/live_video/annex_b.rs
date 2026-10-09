@@ -10,6 +10,24 @@ pub struct Summary {
 }
 
 pub fn inspect(bytes: &[u8]) -> Result<Summary> {
+    let mut summary = Summary::default();
+    for nal in units(bytes)? {
+        match nal[0] & 31 {
+            1 => summary.delta = true,
+            5 => summary.idr = true,
+            7 => {
+                ensure!(nal.len() >= 4, "truncated SPS");
+                summary.sps = true;
+            }
+            8 => summary.pps = true,
+            6 | 9 | 10 | 11 | 12 => {}
+            _ => anyhow::bail!("unsupported NAL type"),
+        }
+    }
+    Ok(summary)
+}
+
+pub(super) fn units(bytes: &[u8]) -> Result<Vec<&[u8]>> {
     ensure!(
         !bytes.is_empty() && bytes.len() <= 1024 * 1024,
         "access unit size invalid"
@@ -23,7 +41,7 @@ pub fn inspect(bytes: &[u8]) -> Result<Summary> {
             None
         }
     };
-    let mut summary = Summary::default();
+    let mut units = Vec::new();
     let mut cursor = 0;
     let mut count = 0;
     while cursor < bytes.len() {
@@ -34,22 +52,12 @@ pub fn inspect(bytes: &[u8]) -> Result<Summary> {
             .unwrap_or(bytes.len());
         ensure!(end > begin, "empty NAL unit");
         ensure!(bytes[begin] & 0x80 == 0, "forbidden NAL bit");
-        match bytes[begin] & 31 {
-            1 => summary.delta = true,
-            5 => summary.idr = true,
-            7 => {
-                ensure!(end - begin >= 4, "truncated SPS");
-                summary.sps = true;
-            }
-            8 => summary.pps = true,
-            6 | 9 | 10 | 11 | 12 => {}
-            _ => anyhow::bail!("unsupported NAL type"),
-        }
+        units.push(&bytes[begin..end]);
         count += 1;
         ensure!(count <= 256, "too many NAL units");
         cursor = end;
     }
-    Ok(summary)
+    Ok(units)
 }
 
 #[cfg(test)]

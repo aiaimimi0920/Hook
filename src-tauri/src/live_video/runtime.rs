@@ -1,4 +1,4 @@
-//! COM/MF 仅在编码 owner 线程初始化和释放，类型不可跨线程移动。
+//! COM/MF 仅在 codec owner 线程初始化和释放，类型不可跨线程移动。
 use std::{marker::PhantomData, rc::Rc};
 use windows::Win32::{Media::MediaFoundation::*, System::Com::*};
 
