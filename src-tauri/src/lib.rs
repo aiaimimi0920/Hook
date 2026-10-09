@@ -368,6 +368,8 @@ include!("native/live_relay_renewal.rs");
 include!("native/tests/live_relay_renewal.rs");
 
 include!("native/live_relay_commands.rs");
+include!("native/live_relay_viewer.rs");
+include!("native/live_relay_viewer_renewal.rs");
 include!("native/live_relay_viewer_state.rs");
 
 #[cfg(test)]
@@ -375,6 +377,7 @@ mod live_relay_viewer_lifecycle_tests {
     use super::*;
     include!("native/tests/live_relay_viewer_http_fixture.rs");
     include!("native/tests/live_relay_viewer_lifecycle.rs");
+    include!("native/tests/live_relay_viewer_renewal.rs");
     include!("native/tests/live_relay_renewal_http.rs");
     include!("native/tests/live_relay_source_epoch_fixture.rs");
     include!("native/tests/live_relay_source_epoch.rs");

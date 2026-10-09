@@ -11,6 +11,7 @@ fn viewer_relay(base_url: String) -> Arc<LiveRelaySession> {
             "viewer:test",
         ),
         publication: None,
+        viewer_identity: None,
         recovery_busy: AtomicBool::new(false),
         event_cursor: std::sync::atomic::AtomicU64::new(0),
         capture: None,

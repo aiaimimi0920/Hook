@@ -63,6 +63,13 @@ delay to prevent a malformed or older peer from causing a tight poll loop.
 
 ## Verification matrix
 
+### 禁用设备与批准等待
+
+设备 challenge 返回 `403 / device_not_authorized` 时保留有界批准等待；
+`403 / device_disabled` 是此次签发的终态，不进入 250 毫秒批准轮询。
+Loom 需实现对应的独立禁用错误码；旧 Loom 将两种状态合并时不能声称此区分
+已生效。Surface 后台连接任务的独立退避重试不属于批准等待循环。
+
 Run both feature combinations after changing Surface transport, pairing, or stream code:
 
 ```powershell

@@ -272,6 +272,7 @@ struct LiveRelaySession {
     attachment_id: Option<String>,
     authorization: crate::device_session::DeviceSessionAuthorization,
     publication: Option<LiveRelayPublishRequest>,
+    viewer_identity: Option<LiveViewerIdentity>,
     recovery_busy: AtomicBool,
     event_cursor: std::sync::atomic::AtomicU64,
     capture: Option<Arc<LiveCaptureSession>>,

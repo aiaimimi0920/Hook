@@ -96,77 +96,18 @@ async fn join_live_relay_session(
 ) -> Result<LiveRelaySnapshot, String> {
     validate_live_relay_join_request(&request)?;
     let (base_url, authorization) = live_relay_context(&app).await?;
-    let discovery = discover_live_sessions_http(&base_url, &authorization).await?;
-    let preview = find_live_session_snapshot(&discovery, &request.live_session_id)?;
-    let epoch = validate_live_session_snapshot(preview, &request.live_session_id)?;
-    let baseline = live_viewer_join_baseline(
-        &base_url,
-        &authorization,
-        &request.live_session_id,
-        preview,
-        epoch,
+    let relay = prepare_live_relay_viewer(
+        next_live_relay_id(LiveRelayRole::Viewer),
+        base_url,
+        authorization,
+        request,
+        None,
     )
     .await?;
-    let sequence = baseline.next_control()?;
-    let remote =
-        attach_live_viewer_http(&base_url, &authorization, &request, epoch, sequence).await?;
-    if validate_live_session_snapshot(&remote, &request.live_session_id)? != epoch {
-        return Err("Loom viewer attachment epoch changed".to_owned());
+    if let Err(error) = start_live_relay_viewer_workers(&relay) {
+        let _ = relay.stop_and_join();
+        return Err(error);
     }
-    let event_cursor =
-        bootstrap_live_viewer_cursor(&base_url, &authorization, &request, &remote).await?;
-    let observation_capabilities = parse_live_observation_capabilities(&remote)?;
-    let (trigger_registrations, trigger_audits) = parse_live_trigger_snapshot(&remote)?;
-    let mut runtime_state = LiveRelayRuntimeState::starting(
-        epoch,
-        observation_capabilities.clone(),
-        observation_capabilities
-            .is_empty()
-            .then(|| "source_did_not_advertise_observation".to_owned()),
-    );
-    runtime_state.trigger_registrations = trigger_registrations;
-    runtime_state.trigger_audits = trigger_audits;
-    // 使用与 viewer_joined 游标同一锁内快照，在 worker 启动前恢复每个观察的序号。
-    runtime_state.observations = parse_live_viewer_observations(&remote)?;
-    let relay = Arc::new(LiveRelaySession {
-        relay_id: next_live_relay_id(LiveRelayRole::Viewer),
-        live_session_id: request.live_session_id,
-        role: LiveRelayRole::Viewer,
-        base_url,
-        surface_instance_id: Some(request.surface_instance_id),
-        attachment_id: Some(request.attachment_id),
-        authorization,
-        publication: None,
-        recovery_busy: AtomicBool::new(false),
-        event_cursor: std::sync::atomic::AtomicU64::new(event_cursor),
-        capture: None,
-        state: Arc::new(Mutex::new(runtime_state)),
-        frames: Arc::new(Mutex::new(LiveRelayFrameBuffer::new())),
-        stop: Arc::new(AtomicBool::new(false)),
-        reconnect: Arc::new(AtomicBool::new(false)),
-        join: Mutex::new(None),
-        control_join: Mutex::new(None),
-        observation_join: Mutex::new(None),
-        control_sequence: Mutex::new(sequence),
-        input_sequence: Mutex::new(baseline.input),
-    });
-    refresh_live_observation_summary(&relay)?;
-    let worker = spawn_live_relay_viewer_worker(Arc::clone(&relay))?;
-    *relay
-        .join
-        .lock()
-        .map_err(|_| "live relay worker lock poisoned".to_owned())? = Some(worker);
-    let control_worker = match spawn_live_relay_control_worker(Arc::clone(&relay)) {
-        Ok(worker) => worker,
-        Err(error) => {
-            let _ = relay.stop_and_join();
-            return Err(error);
-        }
-    };
-    *relay
-        .control_join
-        .lock()
-        .map_err(|_| "live relay control worker lock poisoned".to_owned())? = Some(control_worker);
     if let Err(error) = relays.insert(Arc::clone(&relay)) {
         let _ = relay.stop_and_join();
         return Err(error);
@@ -225,7 +166,7 @@ async fn reconnect_live_relay_session(
         return recover_live_relay_source(&app, &relays, relay).await;
     }
     if relay.stop.load(Ordering::SeqCst) {
-        return Err("live relay session is stopping".to_owned());
+        return renew_live_relay_viewer(&app, &relays, relay).await;
     }
     relay.reconnect.store(true, Ordering::SeqCst);
     relay.snapshot()

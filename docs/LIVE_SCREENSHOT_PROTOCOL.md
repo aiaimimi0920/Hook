@@ -85,9 +85,25 @@ An existing Device-authenticated viewer retains its original credential. An actu
 HTTP 401 from its resume, event poll or member snapshot terminates that local
 viewer with `live_viewer_authorization_required`, clears cached frames and local
 control state, and stops retrying the rejected credential. This decision precedes
-body reads, including oversized, truncated or malformed error payloads. Close the old viewer
-and explicitly join again using the normal authorization path. This is not
-in-place credential renewal, a server-session close, device revocation, automatic
+body reads, including oversized, truncated or malformed error payloads. The frontend
+may make one renewal attempt for that retired native owner, preserving the viewing
+window and its geometry. It invalidates old frame decodes, control replies and input
+queues before the attempt, keeps input disabled while waiting, and seeds a successful
+replacement queue from the authenticated input cursor. Consecutive renewals less than
+30 seconds apart are not attempted. Failure remains closed without a retry timer;
+the user can close the viewer and explicitly join again.
+
+Renewal loads only an existing identity, requires the retained device ID and Loom
+origin, and makes one signed session attempt without pairing, approval polling or
+reuse of the rejected token cache. Session/source/epoch and Surface attachment must
+remain valid. The attachment sends `requireExistingMembership: true`; Loom checks
+membership and absence of this device's controller lease atomically before consuming
+the sequence. Old Loom versions reject this field: Hook never falls back to a fresh
+join. Deploy the matching Loom support before enabling the new Hook candidate.
+Stopping/removing/replacing the local owner prevents late worker publication; confirmed
+`live_media_device_revoked` never renews. Disabled or removed devices cannot mint the
+replacement session. Revoking only a token does not revoke an otherwise approved
+device identity: a new signed token may still be issued. This is not automatic
 pairing or a controller grant. Source recovery and non-Device authorization keep
 their existing behavior. Other HTTP statuses and ordinary media Close frames do
 not become terminal merely because their text mentions expiry or HTTP 401;

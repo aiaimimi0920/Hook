@@ -407,6 +407,7 @@ mod live_relay_websocket_tests {
                 "device-000-local",
             ),
             publication: None,
+            viewer_identity: None,
             recovery_busy: AtomicBool::new(false),
             event_cursor: std::sync::atomic::AtomicU64::new(0),
             capture: None,

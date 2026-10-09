@@ -106,7 +106,58 @@ export function createLiveRelayController() {
         if (previousUrl) URL.revokeObjectURL(previousUrl);
     };
 
+    const renewViewer = async (relayId: string, status: LiveRelaySnapshot): Promise<void> => {
+        if (status.role !== "viewer" || status.connectionState !== "closed"
+            || status.errorCode !== "live_viewer_authorization_required"
+            || Date.now() < (recoveryAfter.get(relayId) ?? 0)) return;
+        recoveryAfter.set(relayId, Date.now() + 30_000);
+        const generation = ++nextGeneration;
+        generations.set(relayId, generation);
+        decodes.get(relayId)?.abort();
+        decodes.delete(relayId);
+        releaseObjectUrl(relayId);
+        liveRelayActions.clearFrame(relayId);
+        const queue = inputQueues.get(relayId);
+        if (queue) {
+            queue.closed = true;
+            queue.pendingMove = undefined;
+            queue.pendingMoveOwner = undefined;
+            if (queue.moveTimer !== undefined) window.clearTimeout(queue.moveTimer);
+        }
+        // Keep closed while awaiting renewal: new input and old-generation replies are fenced out.
+        const isCurrent = (): boolean => {
+            const current = liveRelayViews.find(view => view.relayId === relayId)?.status;
+            return !disposed && generations.get(relayId) === generation && !!current
+                && current.liveSessionId === status.liveSessionId && current.epoch === status.epoch
+                && current.connectionState === "closed"
+                && current.errorCode === "live_viewer_authorization_required";
+        };
+        try {
+            const renewed = await api.reconnectLiveRelaySession(relayId);
+            if (!isCurrent()) return;
+            if (renewed.relayId !== relayId || renewed.liveSessionId !== status.liveSessionId
+                || renewed.epoch !== status.epoch || renewed.role !== "viewer"
+                || renewed.connectionState === "closed" || renewed.controllerOwned || renewed.remoteControlActive) {
+                throw new Error("live_viewer_renewal_identity_or_authority_changed");
+            }
+            inputQueues.set(relayId, { sequence: renewed.lastInputSequence, tail: Promise.resolve(), closed: false });
+            liveRelayActions.updateStatus(relayId, renewed);
+            liveRelayActions.setError(relayId);
+            schedule(relayId, 0);
+        } catch {
+            if (isCurrent()) liveRelayActions.setError(relayId, "观看续期失败，请关闭后重新加入。");
+            // No closed-state polling or automatic retry after this attempt fails.
+        }
+    };
+
     const poll = async (relayId: string, generation: number): Promise<void> => {
+        const terminal = liveRelayViews.find(view => view.relayId === relayId)?.status;
+        if (!disposed && generations.get(relayId) === generation && terminal?.connectionState === "closed") {
+            releaseObjectUrl(relayId);
+            liveRelayActions.clearFrame(relayId);
+            await renewViewer(relayId, terminal);
+            return;
+        }
         const isCurrent = (): boolean => {
             if (disposed || generations.get(relayId) !== generation) return false;
             const current = liveRelayViews.find((candidate) => candidate.relayId === relayId);
@@ -132,8 +183,13 @@ export function createLiveRelayController() {
                     liveRelayActions.clearFrame(relayId);
                 }
                 liveRelayActions.updateStatus(relayId, response.status);
-                if (response.status.connectionState !== "closed"
-                    && response.frame && response.frame.frameId > view.submittedFrameId) {
+                if (response.status.connectionState === "closed") {
+                    releaseObjectUrl(relayId);
+                    liveRelayActions.clearFrame(relayId);
+                    await renewViewer(relayId, response.status);
+                    return;
+                }
+                if (response.frame && response.frame.frameId > view.submittedFrameId) {
                     try {
                         await updateFrame(relayId, response.frame, generation);
                     } catch (error) {
@@ -154,6 +210,7 @@ export function createLiveRelayController() {
                 }
                 liveRelayActions.updateStatus(relayId, status);
             }
+            if (!isCurrent()) return;
             const current = liveRelayViews.find((candidate) => candidate.relayId === relayId);
             if (current?.status.connectionState === "closed") {
                 releaseObjectUrl(relayId);
@@ -169,6 +226,12 @@ export function createLiveRelayController() {
             if (!isCurrent()) return;
             liveRelayActions.setError(relayId, error instanceof Error ? error.message : String(error));
             schedule(relayId, RETRY_MS);
+        } finally {
+            // A concurrent control reply can close this owner while poll/read/decode is pending.
+            const current = liveRelayViews.find(view => view.relayId === relayId)?.status;
+            if (!disposed && generations.get(relayId) === generation && current?.connectionState === "closed") {
+                await renewViewer(relayId, current);
+            }
         }
     };
 
