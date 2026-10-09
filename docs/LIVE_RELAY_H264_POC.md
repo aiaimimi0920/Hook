@@ -5,13 +5,15 @@
 2026-10-09 用户明确启动 C1，范围是一源一收、Windows、复用现有授权和连接，保留
 raw/JPEG 回退。跟踪 [Loom #91](https://github.com/aiaimimi0920/Loom/issues/91)。
 
-独立编码和 decoder owner 已交付；当前 v0.2.32.39 开发分支已接入产品 source/viewer
-worker，独立候选构建和本机原生启动通过，但产品一源一收验收仍未通过，不代表整个 C1 完成。
+v0.2.32.39 已接入产品 source/viewer worker，并完成下述 PC1/PC3 一源一收功能验收。
+产品接线和验收文档由 [Hook #68](https://github.com/aiaimimi0920/Hook/pull/68) 交付；
+Loom 协商与连续性由 #93/#94 交付。本轮不发布公共 release，不宣称 GPU decoder、
+零拷贝呈现或性能实测提升，A3-P 保持用户豁免。
 所有原生测试只使用自有 HWND 或先前生成的自有码流，不退出日常 Hook/Loom。
 
 开发分支显式 offer `loom.live.h264.v1`，旧 Loom 仍选择 JPEG/raw；源端必须收到允许
 策略才发送 H.264。接收端在图片缓存之前顺序解码，缓存只能丢已解码图像，不能跳过
-delta AU。该分支待全链路验收，不据局部 owner 测试宣称正式产品已可交付。
+delta AU。功能完成依据是独立 owner、真实网络和最终候选产品链路的组合证据。
 
 ## 第一阶段：独立硬件编码探针
 
@@ -111,7 +113,7 @@ cargo test --locked --lib native_wgc_continuous_h264_and_stop -- --ignored --noc
 ```
 
 上述 owner 阶段尚未申请产品 H.264 订阅；当前 worker 接线增量见下文。Loom 已实现显式
-profile、按序投递、关键帧控制和旧端/墙兼容需求，一源一收配套候选仍待验收。
+profile、按序投递、关键帧控制和旧端/墙兼容需求，一源一收配套候选验收见下文。
 不能将内部 owner 的独立验证记为整个 C1 完成。
 
 ### Windows MF decoder owner 增量
@@ -154,7 +156,7 @@ $env:HOOK_C1_DECODER_OUTPUT = 'C:\absolute\unused-decoder-output'
 cargo test --locked --lib native_decoder_reads_continuous_wgc_h264_and_restarts_at_idr -- --ignored --nocapture --test-threads=1
 ```
 
-### 产品 worker 接线增量（开发中）
+### 产品 worker 接线
 
 - source socket 内持有 encoder/GPU subscription/JPEG demand，按策略切换；硬件失败仅
   本连接探测一次，之后保持图片回退。已编码 AU 与 JPEG 共用独立 wire frame ID，失败
@@ -193,7 +195,7 @@ NV12的UV起点用storage height计算，再裁出visible像素，短buffer和�
 该680×430网络码流24帧decoder回归已通过；早期带此问题的候选不作最终交付包。
 修复后680×430真实网络重跑通过：source发布265帧，两个viewer分别消费248/240帧且
 无错误；旁路观察到67个H264 AU，旧端加入收到JPEG，退出后H264以IDR恢复。此为22秒
-功能检查，不报告性能收益；UI/WebView端到端仍待完成。
+功能检查，不报告性能收益；其后的UI/WebView端到端结果见下文。
 
 补边修复提交 `66658937` 的独立候选 SHA-256 为
 `4cc2ec487d7e0e5ded1409378edf6898a37f65c170e7ea7038d740a15cd8d440`。
@@ -217,7 +219,39 @@ PC3独立decoder对已有680×430网络码流的24帧测试通过；它只排除
 归一化，容差同时不超过选区短边的四分之一，避免吞掉合法微小选区。真实小数仍向外
 取整，真实奇数尺寸仍保留并由codec回退；不做强制偶数裁切或放宽编码预算。
 回归测试覆盖实测坐标、输入映射端点、真实小数、奇数及微小选区。修正后的物理ROI
-为576×360；此修复仍须新候选产品联调证明，不据单测直接结单。
+为576×360；其后的新候选产品联调已验证该修复，不据单测直接结单。
+
+### 最终候选产品功能验收
+
+最终可运行候选来自干净源码 `8a0b137704df0dbe3daf5ded2c27ba644ff17304`，版本
+`v0.2.32.39`，SHA-256
+`9a5c09a5b97aa8a9055d857a7381bc2c667fda78821d1858a323812cb9116b01`。
+同一字节传至PC3并复核SHA，双方使用隔离appdata/WebView配置及测试身份。后续收尾
+提交仅修改文档，不改变该候选源码。Loom使用已含协商/连续性代码的daemon-only候选，
+SHA-256为 `688d905138565a68e1179f4e12909b13706313be78b6cd6e175b8d9cc0d97bb5`。
+
+- `product-pair-r5`：实际Hook通过正常界面捕获自有窗口、发布、在PC3晚加入观看。
+  服务端记录真实wire H264，原生decoder输出576×360 BGRA，经二进制IPC/BMP Blob
+  到WebView图片。80次可见抽样包含64个不同的浏览器呈现帧；不是FPS或每帧历史证明。
+- 同轮旧JPEG观看socket加入后，旧socket和实际PC3观看端均收到JPEG；退出旧socket后，
+  PC3恢复H264解码图像且frame ID继续前进。未把IPC `raw_bgra` 当作网络编码证据。
+- 正常点击停止发布后，Loom权威会话关闭，native viewer进入closed，presentation、
+  rendering和图片元素全部清空；正常退出两端并通过身份绑定的进程/端口清理检查。
+- `product-pair-r6`：另一组隔离身份先完成H264呈现，再禁用实际测试viewer。31次连续
+  抽样均为 `live_media_device_revoked`、closed、无控制权和无旧图像，源仍在发送。
+  原始harness额外要求“不得发出任何登记请求”，因两次重复登记而失败；不覆盖该回执。
+  服务端既有 `device_disabled_approval.rs` 合同允许同身份登记200，但禁止恢复授权。
+  独立合同复核确认设备仍disabled、无新增身份、无新会话/媒体连接获准、无旧帧，清理
+  通过；复核器另用重新启用、残留图像、成功签发三个反例验证拒绝能力。
+
+证据根为 `linshi/issue91-c1-20261009/`：`workers-candidate-r4/provenance.json`、
+`product-pair-r5/native/runner-receipt.json`、`product-pair-r5/native/c1-compatibility.json`、
+`product-pair-r6/native/disabled-viewer-observation.json`、
+`c1-revocation-contract-review.json`及各轮 `part-cleanup-verified.json`。
+最终代码Rust库576项通过、24项默认ignored；原生入口另有显式执行证据。前端未改，
+复用同源码452文件/2181测试、lint、类型检查、Surface browser和production build证据。
+本轮未退出日常Hook、未改系统信任、未物理断网或重置驱动；SSH只转管理/CDP，媒体
+直接使用局域网HTTPS/WSS。2/4端矩阵、真实device loss、物理呈现与公共发行许可不在本轮。
 
 ### 整体完成条件
 

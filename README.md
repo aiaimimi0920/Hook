@@ -71,7 +71,10 @@ Closing the parameter panel keeps an established viewer open; closing it during
 joining cancels that pending result. See [Live capture](docs/LIVE_CAPTURE.md).
 If Loom deleted this device, choose **重新配对** to submit its existing public key again.
 Loom approval, refreshing and joining remain explicit; a revoked old viewer stays closed.
-This UI path has focused coverage; native two-device performance acceptance is pending.
+The Windows [C1 H.264 path](docs/LIVE_RELAY_H264_POC.md) uses GPU capture textures,
+hardware encoding and a native MF viewer decoder, with JPEG/raw compatibility.
+PC1/PC3 functional evidence is separate from performance: A3-P was waived by the
+user, and no throughput, CPU or physical-display improvement is claimed.
 The viewer also exposes [bounded receiver diagnostics](docs/LIVE_RELAY_DIAGNOSTICS.md)
 for source/epoch/frame and decoded-submitted stages, without pixels or private errors.
 Actual executable/process SHA binding is external; these counters are not display FPS.
@@ -106,8 +109,9 @@ Actual executable/process SHA binding is external; these counters are not displa
   WGC textures into native swapchains without JPEG on that display branch. The
   copy/save and native Shift-drag export can request lossless GPU snapshots. The
   ordinary JPEG branch pauses CPU readback/encoding while GPU presentation is
-  healthy and no relay publisher needs encoded frames. Publishing retains budgeted JPEG
-  production independently of local visibility, without disabling GPU preview.
+  healthy and no relay publisher needs encoded images. JPEG/raw publishing retains
+  budgeted JPEG production independently of local visibility; negotiated H.264 owns
+  a separate GPU input demand and releases its JPEG demand after GPU input is available.
   Unsupported composition uses fresh decoded fallback pixels; set
   `HOOK_LIVE_GPU_PREVIEW=0` to force JPEG compatibility. This is not an FPS guarantee;
 - the local live view starts at the selected screen position and contains only
