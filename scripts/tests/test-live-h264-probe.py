@@ -16,6 +16,7 @@ class DecoderContract(unittest.TestCase):
     def test_gpu_fixture_uses_limited_range_not_cpu_nv12(self):
         self.assertEqual(VERIFIER.expected_luma(0, "synthetic_gpu_bgra_nv12"), 43)
         self.assertEqual(VERIFIER.expected_luma(23, "synthetic_gpu_bgra_nv12"), 122)
+        self.assertEqual(VERIFIER.expected_luma(23, "wgc_owned_window_bgra_nv12"), 122)
         with self.assertRaises(ValueError):
             VERIFIER.expected_luma(0, "unknown")
         with tempfile.TemporaryDirectory() as root:

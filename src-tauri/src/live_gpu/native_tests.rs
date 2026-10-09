@@ -27,6 +27,7 @@ use super::{worker, Layout};
 static PROBE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 mod encoded_demand_tests;
 mod shared_source_tests;
+mod video_capture_tests;
 
 struct OwnedWindows(Vec<HWND>, windows::Win32::UI::HiDpi::DPI_AWARENESS_CONTEXT);
 impl Drop for OwnedWindows {

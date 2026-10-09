@@ -62,6 +62,7 @@ impl FrameMailbox {
     ) {
         #[cfg(test)]
         crate::live_gpu::browser_video_oracle::record_capture_age(id, frame);
+        crate::live_video::capture::offer(id, frame, crop);
         let captured_at_ms = crate::live_capture_now_ms();
         self.arrived.store(captured_at_ms, Ordering::Release);
         let _ = self.ready.try_send(());

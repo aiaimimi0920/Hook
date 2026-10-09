@@ -19,7 +19,7 @@ def expected_luma(index, input_kind):
     level = 32 + index * 4
     if input_kind == "synthetic_cpu_nv12":
         return level
-    if input_kind == "synthetic_gpu_bgra_nv12":
+    if input_kind in {"synthetic_gpu_bgra_nv12", "wgc_owned_window_bgra_nv12"}:
         # GPU 输入为 full-range 灰度 RGB；BT.709 limited-range Y = 16 + 219*RGB/255。
         return (16 * 255 + 219 * level + 127) // 255
     raise ValueError("unsupported synthetic input contract")
@@ -74,7 +74,7 @@ def main():
         frames = summary["frames"]
         input_kind = summary.get("input")
         expected_luma(0, input_kind)
-        if input_kind == "synthetic_gpu_bgra_nv12" and summary.get("gpuTextureInput") is not True:
+        if input_kind != "synthetic_cpu_nv12" and summary.get("gpuTextureInput") is not True:
             raise ValueError("GPU fixture lacks texture-input evidence")
         if len(frames) != 24:
             raise ValueError("expected 24 encoded frames")

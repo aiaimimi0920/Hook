@@ -151,6 +151,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 mod live_gpu;
 mod live_resources;
+#[cfg(target_os = "windows")]
+#[doc(hidden)]
+pub mod live_video;
 
 include!("native/shared_memory.rs");
 

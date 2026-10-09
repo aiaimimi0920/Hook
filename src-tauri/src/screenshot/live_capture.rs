@@ -99,6 +99,7 @@ pub(crate) fn spawn_live_capture_worker(
                 }
             }
             crate::live_gpu::remove(&gpu_session);
+            crate::live_video::capture::invalidate(&gpu_session, true);
             drop(reservation);
         })
         .map_err(|error| format!("failed to spawn live capture worker: {error}"))
@@ -136,6 +137,7 @@ fn run_live_capture_worker(
         item_closed.store(false, Ordering::Release);
         mailbox.reset();
         crate::live_gpu::invalidate(&config.session_id);
+        crate::live_video::capture::invalidate(&config.session_id, false);
         let mut active =
             match build_active_capturer(&mut config, mailbox.clone(), item_closed.clone()) {
                 Ok((active, process_id, title)) => {

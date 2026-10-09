@@ -1,4 +1,4 @@
-//! 有界 Annex-B 结构检查；这不是完整 H.264 解码器，像素正确性由独立解码验证。
+//! 编码输出共用的有界 Annex-B 检查；不是完整解码器，像素正确性另行验证。
 use anyhow::{ensure, Result};
 
 #[derive(Debug, Default, serde::Serialize)]

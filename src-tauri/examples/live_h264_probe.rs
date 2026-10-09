@@ -1,5 +1,5 @@
 //! C1 独立合成画面探针；不启动 Hook、不采集桌面、不连接 Loom。
-#[path = "live_h264_probe/annex_b.rs"]
+#[path = "../src/live_video/annex_b.rs"]
 mod annex_b;
 #[cfg(windows)]
 #[path = "live_h264_probe/encoder.rs"]
