@@ -85,7 +85,35 @@ NV12 对照。两种模式均使用同一独立解码验证器，验证器按报
 复制纹理允许复用，不能将可变捕获纹理直接交给异步编码器。本增量不改该 owner；后续接入
 必须使用捕获设备的 adapter 身份，并在捕获锁内完成独立输入拷贝或取得明确的纹理租约。
 
-### 尚未完成
+### WGC 捕获与持续编码 owner 增量
+
+`src-tauri/src/live_video/` 提供同线程的连续 `Encoder` 和单源 `capture::Subscription`。
+现有 `live_frame_handoff` 在 WGC 回调生命周期内复制独立 BGRA 纹理到一个 latest-only
+原始帧槽；只允许丢尚未编码的输入，不通过 JPEG 帧缓存搬运 H.264 access unit。
+捕获 reset 清槽并递增 generation，终止不可逆；编码错误或取消后必须销毁 encoder，
+不能继续使用失效参考链。COM/MF owner 不可跨线程移动，销毁时先 flush/释放 MFT。
+
+`GpuFrameConsumer` 与 JPEG 的 `EncodedFrameConsumer` 分开：GPU 需求保持隐藏源采集，
+但不授予隐藏源 CPU/JPEG admission。释放需求或退出仍使用现有捕获预算的注册身份。
+当前编码边界为偶数尺寸、单帧不超过 8,294,400 像素、每边不超过 4096、1..60 fps；
+不支持尺寸/设备/驱动时返回明确错误，后续 relay 接线必须选择 JPEG/raw 回退。
+
+原生测试入口 `live_gpu::native_tests::video_capture_tests::native_wgc_continuous_h264_and_stop`
+通过真实产品 capture worker 采集自有 HWND（320×240 ROI），不读取其他应用像素：
+24 个连续输出与强制 IDR 后 12 帧独立解码通过，亮度误差 1、色度误差 0；停止后 GPU
+订阅清空且拒绝取帧。测试 oracle 为选择准确的夹具帧做 readback；编码路径本身不做
+readback。它不是网络一源一收或 GPU 呈现验收。该测试默认 ignored，需要显式新目录：
+
+```powershell
+$env:HOOK_C1_NATIVE_OUTPUT = 'C:\absolute\unused-wgc-output'
+cargo test --locked --lib native_wgc_continuous_h264_and_stop -- --ignored --nocapture --test-threads=1
+```
+
+本增量仅接通内部订阅边界，正常 relay worker 尚未申请 H.264 订阅，产品默认仍为
+JPEG/raw。连续流协商、服务端按序投递和 overflow 重同步、产品 decoder/呈现及一源一收
+仍待完成；不能将这次独立源端验证记为整个 C1 完成。
+
+### 剩余接线顺序
 
 1. **原生编码成立**：真实硬件输出可独立解码，强制 IDR 能作为中途加入点；可重建并清理。
 2. **GPU 输入接入**：复用捕获设备及 adapter 身份，BGRA→NV12，D3D11 纹理与编码器

@@ -7,6 +7,9 @@ use std::time::{Duration, Instant};
 mod metrics;
 pub(crate) use metrics::CpuAdmissionSnapshot;
 use metrics::{AdmissionOutcome, CpuAdmissionCounters};
+#[path = "work_budget_video.rs"]
+mod video;
+pub(crate) use video::GpuFrameConsumer;
 
 const CAPTURE_PIXELS_PER_SECOND: f64 = 124_416_000.0;
 const CAPTURE_FRAMES_PER_SECOND: f64 = 120.0;
@@ -24,6 +27,7 @@ struct Demand {
     shared_source: Option<String>,
     visible: bool,
     encoded_consumers: Arc<()>,
+    gpu_consumers: Arc<()>,
     ticket: Option<u64>,
     requested_at: Instant,
 }
@@ -34,6 +38,10 @@ impl Demand {
     }
 
     fn active(&self) -> bool {
+        self.cpu_required() || Arc::strong_count(&self.gpu_consumers) > 1
+    }
+
+    fn cpu_required(&self) -> bool {
         self.visible || self.encoded_required()
     }
 }
@@ -93,7 +101,7 @@ impl Budget {
 
     fn admit(&mut self, id: &str, pixels: u64, now: Instant) -> Option<Duration> {
         let demand = self.demands.get_mut(id)?;
-        if !demand.active() {
+        if !demand.cpu_required() {
             demand.ticket = None;
             return None;
         }
@@ -108,7 +116,9 @@ impl Budget {
         let first = self
             .demands
             .iter()
-            .filter(|(_, d)| d.active() && now.duration_since(d.requested_at) <= REQUEST_LEASE)
+            .filter(|(_, d)| {
+                d.cpu_required() && now.duration_since(d.requested_at) <= REQUEST_LEASE
+            })
             .filter_map(|(id, d)| d.ticket.map(|ticket| (id, ticket)))
             .min_by_key(|(_, ticket)| *ticket);
         if first.is_none_or(|(first, _)| first != id) {
@@ -165,6 +175,7 @@ impl CaptureBudget {
                     shared_source: None,
                     visible: true,
                     encoded_consumers: Arc::new(()),
+                    gpu_consumers: Arc::new(()),
                     ticket: None,
                     requested_at: Instant::now(),
                 },
@@ -285,7 +296,7 @@ pub(crate) fn set_visible(id: &str, visible: bool) {
     if let Ok(mut budget) = BUDGET.lock() {
         if let Some(demand) = budget.demands.get_mut(id) {
             demand.visible = visible;
-            if !demand.active() {
+            if !demand.cpu_required() {
                 demand.ticket = None;
             }
         }

@@ -339,6 +339,14 @@ Hidden/offscreen consumers without that demand retain source health at 1 FPS
 without JPEG production. `liveGpuPreviewScheduler.ts` supplies one
 layout lease clock and a lazy shared geometry sample; CPU compatibility and GPU
 fault modes continue publishing visibility demand.
+The C1 source boundary in `src-tauri/src/live_video/` adds a single-source GPU
+subscription and a thread-affine hardware H.264 encoder. The WGC callback copies
+immutable BGRA input before returning; only unencoded input uses latest-wins.
+`GpuFrameConsumer` keeps acquisition active without granting hidden CPU/JPEG
+admission. Reset generations and terminal slot closure protect capture ownership;
+encoder failure/cancellation invalidates the entire reference chain. The normal
+relay does not request this subscription yet; negotiation, sequential forwarding
+and receiver decoding remain pending. See `docs/LIVE_RELAY_H264_POC.md`.
 Retained textures restore a static source even without another WGC update.
 `liveCaptureHandoff.ts` coalesces transient PNG handoffs and waits for decode/paint
 before normal native disable. Capture timestamps order handoffs and in-flight JPEGs;

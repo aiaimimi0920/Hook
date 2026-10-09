@@ -47,12 +47,26 @@ fn fixture(count: usize, pixels: u64) -> (Budget, Instant) {
                 shared_source: None,
                 visible: true,
                 encoded_consumers: Arc::new(()),
+                gpu_consumers: Arc::new(()),
                 ticket: None,
                 requested_at: now,
             },
         );
     }
     (budget, now)
+}
+
+#[test]
+fn gpu_lease_keeps_hidden_capture_active_without_cpu_admission() {
+    let (mut budget, now) = fixture(1, 320 * 240);
+    let demand = budget.demands.get_mut("0").unwrap();
+    demand.visible = false;
+    let lease = demand.gpu_consumers.clone();
+    assert!(budget.interval("0") < Duration::from_secs(1));
+    assert!(budget.admit("0", 320 * 240, now).is_none());
+    assert!(!budget.cpu_busy);
+    drop(lease);
+    assert_eq!(budget.interval("0"), Duration::from_secs(1));
 }
 
 #[test]
