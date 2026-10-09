@@ -35,6 +35,7 @@ fn new_live_relay_source(
         attachment_id: request.source_attachment_id.clone(),
         authorization,
         publication: Some(request),
+        viewer_identity: None,
         recovery_busy: AtomicBool::new(false),
         event_cursor: std::sync::atomic::AtomicU64::new(0),
         capture: Some(capture),

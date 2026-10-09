@@ -61,6 +61,19 @@ pub(super) fn load_or_create_device_identity(
 pub(super) fn load_or_create_device_identity_at(
     app_data_dir: &Path,
 ) -> Result<DeviceIdentityDocument, String> {
+    load_device_identity_at(app_data_dir, true)
+}
+
+pub(super) fn load_existing_device_identity_at(
+    app_data_dir: &Path,
+) -> Result<DeviceIdentityDocument, String> {
+    load_device_identity_at(app_data_dir, false)
+}
+
+fn load_device_identity_at(
+    app_data_dir: &Path,
+    allow_create: bool,
+) -> Result<DeviceIdentityDocument, String> {
     let _guard = DEVICE_IDENTITY_IO_LOCK
         .lock()
         .map_err(|_| "Hook device identity lock is unavailable".to_owned())?;
@@ -85,7 +98,7 @@ pub(super) fn load_or_create_device_identity_at(
                 public_key: stored.public_key,
             };
             validate_device_identity(&identity)?;
-            if decoded.needs_migration {
+            if decoded.needs_migration && allow_create {
                 // A failed migration remains visible instead of silently keeping
                 // a plaintext private key at rest.
                 persist_device_identity_locked(&path, &identity)?;
@@ -96,6 +109,9 @@ pub(super) fn load_or_create_device_identity_at(
         Err(error) => return Err(format!("inspect Hook device identity: {error}")),
     }
 
+    if !allow_create {
+        return Err("Hook device identity is missing; automatic renewal cannot pair".to_owned());
+    }
     fs::create_dir_all(app_data_dir)
         .map_err(|error| format!("create Hook app data directory: {error}"))?;
     let signing_key = SigningKey::generate(&mut OsRng);

@@ -198,8 +198,15 @@ fn publishing_source_worker_consumes_terminal_close_before_more_frames() {
         stopped,
         "publishing source failed to consume terminal Close"
     );
+    let snapshot = relay.snapshot().unwrap();
+    let timing = snapshot.source_timing.as_ref().unwrap();
+    assert_eq!(timing.socket_send.succeeded, snapshot.received_frames);
+    assert!(timing.socket_send.succeeded >= 2);
+    assert!(timing.adaptation.succeeded >= timing.socket_send.succeeded);
+    assert!(timing.socket_service.attempts >= timing.socket_send.succeeded);
+    assert_eq!(timing.socket_send.empty, 0);
     assert_eq!(
-        relay.snapshot().unwrap().error_code.as_deref(),
+        snapshot.error_code.as_deref(),
         Some("live_media_device_revoked")
     );
     assert_eq!(fixture.requests.load(Ordering::SeqCst), 1);

@@ -3,6 +3,11 @@ use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
+#[path = "work_budget_metrics.rs"]
+mod metrics;
+pub(crate) use metrics::CpuAdmissionSnapshot;
+use metrics::{AdmissionOutcome, CpuAdmissionCounters};
+
 const CAPTURE_PIXELS_PER_SECOND: f64 = 124_416_000.0;
 const CAPTURE_FRAMES_PER_SECOND: f64 = 120.0;
 const OUTPUT_PIXELS_PER_SECOND: f64 = 124_416_000.0;
@@ -144,6 +149,7 @@ impl EncodedFrameConsumer {
 pub(crate) struct CaptureBudget {
     id: String,
     shared: Arc<Mutex<Budget>>,
+    admission: CpuAdmissionCounters,
 }
 
 impl CaptureBudget {
@@ -167,6 +173,7 @@ impl CaptureBudget {
         Self {
             id: id.to_string(),
             shared,
+            admission: CpuAdmissionCounters::default(),
         }
     }
 
@@ -218,16 +225,33 @@ impl CaptureBudget {
     // Admission precedes staging allocation/Map and remains held through JPEG encoding.
     pub fn try_cpu(&self, width: u32, height: u32) -> Option<CpuPermit> {
         let now = Instant::now();
-        let cost = self.shared.try_lock().ok()?.admit(
-            &self.id,
-            u64::from(width) * u64::from(height),
-            now,
-        )?;
+        let cost = match self.shared.try_lock() {
+            Ok(mut budget) => {
+                match budget.admit(&self.id, u64::from(width) * u64::from(height), now) {
+                    Some(cost) => {
+                        self.admission.record(AdmissionOutcome::Granted);
+                        cost
+                    }
+                    None => {
+                        self.admission.record(AdmissionOutcome::PolicyDenied);
+                        return None;
+                    }
+                }
+            }
+            Err(_) => {
+                self.admission.record(AdmissionOutcome::LockUnavailable);
+                return None;
+            }
+        };
         Some(CpuPermit {
             shared: self.shared.clone(),
             started: now,
             cost,
         })
+    }
+
+    pub(crate) fn admission_snapshot(&self) -> CpuAdmissionSnapshot {
+        self.admission.snapshot()
     }
 }
 

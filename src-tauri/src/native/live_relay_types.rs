@@ -134,6 +134,7 @@ impl LiveRelayFrameBuffer {
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct LiveRelaySnapshot {
+    source_timing: Option<LiveRelaySourceTiming>,
     relay_id: String,
     live_session_id: String,
     role: String,
@@ -165,6 +166,7 @@ struct LiveRelaySnapshot {
 
 #[derive(Clone, Debug)]
 struct LiveRelayRuntimeState {
+    source_timing: Option<LiveRelaySourceTiming>,
     connection_state: String,
     epoch: u64,
     last_frame_id: u64,
@@ -199,6 +201,7 @@ impl LiveRelayRuntimeState {
         };
         Self {
             connection_state: "connecting".to_owned(),
+            source_timing: None,
             epoch,
             last_frame_id: 0,
             received_frames: 0,
@@ -269,6 +272,7 @@ struct LiveRelaySession {
     attachment_id: Option<String>,
     authorization: crate::device_session::DeviceSessionAuthorization,
     publication: Option<LiveRelayPublishRequest>,
+    viewer_identity: Option<LiveViewerIdentity>,
     recovery_busy: AtomicBool,
     event_cursor: std::sync::atomic::AtomicU64,
     capture: Option<Arc<LiveCaptureSession>>,
@@ -313,6 +317,7 @@ impl LiveRelaySession {
             (LiveRelayRole::Viewer, Some(_)) => "high",
         };
         Ok(LiveRelaySnapshot {
+            source_timing: state.source_timing,
             relay_id: self.relay_id.clone(),
             live_session_id: self.live_session_id.clone(),
             role: self.role.as_str().to_owned(),
@@ -347,6 +352,16 @@ impl LiveRelaySession {
             error_code: state.error_code,
             error_message: state.error_message,
         })
+    }
+
+    fn command_snapshot(&self) -> Result<LiveRelaySnapshot, String> {
+        let snapshot = self.snapshot()?;
+        // Recovery retires workers without changing public identity. Check stop after reading
+        // the snapshot so a concurrent retirement cannot return closure as command success.
+        if self.stop.load(Ordering::SeqCst) || snapshot.connection_state == "closed" {
+            return Err("live relay session is stopping".to_owned());
+        }
+        Ok(snapshot)
     }
 
     fn stop_and_join(&self) -> Result<(), String> {

@@ -57,6 +57,58 @@ corresponding runtime owner starts and its capability probe passes.
 
 ## Transport split
 
+### Device-token renewal within an existing session
+
+Renewal retains session, device and epoch identity. When a viewer is already
+a member, Hook reads the authenticated member snapshot's `requesterControl`
+before attaching, validates session/device/epoch and initializes both control
+and input cursors from it. The input cursor must leave room for a next JavaScript-safe
+sequence. The attachment advances control once and uses its
+fresh `viewer_joined` revision as the event bootstrap anchor. Missing cursor
+support requires a Loom upgrade; a concurrent sequence conflict fails closed
+without parsing error messages, resetting identity or automatic replay. Joining
+does not acquire input authority.
+
+Source recovery stops and joins the old publishers before reading the same
+member snapshot. Its acknowledged control cursor and per-observation positions
+seed the replacement runtime. UIA retains sequence positions but discards old
+fingerprints, cached values and stability intervals in both shared state and worker
+tracking, requiring fresh samples to become stable. A failed post-retirement request
+keeps the still-owned source eligible for the existing bounded recovery retry;
+removed, replaced and revoked sources cannot be revived by that failure handler.
+A different epoch, changed source owner or closed session rejects recovery;
+newly created sessions start empty. Old input edges and controller authority
+are never restored. These software contracts do not substitute for native
+default-TTL acceptance of the matching Hook and Loom candidates.
+
+An existing Device-authenticated viewer retains its original credential. An actual
+HTTP 401 from its resume, event poll or member snapshot terminates that local
+viewer with `live_viewer_authorization_required`, clears cached frames and local
+control state, and stops retrying the rejected credential. This decision precedes
+body reads, including oversized, truncated or malformed error payloads. The frontend
+may make one renewal attempt for that retired native owner, preserving the viewing
+window and its geometry. It invalidates old frame decodes, control replies and input
+queues before the attempt, keeps input disabled while waiting, and seeds a successful
+replacement queue from the authenticated input cursor. Consecutive renewals less than
+30 seconds apart are not attempted. Failure remains closed without a retry timer;
+the user can close the viewer and explicitly join again.
+
+Renewal loads only an existing identity, requires the retained device ID and Loom
+origin, and makes one signed session attempt without pairing, approval polling or
+reuse of the rejected token cache. Session/source/epoch and Surface attachment must
+remain valid. The attachment sends `requireExistingMembership: true`; Loom checks
+membership and absence of this device's controller lease atomically before consuming
+the sequence. Old Loom versions reject this field: Hook never falls back to a fresh
+join. Deploy the matching Loom support before enabling the new Hook candidate.
+Stopping/removing/replacing the local owner prevents late worker publication; confirmed
+`live_media_device_revoked` never renews. Disabled or removed devices cannot mint the
+replacement session. Revoking only a token does not revoke an otherwise approved
+device identity: a new signed token may still be issued. This is not automatic
+pairing or a controller grant. Source recovery and non-Device authorization keep
+their existing behavior. Other HTTP statuses and ordinary media Close frames do
+not become terminal merely because their text mentions expiry or HTTP 401;
+previously confirmed terminal errors survive late replies.
+
 Control is strict JSON with `protocolVersion`, `sessionId`, `epoch`, `sequence`,
 `messageType`, and `payload`. Lifecycle, authority, input button/key edges,
 permissions, observations, and trigger audit are reliable and ordered. Only
