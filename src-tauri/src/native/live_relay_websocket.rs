@@ -1,6 +1,7 @@
 // Reconnecting loom.live.v1 WebSocket workers for source publication and viewer delivery.
 const LIVE_RELAY_PING_INTERVAL: Duration = Duration::from_secs(2);
 const LIVE_RELAY_PING_EXPIRY: Duration = Duration::from_secs(10);
+include!("live_relay_disconnect_diagnostics.rs");
 
 fn spawn_live_relay_source_worker(
     relay: Arc<LiveRelaySession>,
@@ -148,6 +149,8 @@ fn live_relay_capture_ended(capture: &LiveCaptureSession) -> bool {
 }
 
 fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
+    use LiveRelayDisconnectReason as Disconnect;
+    let mut diagnostics = LiveRelayDisconnectDiagnostics::new(native_acceptance_enabled());
     let mut connected_once = false;
     while !relay.stop.load(Ordering::SeqCst) {
         if connected_once {
@@ -181,9 +184,10 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
         let mut last_ping_attempt = Instant::now() - LIVE_RELAY_PING_INTERVAL;
         let mut pending_ping: Option<(Vec<u8>, Instant)> = None;
         let mut ping_sequence = 0_u64;
-        loop {
+        let connected_at = Instant::now();
+        let disconnect = loop {
             if relay.stop.load(Ordering::SeqCst) {
-                break;
+                break Disconnect::Stopped;
             }
             if relay.reconnect.swap(false, Ordering::SeqCst) {
                 mark_live_relay_recovering(
@@ -191,7 +195,7 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
                     "reconnect_requested",
                     "live relay reconnection was requested",
                 );
-                break;
+                break Disconnect::Requested;
             }
             if pending_ping
                 .as_ref()
@@ -206,16 +210,13 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
                 ping_sequence = ping_sequence.saturating_add(1);
                 let payload = ping_sequence.to_be_bytes().to_vec();
                 let sent_at = Instant::now();
-                if socket
-                    .send(tungstenite::Message::Ping(payload.clone()))
-                    .is_err()
-                {
+                if let Err(error) = socket.send(tungstenite::Message::Ping(payload.clone())) {
                     mark_live_relay_recovering(
                         &relay,
                         "viewer_ping_failed",
                         "the Loom live viewer connection stopped responding",
                     );
-                    break;
+                    break Disconnect::Ping(live_relay_socket_error_class(&error));
                 }
                 pending_ping = Some((payload, sent_at));
                 last_ping_attempt = sent_at;
@@ -229,13 +230,13 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
                         Ok(()) => {}
                         Err(error) => {
                             mark_live_relay_recovering(&relay, "viewer_frame_invalid", error);
-                            break;
+                            break Disconnect::InvalidFrame;
                         }
                     }
                 }
                 Ok(tungstenite::Message::Ping(bytes)) => {
-                    if socket.send(tungstenite::Message::Pong(bytes)).is_err() {
-                        break;
+                    if let Err(error) = socket.send(tungstenite::Message::Pong(bytes)) {
+                        break Disconnect::Pong(live_relay_socket_error_class(&error));
                     }
                 }
                 Ok(tungstenite::Message::Pong(bytes)) => {
@@ -251,7 +252,7 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
                 }
                 Ok(tungstenite::Message::Close(close)) => {
                     close_live_relay_if_device_revoked(&relay, close.as_ref());
-                    break;
+                    break Disconnect::PeerClose(close.map(|frame| u16::from(frame.code)));
                 }
                 Ok(_) => {
                     mark_live_relay_recovering(
@@ -259,7 +260,7 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
                         "viewer_message_invalid",
                         "Loom sent a non-binary live media message",
                     );
-                    break;
+                    break Disconnect::InvalidMessage;
                 }
                 Err(error) if live_relay_read_timeout(&error) => {}
                 Err(error) => {
@@ -268,10 +269,11 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
                         "viewer_read_failed",
                         format!("read Loom live media: {error}"),
                     );
-                    break;
+                    break Disconnect::Read(live_relay_socket_error_class(&error));
                 }
             }
-        }
+        };
+        diagnostics.record(&relay, disconnect, connected_at.elapsed());
         let _ = socket.close(None);
         if !relay.stop.load(Ordering::SeqCst) {
             live_relay_reconnect_delay(&relay.stop);
