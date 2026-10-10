@@ -3,6 +3,28 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("Hook native candidate acceptance contract", () => {
+  it("uses the canonical authenticated bridge endpoint with explicit fixture inputs", () => {
+    const nativeScript = readFileSync(
+      resolve(process.cwd(), "scripts", "Invoke-HookNativeCandidateAcceptance.ps1"), "utf8",
+    );
+    const pairedScript = readFileSync(
+      resolve(process.cwd(), "scripts", "Invoke-HookLoomSurfaceCandidateAcceptance.ps1"), "utf8",
+    );
+    const pattern = nativeScript.match(/\$LoomHookWsUrl -notmatch '([^']+)'/)?.[1];
+    expect(pattern).toBeDefined();
+    const endpoint = new RegExp(pattern!);
+    expect(endpoint.test("wss://127.0.0.1:19820/")).toBe(true);
+    for (const invalid of [
+      "ws://127.0.0.1:19820", "wss://localhost:19820/",
+      "wss://127.0.0.1:19820", "wss://127.0.0.1:19820/?token=x",
+    ]) {
+      expect(endpoint.test(invalid)).toBe(false);
+    }
+    expect(pairedScript).toContain('$bridgeWsUrl = "wss://127.0.0.1:$bridgePort/"');
+    expect(pairedScript).toContain('[string]$ProcessFrameworkZip = ""');
+    expect(pairedScript).toContain('[string]$DashboardArtZip = ""');
+  });
+
   it("approves the isolated pending Hook device before the real Surface probe", () => {
     const scriptPaths = [
       resolve(process.cwd(), "scripts", "Invoke-HookNativeCandidateAcceptance.ps1"),

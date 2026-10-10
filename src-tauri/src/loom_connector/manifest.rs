@@ -167,6 +167,7 @@ mod base_url_tests {
     fn manifest(base_url: &str) -> LoomManifest {
         LoomManifest {
             schema_version: 1,
+            hook_bridge: None,
             app_id: LOOM_APP_ID.to_owned(),
             display_name: "Loom".to_owned(),
             version: "1.0.0".to_owned(),

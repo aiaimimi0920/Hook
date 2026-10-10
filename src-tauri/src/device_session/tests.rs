@@ -27,6 +27,7 @@ pub(super) fn loom_manifest(
 ) -> crate::loom_connector::LoomManifest {
     crate::loom_connector::LoomManifest {
         schema_version: 1,
+        hook_bridge: None,
         app_id: "loom".to_owned(),
         display_name: "Loom".to_owned(),
         version: "0.1.0".to_owned(),

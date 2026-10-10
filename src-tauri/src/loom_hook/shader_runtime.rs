@@ -28,12 +28,7 @@ fn try_prefetch_shader_via_loom(
             "disabledParameters": []
         }
     });
-    let ws_url = loom_hook_ws_url();
-    let (mut socket, _) = connect_authenticated_hook_socket(ws_url.as_str())
-        .map_err(|_| "Loom Hook protocol is unavailable".to_owned())?;
-    if let tungstenite::stream::MaybeTlsStream::Plain(tcp) = socket.get_ref() {
-        let _ = tcp.set_read_timeout(Some(Duration::from_secs(20)));
-    }
+    let mut socket = crate::loom_bridge_client::connect(Duration::from_secs(20))?;
     socket
         .send(WsMessage::Text(body.to_string().into()))
         .map_err(|error| format!("Failed to send shader execution request: {error}"))?;
@@ -137,16 +132,8 @@ fn prefetch_shader_blocking(
 
     console_line!(
         "[LoomHook] Resolved shader inputs: input={}, reference={}",
-        if resolved_input_path.is_some() {
-            "present"
-        } else {
-            "none"
-        },
-        if resolved_reference_path.is_some() {
-            "present"
-        } else {
-            "none"
-        }
+        if resolved_input_path.is_some() { "present" } else { "none" },
+        if resolved_reference_path.is_some() { "present" } else { "none" }
     );
 
     let result = try_prefetch_shader_via_loom(

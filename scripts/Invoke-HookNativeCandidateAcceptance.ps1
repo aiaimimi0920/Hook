@@ -168,7 +168,7 @@ try {
         if ($null -eq $resolvedLoomManifestPath -or -not (Test-Path -LiteralPath $resolvedLoomManifestPath -PathType Leaf)) {
             throw "RequireSurfaceDashboard needs an existing LoomManifestPath"
         }
-        if ($LoomHookWsUrl -notmatch '^ws://127\.0\.0\.1:\d+$') {
+        if ($LoomHookWsUrl -notmatch '^wss://127\.0\.0\.1:\d+/$') {
             throw "RequireSurfaceDashboard needs a loopback LoomHookWsUrl"
         }
         if ($SurfaceBaseUrl -notmatch '^http://127\.0\.0\.1:\d+$') {

@@ -48,6 +48,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(long_capture_sessions.clone());
     app.manage(SharedLiveCaptureSessions::new());
     app.manage(SharedLiveRelaySessions::new());
+    app.manage(extension_bridge_native::ExtensionBridgeState::default());
     let app_settings_dir = effective_app_data_dir(app.handle()).map_err(|error| {
         append_runtime_log_line(&format!("app_settings_dir_failed :: {error}"));
         error
@@ -64,9 +65,8 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     set_runtime_hook_cache_settings(initial_app_settings.cache.clone());
     app.manage(AppSettingsState::new(initial_app_settings));
 
-    // Workflow instantiation is a native desktop coordination channel,
-    // so it must stay available even when capability loading is disabled
-    // or the frontend has not completed its Loom Hook handshake yet.
+    // Native coordination may start before the frontend handshake, but only
+    // when the process has explicitly enabled the authenticated integration.
     let loom_hook = LoomHook::new();
     let listener_started =
         loom_hook::ensure_loom_hook_listener(app.handle(), &loom_hook).map_err(|error| {

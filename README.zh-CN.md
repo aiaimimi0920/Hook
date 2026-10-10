@@ -24,6 +24,10 @@
 
 ## 为什么是 Hook
 
+本地 Loom Art/扩展集成需要原生桌面运行时，并显式设置 `HOOK_ENABLE_LOOM_HOOK=1`。
+纯浏览器预览仅保留本地功能，不匿名连接 Loom 或执行真实 Art。
+详见[安全边界](docs/SECURITY_BOUNDARIES.md#authenticated-native-local-bridge)。
+
 实时截图 Unit 的“实时投射”面板可发布到已配对的默认 Loom。接收端在支持 Surface 的
 Art Unit 参数面板中刷新会话列表、选择会话并显式“加入观看”，沿用已挂载的 Surface
 attachment 与服务端鉴权，不自动获得控制权。关闭参数面板保留已打开的观看窗口；

@@ -426,6 +426,12 @@ transform.
 ### 4.4 Local capability bridges
 
 - `loom_hook.rs` maps the local Art/workflow surface;
+- `loom_bridge_client.rs` owns the pinned TLS/exporter authentication for the
+  private `loom.local-bridge.v1` discovery descriptor. Its opt-in gate precedes
+  discovery and networking, including one-shot Art and shader operations;
+- `extension_bridge_native.rs` owns one leased, epoch-fenced extension socket
+  for the main WebView. Its IPC permits only protocol negotiation, resource
+  authorization and command invocation, with bounded input/output queues;
 - `loom_config.rs` and `loom_connector.rs` discover and invoke Loom capabilities;
 - `loom_tls.rs` owns optional origin-scoped, certificate-only private CA trust
   for Loom HTTP and media WSS. `network_proxy.rs` partitions shared clients by
@@ -440,12 +446,19 @@ transform.
 Package Arts are forwarded to Loom through `loom.hook.v1`. Hook does not maintain
 per-Art command executors in the frontend or Rust host.
 
-The extension lifecycle uses the native boot profile's `loomHookWsUrl`, including
-for reconnects, so custom bridge ports serve both Art and capability extensions.
-Disposing the App mount closes that connection and cancels its reconnect timer.
-The native context adds only that configured loopback WebSocket origin to
-`connect-src`. Other origins and ports, credentials, paths, and CSP directive
-injection cannot expand this grant; the static script/frame policies remain intact.
+The extension lifecycle uses `extensionNativeTransport.ts`, not a browser
+WebSocket. Native discovery supplies the actual bridge port on every reconnect;
+neither the endpoint nor bridge credentials are obtained from JavaScript.
+Disposing the App mount releases the native epoch and cancels its reconnect
+timer. A stalled or destroyed WebView loses its native polling lease after
+30 seconds. Native exit cancels and joins both extension and coordination
+listeners, including remote Surface polling. Local read operations have an
+absolute deadline so partial frames cannot indefinitely hold cancellation.
+Pure browser preview cannot read trusted native discovery or produce TLS exporter
+proofs, so its request API fails locally and push registration creates no socket
+or retry timer. Art execution emits a local failure without preparing images.
+The main WebView's static `connect-src` allows only self/native IPC; boot settings
+cannot add a loopback WebSocket origin. Static script/frame policies remain intact.
 
 `extensionOverlayVisibility.ts` owns cached OCR-context overlay presentation.
 Each attachment can retain a host-owned `overlayVisible` preference outside its

@@ -25,8 +25,10 @@ mod capture_windows;
 mod device_session;
 mod emergency_exit;
 pub mod emergency_watchdog;
+mod extension_bridge_native;
 mod file_naming;
 mod long_capture;
+mod loom_bridge_client;
 mod loom_config;
 pub mod loom_connector;
 mod loom_hook;
@@ -416,6 +418,7 @@ include!("native/rdev_input_listener.rs");
 
 include!("native/app_setup.rs");
 
+#[cfg(test)]
 mod bridge_csp;
 include!("native/app_runtime.rs");
 

@@ -24,6 +24,10 @@
 
 ## Why Hook
 
+Local Loom Art/extension integration requires the native desktop runtime and
+explicit `HOOK_ENABLE_LOOM_HOOK=1` opt-in. Browser preview stays local: it does
+not connect anonymously to Loom or execute real Arts. See [security boundaries](docs/SECURITY_BOUNDARIES.md#authenticated-native-local-bridge).
+
 Hook combines a transparent desktop capture surface with a persistent sticker
 workspace. Captures can remain on the desktop, be edited and annotated, or be
 connected to local Art/Loom workflows without leaving the application.

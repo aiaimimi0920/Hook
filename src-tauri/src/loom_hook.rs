@@ -10,12 +10,13 @@ use std::thread;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use uuid::Uuid;
+mod listener_lifecycle;
+use listener_lifecycle::ListenerTask;
 
 // Responsibility-named lexical owners preserve the private protocol graph while
 // keeping every Loom Hook source below the Phase 79 line limit.
 include!("loom_hook/protocol_models.rs");
 include!("loom_hook/state_diagnostics.rs");
-include!("loom_hook/websocket_auth.rs");
 include!("loom_hook/formal_delivery.rs");
 include!("loom_hook/art_transport.rs");
 include!("loom_hook/subscription_settings.rs");

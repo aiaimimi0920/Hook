@@ -95,7 +95,7 @@ const restoreStartupSession = async (
     try {
         const preloadedSessionData = await api.loadSession();
         preloadedSession = preloadedSessionData;
-        if (sessionSnapshotNeedsCapabilityRefresh(preloadedSessionData?.stickers, graphStore.capabilities)) {
+        if (bootProfile?.loomHookEnabled === true && sessionSnapshotNeedsCapabilityRefresh(preloadedSessionData?.stickers, graphStore.capabilities)) {
             try {
                 await refreshCapabilities();
             } catch (error) {
@@ -115,7 +115,7 @@ const restoreStartupSession = async (
 
     // Restored Art nodes need current catalog metadata before their second
     // materialization; otherwise they temporarily degrade into generic images.
-    if (restoredSessionNeedsCapabilityRefresh(graphStore.units, graphStore.capabilities)) {
+    if (bootProfile?.loomHookEnabled === true && restoredSessionNeedsCapabilityRefresh(graphStore.units, graphStore.capabilities)) {
         try {
             await refreshCapabilities();
             await syncService.restoreSession(bootProfile || undefined);
@@ -176,7 +176,9 @@ export function useAppStartupLifecycle(dependencies: AppStartupLifecycleDependen
         if (dependencies.tauriRuntime) {
             // Register before handshake/session restore so no initial workflow
             // broadcast can race ahead of the frontend listeners.
-            await registerExtensionLifecycle(cleanups, dependencies.tauriRuntime, bootProfile?.loomHookWsUrl);
+            if (bootProfile?.loomHookEnabled === true) {
+                await registerExtensionLifecycle(cleanups, dependencies.tauriRuntime);
+            }
             await registerAppCommandListeners({
                 registry: cleanups,
                 ...dependencies.registerAppCommandListeners,
@@ -185,10 +187,12 @@ export function useAppStartupLifecycle(dependencies: AppStartupLifecycleDependen
                 registry: cleanups,
                 ...dependencies.registerAppPointerListeners,
             });
-            await registerAppArtControlListeners({
-                registry: cleanups,
-                ...dependencies.registerAppArtControlListeners,
-            });
+            if (bootProfile?.loomHookEnabled === true) {
+                await registerAppArtControlListeners({
+                    registry: cleanups,
+                    ...dependencies.registerAppArtControlListeners,
+                });
+            }
             await registerAppSurfaceListeners({
                 registry: cleanups,
                 ...dependencies.registerAppSurfaceListeners,
@@ -204,7 +208,7 @@ export function useAppStartupLifecycle(dependencies: AppStartupLifecycleDependen
 
         const refreshCapabilities = dependencies.registerAppArtControlListeners.refreshCapabilities;
         try {
-            await refreshLoomHookCapabilitiesOnStartup(refreshCapabilities);
+            await refreshLoomHookCapabilitiesOnStartup(refreshCapabilities, bootProfile?.loomHookEnabled === true);
         } catch (error) {
             console.warn("Loom Hook bridge unavailable during startup; continuing in standalone mode.", error);
         }

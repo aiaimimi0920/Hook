@@ -1,5 +1,5 @@
 import { extensionRegistry } from "./extensionRegistry";
-import { createAuthenticatedHookWebSocket } from "./hookWebSocketAuth";
+import { ExtensionNativeTransport, type ExtensionTransport } from "./extensionNativeTransport";
 import {
     extensionProtocolIdentity,
     parseExtensionBridgeResponse,
@@ -18,7 +18,7 @@ type PendingRequest = {
     timeout: ReturnType<typeof setTimeout>;
 };
 
-type WebSocketFactory = (url: string) => WebSocket | Promise<WebSocket>;
+type WebSocketFactory = (url: string) => ExtensionTransport;
 
 const DEFAULT_INVOKE_TIMEOUT_MS = 20_000;
 const MIN_INVOKE_TIMEOUT_MS = 5_000;
@@ -44,18 +44,17 @@ const invokeTimeout = (value: number | undefined): number => {
 
 /** Maintains one reconnecting protocol session; the Hook handshake is not peer authentication. */
 export class ExtensionBridgeClient {
-    private socket: WebSocket | null = null;
+    private socket: ExtensionTransport | null = null;
     private stopped = true;
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     private extensionSessionId: string | null = null;
     private extensionHandshakeRequestId: string | null = null;
     private readonly pending = new Map<string, PendingRequest>();
     private connectionEndpoint: string;
-    private connectionAttempt = 0;
 
     constructor(
-        private readonly createWebSocket: WebSocketFactory = createAuthenticatedHookWebSocket,
-        private readonly endpoint = "ws://127.0.0.1:19820",
+        private readonly createWebSocket: WebSocketFactory = () => new ExtensionNativeTransport(),
+        private readonly endpoint = "native:loom-extension",
     ) {
         this.connectionEndpoint = endpoint;
     }
@@ -71,7 +70,6 @@ export class ExtensionBridgeClient {
     stop(): void {
         if (this.stopped) return;
         this.stopped = true;
-        this.connectionAttempt += 1;
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
         this.reconnectTimer = null;
         const socket = this.socket;
@@ -182,21 +180,13 @@ export class ExtensionBridgeClient {
 
     private connect(): void {
         if (this.stopped) return;
-        const attempt = ++this.connectionAttempt;
+        let socket: ExtensionTransport;
         try {
-            const candidate = this.createWebSocket(this.connectionEndpoint);
-            if ("then" in candidate) {
-                void candidate.then((socket) => this.attachSocket(socket, attempt), () => {
-                    if (!this.stopped && this.connectionAttempt === attempt) this.scheduleReconnect();
-                });
-            } else this.attachSocket(candidate, attempt);
+            socket = this.createWebSocket(this.connectionEndpoint);
         } catch {
             this.scheduleReconnect();
+            return;
         }
-    }
-
-    private attachSocket(socket: WebSocket, attempt: number): void {
-        if (this.stopped || this.connectionAttempt !== attempt) { socket.close(); return; }
         this.socket = socket;
         socket.onopen = () => {
             if (this.socket !== socket) return;
@@ -224,7 +214,7 @@ export class ExtensionBridgeClient {
         };
     }
 
-    private handleMessage(socket: WebSocket, text: string): void {
+    private handleMessage(socket: ExtensionTransport, text: string): void {
         let value: unknown;
         try {
             value = JSON.parse(text);
@@ -294,7 +284,7 @@ export class ExtensionBridgeClient {
         }
     }
 
-    private sendExtensionHandshake(socket: WebSocket, hookSessionId: string): void {
+    private sendExtensionHandshake(socket: ExtensionTransport, hookSessionId: string): void {
         const id = requestId("extension-handshake");
         this.extensionHandshakeRequestId = id;
         this.send(socket, {
@@ -309,7 +299,7 @@ export class ExtensionBridgeClient {
         });
     }
 
-    private send(socket: WebSocket, payload: unknown): boolean {
+    private send(socket: ExtensionTransport, payload: unknown): boolean {
         if (this.socket !== socket || socket.readyState !== 1) {
             this.failSocket(socket, new Error("extension bridge socket is unavailable"));
             return false;
@@ -323,7 +313,7 @@ export class ExtensionBridgeClient {
         }
     }
 
-    private failSocket(socket: WebSocket, cause: unknown): void {
+    private failSocket(socket: ExtensionTransport, cause: unknown): void {
         if (this.socket !== socket) return;
         this.socket = null;
         try {

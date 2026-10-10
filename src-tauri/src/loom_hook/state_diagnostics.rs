@@ -43,6 +43,8 @@ impl LoomHookState {
 pub struct LoomHook {
     pub state: Arc<Mutex<LoomHookState>>,
     pub loaded_arts: Mutex<Vec<ArtDefinition>>,
+    listener: Mutex<Option<ListenerTask>>,
+    exiting: std::sync::atomic::AtomicBool,
 }
 
 impl LoomHook {
@@ -56,6 +58,8 @@ impl LoomHook {
                 negotiated_transport: TransportMode::Websocket,
             })),
             loaded_arts: Mutex::new(Vec::new()),
+            listener: Mutex::new(None),
+            exiting: std::sync::atomic::AtomicBool::new(false),
         }
     }
 }
@@ -69,6 +73,16 @@ fn claim_loom_hook_listener_start(state: &mut LoomHookState) -> bool {
 }
 
 pub fn ensure_loom_hook_listener(app_handle: &AppHandle, state: &LoomHook) -> Result<bool, String> {
+    if !crate::loom_bridge_client::enabled() {
+        return Ok(false);
+    }
+    let mut listener = state
+        .listener
+        .lock()
+        .map_err(|_| "Listener owner unavailable")?;
+    if state.exiting.load(Ordering::Acquire) {
+        return Ok(false);
+    }
     let should_start = {
         let mut state_guard = state.state.lock().map_err(|error| error.to_string())?;
         state_guard.set_app_handle(app_handle.clone());
@@ -83,14 +97,39 @@ pub fn ensure_loom_hook_listener(app_handle: &AppHandle, state: &LoomHook) -> Re
         #[cfg(not(feature = "remote-surface"))]
         let remote_surface = false;
 
-        if remote_surface {
+        let started = if remote_surface {
             #[cfg(feature = "remote-surface")]
-            start_remote_surface_poll_listener(app_handle.clone(), state.state.clone());
+            {
+                start_remote_surface_poll_listener(app_handle.clone(), state.state.clone())
+            }
+            #[cfg(not(feature = "remote-surface"))]
+            {
+                unreachable!()
+            }
         } else {
-            start_listener(app_handle.clone(), state.state.clone());
+            start_listener(app_handle.clone(), state.state.clone())
+        };
+        match started {
+            Ok(task) => *listener = Some(task),
+            Err(error) => {
+                if let Ok(mut state) = state.state.lock() {
+                    state.listener_started = false;
+                }
+                return Err(error);
+            }
         }
     }
     Ok(should_start)
+}
+
+pub(crate) fn shutdown_listener(app: &AppHandle) {
+    use tauri::Manager;
+    if let Some(state) = app.try_state::<LoomHook>() {
+        state.exiting.store(true, Ordering::Release);
+        if let Ok(mut listener) = state.listener.lock() {
+            drop(listener.take());
+        }
+    }
 }
 
 /// The local listener is valid only for Loom's origin-only HTTP loopback transport.
@@ -99,22 +138,11 @@ fn loom_base_url_is_loopback(base_url: &str) -> bool {
     crate::loom_connector::is_loopback_base_url(base_url)
 }
 
-fn loom_hook_ws_url() -> String {
-    std::env::var("LOOM_HOOK_WS_URL")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "ws://127.0.0.1:19820".to_string())
-}
-
 fn prefer_shared_memory_art_input(negotiated_transport: &TransportMode) -> bool {
     matches!(negotiated_transport, TransportMode::SharedMemory)
 }
 
-fn record_backend_connection_state(
-    state: &Arc<Mutex<LoomHookState>>,
-    connected: bool,
-) -> bool {
+fn record_backend_connection_state(state: &Arc<Mutex<LoomHookState>>, connected: bool) -> bool {
     let Ok(mut guard) = state.lock() else {
         return false;
     };
@@ -142,9 +170,17 @@ fn sanitize_untrusted_message(value: &str, fallback: &str) -> String {
     let mut output = String::with_capacity(value.len().min(MAX_LOOM_DIAGNOSTIC_CHARS));
     for token in value.split_whitespace() {
         let lower = token.to_ascii_lowercase();
-        let sensitive = ["authorization", "password", "secret", "token", "api_key", "apikey", "cookie"]
-            .iter()
-            .any(|marker| lower.contains(marker));
+        let sensitive = [
+            "authorization",
+            "password",
+            "secret",
+            "token",
+            "api_key",
+            "apikey",
+            "cookie",
+        ]
+        .iter()
+        .any(|marker| lower.contains(marker));
         let location = token.contains("://")
             || token.contains('\\')
             || (token.starts_with('/') && token.len() > 1);
@@ -251,16 +287,12 @@ async fn read_bounded_loom_json_body(
             .and_then(|size| usize::try_from(size).ok())
             .unwrap_or_default(),
     );
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|error| {
-            format!(
-                "{context} could not be read: {}",
-                sanitize_untrusted_message(&error.to_string(), "transport error")
-            )
-        })?
-    {
+    while let Some(chunk) = response.chunk().await.map_err(|error| {
+        format!(
+            "{context} could not be read: {}",
+            sanitize_untrusted_message(&error.to_string(), "transport error")
+        )
+    })? {
         let next_len = body
             .len()
             .checked_add(chunk.len())
@@ -292,8 +324,8 @@ fn surface_instance_endpoint(
     operation: &str,
 ) -> Result<reqwest::Url, String> {
     let instance_id = validate_surface_identifier(instance_id, "instance id")?;
-    let mut url = reqwest::Url::parse(base)
-        .map_err(|_| "Surface base URL is invalid".to_owned())?;
+    let mut url =
+        reqwest::Url::parse(base).map_err(|_| "Surface base URL is invalid".to_owned())?;
     url.path_segments_mut()
         .map_err(|_| "Surface base URL cannot carry path segments".to_owned())?
         .extend(["v1", "surfaces", "instances"])
