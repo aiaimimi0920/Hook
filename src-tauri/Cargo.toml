@@ -37,7 +37,7 @@ diag_capture = []
 remote-surface = []
 
 [dependencies]
-tauri = { version = "=2.11.2", features = ["protocol-asset", "tray-icon"] }
+tauri = { version = "=2.12.2", features = ["protocol-asset", "tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
