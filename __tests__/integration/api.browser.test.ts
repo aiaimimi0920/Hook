@@ -7,7 +7,7 @@ describe('Hook api browser mode', () => {
     MockWebSocket.instances = [];
     vi.unstubAllGlobals();
     const { setBrowserLoomToken } = await import('../../src/services/hookWebSocketAuth');
-    setBrowserLoomToken('browser-fixture-token');
+    setBrowserLoomToken('hook-v1.browser-fixture-token');
   });
 
   afterEach(() => {
@@ -273,7 +273,7 @@ describe('Hook api browser mode', () => {
     ] as const) {
       installBrowserGlobals();
       const { setBrowserLoomToken } = await import('../../src/services/hookWebSocketAuth');
-      setBrowserLoomToken('browser-fixture-token');
+      setBrowserLoomToken('hook-v1.browser-fixture-token');
       const ready = vi.fn();
       window.addEventListener('hook-browser-art-ready', ready);
       const { api } = await import('../../src/services/api');

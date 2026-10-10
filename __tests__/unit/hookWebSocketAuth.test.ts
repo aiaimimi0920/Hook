@@ -52,9 +52,11 @@ describe("local Hook transport authorization", () => {
     it("offers an encoded credential separately from the URL", async () => {
         const constructed: unknown[][] = [];
         vi.stubGlobal("WebSocket", class { constructor(...args: unknown[]) { constructed.push(args); } });
-        setBrowserLoomToken("local-secret");
+        expect(() => setBrowserLoomToken("administrator-secret")).toThrow("Invalid");
+        expect(constructed).toHaveLength(0);
+        setBrowserLoomToken("hook-v1.local-secret");
         await createAuthenticatedHookWebSocket("ws://127.0.0.1:19820");
-        expect(constructed).toEqual([["ws://127.0.0.1:19820", ["loom.hook.v1", "loom.auth.bG9jYWwtc2VjcmV0"]]]);
+        expect(constructed).toEqual([["ws://127.0.0.1:19820", ["loom.hook.v1", `loom.auth.${btoa("hook-v1.local-secret").replace(/=+$/u, "")}`]]]);
     });
 
     it("never sends local authority to a remote or credential-bearing URL", () => {

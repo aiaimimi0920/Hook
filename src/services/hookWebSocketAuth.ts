@@ -20,7 +20,7 @@ const nativeProtocols = async (endpoint: string): Promise<HookSocketCredential> 
 
 /** Explicit opt-in for an operator-owned localhost:1420 development preview. */
 export const setBrowserLoomToken = (token: string | null): void => {
-    if (token !== null && (!token || token.length > 4096 || /\s/u.test(token)
+    if (token !== null && (!token.startsWith("hook-v1.") || token.length > 4096 || /\s/u.test(token)
         || Array.from(token).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))) {
         throw new Error("Invalid local Loom credential");
     }

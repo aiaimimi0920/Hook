@@ -31,7 +31,7 @@ const mount = async (endpoint?: string) => {
 const connections = () => TestWebSocket.instances.map((socket) => socket.url);
 
 beforeEach(() => {
-    setBrowserLoomToken("fixture-token");
+    setBrowserLoomToken("hook-v1.fixture-token");
     extensionBridgeClient.stop();
     TestWebSocket.instances = [];
     vi.useFakeTimers();
@@ -50,7 +50,7 @@ describe("extension lifecycle bridge endpoint", () => {
         const profile = normalizeBootProfile({ loomHookWsUrl: "ws://127.0.0.1:48766" });
         const registry = await mount(profile.loomHookWsUrl);
         expect(connections()).toEqual([profile.loomHookWsUrl]);
-        expect(TestWebSocket.instances[0]!.protocols).toEqual(["loom.hook.v1", "loom.auth.Zml4dHVyZS10b2tlbg"]);
+        expect(TestWebSocket.instances[0]!.protocols).toEqual(["loom.hook.v1", "loom.auth.aG9vay12MS5maXh0dXJlLXRva2Vu"]);
 
         TestWebSocket.instances[0]!.close();
         await vi.advanceTimersByTimeAsync(1_000);
