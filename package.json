@@ -67,7 +67,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tailwindcss/postcss": "^4.3.2",
-    "@tauri-apps/cli": "2.11.5",
+    "@tauri-apps/cli": "2.12.0",
     "@types/node": "^22.20.0",
     "autoprefixer": "^10.6.1",
     "eslint": "^10.11.0",
@@ -78,7 +78,7 @@
     "postcss": "^8.5.28",
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.70.0",
+    "typescript-eslint": "^8.70.1",
     "vite": "^6.4.3",
     "vite-plugin-solid": "^2.11.12",
     "vitest": "4.1.11"
