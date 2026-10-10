@@ -309,6 +309,7 @@ fn phase_four_live_relay_viewer_endpoint() {
             &authorization,
             &join_request,
             epoch,
+            1,
         ))
         .expect("attach Phase 4 viewer");
     let epoch = validate_live_session_snapshot(&remote, &session_ready.live_session_id)

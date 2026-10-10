@@ -33,6 +33,25 @@ four pending join requests. An obsolete Surface generation/attachment or a close
 causes a late join to stop only its newly created relay. Established viewers remain owned
 by `LiveFeatures` and can be closed from the viewer window independently of the Art panel.
 
+After Loom deletes a device, choose **重新配对** in the receiver panel. This explicit
+request reuses the persisted Ed25519 key pair, submits registration without requesting
+approval or a session token, and invalidates only that Loom origin's cached sessions.
+If the device ID changes, the existing Surface reset/attach owner obtains new bindings;
+the user must approve the device in Loom, then refresh, select and join again. Closed
+viewers remain terminal with their old authorization and do not block a new relay for
+the same live session. Connected/recovering viewers still prevent duplicate joining.
+The pending operation is shared across panels; a disposed owner cannot publish its
+late result, and this operation never requests controller ownership.
+
+Late join begins at the exact acknowledged `viewer_joined` event rather than
+replaying pre-join control history. The same attachment snapshot initializes each
+UIA observation's latest sequence before workers start; subsequent updates must
+still be contiguous. Invalid, duplicate or oversized observation snapshots fail
+joining. If that anchor or subsequent events are missing,
+joining fails instead of silently skipping required control events. A source stop
+is confirmed through the authorized session snapshot; the viewer then closes and
+clears its last pixels. A temporary transport failure alone keeps recovery available.
+
 This entry has component/controller coverage; real two-device networking, input grants,
 revocation and display/performance acceptance remain separate package-bound gates.
 
@@ -42,6 +61,13 @@ or pixels. See [receiver diagnostics](LIVE_RELAY_DIAGNOSTICS.md) for bounded col
 and actual executable/process SHA binding; these counters are not physical display FPS.
 
 ## Failure notices
+
+WGC may stop emitting frames when a captured window is static. After a valid
+encoded image, silence without callback errors preserves the capture owner,
+latest image and epoch rather than restarting every five seconds. Initial-frame
+timeouts and callback failures still recover; source closure, HWND identity and
+geometry checks remain active while idle. This does not complete LiveRelay epoch
+coordination after genuine device loss or resize recovery.
 
 Failures with an existing bound Unit use that Unit's top-right notice stack.
 An unbound failure, or a failure whose asynchronous owner was deleted, uses the

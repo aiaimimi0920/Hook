@@ -18,10 +18,22 @@ The existing JPEG branch supplies startup, unsupported composition and recovery.
 Copy/save, native Shift-drag, edit entry, connected Art creation, recycle/reference
 and explicit stop can request a lossless GPU snapshot independently of the JPEG queue.
 After a successful owned copy, a valid visibility lease and a native submission
-within 350 ms permit skipping CPU readback/JPEG. Transient contention retains one
+within 350 ms permit skipping CPU readback/JPEG when no relay publisher requires
+encoded frames. Transient contention retains one
 owned mailbox texture for transfer when the compositor is available; it never
 triggers a CPU readback. Stalled presentation, device errors and unsupported
 layouts use a globally budgeted compatibility producer.
+
+Relay publication owns an `EncodedFrameConsumer` lease for the source worker's
+lifetime, including reconnect. The existing capture worker then materializes
+fresh JPEGs from retained GPU frames under the same global CPU permit, pixel/rate
+limits and encode-inclusive cooldown. Local hiding does not cancel remote demand.
+Multiple publishers share the same encoding path; stopping the last one restores
+GPU-only suppression or hidden-source idle cadence. The lease is registration-scoped,
+so a late worker exit cannot release a replacement capture's demand. No media or
+control protocol, GPU layout eligibility, or resource limit changes.
+The mailbox budget is registered before spawning the capture worker, so publishing
+a starting session does not race the capture thread's first scheduling opportunity.
 
 ## Module boundaries
 
@@ -33,7 +45,7 @@ layouts use a globally budgeted compatibility producer.
 - `presenter.rs`: Windows-only DirectComposition tree and per-Unit swapchains.
 - `snapshot.rs`: bounded one-shot staging copies, CPU readback and lossless PNG
   encoding on blocking workers, never on the compositor thread.
-- `work_budget.rs`: source pixel/cadence demand, visibility, fair automatic CPU
+- `work_budget.rs`: source pixel/cadence demand, visibility, relay encoded leases, fair automatic CPU
   admission and RAII encode-inclusive cooldown. No frame data is stored here.
 - `src/services/liveGpuPreviewPolicy.ts`: physical geometry and overlap policy.
 - `src/services/liveGpuPreview.ts`: existing image-element registration and
@@ -241,7 +253,12 @@ sampling is NOT a monitor-FPS or latency benchmark and does not prove WebView
 overlay compatibility. It stops its own capture and destroys only owned windows.
 The second probe runs the production capture worker past its five-second health
 timeout, checks that native delivery skips CPU conversion, and restores a JPEG
-from a retained static frame after disabling the native plane. Both fixtures
+from a retained static frame after disabling the native plane. It also holds two
+encoded-consumer leases while GPU presentation stays active, decodes changing
+JPEG pixels from the relay's immutable latest-frame snapshot, and verifies that
+releasing only one lease preserves encoding while releasing the last restores
+GPU-only behavior. This is capture/encoding proof, not packaged two-host relay
+or physical display-FPS acceptance. Both fixtures
 initialize WinRT before capture and keep it alive until worker/window teardown;
 the test runner does not provide the application's COM apartment lifetime.
 

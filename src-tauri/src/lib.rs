@@ -151,6 +151,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 mod live_gpu;
 mod live_resources;
+#[cfg(target_os = "windows")]
+#[doc(hidden)]
+pub mod live_video;
 
 include!("native/shared_memory.rs");
 
@@ -338,9 +341,15 @@ include!("native/live_observation_uia_sample.rs");
 include!("native/live_observation_state.rs");
 
 include!("native/live_relay_types.rs");
+include!("native/live_relay_source_timing.rs");
+include!("native/live_stage_timing.rs");
+include!("native/live_readback_timing.rs");
+include!("native/live_capture_timing.rs");
 
 include!("native/live_relay_protocol.rs");
 include!("native/live_relay_jpeg.rs");
+include!("native/live_relay_video_viewer.rs");
+include!("native/live_relay_video_source.rs");
 
 include!("native/live_relay_http.rs");
 
@@ -355,12 +364,34 @@ include!("native/live_relay_input_source.rs");
 include!("native/live_relay_websocket.rs");
 
 include!("native/live_relay_connection.rs");
+include!("native/live_relay_device_revocation.rs");
 
 include!("native/live_relay_source.rs");
 
 include!("native/live_relay_recovery.rs");
+include!("native/live_relay_renewal.rs");
+include!("native/tests/live_relay_renewal.rs");
 
 include!("native/live_relay_commands.rs");
+include!("native/live_relay_viewer.rs");
+include!("native/live_relay_viewer_renewal.rs");
+include!("native/live_relay_viewer_state.rs");
+
+#[cfg(test)]
+mod live_relay_viewer_lifecycle_tests {
+    use super::*;
+    include!("native/tests/live_relay_viewer_http_fixture.rs");
+    include!("native/tests/live_relay_viewer_lifecycle.rs");
+    include!("native/tests/live_relay_viewer_renewal.rs");
+    include!("native/tests/live_relay_renewal_http.rs");
+    include!("native/tests/live_relay_source_epoch_fixture.rs");
+    include!("native/tests/live_relay_source_epoch.rs");
+    include!("native/tests/live_relay_video_workers.rs");
+    #[cfg(feature = "remote-surface")]
+    include!("native/tests/live_relay_media_close_fixture.rs");
+    #[cfg(feature = "remote-surface")]
+    include!("native/tests/live_relay_device_revocation.rs");
+}
 
 #[cfg(all(test, target_os = "windows", feature = "remote-surface"))]
 mod live_relay_acceptance_tests {

@@ -15,6 +15,10 @@ const DEVICE_PAIRING_APPROVAL_TIMEOUT: Duration = Duration::from_secs(90);
 const DEVICE_PAIRING_APPROVAL_POLL_INTERVAL: Duration = Duration::from_millis(250);
 const MAX_SURFACE_RESPONSE_BODY_BYTES: usize = 256 * 1024;
 
+#[cfg(test)]
+#[path = "session_attempt_http_tests.rs"]
+mod http_tests;
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DeviceSessionChallenge {
@@ -57,6 +61,34 @@ pub(super) async fn wait_for_approved_device_session(
             Err(DeviceSessionAttemptError::Fatal(error)) => return Err(error),
         }
     }
+}
+
+pub(super) async fn create_existing_device_session_once(
+    base_url: &str,
+    identity: &DeviceIdentityDocument,
+) -> Result<DeviceSessionResponse, String> {
+    // Renewal never polls for approval or re-registers a missing/revoked identity.
+    let session = create_device_session_attempt(base_url, identity)
+        .await
+        .map_err(|error| match error {
+            DeviceSessionAttemptError::PendingApproval(error)
+            | DeviceSessionAttemptError::Fatal(error) => error,
+        })?;
+    validate_renewed_session(identity, &session)?;
+    Ok(session)
+}
+
+fn validate_renewed_session(
+    identity: &DeviceIdentityDocument,
+    session: &DeviceSessionResponse,
+) -> Result<(), String> {
+    if identity.device_id.as_deref() != Some(session.device_id.as_str())
+        || session.token.trim().is_empty()
+        || session.expires_at_ms <= unix_time_millis()
+    {
+        return Err("Loom renewed device session is invalid".to_owned());
+    }
+    Ok(())
 }
 
 async fn create_device_session_attempt(
@@ -222,6 +254,30 @@ pub(super) fn unix_time_millis() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn renewal_response_requires_same_device_nonempty_token_and_future_expiry() {
+        let identity = DeviceIdentityDocument {
+            schema_version: 1,
+            device_id: Some("device:test".to_owned()),
+            private_key: String::new(),
+            public_key: String::new(),
+        };
+        let mut session = DeviceSessionResponse {
+            device_id: "device:test".to_owned(),
+            token: "valid".to_owned(),
+            expires_at_ms: unix_time_millis() + 60_000,
+        };
+        validate_renewed_session(&identity, &session).unwrap();
+        session.device_id = "other".to_owned();
+        assert!(validate_renewed_session(&identity, &session).is_err());
+        session.device_id = "device:test".to_owned();
+        session.token = " ".to_owned();
+        assert!(validate_renewed_session(&identity, &session).is_err());
+        session.token = "valid".to_owned();
+        session.expires_at_ms = 0;
+        assert!(validate_renewed_session(&identity, &session).is_err());
+    }
 
     #[test]
     fn response_accumulator_limit_is_finite() {

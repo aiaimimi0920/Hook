@@ -57,6 +57,58 @@ corresponding runtime owner starts and its capability probe passes.
 
 ## Transport split
 
+### Device-token renewal within an existing session
+
+Renewal retains session, device and epoch identity. When a viewer is already
+a member, Hook reads the authenticated member snapshot's `requesterControl`
+before attaching, validates session/device/epoch and initializes both control
+and input cursors from it. The input cursor must leave room for a next JavaScript-safe
+sequence. The attachment advances control once and uses its
+fresh `viewer_joined` revision as the event bootstrap anchor. Missing cursor
+support requires a Loom upgrade; a concurrent sequence conflict fails closed
+without parsing error messages, resetting identity or automatic replay. Joining
+does not acquire input authority.
+
+Source recovery stops and joins the old publishers before reading the same
+member snapshot. Its acknowledged control cursor and per-observation positions
+seed the replacement runtime. UIA retains sequence positions but discards old
+fingerprints, cached values and stability intervals in both shared state and worker
+tracking, requiring fresh samples to become stable. A failed post-retirement request
+keeps the still-owned source eligible for the existing bounded recovery retry;
+removed, replaced and revoked sources cannot be revived by that failure handler.
+A different epoch, changed source owner or closed session rejects recovery;
+newly created sessions start empty. Old input edges and controller authority
+are never restored. These software contracts do not substitute for native
+default-TTL acceptance of the matching Hook and Loom candidates.
+
+An existing Device-authenticated viewer retains its original credential. An actual
+HTTP 401 from its resume, event poll or member snapshot terminates that local
+viewer with `live_viewer_authorization_required`, clears cached frames and local
+control state, and stops retrying the rejected credential. This decision precedes
+body reads, including oversized, truncated or malformed error payloads. The frontend
+may make one renewal attempt for that retired native owner, preserving the viewing
+window and its geometry. It invalidates old frame decodes, control replies and input
+queues before the attempt, keeps input disabled while waiting, and seeds a successful
+replacement queue from the authenticated input cursor. Consecutive renewals less than
+30 seconds apart are not attempted. Failure remains closed without a retry timer;
+the user can close the viewer and explicitly join again.
+
+Renewal loads only an existing identity, requires the retained device ID and Loom
+origin, and makes one signed session attempt without pairing, approval polling or
+reuse of the rejected token cache. Session/source/epoch and Surface attachment must
+remain valid. The attachment sends `requireExistingMembership: true`; Loom checks
+membership and absence of this device's controller lease atomically before consuming
+the sequence. Old Loom versions reject this field: Hook never falls back to a fresh
+join. Deploy the matching Loom support before enabling the new Hook candidate.
+Stopping/removing/replacing the local owner prevents late worker publication; confirmed
+`live_media_device_revoked` never renews. Disabled or removed devices cannot mint the
+replacement session. Revoking only a token does not revoke an otherwise approved
+device identity: a new signed token may still be issued. This is not automatic
+pairing or a controller grant. Source recovery and non-Device authorization keep
+their existing behavior. Other HTTP statuses and ordinary media Close frames do
+not become terminal merely because their text mentions expiry or HTTP 401;
+previously confirmed terminal errors survive late replies.
+
 Control is strict JSON with `protocolVersion`, `sessionId`, `epoch`, `sequence`,
 `messageType`, and `payload`. Lifecycle, authority, input button/key edges,
 permissions, observations, and trigger audit are reliable and ordered. Only
@@ -93,8 +145,11 @@ for the next frame and its dimensions match. Only one candidate decode is owned
 by each viewer, with a 1000ms timeout and cancellation on stop/dispose. Failed,
 cancelled, closed-session and old-generation/epoch candidates release their Blob
 URLs without replacing the current frame. Epoch changes clear the old frame and
-poll cursor. Unknown codecs and non-sRGB pixels are rejected before payload IPC;
-the H.264 wire enum is not a functioning Hook decoder or a negotiated video path.
+poll cursor. Unknown codecs and non-sRGB pixels are rejected before payload IPC.
+Negotiated H.264 is decoded in order by the socket-owned native MF decoder before
+this latest-image stage; the resulting IPC descriptor is `raw_bgra`, not `h264`.
+The browser never treats an H.264 access unit as an independent image. See the
+[C1 implementation and acceptance scope](LIVE_RELAY_H264_POC.md).
 
 `submittedFrameId` is the local poll cursor, not a render acknowledgement.
 The transient `presentation` field retains only the latest sample:
@@ -128,10 +183,14 @@ or external presentation timing before claiming a performance improvement.
 
 ### JPEG 压缩直通与旧端回退
 
-LiveRelay 媒体连接同时提供 `loom.live.jpeg.v1,loom.live.v1`，以服务端返回的
+LiveRelay 媒体连接同时提供 `loom.live.h264.v1,loom.live.jpeg.v1,loom.live.v1`，以服务端返回的
 单个子协议作为本次连接的实际能力。列表不加空格，以兼容当前 tungstenite
 0.24 的解析行为；旧 Loom 可直接选择 `loom.live.v1`。控制协议、发现结果中的
 `frameStream.codec` 和持久业务数据不切换为 JPEG。
+
+C1 的 H.264 profile 还需收到服务端允许策略才发送连续视频；旧观看端/屏幕墙加入或
+原生 codec 不可用时回到图片。H.264不能由Loom假定转码成raw：source负责回退，
+viewer按序解码AU后才允许最新图片覆盖。控制、IDR、队列及取消边界见C1文档。
 
 - 选择 JPEG 后，源端沿用已有采集 JPEG 的内容与质量，NLLV codec 字节为 `3`。
   不先解码为 BGRA、不重复 JPEG 编码。压缩帧超过 16 MiB 时仍可走原 raw 回退。
@@ -169,6 +228,17 @@ Hook fail closed. Same-user input to equal or lower integrity follows Windows
 UIPI; an elevated Hook does not require an ordinary source to be elevated.
 Source titles, pixels, UIA text, keyboard data, and OCR text are
 sensitive and must not be written to normal logs.
+
+An admitted Device media socket can receive WebSocket Close code `1008` (Policy)
+with the exact reason `live_media_device_revoked`. Only that pair on a Device-authenticated
+connection is a terminal authorization signal. Hook stops the local source/viewer relay,
+clears controller authority and native viewer frames, and retains that error through shutdown.
+An in-flight source recovery cannot replace that terminated relay; starting a new relay after
+reapproval is a separate user action. This does not declare the entire Loom session closed.
+Ordinary Close, HTTP 401/403/404, expiry, nonce exhaustion and network failures are not this signal.
+The frontend clears the displayed image on its next closed snapshot and rejects candidates
+after a known closed/generation transition. A decode already in flight may precede that snapshot;
+this is not instantaneous server-to-display revocation or guaranteed Close delivery during network loss.
 
 See [Live compatibility](LIVE_CAPTURE.md#compatibility-and-validation) for the
 controlled support declaration. The contract intentionally contains capabilities for later

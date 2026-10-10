@@ -15,6 +15,15 @@ Hook's default Cargo feature set includes `remote-surface`. It provides:
 - the long-poll `GET /v1/surfaces/stream` client;
 - strict Surface stream protocol and reset handling.
 
+Device-authorized Surface actions converge through that same device-filtered
+stream. Hook binds the acknowledgement to the submitted instance/event/request,
+waits for terminal success, then recovers the current attachment snapshot. Old
+generations, other attachments and unrelated results cannot complete the action;
+failure, lost stream history and the 25-second deadline remain explicit errors.
+The administrator-only full instance lookup is not opened to device credentials.
+Event-only Surface Arts do not receive generic parameter/upstream execution;
+hybrid Arts that declare formal execution keep the ordinary execution path.
+
 On Windows, the Ed25519 private key is encrypted at rest for the current user
 with DPAPI. A valid legacy schema-1 plaintext identity is migrated atomically to
 protected schema 2 on first read. Older Hook builds cannot read schema 2; a
@@ -53,6 +62,13 @@ attempts before applying recovery snapshots. An unchanged successful cursor is a
 delay to prevent a malformed or older peer from causing a tight poll loop.
 
 ## Verification matrix
+
+### 禁用设备与批准等待
+
+设备 challenge 返回 `403 / device_not_authorized` 时保留有界批准等待；
+`403 / device_disabled` 是此次签发的终态，不进入 250 毫秒批准轮询。
+Loom 需实现对应的独立禁用错误码；旧 Loom 将两种状态合并时不能声称此区分
+已生效。Surface 后台连接任务的独立退避重试不属于批准等待循环。
 
 Run both feature combinations after changing Surface transport, pairing, or stream code:
 
