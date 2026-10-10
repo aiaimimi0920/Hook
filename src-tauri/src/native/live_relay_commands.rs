@@ -67,6 +67,22 @@ async fn publish_live_capture_to_loom(
 }
 
 #[tauri::command]
+async fn request_live_relay_pairing(app: tauri::AppHandle) -> Result<(), String> {
+    let manifest = crate::loom_connector::read_default_loom_manifest()
+        .map_err(|error| format!("read Loom manifest for live pairing: {error}"))?;
+    if crate::device_session::request_surface_pairing(&app, &manifest).await? {
+        // Old attachments belong to the revoked identity. The existing Surface owner reattaches;
+        // existing relays retain their immutable authorization and terminal state.
+        app.emit(
+            "surface/reset",
+            serde_json::json!({ "reason": "device_repaired" }),
+        )
+        .map_err(|error| format!("reset Surface bindings after pairing: {error}"))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 async fn discover_live_relay_sessions(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     let (base_url, authorization) = live_relay_context(&app).await?;
     discover_live_sessions_http(&base_url, &authorization).await
@@ -80,60 +96,18 @@ async fn join_live_relay_session(
 ) -> Result<LiveRelaySnapshot, String> {
     validate_live_relay_join_request(&request)?;
     let (base_url, authorization) = live_relay_context(&app).await?;
-    let discovery = discover_live_sessions_http(&base_url, &authorization).await?;
-    let preview = find_live_session_snapshot(&discovery, &request.live_session_id)?;
-    let epoch = validate_live_session_snapshot(preview, &request.live_session_id)?;
-    let remote = attach_live_viewer_http(&base_url, &authorization, &request, epoch).await?;
-    let epoch = validate_live_session_snapshot(&remote, &request.live_session_id)?;
-    let observation_capabilities = parse_live_observation_capabilities(&remote)?;
-    let (trigger_registrations, trigger_audits) = parse_live_trigger_snapshot(&remote)?;
-    let mut runtime_state = LiveRelayRuntimeState::starting(
-        epoch,
-        observation_capabilities.clone(),
-        observation_capabilities
-            .is_empty()
-            .then(|| "source_did_not_advertise_observation".to_owned()),
-    );
-    runtime_state.trigger_registrations = trigger_registrations;
-    runtime_state.trigger_audits = trigger_audits;
-    let relay = Arc::new(LiveRelaySession {
-        relay_id: next_live_relay_id(LiveRelayRole::Viewer),
-        live_session_id: request.live_session_id,
-        role: LiveRelayRole::Viewer,
+    let relay = prepare_live_relay_viewer(
+        next_live_relay_id(LiveRelayRole::Viewer),
         base_url,
-        surface_instance_id: Some(request.surface_instance_id),
-        attachment_id: Some(request.attachment_id),
         authorization,
-        publication: None,
-        recovery_busy: AtomicBool::new(false),
-        event_cursor: std::sync::atomic::AtomicU64::new(0),
-        capture: None,
-        state: Arc::new(Mutex::new(runtime_state)),
-        frames: Arc::new(Mutex::new(LiveRelayFrameBuffer::new())),
-        stop: Arc::new(AtomicBool::new(false)),
-        reconnect: Arc::new(AtomicBool::new(false)),
-        join: Mutex::new(None),
-        control_join: Mutex::new(None),
-        observation_join: Mutex::new(None),
-        control_sequence: Mutex::new(1),
-        input_sequence: Mutex::new(0),
-    });
-    let worker = spawn_live_relay_viewer_worker(Arc::clone(&relay))?;
-    *relay
-        .join
-        .lock()
-        .map_err(|_| "live relay worker lock poisoned".to_owned())? = Some(worker);
-    let control_worker = match spawn_live_relay_control_worker(Arc::clone(&relay)) {
-        Ok(worker) => worker,
-        Err(error) => {
-            let _ = relay.stop_and_join();
-            return Err(error);
-        }
-    };
-    *relay
-        .control_join
-        .lock()
-        .map_err(|_| "live relay control worker lock poisoned".to_owned())? = Some(control_worker);
+        request,
+        None,
+    )
+    .await?;
+    if let Err(error) = start_live_relay_viewer_workers(&relay) {
+        let _ = relay.stop_and_join();
+        return Err(error);
+    }
     if let Err(error) = relays.insert(Arc::clone(&relay)) {
         let _ = relay.stop_and_join();
         return Err(error);
@@ -177,7 +151,7 @@ async fn configure_live_relay_trigger(
         state.trigger_registrations = registrations;
         state.trigger_audits = audits;
     }
-    relay.snapshot()
+    relay.command_snapshot()
 }
 
 #[tauri::command]
@@ -192,7 +166,7 @@ async fn reconnect_live_relay_session(
         return recover_live_relay_source(&app, &relays, relay).await;
     }
     if relay.stop.load(Ordering::SeqCst) {
-        return Err("live relay session is stopping".to_owned());
+        return renew_live_relay_viewer(&app, &relays, relay).await;
     }
     relay.reconnect.store(true, Ordering::SeqCst);
     relay.snapshot()
@@ -257,12 +231,16 @@ fn change_live_relay_controller(
     }
     let relay = relays.get(&request.relay_id)?;
     change_live_controller_blocking(&relay, request.action, request.lease_duration_ms)?;
-    relay
+    let mut state = relay
         .state
         .lock()
-        .map_err(|_| "live relay state poisoned".to_owned())?
-        .controller_owned = matches!(request.action, LiveRelayControlAction::Acquire);
-    relay.snapshot()
+        .map_err(|_| "live relay state poisoned".to_owned())?;
+    if relay.stop.load(Ordering::SeqCst) {
+        return Err("live relay session is stopping".to_owned());
+    }
+    state.controller_owned = matches!(request.action, LiveRelayControlAction::Acquire);
+    drop(state);
+    relay.command_snapshot()
 }
 
 #[tauri::command]
@@ -273,7 +251,7 @@ fn send_live_relay_input(
     validate_live_relay_identifier(&request.relay_id, "relay id")?;
     let relay = relays.get(&request.relay_id)?;
     send_live_relay_input_blocking(&relay, &request.input)?;
-    relay.snapshot()
+    relay.command_snapshot()
 }
 
 #[tauri::command]
@@ -288,7 +266,7 @@ fn reclaim_live_relay_control(
     if let Ok(mut state) = relay.state.lock() {
         state.remote_control_active = false;
     }
-    relay.snapshot()
+    relay.command_snapshot()
 }
 
 #[tauri::command]

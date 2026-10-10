@@ -1,6 +1,8 @@
 import type { LiveCaptureView } from "./liveCapture";
 import type { LiveTriggerCondition } from "./liveProtocol";
 import type { LiveRelayPresentation } from "./liveRelayPresentation";
+import type { LiveRelayRenderProof } from "./liveRelayRenderEvidence";
+import type { LiveRelaySourceTiming } from "./liveTiming";
 
 export type LiveRelayConnectionState = "connecting" | "connected" | "recovering" | "closed";
 export type LiveRelayObservationState =
@@ -108,6 +110,7 @@ export interface LiveRelaySnapshot {
     triggerAudits: LiveRelayTriggerAudit[];
     errorCode?: string | null;
     errorMessage?: string | null;
+    sourceTiming?: LiveRelaySourceTiming | null;
 }
 
 export interface LiveRelayFrameDescriptor {
@@ -176,6 +179,8 @@ export interface LiveRelayView {
     imageUrl?: string;
     submittedFrameId: number;
     presentation?: LiveRelayPresentation;
+    renderEvidenceSupported?: boolean;
+    renderProof?: LiveRelayRenderProof;
     frameWidth: number;
     frameHeight: number;
     x: number;
@@ -197,19 +202,19 @@ export const relayGeometry = (
     return { x: 48 + offset * 28, y: 92 + offset * 28, width, height };
 };
 
-export function encodeBgraAsBmp(bytes: Uint8Array, width: number, height: number): Uint8Array<ArrayBuffer> {
+function createBgraBmpHeader(byteLength: number, width: number, height: number): Uint8Array<ArrayBuffer> {
     if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) {
         throw new Error("live relay frame dimensions are invalid");
     }
     const expected = width * height * 4;
-    if (!Number.isSafeInteger(expected) || expected !== bytes.byteLength) {
+    if (!Number.isSafeInteger(expected) || expected !== byteLength) {
         throw new Error("live relay BGRA byte length mismatch");
     }
     const headerLength = 54;
-    const output = new Uint8Array(headerLength + expected);
+    const output = new Uint8Array(headerLength);
     const view = new DataView(output.buffer);
     output.set([0x42, 0x4d]);
-    view.setUint32(2, output.byteLength, true);
+    view.setUint32(2, headerLength + expected, true);
     view.setUint32(10, headerLength, true);
     view.setUint32(14, 40, true);
     view.setInt32(18, width, true);
@@ -217,6 +222,18 @@ export function encodeBgraAsBmp(bytes: Uint8Array, width: number, height: number
     view.setUint16(26, 1, true);
     view.setUint16(28, 32, true);
     view.setUint32(34, expected, true);
-    output.set(bytes, headerLength);
+    return output;
+}
+
+/** Blob 负责快照；仅创建小头部，不先复制整帧。必须传视图，不能暴露其 backing buffer 的其他字节。 */
+export function createBgraBmpBlob(bytes: Uint8Array<ArrayBuffer>, width: number, height: number): Blob {
+    return new Blob([createBgraBmpHeader(bytes.byteLength, width, height), bytes], { type: "image/bmp" });
+}
+
+export function encodeBgraAsBmp(bytes: Uint8Array, width: number, height: number): Uint8Array<ArrayBuffer> {
+    const header = createBgraBmpHeader(bytes.byteLength, width, height);
+    const output = new Uint8Array(header.byteLength + bytes.byteLength);
+    output.set(header);
+    output.set(bytes, header.byteLength);
     return output;
 }

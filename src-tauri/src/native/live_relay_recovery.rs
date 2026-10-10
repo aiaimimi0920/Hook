@@ -11,6 +11,7 @@ async fn recover_live_relay_source(
     relays: &SharedLiveRelaySessions,
     old: Arc<LiveRelaySession>,
 ) -> Result<LiveRelaySnapshot, String> {
+    ensure_live_relay_not_revoked(&old)?;
     if old.recovery_busy.swap(true, Ordering::SeqCst) {
         return Err("source_recovery_busy".to_owned());
     }
@@ -22,9 +23,34 @@ async fn recover_live_relay_source(
         } else {
             "source_recovery_failed"
         };
-        mark_live_relay_recovering(&old, code, error.clone());
+        mark_live_source_recovery_failed(relays, &old, code, error);
     }
     result
+}
+
+fn mark_live_source_recovery_failed(
+    relays: &SharedLiveRelaySessions,
+    old: &Arc<LiveRelaySession>,
+    code: &str,
+    error: &str,
+) {
+    let Ok(sessions) = relays.0.lock() else {
+        return;
+    };
+    if old.role != LiveRelayRole::Source
+        || !old.recovery_busy.load(Ordering::SeqCst)
+        || !sessions
+            .get(&old.relay_id)
+            .is_some_and(|current| Arc::ptr_eq(current, old))
+    {
+        return;
+    }
+    if let Ok(mut state) = old.state.lock() {
+        // worker 退役不等于用户停止；保留可重试状态，但不复活已移除、替换或撤销的 owner。
+        if state.error_code.as_deref() != Some("live_media_device_revoked") {
+            state.mark_recovering(code, error);
+        }
+    }
 }
 
 async fn recover_live_relay_source_inner(
@@ -62,7 +88,8 @@ async fn recover_live_relay_source_inner(
     tokio::task::spawn_blocking(move || old_worker.stop_and_join())
         .await
         .map_err(|_| "source recovery shutdown worker failed")??;
-    // User stop removes the old Arc. A late restore must not resurrect it.
+    // User stop removes the old Arc; a sticky terminal error also forbids a late restore.
+    ensure_live_relay_not_revoked(&old)?;
     if !Arc::ptr_eq(&relays.get(&old.relay_id)?, &old) {
         return Err("source recovery was superseded".to_owned());
     }
@@ -72,8 +99,8 @@ async fn recover_live_relay_source_inner(
         .map_err(|_| "live relay state poisoned")?
         .clone();
     let recreated = existing.is_none();
-    let response = if let Some(value) = existing {
-        value.clone()
+    let response = if existing.is_some() {
+        get_live_member_snapshot_http(&base_url, &authorization, &old.live_session_id).await?
     } else {
         let body = build_live_session_create_body(
             &request,
@@ -85,26 +112,62 @@ async fn recover_live_relay_source_inner(
         create_live_session_http(&base_url, &authorization, &body).await?
     };
     let epoch = validate_live_session_snapshot(&response, &old.live_session_id)?;
+    let mut runtime_state = LiveRelayRuntimeState::starting(
+        epoch,
+        old_state.observation_capabilities,
+        old_state.observation_reason,
+    );
+    let baseline = if !recreated {
+        let cursor = parse_live_requester_cursor(
+            &response,
+            &old.live_session_id,
+            &authorization.device_id,
+            old_state.epoch,
+        )?;
+        if response
+            .pointer("/session/sourceDeviceId")
+            .and_then(serde_json::Value::as_str)
+            != Some(&authorization.device_id)
+            || response
+                .pointer("/session/sourceHookId")
+                .and_then(serde_json::Value::as_str)
+                != Some(&request.source_hook_id)
+        {
+            return Err("source recovery snapshot owner changed".to_owned());
+        }
+        runtime_state.observations = recovery_source_observations(&response)?;
+        runtime_state.source_capture_timestamp_ms = old_state.source_capture_timestamp_ms;
+        // A renewed owner preserves the wire sequence independently of JPEG capture IDs.
+        runtime_state.last_frame_id = old_state.last_frame_id.max(
+            response
+                .get("lastFrameId")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(old_state.last_frame_id),
+        );
+        let (registrations, audits) = parse_live_trigger_snapshot(&response)?;
+        runtime_state.trigger_registrations = registrations;
+        runtime_state.trigger_audits = audits;
+        Some(cursor)
+    } else {
+        None
+    };
     let next = new_live_relay_source(
         old.relay_id.clone(),
         request,
         Arc::clone(capture),
         base_url,
         authorization,
-        LiveRelayRuntimeState::starting(
-            epoch,
-            old_state.observation_capabilities,
-            old_state.observation_reason,
-        ),
+        runtime_state,
     );
-    if !recreated {
+    if let Some(cursor) = baseline {
         *next
             .control_sequence
             .lock()
-            .map_err(|_| "live relay control sequence poisoned")? = *old
-            .control_sequence
+            .map_err(|_| "live relay control sequence poisoned")? = cursor.control;
+        *next
+            .input_sequence
             .lock()
-            .map_err(|_| "live relay control sequence poisoned")?;
+            .map_err(|_| "live relay input sequence poisoned")? = cursor.input;
     }
     let next_worker = Arc::clone(&next);
     let relays = relays.clone();

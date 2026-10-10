@@ -18,6 +18,7 @@ struct LiveRelayBinaryMetadata {
 fn encode_live_relay_capture_frame(
     frame: &LiveCaptureFrame,
     profile: LiveRelayMediaProfile,
+    session_epoch: u64,
 ) -> Result<Vec<u8>, String> {
     if frame.descriptor.mime != "image/jpeg" || frame.bytes.len() != frame.descriptor.byte_length {
         return Err("live relay capture representation is invalid".to_owned());
@@ -45,7 +46,7 @@ fn encode_live_relay_capture_frame(
     let dropped_frames = frame.descriptor.dropped_frames.min(u64::from(u32::MAX)) as u32;
     encode_live_relay_binary_frame(
         &LiveRelayBinaryMetadata {
-            epoch: frame.descriptor.epoch,
+            epoch: session_epoch,
             frame_id: frame.descriptor.frame_id,
             capture_timestamp_ms: frame.descriptor.capture_timestamp_ms,
             encode_timestamp_ms: live_capture_now_ms(),
@@ -54,13 +55,13 @@ fn encode_live_relay_capture_frame(
             dropped_frames,
             keyframe: true,
             color_space: "srgb",
-            codec: if profile == LiveRelayMediaProfile::Jpeg {
+            codec: if profile != LiveRelayMediaProfile::Legacy {
                 "jpeg"
             } else {
                 "raw_bgra"
             },
         },
-        if profile == LiveRelayMediaProfile::Jpeg {
+        if profile != LiveRelayMediaProfile::Legacy {
             &frame.bytes
         } else {
             &bgra
@@ -220,6 +221,13 @@ fn validate_live_relay_binary_metadata(
         if expected != Some(payload_len) {
             return Err("raw BGRA live relay payload size is invalid".to_owned());
         }
+    }
+    if metadata.codec == "h264"
+        && (metadata.color_space != "srgb"
+            || payload_len > 1024 * 1024
+            || crate::live_video::Format::new(metadata.width, metadata.height, 30).is_err())
+    {
+        return Err("live relay H264 bounds are invalid".to_owned());
     }
     Ok(())
 }
