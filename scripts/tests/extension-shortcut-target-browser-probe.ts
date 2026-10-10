@@ -41,7 +41,7 @@ const bundle = await build({
         builder.onResolve({ filter: /\/extension(CommandRouter|Context)$/ }, (args) => ({ path: args.path, namespace: "shortcut-fixture" }));
         builder.onLoad({ filter: /.*/, namespace: "shortcut-fixture" }, (args) => ({ loader: "js", contents:
             args.path.endsWith("extensionContext")
-                ? "export const currentExtensionWhenContext = () => ({ unit: { kind: 'sticker', hasImage: true } });"
+                ? "export const currentExtensionTarget = () => ({ unitId: 'fixture-unit', revision: 0 }); export const currentExtensionWhenContext = () => ({ unit: { kind: 'sticker', hasImage: true } });"
                 : "export const extensionCommandRouter = { execute: async (id) => { window.__shortcutProbe.calls.push(id); } };" }));
     } }],
 });
