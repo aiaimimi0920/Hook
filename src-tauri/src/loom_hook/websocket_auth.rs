@@ -3,13 +3,21 @@ fn hook_websocket_token(endpoint: &str) -> Result<String, String> {
     validate_hook_websocket_endpoint(endpoint)?;
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|_| "Loom local authentication manifest is unavailable".to_owned())?;
-    if !crate::loom_connector::is_loopback_base_url(&manifest.transport.base_url)
-        || manifest.transport.auth.as_deref() != Some("bearer")
+    local_hook_transport_token(manifest.transport)
+}
+
+fn local_hook_transport_token(
+    transport: crate::loom_connector::LoomManifestTransport,
+) -> Result<String, String> {
+    if !crate::loom_connector::is_loopback_base_url(&transport.base_url)
+        || !transport
+            .auth
+            .as_deref()
+            .is_some_and(|mode| mode.eq_ignore_ascii_case("bearer"))
     {
         return Err("Hook WebSocket requires a local authenticated Loom manifest".to_owned());
     }
-    manifest
-        .transport
+    transport
         .auth_token
         .filter(|token| !token.is_empty() && token.len() <= 4096)
         .ok_or_else(|| "Loom local authentication token is unavailable".to_owned())
@@ -84,6 +92,18 @@ pub fn loom_hook_websocket_protocols(endpoint: String) -> Result<Vec<String>, St
 #[cfg(test)]
 mod websocket_auth_tests {
     use super::*;
+    #[test]
+    fn validated_manifest_bearer_modes_remain_case_insensitive() {
+        for mode in ["bearer", "Bearer", "BEARER"] {
+            let transport = crate::loom_connector::LoomManifestTransport {
+                transport_type: "http".to_owned(),
+                base_url: "http://127.0.0.1:19819".to_owned(),
+                auth: Some(mode.to_owned()),
+                auth_token: Some("fixture".to_owned()),
+            };
+            assert_eq!(local_hook_transport_token(transport).unwrap(), "fixture");
+        }
+    }
     #[test]
     fn local_credential_is_not_forwarded_across_a_websocket_redirect() {
         use std::io::{Read, Write};

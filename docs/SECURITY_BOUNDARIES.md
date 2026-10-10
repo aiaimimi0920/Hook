@@ -124,9 +124,9 @@ OCR finishes. Loom consumes and revalidates before staging resources and checks
 grants again before returning runtime effects. Revocation cannot retroactively
 erase data already received or undo side effects already executed.
 
-This requires a coordinated Hook/Loom upgrade and does not itself authenticate
-the legacy loopback WebSocket. Its trusted-channel migration is still pending;
-session IDs and a successful protocol handshake are not proof of peer identity.
+This requires a coordinated Hook/Loom upgrade. Extension grants complement the
+authenticated local transport described above; session IDs and a successful
+application handshake alone are not proof of peer identity.
 
 ## Emergency watchdog recovery authority
 
