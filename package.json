@@ -70,6 +70,7 @@
     "@tauri-apps/cli": "2.11.5",
     "@types/node": "^22.20.0",
     "autoprefixer": "^10.6.1",
+    "esbuild": "0.28.2",
     "eslint": "^10.11.0",
     "eslint-plugin-solid": "^0.18.0",
     "globals": "^17.12.0",
@@ -85,7 +86,7 @@
   },
   "overrides": {
     "@babel/core": "7.29.7",
-    "picomatch": "4.0.5",
+    "picomatch": "4.0.7",
     "rollup": "4.62.2"
   }
 }
