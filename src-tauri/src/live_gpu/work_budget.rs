@@ -3,6 +3,14 @@ use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
+#[path = "work_budget_metrics.rs"]
+mod metrics;
+pub(crate) use metrics::CpuAdmissionSnapshot;
+use metrics::{AdmissionOutcome, CpuAdmissionCounters};
+#[path = "work_budget_video.rs"]
+mod video;
+pub(crate) use video::GpuFrameConsumer;
+
 const CAPTURE_PIXELS_PER_SECOND: f64 = 124_416_000.0;
 const CAPTURE_FRAMES_PER_SECOND: f64 = 120.0;
 const OUTPUT_PIXELS_PER_SECOND: f64 = 124_416_000.0;
@@ -18,8 +26,24 @@ struct Demand {
     output_pixels: u64,
     shared_source: Option<String>,
     visible: bool,
+    encoded_consumers: Arc<()>,
+    gpu_consumers: Arc<()>,
     ticket: Option<u64>,
     requested_at: Instant,
+}
+
+impl Demand {
+    fn encoded_required(&self) -> bool {
+        Arc::strong_count(&self.encoded_consumers) > 1
+    }
+
+    fn active(&self) -> bool {
+        self.cpu_required() || Arc::strong_count(&self.gpu_consumers) > 1
+    }
+
+    fn cpu_required(&self) -> bool {
+        self.visible || self.encoded_required()
+    }
 }
 
 #[derive(Default)]
@@ -36,7 +60,7 @@ impl Budget {
         let Some(own) = self.demands.get(id) else {
             return Duration::from_secs(1);
         };
-        if !own.visible {
+        if !own.active() {
             return Duration::from_secs(1);
         }
         let (requested, pixels, output) = self.work();
@@ -51,7 +75,7 @@ impl Budget {
         let mut sources = HashMap::new();
         let mut output = 0.0;
         for (id, demand) in &self.demands {
-            let fps = if demand.visible {
+            let fps = if demand.active() {
                 f64::from(demand.fps)
             } else {
                 1.0
@@ -77,7 +101,7 @@ impl Budget {
 
     fn admit(&mut self, id: &str, pixels: u64, now: Instant) -> Option<Duration> {
         let demand = self.demands.get_mut(id)?;
-        if !demand.visible {
+        if !demand.cpu_required() {
             demand.ticket = None;
             return None;
         }
@@ -92,7 +116,9 @@ impl Budget {
         let first = self
             .demands
             .iter()
-            .filter(|(_, d)| d.visible && now.duration_since(d.requested_at) <= REQUEST_LEASE)
+            .filter(|(_, d)| {
+                d.cpu_required() && now.duration_since(d.requested_at) <= REQUEST_LEASE
+            })
             .filter_map(|(id, d)| d.ticket.map(|ticket| (id, ticket)))
             .min_by_key(|(_, ticket)| *ticket);
         if first.is_none_or(|(first, _)| first != id) {
@@ -107,9 +133,33 @@ impl Budget {
     }
 }
 
+// 每个发布 worker 持有一个需求；退出、panic 或 spawn 失败均自动释放。
+// 需求绑定本次采集注册，旧 worker 的释放不能影响同名的新采集。
+pub(crate) struct EncodedFrameConsumer {
+    _demand: Arc<()>,
+}
+
+impl EncodedFrameConsumer {
+    pub(crate) fn acquire(id: &str) -> Result<Self, String> {
+        let budget = BUDGET.lock().map_err(|_| "live work budget poisoned")?;
+        let demand = budget
+            .demands
+            .get(id)
+            .ok_or("live capture budget unavailable")?;
+        Ok(Self::for_demand(demand))
+    }
+
+    fn for_demand(demand: &Demand) -> Self {
+        Self {
+            _demand: Arc::clone(&demand.encoded_consumers),
+        }
+    }
+}
+
 pub(crate) struct CaptureBudget {
     id: String,
     shared: Arc<Mutex<Budget>>,
+    admission: CpuAdmissionCounters,
 }
 
 impl CaptureBudget {
@@ -124,6 +174,8 @@ impl CaptureBudget {
                     output_pixels: 0,
                     shared_source: None,
                     visible: true,
+                    encoded_consumers: Arc::new(()),
+                    gpu_consumers: Arc::new(()),
                     ticket: None,
                     requested_at: Instant::now(),
                 },
@@ -132,6 +184,7 @@ impl CaptureBudget {
         Self {
             id: id.to_string(),
             shared,
+            admission: CpuAdmissionCounters::default(),
         }
     }
 
@@ -171,19 +224,45 @@ impl CaptureBudget {
         }
     }
 
+    pub fn needs_encoded_frames(&self) -> bool {
+        self.shared.lock().is_ok_and(|budget| {
+            budget
+                .demands
+                .get(&self.id)
+                .is_some_and(Demand::encoded_required)
+        })
+    }
+
     // Admission precedes staging allocation/Map and remains held through JPEG encoding.
     pub fn try_cpu(&self, width: u32, height: u32) -> Option<CpuPermit> {
         let now = Instant::now();
-        let cost = self.shared.try_lock().ok()?.admit(
-            &self.id,
-            u64::from(width) * u64::from(height),
-            now,
-        )?;
+        let cost = match self.shared.try_lock() {
+            Ok(mut budget) => {
+                match budget.admit(&self.id, u64::from(width) * u64::from(height), now) {
+                    Some(cost) => {
+                        self.admission.record(AdmissionOutcome::Granted);
+                        cost
+                    }
+                    None => {
+                        self.admission.record(AdmissionOutcome::PolicyDenied);
+                        return None;
+                    }
+                }
+            }
+            Err(_) => {
+                self.admission.record(AdmissionOutcome::LockUnavailable);
+                return None;
+            }
+        };
         Some(CpuPermit {
             shared: self.shared.clone(),
             started: now,
             cost,
         })
+    }
+
+    pub(crate) fn admission_snapshot(&self) -> CpuAdmissionSnapshot {
+        self.admission.snapshot()
     }
 }
 
@@ -217,7 +296,7 @@ pub(crate) fn set_visible(id: &str, visible: bool) {
     if let Ok(mut budget) = BUDGET.lock() {
         if let Some(demand) = budget.demands.get_mut(id) {
             demand.visible = visible;
-            if !visible {
+            if !demand.cpu_required() {
                 demand.ticket = None;
             }
         }

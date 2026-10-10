@@ -69,7 +69,12 @@ LiveRelay list, select a session and explicitly join. This reuses the mounted
 Surface attachment and server authorization; it does not grant remote control.
 Closing the parameter panel keeps an established viewer open; closing it during
 joining cancels that pending result. See [Live capture](docs/LIVE_CAPTURE.md).
-This UI path has focused coverage; native two-device performance acceptance is pending.
+If Loom deleted this device, choose **重新配对** to submit its existing public key again.
+Loom approval, refreshing and joining remain explicit; a revoked old viewer stays closed.
+The Windows [C1 H.264 path](docs/LIVE_RELAY_H264_POC.md) uses GPU capture textures,
+hardware encoding and a native MF viewer decoder, with JPEG/raw compatibility.
+PC1/PC3 functional evidence is separate from performance: A3-P was waived by the
+user, and no throughput, CPU or physical-display improvement is claimed.
 The viewer also exposes [bounded receiver diagnostics](docs/LIVE_RELAY_DIAGNOSTICS.md)
 for source/epoch/frame and decoded-submitted stages, without pixels or private errors.
 Actual executable/process SHA binding is external; these counters are not display FPS.
@@ -95,7 +100,7 @@ Actual executable/process SHA binding is external; these counters are not displa
   encoding, and decode-before-display presentation. Actual rate depends on source
   updates, region size, hardware, and concurrent captures; queues remain bounded;
 - multiple Live sources share a capture pixel/rate budget and one automatic CPU
-  readback/encode permit. Hidden/offscreen views reduce capture to 1 FPS and pause
+  readback/encode permit. Hidden/offscreen views without a relay publisher reduce capture to 1 FPS and pause
   JPEG production; visible unsupported effects use bounded-rate fallback rather
   than unrestricted CPU pipelines. Layout polling shares one clock and Unit
   geometry sample. Same-window regions now [share one WGC source](docs/LIVE_SHARED_SOURCE_CAPTURE.md)
@@ -104,7 +109,10 @@ Actual executable/process SHA binding is external; these counters are not displa
   WGC textures into native swapchains without JPEG on that display branch. The
   copy/save and native Shift-drag export can request lossless GPU snapshots. The
   ordinary JPEG branch pauses CPU readback/encoding while GPU presentation is
-  healthy. Unsupported composition uses fresh decoded fallback pixels; set
+  healthy and no relay publisher needs encoded images. JPEG/raw publishing retains
+  budgeted JPEG production independently of local visibility; negotiated H.264 owns
+  a separate GPU input demand and releases its JPEG demand after GPU input is available.
+  Unsupported composition uses fresh decoded fallback pixels; set
   `HOOK_LIVE_GPU_PREVIEW=0` to force JPEG compatibility. This is not an FPS guarantee;
 - the local live view starts at the selected screen position and contains only
   the current pixels, a theme-green border, and theme-yellow move corners.
