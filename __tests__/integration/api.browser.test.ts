@@ -2,10 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installBrowserGlobals, MockWebSocket } from '../helpers/browserApiTestHarness';
 
 describe('Hook api browser mode', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
     MockWebSocket.instances = [];
     vi.unstubAllGlobals();
+    const { setBrowserLoomToken } = await import('../../src/services/hookWebSocketAuth');
+    setBrowserLoomToken('hook-v1.browser-fixture-token');
   });
 
   afterEach(() => {
@@ -27,6 +29,7 @@ describe('Hook api browser mode', () => {
       },
     });
 
+    await Promise.resolve();
     const socket = MockWebSocket.instances.at(-1);
     expect(socket).toBeTruthy();
 
@@ -61,6 +64,7 @@ describe('Hook api browser mode', () => {
     const { loomHookRequest } = await import('../../src/services/apiBrowserLoomTransport');
 
     const pending = loomHookRequest('loom.hook.transport.probe', { requestId: 'transport-probe' });
+    await Promise.resolve();
     const socket = MockWebSocket.instances.at(-1)!;
     socket.open();
     socket.emitRawMessage('{');
@@ -88,6 +92,7 @@ describe('Hook api browser mode', () => {
         disabled_parameters: [],
       },
     });
+    await Promise.resolve();
     const socket = MockWebSocket.instances.at(-1)!;
     socket.open();
     socket.emitMessage({
@@ -133,6 +138,7 @@ describe('Hook api browser mode', () => {
         disabled_parameters: [],
       },
     });
+    await Promise.resolve();
     const socket = MockWebSocket.instances.at(-1)!;
     socket.open();
     socket.emitMessage({
@@ -189,6 +195,7 @@ describe('Hook api browser mode', () => {
         disabled_parameters: [],
       },
     });
+    await Promise.resolve();
     const socket = MockWebSocket.instances.at(-1)!;
     socket.open();
     socket.emitMessage({
@@ -265,6 +272,8 @@ describe('Hook api browser mode', () => {
       ],
     ] as const) {
       installBrowserGlobals();
+      const { setBrowserLoomToken } = await import('../../src/services/hookWebSocketAuth');
+      setBrowserLoomToken('hook-v1.browser-fixture-token');
       const ready = vi.fn();
       window.addEventListener('hook-browser-art-ready', ready);
       const { api } = await import('../../src/services/api');
@@ -281,6 +290,7 @@ describe('Hook api browser mode', () => {
           disabled_parameters: [],
         },
       });
+      await Promise.resolve();
       const socket = MockWebSocket.instances.at(-1)!;
       socket.open();
       socket.emitMessage({
@@ -314,6 +324,7 @@ describe('Hook api browser mode', () => {
         generation: 2,
       },
     });
+    await Promise.resolve();
     const socket = MockWebSocket.instances.at(-1)!;
     socket.open();
     expect(JSON.parse(socket.sent[0])).toMatchObject({
@@ -354,6 +365,7 @@ describe('Hook api browser mode', () => {
         disabled_parameters: [],
       },
     });
+    await Promise.resolve();
     const socket = MockWebSocket.instances.at(-1)!;
     socket.onerror?.();
 
@@ -376,6 +388,7 @@ describe('Hook api browser mode', () => {
     const handler = vi.fn();
 
     const unlisten = listenBrowserLoomHookMethod('loom.hook.workflow.instantiated', handler);
+    await Promise.resolve();
     const socket = MockWebSocket.instances.at(-1);
     expect(socket).toBeTruthy();
 
@@ -415,6 +428,7 @@ describe('Hook api browser mode', () => {
       'loom.hook.workflow.instantiated',
       workflowHandler,
     );
+    await Promise.resolve();
     const socket = MockWebSocket.instances.at(-1)!;
     socket.open();
 

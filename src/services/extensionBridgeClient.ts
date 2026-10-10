@@ -1,4 +1,5 @@
 import { extensionRegistry } from "./extensionRegistry";
+import { createAuthenticatedHookWebSocket } from "./hookWebSocketAuth";
 import {
     extensionProtocolIdentity,
     parseExtensionBridgeResponse,
@@ -17,7 +18,7 @@ type PendingRequest = {
     timeout: ReturnType<typeof setTimeout>;
 };
 
-type WebSocketFactory = (url: string) => WebSocket;
+type WebSocketFactory = (url: string) => WebSocket | Promise<WebSocket>;
 
 const DEFAULT_INVOKE_TIMEOUT_MS = 20_000;
 const MIN_INVOKE_TIMEOUT_MS = 5_000;
@@ -50,9 +51,10 @@ export class ExtensionBridgeClient {
     private extensionHandshakeRequestId: string | null = null;
     private readonly pending = new Map<string, PendingRequest>();
     private connectionEndpoint: string;
+    private connectionAttempt = 0;
 
     constructor(
-        private readonly createWebSocket: WebSocketFactory = (url) => new WebSocket(url),
+        private readonly createWebSocket: WebSocketFactory = createAuthenticatedHookWebSocket,
         private readonly endpoint = "ws://127.0.0.1:19820",
     ) {
         this.connectionEndpoint = endpoint;
@@ -69,6 +71,7 @@ export class ExtensionBridgeClient {
     stop(): void {
         if (this.stopped) return;
         this.stopped = true;
+        this.connectionAttempt += 1;
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
         this.reconnectTimer = null;
         const socket = this.socket;
@@ -179,13 +182,21 @@ export class ExtensionBridgeClient {
 
     private connect(): void {
         if (this.stopped) return;
-        let socket: WebSocket;
+        const attempt = ++this.connectionAttempt;
         try {
-            socket = this.createWebSocket(this.connectionEndpoint);
+            const candidate = this.createWebSocket(this.connectionEndpoint);
+            if ("then" in candidate) {
+                void candidate.then((socket) => this.attachSocket(socket, attempt), () => {
+                    if (!this.stopped && this.connectionAttempt === attempt) this.scheduleReconnect();
+                });
+            } else this.attachSocket(candidate, attempt);
         } catch {
             this.scheduleReconnect();
-            return;
         }
+    }
+
+    private attachSocket(socket: WebSocket, attempt: number): void {
+        if (this.stopped || this.connectionAttempt !== attempt) { socket.close(); return; }
         this.socket = socket;
         socket.onopen = () => {
             if (this.socket !== socket) return;

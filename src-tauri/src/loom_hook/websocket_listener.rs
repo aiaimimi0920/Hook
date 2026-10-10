@@ -4,10 +4,10 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<LoomHookState>>) {
         console_line!("[LoomHook] Start Listener Thread...");
         loop {
             // Reconnection Loop
-            use tungstenite::{connect, Message};
+            use tungstenite::Message;
             let ws_url = loom_hook_ws_url();
 
-            match connect(ws_url.as_str()) {
+            match connect_authenticated_hook_socket(ws_url.as_str()) {
                 Ok((mut socket, _)) => {
                     console_line!("[LoomHook] Listener connected to Loom.");
                     if let Err(error) =

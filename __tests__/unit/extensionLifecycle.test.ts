@@ -4,13 +4,14 @@ import { AppListenerRegistry } from "../../src/services/appListenerRegistry";
 import { defaultBootProfile, normalizeBootProfile } from "../../src/services/bootProfile";
 import { extensionBridgeClient } from "../../src/services/extensionBridgeClient";
 import { registerExtensionLifecycle } from "../../src/services/extensionLifecycle";
+import { setBrowserLoomToken } from "../../src/services/hookWebSocketAuth";
 
 class TestWebSocket {
     static instances: TestWebSocket[] = [];
     readyState = 0;
     onclose: (() => void) | null = null;
 
-    constructor(readonly url: string) {
+    constructor(readonly url: string, readonly protocols: string[]) {
         TestWebSocket.instances.push(this);
     }
 
@@ -30,12 +31,14 @@ const mount = async (endpoint?: string) => {
 const connections = () => TestWebSocket.instances.map((socket) => socket.url);
 
 beforeEach(() => {
+    setBrowserLoomToken("hook-v1.fixture-token");
     extensionBridgeClient.stop();
     TestWebSocket.instances = [];
     vi.useFakeTimers();
     vi.stubGlobal("WebSocket", TestWebSocket);
 });
 afterEach(() => {
+    setBrowserLoomToken(null);
     registries.splice(0).forEach((registry) => registry.dispose());
     extensionBridgeClient.stop();
     vi.useRealTimers();
@@ -47,6 +50,7 @@ describe("extension lifecycle bridge endpoint", () => {
         const profile = normalizeBootProfile({ loomHookWsUrl: "ws://127.0.0.1:48766" });
         const registry = await mount(profile.loomHookWsUrl);
         expect(connections()).toEqual([profile.loomHookWsUrl]);
+        expect(TestWebSocket.instances[0]!.protocols).toEqual(["loom.hook.v1", "loom.auth.aG9vay12MS5maXh0dXJlLXRva2Vu"]);
 
         TestWebSocket.instances[0]!.close();
         await vi.advanceTimersByTimeAsync(1_000);

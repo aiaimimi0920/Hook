@@ -1,6 +1,7 @@
 // Owns browser Loom request sockets, push subscriptions, reconnect timers, and response error mapping.
 import type { HandshakeResponse } from "./protocol";
 import { hookSurfaceHostCapabilities } from "./surfaceHostCapabilities";
+import { createAuthenticatedHookWebSocket } from "./hookWebSocketAuth";
 
 const createBrowserPreviewHandshake = (): HandshakeResponse => ({
     protocolVersion: "loom.hook.v1",
@@ -21,6 +22,8 @@ type BrowserPushHandler = (payload: unknown) => void;
 const browserPushHandlers = new Map<string, Set<BrowserPushHandler>>();
 let browserPushSocket: WebSocket | null = null;
 let browserPushReconnectTimer: number | null = null;
+let browserPushConnecting = false;
+let browserPushGeneration = 0;
 
 const requestIdFromParams = (params: unknown): string | undefined => {
     if (!params || typeof params !== "object" || !("requestId" in params)) return undefined;
@@ -37,8 +40,8 @@ export const browserLoomHookRequest = async <T = unknown>(
 
     const expectedRequestId = requestIdFromParams(request.params);
     const timeoutMs = options?.timeoutMs ?? BROWSER_WS_REQUEST_TIMEOUT_MS;
+    const ws = await createAuthenticatedHookWebSocket(BROWSER_LOOM_HOOK_WS_URL);
     return new Promise<T>((resolve, reject) => {
-        const ws = new WebSocket(BROWSER_LOOM_HOOK_WS_URL);
         let settled = false;
 
         const timeout = window.setTimeout(() => {
@@ -161,9 +164,24 @@ const ensureBrowserPushSocket = () => {
         sendBrowserPushSubscription();
         return;
     }
-    if (browserPushHandlers.size === 0) return;
+    if (browserPushHandlers.size === 0 || browserPushConnecting) return;
+    browserPushConnecting = true;
+    const generation = browserPushGeneration;
+    void createAuthenticatedHookWebSocket(BROWSER_LOOM_HOOK_WS_URL).then((socket) => {
+        if (generation !== browserPushGeneration || browserPushHandlers.size === 0) {
+            socket.close();
+            return;
+        }
+        attachBrowserPushSocket(socket);
+    }).catch(() => {
+        if (generation === browserPushGeneration) scheduleBrowserPushReconnect();
+    }).finally(() => {
+        if (generation === browserPushGeneration) browserPushConnecting = false;
+    });
+};
 
-    browserPushSocket = new WebSocket(BROWSER_LOOM_HOOK_WS_URL);
+const attachBrowserPushSocket = (socket: WebSocket) => {
+    browserPushSocket = socket;
 
     browserPushSocket.onopen = () => {
         sendBrowserPushSubscription();
@@ -194,17 +212,20 @@ const ensureBrowserPushSocket = () => {
     };
 
     browserPushSocket.onclose = () => {
+        if (browserPushSocket !== socket) return;
         browserPushSocket = null;
         scheduleBrowserPushReconnect();
     };
 
     browserPushSocket.onerror = () => {
-        browserPushSocket?.close();
+        socket.close();
     };
 };
 
 const stopBrowserPushSocketIfUnused = () => {
     if (browserPushHandlers.size > 0) return;
+    browserPushGeneration += 1;
+    browserPushConnecting = false;
     if (browserPushReconnectTimer !== null) {
         window.clearTimeout(browserPushReconnectTimer);
         browserPushReconnectTimer = null;
