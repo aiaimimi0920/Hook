@@ -9,7 +9,14 @@ in [SECURITY.md](../SECURITY.md); dependency policy is in
 
 Hook and Loom must be upgraded together for authenticated local transport. Native
 Hook reads the bearer credential from the validated local Loom manifest for each
-connection, accepts only loopback `ws:` endpoints, and does not follow redirects.
+connection and uses it only with the daemon HTTP credential broker at
+`POST /v1/hook-bridge/credentials`. The broker returns a random, bridge-scoped
+`hook-v1.` credential only for its successfully bound, running listener. Hook
+checks the requested port and connects to the returned canonical `127.0.0.1`
+endpoint; localhost or IPv6 aliases are not used as unauthenticated peers.
+The administrator bearer never crosses the WebSocket. Scoped credentials cannot
+authorize daemon HTTP APIs and are rotated on bridge restart. Hook accepts only
+loopback `ws:` endpoints and does not follow HTTP or WebSocket redirects.
 The desktop frontend obtains WebSocket subprotocol credentials through the trusted
 Tauri command boundary. Credentials are not put in URLs or ordinary diagnostics;
 the server acknowledges only the public `loom.hook.v1` protocol. The allowed Tauri
@@ -18,7 +25,8 @@ session/grant authorization remains mandatory after transport authentication.
 
 A standalone browser preview has no ambient access to the local manifest. It
 remains offline until an operator explicitly calls `setBrowserLoomToken(token)`
-from `src/services/hookWebSocketAuth.ts` with their own local credential, at the
+from `src/services/hookWebSocketAuth.ts` with a broker-issued scoped bridge
+credential (never the daemon administrator token), at the
 development origin `http://localhost:1420` or `http://127.0.0.1:1420`. The credential
 is memory-only; `setBrowserLoomToken(null)` clears it for subsequent connections.
 Never embed a token in source, Vite environment bundles, URLs or shared storage.

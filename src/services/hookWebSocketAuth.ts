@@ -3,11 +3,12 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 
 let previewToken: string | null = null;
 
-const nativeProtocols = async (endpoint: string): Promise<string[]> => {
+type HookSocketCredential = { url: string; protocols: string[] };
+const nativeProtocols = async (endpoint: string): Promise<HookSocketCredential> => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
         return await Promise.race([
-            invoke<string[]>("loom_hook_websocket_protocols", { endpoint }),
+            invoke<HookSocketCredential>("loom_hook_websocket_protocols", { endpoint }),
             new Promise<never>((_, reject) => {
                 timer = setTimeout(() => reject(new Error("Local Loom authentication timed out")), 5000);
             }),
@@ -37,8 +38,11 @@ export const validateHookSocketEndpoint = (endpoint: string): void => {
 export const createAuthenticatedHookWebSocket = async (endpoint: string): Promise<WebSocket> => {
     validateHookSocketEndpoint(endpoint);
     let protocols: string[];
+    let connectionUrl = endpoint;
     if (isTauri()) {
-        protocols = await nativeProtocols(endpoint);
+        const credential = await nativeProtocols(endpoint);
+        connectionUrl = credential.url;
+        protocols = credential.protocols;
     } else {
         if (!previewToken) throw new Error("Local Loom authentication is required");
         const bytes = new TextEncoder().encode(previewToken);
@@ -46,5 +50,5 @@ export const createAuthenticatedHookWebSocket = async (endpoint: string): Promis
             .replace(/\+/gu, "-").replace(/\//gu, "_").replace(/=+$/u, "");
         protocols = ["loom.hook.v1", `loom.auth.${encoded}`];
     }
-    return new WebSocket(endpoint, protocols);
+    return new WebSocket(connectionUrl, protocols);
 };
