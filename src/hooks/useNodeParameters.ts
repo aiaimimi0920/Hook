@@ -11,6 +11,7 @@ import { deriveUnitExecutionConfig } from "../services/nodeExecutionConfig";
 import {
     requiresFormalExecutionAfterPreview,
     supportsShaderPreview,
+    supportsSurface,
 } from "../services/artCapabilities";
 import { findArtCapability } from "../services/artCapabilityLookup";
 import { artExecutionRequests } from "../services/artExecutionRequests";
@@ -173,6 +174,13 @@ export function useNodeParameters() {
         const caps = graphStore.capabilities;
         const artCapability = findArtCapability(caps, artId);
         const runtimeArtId = artCapability?.id ?? artId;
+
+        // Event-only Surface runtimes consume declared Surface actions, not generic
+        // parameter/upstream execution. Explicit hybrid/workflow Arts retain that path.
+        if (supportsSurface(artCapability) && !requiresFormalExecutionAfterPreview(artCapability)) {
+            if (isFinal || triggerSource !== "param") void syncService.performWorkflowSync();
+            return;
+        }
 
         // 4. Check execution config to decide if we should execute
         const execConfig = deriveUnitExecutionConfig({

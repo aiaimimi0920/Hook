@@ -7,6 +7,7 @@ import type {
     LiveRelayView,
 } from "../services/liveRelay";
 import type { LiveRelayPresentation } from "../services/liveRelayPresentation";
+import type { LiveRelayRenderProof } from "../services/liveRelayRenderEvidence";
 
 const [liveRelayViews, setLiveRelayViews] = createStore<LiveRelayView[]>([]);
 const [liveRelayDiscovery, setLiveRelayDiscovery] = createStore<LiveRelayDiscovery>({
@@ -43,14 +44,28 @@ export const liveRelayActions = {
             imageUrl,
             submittedFrameId: frame.frameId,
             presentation,
+            renderProof: undefined,
             frameWidth: frame.width,
             frameHeight: frame.height,
         });
     },
     clearFrame(relayId: string): void {
         setLiveRelayViews((view) => view.relayId === relayId, {
-            imageUrl: undefined, submittedFrameId: 0, presentation: undefined,
+            imageUrl: undefined, submittedFrameId: 0, presentation: undefined, renderProof: undefined,
+            renderEvidenceSupported: undefined,
         });
+    },
+    setRenderEvidenceSupport(relayId: string, supported: boolean | undefined): void {
+        setLiveRelayViews((view) => view.relayId === relayId, "renderEvidenceSupported", supported);
+    },
+    clearRenderProof(relayId: string): void {
+        setLiveRelayViews((view) => view.relayId === relayId, "renderProof", undefined);
+    },
+    recordRenderProof(proof: LiveRelayRenderProof): void {
+        setLiveRelayViews((view) => view.relayId === proof.relayId && !!view.imageUrl
+            && view.status.connectionState !== "closed" && view.status.liveSessionId === proof.liveSessionId
+            && view.status.epoch === proof.epoch && view.presentation?.frameId === proof.frameId
+            && view.presentation.generation === proof.generation, "renderProof", proof);
     },
     setError(relayId: string, error?: string): void {
         setLiveRelayViews((view) => view.relayId === relayId, "controlError", error);

@@ -88,7 +88,8 @@ export const UnitSurfaceContent: Component<UnitSurfaceContentProps> = (props) =>
             if (!isCurrentSurface) return;
             graphStore.actions.updateUnitData(unitId, {
                 nodeStatus: "error",
-                errorMessage: error instanceof Error ? error.message : "Surface event dispatch failed",
+                errorMessage: error instanceof Error ? error.message
+                    : typeof error === "string" ? error : "Surface event dispatch failed",
             });
         });
     };

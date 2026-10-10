@@ -71,10 +71,11 @@ fn physical_live_capture_window_region(
         .then_some(scale_factor)
         .filter(|value| *value > 0.0)
         .ok_or_else(|| "live capture display scale is invalid".to_string())?;
-    let left = (region.x * scale).floor();
-    let top = (region.y * scale).floor();
-    let right = ((region.x + region.width) * scale).ceil();
-    let bottom = ((region.y + region.height) * scale).ceil();
+    let tolerance = (region.width.min(region.height) * scale / 4.0).min(1e-7);
+    let left = snap_live_capture_pixel_boundary(region.x * scale, tolerance).floor();
+    let top = snap_live_capture_pixel_boundary(region.y * scale, tolerance).floor();
+    let right = snap_live_capture_pixel_boundary((region.x + region.width) * scale, tolerance).ceil();
+    let bottom = snap_live_capture_pixel_boundary((region.y + region.height) * scale, tolerance).ceil();
     if right <= left || bottom <= top || right > u32::MAX as f64 || bottom > u32::MAX as f64 {
         return Err("live capture physical window region is invalid".to_string());
     }
@@ -84,6 +85,17 @@ fn physical_live_capture_window_region(
         width: (right - left) as u32,
         height: (bottom - top) as u32,
     })
+}
+
+fn snap_live_capture_pixel_boundary(value: f64, tolerance: f64) -> f64 {
+    // Window-relative subtraction and DPI round-trips can put an integer boundary
+    // a few ulps below/above its pixel. Preserve outward rounding for real subpixels.
+    let nearest = value.round();
+    if (value - nearest).abs() <= tolerance {
+        nearest
+    } else {
+        value
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -163,6 +175,50 @@ fn live_capture_region_client_point(
 #[cfg(test)]
 mod live_capture_region_tests {
     use super::*;
+
+    #[test]
+    fn dpi_round_trip_does_not_add_pixels_to_integer_boundaries() {
+        let region = physical_live_capture_window_region(
+            LiveCaptureWindowRegion {
+                x: 9.333333333333258,
+                y: 32.66666666666663,
+                width: 384.0,
+                height: 240.0,
+            },
+            1.5,
+        )
+        .unwrap();
+        assert_eq!(region, LiveCapturePhysicalRegion {
+            left: 14, top: 49, width: 576, height: 360,
+        });
+        assert_eq!(snap_live_capture_pixel_boundary(14.0000000000001, 1e-7).ceil(), 14.0);
+        assert_eq!(live_capture_region_point(region, 0.0, 0.0), (14, 49));
+        assert_eq!(live_capture_region_point(region, 1.0, 1.0), (589, 408));
+    }
+
+    #[test]
+    fn genuine_subpixel_regions_still_round_outward_without_even_alignment() {
+        let region = physical_live_capture_window_region(
+            LiveCaptureWindowRegion {
+                x: 14.0001, y: 48.9999, width: 575.9998, height: 360.0002,
+            },
+            1.0,
+        )
+        .unwrap();
+        assert_eq!(region, LiveCapturePhysicalRegion {
+            left: 14, top: 48, width: 576, height: 362,
+        });
+        let odd = physical_live_capture_window_region(
+            LiveCaptureWindowRegion { x: 0.0, y: 0.0, width: 577.0, height: 361.0 },
+            1.0,
+        ).unwrap();
+        assert_eq!((odd.width, odd.height), (577, 361));
+        let tiny = physical_live_capture_window_region(
+            LiveCaptureWindowRegion { x: 0.0, y: 0.0, width: 1e-8, height: 1e-8 },
+            1.0,
+        ).unwrap();
+        assert_eq!((tiny.width, tiny.height), (1, 1));
+    }
 
     #[test]
     fn region_rounding_and_input_offsets_stay_fixed_when_the_window_moves() {

@@ -1,6 +1,15 @@
 use super::*;
 
 #[cfg(feature = "remote-surface")]
+#[test]
+fn existing_identity_loader_never_creates_missing_identity() {
+    let root =
+        std::env::temp_dir().join(format!("hook-existing-identity-{}", uuid::Uuid::new_v4()));
+    assert!(super::identity::load_existing_device_identity_at(&root).is_err());
+    assert!(!root.exists());
+}
+
+#[cfg(feature = "remote-surface")]
 use super::identity::{
     load_or_create_device_identity_at, persist_device_identity, validate_device_identity,
 };
@@ -221,6 +230,10 @@ fn loopback_bearer_surface_auth_rejects_missing_token() {
 #[cfg(feature = "remote-surface")]
 #[test]
 fn only_pending_device_approval_is_retryable() {
+    assert!(!is_pending_device_approval(
+        403,
+        r#"{"error":{"code":"device_disabled","message":"device is disabled"}}"#
+    ));
     assert!(is_pending_device_approval(
         403,
         r#"{"error":{"code":"device_not_authorized","message":"pending"}}"#
