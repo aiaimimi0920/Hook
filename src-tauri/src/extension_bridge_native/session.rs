@@ -166,7 +166,7 @@ fn run(socket: &mut BridgeSocket, shared: &Mutex<Shared>, cancel: &AtomicBool) {
                 }
             }
             Ok(Message::Ping(_)) => {
-                if socket.flush().is_err() {
+                if crate::loom_bridge_client::flush_control_reply(socket).is_err() {
                     break;
                 }
             }
