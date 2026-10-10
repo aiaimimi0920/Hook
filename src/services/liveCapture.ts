@@ -1,3 +1,5 @@
+import type { LiveCaptureTiming } from "./liveTiming";
+
 export type LiveCaptureRuntimeState = "starting" | "streaming" | "recovering" | "failed" | "closed";
 
 export interface LiveCaptureStartRequest {
@@ -35,6 +37,7 @@ export interface LiveCaptureStatus {
     inputCapability: "window_message" | "unsupported_region" | "permission_denied" | "different_session" | "unavailable";
     interactionEnabled: boolean;
     logicalHideReason?: string | null;
+    captureTiming?: LiveCaptureTiming | null;
 }
 
 export type LiveCaptureInputKind =

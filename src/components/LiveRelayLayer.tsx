@@ -14,6 +14,7 @@ import { liveRelayActions, liveRelayViews } from "../store/liveRelayStore";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import { syncService } from "../services/syncService";
 import { liveRelayDiagnostic } from "../services/liveRelayDiagnostics";
+import { LiveRelayImage } from "./LiveRelayImage";
 import "./LiveCaptureLayer.css";
 
 type DragState = {
@@ -401,7 +402,7 @@ const LiveRelayWindow: Component<{ view: typeof liveRelayViews[number]; controll
                     </For>
                 </aside>
                 <Show when={props.view.imageUrl} fallback={<div class="hook-live-window__empty">等待远端画面</div>}>
-                    {(url) => <img src={url()} alt="远端源窗口实时画面" draggable={false} />}
+                    <LiveRelayImage view={props.view} />
                 </Show>
                 <Show when={props.view.controlError ?? props.view.status.errorMessage}>
                     {(message) => <div class="hook-live-window__error" role="alert">{message()}</div>}

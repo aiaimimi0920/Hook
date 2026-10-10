@@ -60,6 +60,14 @@ impl fmt::Debug for DeviceSessionAuthorization {
 }
 
 impl DeviceSessionAuthorization {
+    pub(crate) fn uses_device_session(&self) -> bool {
+        #[cfg(feature = "remote-surface")]
+        if matches!(&self.credential, SurfaceRequestCredential::Device(_)) {
+            return true;
+        }
+        false
+    }
+
     #[cfg(test)]
     pub(crate) fn none_for_test(device_id: &str) -> Self {
         Self {
@@ -218,6 +226,35 @@ async fn remote_surface_authorization(
     Ok(authorization)
 }
 
+/// Mint a fresh credential for exactly the retained identity; never create or pair.
+#[cfg_attr(not(feature = "remote-surface"), allow(clippy::unused_async))]
+pub(crate) async fn renew_existing_device_session(
+    app: &AppHandle,
+    base_url: &str,
+    expected_device_id: &str,
+) -> Result<DeviceSessionAuthorization, String> {
+    #[cfg(feature = "remote-surface")]
+    {
+        validate_secure_loom_base_url(base_url)?;
+        let identity =
+            identity::load_existing_device_identity_at(&crate::effective_app_data_dir(app)?)?;
+        if identity.device_id.as_deref() != Some(expected_device_id) {
+            return Err("Hook viewer renewal device identity changed".to_owned());
+        }
+        let session =
+            session_attempt::create_existing_device_session_once(base_url, &identity).await?;
+        Ok(DeviceSessionAuthorization {
+            device_id: session.device_id,
+            credential: SurfaceRequestCredential::Device(session.token),
+        })
+    }
+    #[cfg(not(feature = "remote-surface"))]
+    {
+        let _ = (app, expected_device_id);
+        Err(disabled_remote_surface_error(base_url))
+    }
+}
+
 fn loopback_surface_authorization(
     manifest: &crate::loom_connector::LoomManifest,
 ) -> Result<Option<DeviceSessionAuthorization>, String> {
@@ -254,6 +291,27 @@ fn validate_secure_loom_base_url(base_url: &str) -> Result<(), String> {
     crate::loom_connector::classify_loom_base_url(base_url)
         .map(|_| ())
         .map_err(|error| format!("invalid Loom Surface origin: {error}"))
+}
+
+/// Re-register the existing identity only on an explicit user request, without approval or joining.
+#[cfg_attr(not(feature = "remote-surface"), allow(clippy::unused_async))]
+pub(crate) async fn request_surface_pairing(
+    app: &AppHandle,
+    manifest: &crate::loom_connector::LoomManifest,
+) -> Result<bool, String> {
+    #[cfg(feature = "remote-surface")]
+    {
+        pairing::request_pairing_at(
+            &manifest.transport.base_url,
+            &crate::effective_app_data_dir(app)?,
+        )
+        .await
+    }
+    #[cfg(not(feature = "remote-surface"))]
+    {
+        let _ = app;
+        Err(disabled_remote_surface_error(&manifest.transport.base_url))
+    }
 }
 
 /// Drop every cached device session for one Loom endpoint. Loopback-only builds have no cache.

@@ -61,6 +61,9 @@ rectangles and direct synthetic input handling keep the prompt interactive.
 - 观看端：使用已配对的默认 Loom，打开支持 Surface 的 Art Unit 参数面板；等待 Surface
   挂载后，刷新列表、选择会话、“加入观看”。缺少绑定、源未连接或正在加入时禁用加入按钮。
 - 服务端决定观看权限。加入不会请求 controller；观看窗口中的“请求控制”仍是独立操作。
+- 被删除的设备可显式“重新配对”；只重新提交原 public key，不自动批准、加入或请求控制。
+  新身份通过正常 Surface 重挂载获取绑定。批准后刷新、选择并加入，旧 closed viewer 不阻止
+  新 viewer，但旧 relay 的身份、终态与空帧缓存不能复活。活动或 recovering viewer 仍去重。
 - 检查空列表、长标题/设备 ID、键盘选择、错误/重试、连续点击、面板关闭及 Surface 换代。
   已打开窗口不因关闭参数面板而结束；未完成的加入被取消后不应留下新 viewer。
 - 观看窗口的[只读诊断槽](LIVE_RELAY_DIAGNOSTICS.md)输出 source/epoch/frame、接收计数、
@@ -152,7 +155,9 @@ gate must prove native pixels plus the existing Unit/editor/input behavior;
 ordinary browser screenshots and submission counters alone do not prove native
 compositor visibility or monitor FPS. Copy/save/native Shift-drag can request a
 bounded lossless GPU snapshot, with stale-result rejection and exported-file cache
-invalidation. Healthy native presentation skips continuous CPU readback/JPEG;
+invalidation. Healthy native presentation skips continuous CPU readback/JPEG when
+no relay publisher needs encoded frames; publishing keeps budgeted JPEG production
+without disabling the native plane or multiplying CPU permits.
 editing, Art, stop and unsupported composition retain ordinary Unit behavior.
 The gate also covers static-source fallback, capture health without encoded frames,
 and an animated-source CPU sample; submission counts are not monitor FPS.
@@ -179,7 +184,7 @@ and an animated-source CPU sample; submission counts are not monitor FPS.
   use two full-source buffers. GPU contention retains/retries the newest owned
   texture, not synchronous CPU readback. Automatic fallback is globally serialized
   before staging/Map through JPEG and uses a pixel/rate budget plus measured cooldown.
-  Hidden/offscreen consumers keep 1 FPS capture health but no automatic JPEG work;
+  Hidden/offscreen consumers without relay publication keep 1 FPS capture health but no automatic JPEG work;
   showing them resumes budgeted work. Explicit user snapshots remain independently bounded.
   Windows WIC performs full-resolution quality-82 JPEG encoding with 4:4:4 chroma;
   a logged software fallback preserves capture if the system codec fails.

@@ -45,6 +45,8 @@ export const liveRelayApi = {
     discoverLiveRelaySessions: (): Promise<LiveRelayDiscovery> =>
         safeInvoke("discover_live_relay_sessions", {}),
 
+    requestLiveRelayPairing: (): Promise<void> => safeInvoke("request_live_relay_pairing", {}),
+
     joinLiveRelaySession: (request: {
         liveSessionId: string;
         surfaceInstanceId: string;
