@@ -20,6 +20,15 @@ use tungstenite::{client::IntoClientRequest, http::HeaderValue, WebSocket};
 pub(crate) type BridgeSocket = WebSocket<StreamOwned<ClientConnection, BridgeStream>>;
 const HANDSHAKE_LIMIT: Duration = Duration::from_secs(3);
 
+pub(crate) fn flush_control_reply(socket: &mut BridgeSocket) -> tungstenite::Result<()> {
+    // A Ping may finish at the read deadline; its Pong needs a separate bounded write.
+    socket
+        .get_mut()
+        .sock
+        .operation_deadline(Duration::from_secs(5));
+    socket.flush()
+}
+
 pub(crate) fn enabled() -> bool {
     crate::read_env_bool("HOOK_ENABLE_LOOM_HOOK", false)
 }

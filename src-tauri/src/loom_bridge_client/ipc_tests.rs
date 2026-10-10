@@ -66,6 +66,25 @@ fn partial_tls_websocket_frames_survive_timeout_and_terminal_queue_drains() {
 }
 
 #[test]
+fn pong_flush_uses_a_fresh_budget_after_the_read_deadline_expires() {
+    let (listener, identity, config) = tests::fixture();
+    let server = thread::spawn(move || {
+        let mut socket = accept(listener, config);
+        socket.send(Message::Ping(vec![42])).unwrap();
+        assert_eq!(socket.read().unwrap(), Message::Pong(vec![42]));
+    });
+    let mut socket = connect_identity(&identity, Duration::from_secs(1)).unwrap();
+    assert_eq!(socket.read().unwrap(), Message::Ping(vec![42]));
+    // Deterministically model descheduling after read succeeds, before its reply.
+    socket.get_mut().sock.operation_deadline(Duration::ZERO);
+    let result = flush_control_reply(&mut socket);
+    drop(socket);
+    let server_result = server.join();
+    result.unwrap();
+    server_result.unwrap();
+}
+
+#[test]
 fn stopping_connected_ipc_interrupts_blocked_read_and_joins_before_returning() {
     let (listener, identity, config) = tests::fixture();
     let server = thread::spawn(move || {
