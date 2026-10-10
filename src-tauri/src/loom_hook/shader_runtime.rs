@@ -4,7 +4,7 @@ fn try_prefetch_shader_via_loom(
     input_path: Option<&str>,
     reference_path: Option<&str>,
 ) -> Result<serde_json::Value, String> {
-    use tungstenite::{connect, Message as WsMessage};
+    use tungstenite::Message as WsMessage;
 
     let request_id = format!("shader-prefetch:{}", Uuid::new_v4());
     let node_id = format!("shader-prefetch:{art_id}");
@@ -28,12 +28,7 @@ fn try_prefetch_shader_via_loom(
             "disabledParameters": []
         }
     });
-    let ws_url = loom_hook_ws_url();
-    let (mut socket, _) = connect(ws_url.as_str())
-        .map_err(|_| "Loom Hook protocol is unavailable".to_owned())?;
-    if let tungstenite::stream::MaybeTlsStream::Plain(tcp) = socket.get_ref() {
-        let _ = tcp.set_read_timeout(Some(Duration::from_secs(20)));
-    }
+    let mut socket = crate::loom_bridge_client::connect(Duration::from_secs(20))?;
     socket
         .send(WsMessage::Text(body.to_string().into()))
         .map_err(|error| format!("Failed to send shader execution request: {error}"))?;

@@ -16,7 +16,6 @@ type NativeExtensionCommand = { commandId?: string; input?: unknown };
 export const registerExtensionLifecycle = async (
     registry: AppListenerRegistry,
     tauriRuntime: boolean,
-    endpoint?: string,
 ): Promise<void> => {
     const unsubscribe = extensionRegistry.subscribe((snapshot) => {
         extensionNoticeRegistry.applySnapshot(snapshot);
@@ -36,7 +35,7 @@ export const registerExtensionLifecycle = async (
 
     window.addEventListener("keydown", extensionShortcutRegistry.handleKeyDown, true);
     registry.push(() => window.removeEventListener("keydown", extensionShortcutRegistry.handleKeyDown, true));
-    registry.push(extensionBridgeClient.start(endpoint));
+    registry.push(extensionBridgeClient.start());
 
     if (tauriRuntime) {
         await registry.register(() => listen<NativeExtensionCommand>("extension/command", (event) => {

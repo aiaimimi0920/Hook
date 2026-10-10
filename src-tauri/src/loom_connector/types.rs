@@ -47,6 +47,8 @@ pub struct LoomManifest {
     #[serde(default)]
     pub capabilities: Vec<String>,
     pub started_at: Option<serde_json::Value>,
+    #[serde(default, skip_serializing)]
+    pub(crate) hook_bridge: Option<crate::loom_bridge_client::BridgeIdentity>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

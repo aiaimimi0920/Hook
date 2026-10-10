@@ -1,5 +1,11 @@
 # Hook Features and Manual Regression Matrix
 
+Local Loom Art/extension integration is native-only and explicitly enabled with
+`HOOK_ENABLE_LOOM_HOOK=1`. In browser preview, verify that local UI/session work
+still functions, no Loom request/push WebSocket is opened, and Art execution
+finishes with a local unsupported error rather than uploading images or inventing
+a result. A native paired-version runtime is required for real integration.
+
 Projection target dropdowns use count-free device/group/user icons with chevrons.
 Available targets show one ID and checkbox per row; checking starts projection,
 unchecking cancels it. Per-row markers distinguish pending, success and failure;

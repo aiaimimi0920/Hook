@@ -1,4 +1,5 @@
 import { extensionRegistry } from "./extensionRegistry";
+import { ExtensionNativeTransport, type ExtensionTransport } from "./extensionNativeTransport";
 import {
     extensionProtocolIdentity,
     parseExtensionBridgeResponse,
@@ -17,7 +18,7 @@ type PendingRequest = {
     timeout: ReturnType<typeof setTimeout>;
 };
 
-type WebSocketFactory = (url: string) => WebSocket;
+type WebSocketFactory = (url: string) => ExtensionTransport;
 
 const DEFAULT_INVOKE_TIMEOUT_MS = 20_000;
 const MIN_INVOKE_TIMEOUT_MS = 5_000;
@@ -43,7 +44,7 @@ const invokeTimeout = (value: number | undefined): number => {
 
 /** Maintains one reconnecting protocol session; the Hook handshake is not peer authentication. */
 export class ExtensionBridgeClient {
-    private socket: WebSocket | null = null;
+    private socket: ExtensionTransport | null = null;
     private stopped = true;
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     private extensionSessionId: string | null = null;
@@ -52,8 +53,8 @@ export class ExtensionBridgeClient {
     private connectionEndpoint: string;
 
     constructor(
-        private readonly createWebSocket: WebSocketFactory = (url) => new WebSocket(url),
-        private readonly endpoint = "ws://127.0.0.1:19820",
+        private readonly createWebSocket: WebSocketFactory = () => new ExtensionNativeTransport(),
+        private readonly endpoint = "native:loom-extension",
     ) {
         this.connectionEndpoint = endpoint;
     }
@@ -179,7 +180,7 @@ export class ExtensionBridgeClient {
 
     private connect(): void {
         if (this.stopped) return;
-        let socket: WebSocket;
+        let socket: ExtensionTransport;
         try {
             socket = this.createWebSocket(this.connectionEndpoint);
         } catch {
@@ -213,7 +214,7 @@ export class ExtensionBridgeClient {
         };
     }
 
-    private handleMessage(socket: WebSocket, text: string): void {
+    private handleMessage(socket: ExtensionTransport, text: string): void {
         let value: unknown;
         try {
             value = JSON.parse(text);
@@ -283,7 +284,7 @@ export class ExtensionBridgeClient {
         }
     }
 
-    private sendExtensionHandshake(socket: WebSocket, hookSessionId: string): void {
+    private sendExtensionHandshake(socket: ExtensionTransport, hookSessionId: string): void {
         const id = requestId("extension-handshake");
         this.extensionHandshakeRequestId = id;
         this.send(socket, {
@@ -298,7 +299,7 @@ export class ExtensionBridgeClient {
         });
     }
 
-    private send(socket: WebSocket, payload: unknown): boolean {
+    private send(socket: ExtensionTransport, payload: unknown): boolean {
         if (this.socket !== socket || socket.readyState !== 1) {
             this.failSocket(socket, new Error("extension bridge socket is unavailable"));
             return false;
@@ -312,7 +313,7 @@ export class ExtensionBridgeClient {
         }
     }
 
-    private failSocket(socket: WebSocket, cause: unknown): void {
+    private failSocket(socket: ExtensionTransport, cause: unknown): void {
         if (this.socket !== socket) return;
         this.socket = null;
         try {

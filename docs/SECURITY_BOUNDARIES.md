@@ -100,9 +100,49 @@ OCR finishes. Loom consumes and revalidates before staging resources and checks
 grants again before returning runtime effects. Revocation cannot retroactively
 erase data already received or undo side effects already executed.
 
-This requires a coordinated Hook/Loom upgrade and does not itself authenticate
-the legacy loopback WebSocket. Its trusted-channel migration is still pending;
-session IDs and a successful protocol handshake are not proof of peer identity.
+This requires a coordinated Hook/Loom upgrade. Resource tickets are not transport
+authentication: session IDs and a successful application protocol handshake are
+not proof of peer identity.
+
+## Authenticated native local bridge
+
+The native Art/shader/coordination callers and extension host use the private
+`loom.json` `hookBridge` descriptor with protocol `loom.local-bridge.v1`.
+`HOOK_ENABLE_LOOM_HOOK` must explicitly enable integration; the default is off.
+Startup capability refresh and extension registrations obey the same gate as
+direct native connection attempts. Local capture and standalone session restore
+do not need to connect to Loom.
+
+Native code accepts only the descriptor's canonical loopback WSS endpoint,
+authenticates its pinned leaf certificate with Rustls/WebPKI, then proves the
+private discovery token using a TLS 1.3 exporter bound to that connection.
+The raw token is never sent in an HTTP header or exposed to JavaScript. The
+TLS/upgrade handshake has one absolute three-second deadline. An explicitly
+set `LOOM_HOOK_WS_URL` must exactly match trusted discovery; an endpoint alone
+cannot authorize a connection, and there is no plaintext downgrade.
+
+The extension WebView adapter has only open/send/poll/close IPC for the main
+window. Native allowlists the four extension negotiation/authorization/invoke
+methods, binds all later calls to an opaque epoch, and bounds each direction
+to 128 queued messages and 64 MiB total. A message is also at most 64 MiB.
+Only one poll and one send are in flight in the frontend. Connection errors do
+not expose private native diagnostics. Stop cancels and joins the worker;
+late open/poll results cannot update a newer frontend connection. Queued
+received responses are drained before a terminal close is reported.
+
+Pure browser preview has no access to this native trust boundary. Its handshake
+returns only isolated local preview capabilities, network requests fail locally,
+and push registrations create neither sockets nor reconnect timers. Art execution
+reports a local unsupported error without reading/uploading inputs. The main
+WebView CSP grants no loopback WebSocket origins and is not expanded from boot
+configuration.
+
+This development migration still requires the matching Loom Desktop adapter and
+operational probes to be finished and jointly
+validated before a paired release. Library or single-client tests are not a
+claim that the whole migration has shipped. A mixed-version pair fails closed.
+Private discovery ACLs do not defend against arbitrary same-user process-memory
+access or code injection into either trusted application.
 
 ## Emergency watchdog recovery authority
 

@@ -9,6 +9,7 @@ pub async fn loom_hook_handshake(
     state: tauri::State<'_, LoomHook>,
     request: HandshakeRequest,
 ) -> Result<LoomHookHandshake, String> {
+    crate::loom_bridge_client::require_enabled()?;
     if !try_reserve_loom_worker_slot(&ACTIVE_LOOM_HANDSHAKES, MAX_CONCURRENT_LOOM_HANDSHAKES) {
         return Err("Loom Hook handshake is already in progress".to_owned());
     }
@@ -43,16 +44,10 @@ pub async fn loom_hook_handshake(
 }
 
 fn perform_loom_hook_handshake(request: HandshakeRequest) -> Result<LoomHookHandshake, String> {
-    use tungstenite::{connect, Message};
+    use tungstenite::Message;
     validate_loom_hook_handshake_request(&request)?;
     let requested_transports = request.transports.clone();
-    let ws_url = loom_hook_ws_url();
-    let (mut socket, _) = connect(ws_url.as_str())
-        .map_err(|_| "connect Loom Hook protocol failed".to_owned())?;
-    if let tungstenite::stream::MaybeTlsStream::Plain(tcp) = socket.get_ref() {
-        tcp.set_read_timeout(Some(Duration::from_secs(10)))
-            .map_err(|error| format!("set Loom Hook handshake timeout: {error}"))?;
-    }
+    let mut socket = crate::loom_bridge_client::connect(Duration::from_secs(10))?;
     socket
         .send(Message::Text(
             serde_json::json!({

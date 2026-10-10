@@ -1,8 +1,11 @@
 // Owns remote Surface polling, stream-envelope validation, and local Surface event emission.
 /// Poll loop for a paired remote Loom Surface.
 #[cfg(feature = "remote-surface")]
-fn start_remote_surface_poll_listener(app: AppHandle, state: Arc<Mutex<LoomHookState>>) {
-    thread::spawn(move || {
+fn start_remote_surface_poll_listener(
+    app: AppHandle,
+    state: Arc<Mutex<LoomHookState>>,
+) -> Result<ListenerTask, String> {
+    ListenerTask::spawn(state.clone(), move |control| {
         let runtime = match tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -18,7 +21,13 @@ fn start_remote_surface_poll_listener(app: AppHandle, state: Arc<Mutex<LoomHookS
         runtime.block_on(async move {
             let mut cursor = 0_u64;
             loop {
-                let result = poll_remote_surface_once(&app, cursor).await;
+                let result = tokio::select! {
+                    _ = control.cancellation() => break,
+                    result = poll_remote_surface_once(&app, cursor) => result,
+                };
+                if control.cancelled() {
+                    break;
+                }
                 match result {
                     Ok((next, reset, messages)) => {
                         let poll_delay = remote_surface_poll_delay(cursor, next);
@@ -36,7 +45,10 @@ fn start_remote_surface_poll_listener(app: AppHandle, state: Arc<Mutex<LoomHookS
                         }
                         cursor = next;
                         if let Some(delay) = poll_delay {
-                            tokio::time::sleep(delay).await;
+                            tokio::select! {
+                                _ = control.cancellation() => break,
+                                _ = tokio::time::sleep(delay) => (),
+                            }
                         }
                     }
                     Err(error) => {
@@ -45,12 +57,15 @@ fn start_remote_surface_poll_listener(app: AppHandle, state: Arc<Mutex<LoomHookS
                             "surface_remote_poll_failed :: error={}",
                             sanitize_untrusted_message(&error, "Surface poll failed")
                         ));
-                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        tokio::select! {
+                            _ = control.cancellation() => break,
+                            _ = tokio::time::sleep(Duration::from_secs(2)) => (),
+                        }
                     }
                 }
             }
         });
-    });
+    })
 }
 
 #[cfg(feature = "remote-surface")]

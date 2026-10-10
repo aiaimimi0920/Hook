@@ -19,6 +19,8 @@ param(
     [ValidateRange(10, 600)]
     [int]$StartupTimeoutSeconds = 90,
     [string]$ArtifactRoot = "",
+    [string]$ProcessFrameworkZip = "",
+    [string]$DashboardArtZip = "",
     [switch]$ValidateLoomServicesOnly,
     [switch]$LiveUnitProbe,
     [switch]$PreflightOnly
@@ -41,8 +43,12 @@ $resolvedHookExe = [System.IO.Path]::GetFullPath($HookExe)
 $resolvedLoomPackageDir = [System.IO.Path]::GetFullPath($LoomPackageDir)
 $loomDaemonExe = Join-Path $resolvedLoomPackageDir "runtime\loom-daemon.exe"
 $artStoreExe = Join-Path $loomRepoRoot "target\release\loom-art-store.exe"
-$processFrameworkZip = Join-Path $loomRepoRoot "target\surface-smoke-frameworks\process.zip"
-$dashboardArtZip = Join-Path $loomRepoRoot "target\surface-smoke-arts\surface-prototype-dashboard.zip"
+if ([string]::IsNullOrWhiteSpace($ProcessFrameworkZip)) {
+    $ProcessFrameworkZip = Join-Path $loomRepoRoot "target\surface-smoke-frameworks\process.zip"
+}
+if ([string]::IsNullOrWhiteSpace($DashboardArtZip)) {
+    $DashboardArtZip = Join-Path $loomRepoRoot "target\surface-smoke-arts\surface-prototype-dashboard.zip"
+}
 $innerScript = Join-Path $PSScriptRoot "Invoke-HookNativeCandidateAcceptance.ps1"
 
 $runId = "{0}-hook-loom-surface-{1}" -f (Get-Date -Format "yyyyMMdd-HHmmss"), ([Guid]::NewGuid().ToString("N").Substring(0, 12))
@@ -245,7 +251,7 @@ $daemonPort = $ports[1]
 $bridgePort = $ports[2]
 $storeBaseUrl = "http://127.0.0.1:$storePort"
 $daemonBaseUrl = "http://127.0.0.1:$daemonPort"
-$bridgeWsUrl = "ws://127.0.0.1:$bridgePort"
+$bridgeWsUrl = "wss://127.0.0.1:$bridgePort/"
 $hookProcessesBefore = @(Get-LiveHookProcesses)
 
 $summary = [ordered]@{

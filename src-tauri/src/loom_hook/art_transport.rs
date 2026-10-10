@@ -8,15 +8,12 @@ pub(crate) fn release_hook_art_resources(
     if handles.is_empty() {
         return;
     }
-    use tungstenite::{connect, Message as WsMessage};
+    use tungstenite::Message as WsMessage;
     let (release_request_id, request) =
         hook_art_resource_release_request(node_id, execution_request_id, generation, handles);
-    let Ok((mut socket, _)) = connect(loom_hook_ws_url().as_str()) else {
+    let Ok(mut socket) = crate::loom_bridge_client::connect(Duration::from_secs(5)) else {
         return;
     };
-    if let tungstenite::stream::MaybeTlsStream::Plain(tcp) = socket.get_ref() {
-        let _ = tcp.set_read_timeout(Some(Duration::from_secs(5)));
-    }
     if socket
         .send(WsMessage::Text(request.to_string().into()))
         .is_err()
@@ -44,7 +41,7 @@ pub(crate) fn release_hook_art_resources(
 }
 
 fn forward_hook_art_cancel(node_id: &str, request_id: &str, generation: u64) {
-    use tungstenite::{connect, Message as WsMessage};
+    use tungstenite::Message as WsMessage;
     let request = serde_json::json!({
         "method": "loom.hook.art.cancel",
         "params": {
@@ -55,16 +52,12 @@ fn forward_hook_art_cancel(node_id: &str, request_id: &str, generation: u64) {
             "deviceId": "device:local"
         }
     });
-    let ws_url = loom_hook_ws_url();
-    let Ok((mut socket, _)) = connect(ws_url.as_str()) else {
+    let Ok(mut socket) = crate::loom_bridge_client::connect(Duration::from_secs(5)) else {
         crate::append_runtime_log_line(&format!(
             "hook_art_cancel_connect_failed :: request_id={request_id} node_id={node_id}"
         ));
         return;
     };
-    if let tungstenite::stream::MaybeTlsStream::Plain(tcp) = socket.get_ref() {
-        let _ = tcp.set_read_timeout(Some(Duration::from_secs(5)));
-    }
     if socket
         .send(WsMessage::Text(request.to_string().into()))
         .is_err()
@@ -126,13 +119,9 @@ fn send_hook_control_request(
     timeout: Duration,
     error_event: &str,
 ) {
-    use tungstenite::{connect, Message as WsMessage};
-    let ws_url = loom_hook_ws_url();
-    match connect(ws_url.as_str()) {
-        Ok((mut socket, _)) => {
-            if let tungstenite::stream::MaybeTlsStream::Plain(tcp) = socket.get_ref() {
-                let _ = tcp.set_read_timeout(Some(timeout));
-            }
+    use tungstenite::Message as WsMessage;
+    match crate::loom_bridge_client::connect(timeout) {
+        Ok(mut socket) => {
             if socket
                 .send(WsMessage::Text(message.to_string().into()))
                 .is_err()
@@ -267,9 +256,8 @@ fn forward_hook_art_execute(
             "disabledParameters": disabled_parameters
         }
     });
-    use tungstenite::{connect, Message as WsMessage};
-    let ws_url = loom_hook_ws_url();
-    let Ok((mut socket, _)) = connect(ws_url.as_str()) else {
+    use tungstenite::Message as WsMessage;
+    let Ok(mut socket) = crate::loom_bridge_client::connect(Duration::from_secs(150)) else {
         emit_formal_hook_failure(
             app_handle,
             node_id,
@@ -278,12 +266,6 @@ fn forward_hook_art_execute(
         );
         return;
     };
-    if let tungstenite::stream::MaybeTlsStream::Plain(tcp) = socket.get_ref() {
-        if let Err(error) = tcp.set_read_timeout(Some(Duration::from_secs(150))) {
-            emit_formal_hook_failure(app_handle, node_id, request_id, &error.to_string());
-            return;
-        }
-    }
     if socket
         .send(WsMessage::Text(request.to_string().into()))
         .is_err()

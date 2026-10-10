@@ -18,11 +18,7 @@ pub fn run() {
         voice::hotkey::HotkeyStateMachine::new_toggle("Ctrl+Alt+Space"),
     ));
 
-    let mut context = tauri::generate_context!();
-    bridge_csp::allow_configured_bridge(
-        &mut context.config_mut().app.security,
-        &boot_profile_from_env().loom_hook_ws_url,
-    );
+    let context = tauri::generate_context!();
     let app = tauri::Builder::default()
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -154,6 +150,10 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            extension_bridge_native::extension_bridge_open,
+            extension_bridge_native::extension_bridge_send,
+            extension_bridge_native::extension_bridge_poll,
+            extension_bridge_native::extension_bridge_close,
             wall_client::wall_request,
             qr_projection::projection_request,
             qr_projection::v2::projection_v2_request,
@@ -261,12 +261,16 @@ pub fn run() {
         .expect("error while building tauri application");
     let exit_code = app.run_return(|app_handle, event| match event {
         tauri::RunEvent::ExitRequested { code, .. } => {
+            loom_hook::shutdown_listener(app_handle);
+            extension_bridge_native::shutdown(app_handle);
             record_process_exit_event("tauri_exit_requested", code);
             shutdown_live_relay_sessions(app_handle);
             shutdown_live_capture_sessions(app_handle);
             prepare_for_hook_process_exit("tauri_exit_requested");
         }
         tauri::RunEvent::Exit => {
+            loom_hook::shutdown_listener(app_handle);
+            extension_bridge_native::shutdown(app_handle);
             record_process_exit_event("tauri_exit", None);
             shutdown_live_relay_sessions(app_handle);
             shutdown_live_capture_sessions(app_handle);

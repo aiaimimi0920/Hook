@@ -1,21 +1,32 @@
 // Owns the local websocket listener connection and reconnect loop.
-fn start_listener(app: AppHandle, state: Arc<Mutex<LoomHookState>>) {
-    thread::spawn(move || {
+fn start_listener(
+    app: AppHandle,
+    state: Arc<Mutex<LoomHookState>>,
+) -> Result<ListenerTask, String> {
+    ListenerTask::spawn(state.clone(), move |control| {
         console_line!("[LoomHook] Start Listener Thread...");
         loop {
             // Reconnection Loop
-            use tungstenite::{connect, Message};
-            let ws_url = loom_hook_ws_url();
-
-            match connect(ws_url.as_str()) {
-                Ok((mut socket, _)) => {
+            use tungstenite::Message;
+            if control.cancelled() || !crate::loom_bridge_client::enabled() {
+                break;
+            }
+            control.detach();
+            match crate::loom_bridge_client::connect(Duration::from_millis(250)) {
+                Ok(mut socket) => {
+                    let Ok(interrupt) = socket.get_ref().sock.interrupt_handle() else {
+                        break;
+                    };
+                    if control.attach(interrupt).is_err() {
+                        break;
+                    }
                     console_line!("[LoomHook] Listener connected to Loom.");
                     if let Err(error) =
                         socket.send(Message::Text(loom_hook_listener_subscription_message()))
                     {
                         console_error_line!("[LoomHook] Failed to subscribe listener: {error}");
                         emit_backend_connection_state(&app, &state, false);
-                        thread::sleep(Duration::from_secs(2));
+                        control.wait(Duration::from_secs(2));
                         continue;
                     }
                     let settings_request_id = format!("settings:{}", Uuid::new_v4());
@@ -29,15 +40,25 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<LoomHookState>>) {
                     )) {
                         console_error_line!("[LoomHook] Failed to request settings: {error}");
                         emit_backend_connection_state(&app, &state, false);
-                        thread::sleep(Duration::from_secs(2));
+                        control.wait(Duration::from_secs(2));
                         continue;
                     }
                     emit_backend_connection_state(&app, &state, true);
 
                     // Main Read Loop
                     loop {
+                        if control.cancelled() {
+                            break;
+                        }
+                        socket
+                            .get_mut()
+                            .sock
+                            .operation_deadline(Duration::from_millis(250));
                         match socket.read() {
                             Ok(Message::Text(text)) => {
+                                if control.cancelled() {
+                                    break;
+                                }
                                 if text.len() > MAX_LOOM_JSON_RESPONSE_BYTES {
                                     console_error_line!(
                                         "[LoomHook] Listener message exceeded the size limit"
@@ -76,6 +97,9 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<LoomHookState>>) {
                                                 // same change to the session file. A concurrent
                                                 // workflow sync will then also observe empty data.
                                                 thread::sleep(Duration::from_millis(120));
+                                                if control.cancelled() {
+                                                    break;
+                                                }
                                                 if let Err(error) =
                                                     crate::clear_persisted_session_library(
                                                         &app, action,
@@ -123,6 +147,11 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<LoomHookState>>) {
                             Ok(Message::Close(_)) => {
                                 break;
                             }
+                            Err(tungstenite::Error::Io(error))
+                                if matches!(
+                                    error.kind(),
+                                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                                ) => {}
                             Err(_) => {
                                 break;
                             }
@@ -137,7 +166,7 @@ fn start_listener(app: AppHandle, state: Arc<Mutex<LoomHookState>>) {
                     console_line!("[LoomHook] Connection failed. Retrying...");
                 }
             }
-            thread::sleep(Duration::from_secs(1));
+            control.wait(Duration::from_secs(1));
         }
-    });
+    })
 }
