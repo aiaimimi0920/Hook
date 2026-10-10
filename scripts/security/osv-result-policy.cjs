@@ -6,9 +6,24 @@ function requireCondition(condition, message) {
   if (!condition) throw new Error(message);
 }
 function readJson(file) {
-  const stat = fs.statSync(file);
-  requireCondition(stat.isFile() && stat.size > 0 && stat.size <= 64 * 1024 * 1024, 'Invalid report size.');
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+  const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
+  try {
+    // Inspect and read the same opened file, even if its path is replaced.
+    const stat = fs.fstatSync(fd);
+    requireCondition(stat.isFile() && stat.size > 0 && stat.size <= 64 * 1024 * 1024, 'Invalid report size.');
+    // One extra byte detects growth without an unbounded read of mutable evidence.
+    const bytes = Buffer.alloc(stat.size + 1);
+    let length = 0;
+    while (length < bytes.length) {
+      const count = fs.readSync(fd, bytes, length, bytes.length - length, length);
+      if (count === 0) break;
+      length += count;
+    }
+    requireCondition(length === stat.size, 'Report changed while reading.');
+    return JSON.parse(bytes.toString('utf8', 0, length));
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 function validateScan(result, exitCode, lockfiles, { allVulns = false } = {}) {
   requireCondition(exitCode === 0 || exitCode === 1, 'Scanner operational failure.');
