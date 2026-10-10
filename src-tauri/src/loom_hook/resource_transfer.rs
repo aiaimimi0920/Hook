@@ -193,7 +193,7 @@ async fn fetch_surface_resource_from_loom(
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface resource: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
-    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(20)))
+    let client = crate::network_proxy::loom_client(base, Some(Duration::from_secs(20)))
         .map_err(|error| format!("build Surface resource client: {error}"))?;
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let request = authorization

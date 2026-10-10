@@ -62,7 +62,7 @@ async fn poll_remote_surface_once(
         .map_err(|error| format!("read Loom manifest for Surface stream: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
-    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(30)))
+    let client = crate::network_proxy::loom_client(base, Some(Duration::from_secs(30)))
         .map_err(|error| format!("build Surface stream client: {error}"))?;
     let response = authorization
         .apply(client.get(format!(

@@ -16,7 +16,8 @@ function Write-Utf8NoBom {
 }
 function Get-Purl {
     param([string]$Type, [string]$Name, [string]$PackageVersion)
-    return "pkg:${Type}/$([Uri]::EscapeDataString($Name))@$([Uri]::EscapeDataString($PackageVersion))"
+    $encodedName = (($Name -split '/' | ForEach-Object { [Uri]::EscapeDataString($_) }) -join '/')
+    return "pkg:${Type}/${encodedName}@$([Uri]::EscapeDataString($PackageVersion))"
 }
 function Add-Component {
     param([System.Collections.Specialized.OrderedDictionary]$Map, [string]$Type, [string]$Name, [string]$PackageVersion)
@@ -27,29 +28,11 @@ function Add-Component {
 }
 
 $componentsByRef = [ordered]@{}
-$cargoLocks = @(
-    "src-tauri\Cargo.lock",
-    "src-tauri\crates\drag\Cargo.lock",
-    "src-tauri\crates\scap-direct3d\Cargo.lock"
-)
-foreach ($relativePath in $cargoLocks) {
-    $text = [System.IO.File]::ReadAllText((Join-Path $repoRoot $relativePath), [System.Text.Encoding]::UTF8)
-    foreach ($match in [regex]::Matches($text, '(?ms)^\[\[package\]\]\s+name\s*=\s*"([^"]+)"\s+version\s*=\s*"([^"]+)"')) {
-        Add-Component -Map $componentsByRef -Type "cargo" -Name $match.Groups[1].Value -PackageVersion $match.Groups[2].Value
-    }
-}
-
-$packageLockPath = Join-Path $repoRoot "package-lock.json"
-$previousPath = $env:HOOK_SBOM_PACKAGE_LOCK
-try {
-    $env:HOOK_SBOM_PACKAGE_LOCK = $packageLockPath
-    $nodeOutput = & node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync(process.env.HOOK_SBOM_PACKAGE_LOCK,'utf8'));process.stdout.write(JSON.stringify(Object.values(p.packages||{}).filter(x=>x&&x.name&&x.version).map(x=>({name:x.name,version:x.version}))));" 2>$null
-    if ($LASTEXITCODE -ne 0) { throw "Node.js failed to parse package-lock.json for the SBOM." }
-} finally {
-    $env:HOOK_SBOM_PACKAGE_LOCK = $previousPath
-}
-foreach ($entry in @(($nodeOutput -join "`n") | ConvertFrom-Json)) {
-    Add-Component -Map $componentsByRef -Type "npm" -Name ([string]$entry.name) -PackageVersion ([string]$entry.version)
+$nodeOutput = & node (Join-Path $PSScriptRoot "release\sbom-inventory.cjs") inventory $repoRoot
+if ($LASTEXITCODE -ne 0) { throw "Failed to read authoritative lockfile inventory." }
+$inventory = ($nodeOutput -join "`n") | ConvertFrom-Json
+foreach ($entry in $inventory) {
+    Add-Component -Map $componentsByRef -Type ([string]$entry.ecosystem) -Name ([string]$entry.name) -PackageVersion ([string]$entry.version)
 }
 
 $components = @($componentsByRef.Values | Sort-Object { [string]$_['bom-ref'] })

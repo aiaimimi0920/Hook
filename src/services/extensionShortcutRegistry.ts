@@ -1,5 +1,5 @@
 import { DEFAULT_SHORTCUTS, parseShortcutAlternatives, type ShortcutCandidate } from "./shortcuts";
-import { extensionContributionPayload, type ContributionSnapshot } from "./extensionProtocol";
+import { extensionContributionPayload, isTrustedExtensionContribution, type ContributionSnapshot } from "./extensionProtocol";
 import { compileExtensionWhen, type ExtensionWhenPredicate } from "./extensionWhen";
 import { currentExtensionTarget, currentExtensionWhenContext } from "./extensionContext";
 import { extensionCommandRouter } from "./extensionCommandRouter";
@@ -54,7 +54,9 @@ export const buildExtensionShortcutBindings = (snapshot: ContributionSnapshot): 
         const keys = payload.keys;
         const commandId = shortcut.commandId;
         const candidates = typeof keys === "string" ? parseShortcutAlternatives(keys) : [];
-        if (!commandId || candidates.length === 0) {
+        const command = snapshot.contributions.commands.find((entry) => (entry.commandId ?? entry.id) === commandId);
+        if (!commandId || candidates.length === 0 || !isTrustedExtensionContribution(snapshot, shortcut)
+            || !command || command.pluginId !== shortcut.pluginId || command.scopeId !== shortcut.scopeId) {
             rejected.push(shortcut.id);
             continue;
         }

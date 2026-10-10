@@ -1,6 +1,55 @@
 // Verifies image limits and clipboard-cache directory cleanup policies.
 
     #[test]
+    fn remote_image_tls_transports_pin_the_validated_address_and_deny_redirects() {
+        use std::io::{Read, Write};
+        let _guard = crate::network_proxy::tests::TEST_GUARD.lock().unwrap();
+        crate::network_proxy::tests::use_system_proxy();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        for redirect in [false, true] {
+            let mut builders = vec![reqwest::Client::builder().use_rustls_tls().no_proxy()];
+            #[cfg(windows)]
+            builders.push(reqwest::Client::builder().use_native_tls().no_proxy());
+            for builder in builders {
+                let source = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+                let target = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+                target.set_nonblocking(true).unwrap();
+                let source_addr = source.local_addr().unwrap();
+                let target_addr = target.local_addr().unwrap();
+                let worker = std::thread::spawn(move || {
+                    source.set_nonblocking(true).unwrap();
+                    let deadline = Instant::now() + Duration::from_secs(5);
+                    let mut stream = loop {
+                        if let Ok((stream, _)) = source.accept() { break stream; }
+                        assert!(Instant::now() < deadline, "pinned socket was not contacted");
+                        std::thread::sleep(Duration::from_millis(5));
+                    };
+                    stream.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+                    let mut request = [0u8; 4096];
+                    let size = stream.read(&mut request).unwrap();
+                    assert!(String::from_utf8_lossy(&request[..size]).contains("validated-image.invalid"));
+                    let reply = if redirect {
+                        format!("HTTP/1.1 302 Found\r\nLocation: http://{target_addr}/private\r\nContent-Length: 0\r\n\r\n")
+                    } else {
+                        "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok".to_string()
+                    };
+                    stream.write_all(reply.as_bytes()).unwrap();
+                });
+                // This non-resolving hostname succeeds only through the already-validated pin.
+                let url = ValidatedRemoteImageUrl {
+                    normalized: format!("http://validated-image.invalid:{}/image", source_addr.port()),
+                    host: "validated-image.invalid".to_string(), resolved: source_addr,
+                };
+                let result = runtime.block_on(download_remote_image_bytes_with_client(&url, None, builder));
+                worker.join().unwrap();
+                if redirect { assert!(result.unwrap_err().contains("HTTP 302")); }
+                else { assert_eq!(result.unwrap().1, b"ok"); }
+                assert_eq!(target.accept().unwrap_err().kind(), std::io::ErrorKind::WouldBlock);
+            }
+        }
+    }
+
+    #[test]
     fn image_data_decoder_rejects_oversized_payload_before_decoding() {
         let oversized = format!(
             "data:image/png;base64,{}",

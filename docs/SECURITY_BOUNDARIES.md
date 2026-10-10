@@ -64,11 +64,60 @@ Its reqwest client pins a validated address for direct connections, but also
 applies the configured network proxy. Do not infer control over a remote proxy's
 DNS resolution from reqwest's direct-host override.
 
-The Windows PowerShell HttpClient fallback disables redirects and enforces the
-encoded-byte limit, but receives a URL rather than the validated socket address.
-It must not be described as providing the same DNS pinning as the direct
-reqwest path. Preserve prevalidation and bounded reads; complete proxy/fallback
-destination enforcement remains a security review boundary.
+Windows compatibility fallback uses reqwest with Schannel instead of a separate
+PowerShell downloader. It receives the same validated socket address and shares
+the primary transport's redirect and byte limits. The original hostname remains
+the HTTP Host and TLS certificate/SNI identity. Other HTTP clients explicitly
+retain Rustls. The remote-proxy DNS limitation above still applies.
+
+Surface and LiveRelay async/blocking clients reject redirects regardless of
+whether a private CA is configured. Changing origins requires explicit endpoint
+configuration and authorization, not an HTTP redirect.
+
+Art deliveries accept at most 64 candidates; automatic prefetch selects at most
+three, selected-first. The native image-search cache uses a cross-process lock,
+a 512 MiB / 1024-file quota and a 64 MiB admission reservation. A full cache
+rejects new downloads without evicting images referenced by persisted Units.
+Temporary writes are atomically published; crash leftovers count against quota.
+This bounds cooperative Hook writers, not arbitrary local filesystem writers or
+the disk space consumed by other applications. No historical user assets are
+automatically deleted by this policy.
+
+## Extension permission authority
+
+Hook treats contribution permissions as requested privileges, not approvals.
+Only `trusted` plugin bindings can register executable shortcuts, commands or
+menus; the command owner and scope must match. Missing host-owned
+`effectivePermissions` grants no resource access. The entire operation is bound
+to the current extension session, exact snapshot, and Unit revision, including
+after asynchronous image preparation and before applying returned effects.
+
+Before reading images or attachments, Hook asks Loom to revalidate installed
+package trust and persistent grants through `resource.authorization.v1`. Cached
+overlay actions use a live check without a ticket. Uploads and attachment/context
+invocations use short-lived, single-use tickets, issued after any prerequisite
+OCR finishes. Loom consumes and revalidates before staging resources and checks
+grants again before returning runtime effects. Revocation cannot retroactively
+erase data already received or undo side effects already executed.
+
+This requires a coordinated Hook/Loom upgrade and does not itself authenticate
+the legacy loopback WebSocket. Its trusted-channel migration is still pending;
+session IDs and a successful protocol handshake are not proof of peer identity.
+
+## Emergency watchdog recovery authority
+
+The watchdog authenticates the held parent process's executable path and the
+creator of its inherited key pipe before enabling recovery or emergency input.
+The capturing process keeps an ephemeral Ed25519 signing key; only its public key
+crosses that pipe. Recovery journals are signed, bounded to 64 KiB and 16 records,
+and bind the Hook process ID. The same authenticated pipe streams the current
+snapshot, including revocation; the watchdog restores only its latest in-memory
+snapshot, never a journal reloaded from a replayable filesystem path. Unsigned
+legacy JSON journals are not accepted.
+The existing target PID/thread checks remain in force. This is not a claim of
+protection against code injection into a trusted Hook process or arbitrary
+same-user process-memory access; native UIAccess/crash recovery still requires
+separate interactive acceptance.
 
 ## Native input lifecycle and performance
 

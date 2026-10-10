@@ -53,7 +53,7 @@ const normalizeCandidate = (
 };
 
 const normalizeCandidateList = (value: unknown): ArtResultCandidate[] =>
-    Array.isArray(value)
+    Array.isArray(value) && value.length <= 64
         ? value
               .map((candidate) => {
                   const record = asRecord(candidate);

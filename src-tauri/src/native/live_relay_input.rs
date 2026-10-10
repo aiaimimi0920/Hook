@@ -136,7 +136,7 @@ fn poll_live_relay_events_blocking(
     after: u64,
 ) -> Result<LiveRelayEventsResponse, String> {
     let client =
-        crate::network_proxy::blocking_client(&relay.base_url, Some(Duration::from_secs(3)))
+        crate::network_proxy::loom_blocking_client(&relay.base_url, Some(Duration::from_secs(3)))
             .map_err(|error| format!("build Loom live control client: {error}"))?;
     let mut url = live_relay_session_url(&relay.base_url, &relay.live_session_id, Some("events"))?;
     url.query_pairs_mut()
@@ -235,7 +235,7 @@ fn send_live_relay_input_blocking(
     }
     let body = build_live_relay_input_body(relay, input, next_control)?;
     let client =
-        crate::network_proxy::blocking_client(&relay.base_url, Some(Duration::from_secs(10)))
+        crate::network_proxy::loom_blocking_client(&relay.base_url, Some(Duration::from_secs(10)))
             .map_err(|error| format!("build Loom live input client: {error}"))?;
     let url = live_relay_session_url(&relay.base_url, &relay.live_session_id, Some("input"))?;
     send_live_relay_json_blocking(

@@ -30,7 +30,7 @@ async fn attach_surface_via_loom(
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface attach: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
-    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(10)))
+    let client = crate::network_proxy::loom_client(base, Some(Duration::from_secs(10)))
         .map_err(|error| format!("build Surface HTTP client: {error}"))?;
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let send_json = |request: reqwest::RequestBuilder| async {
@@ -119,7 +119,7 @@ async fn remount_surface_via_loom(
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface remount: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
-    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(10)))
+    let client = crate::network_proxy::loom_client(base, Some(Duration::from_secs(10)))
         .map_err(|error| format!("build Surface remount client: {error}"))?;
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let mut mount_url = reqwest::Url::parse(base)

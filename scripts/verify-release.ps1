@@ -146,6 +146,9 @@ $cyclone = Read-HookBoundedText -Path (Join-Path $releaseRoot "sbom\Hook-$versio
 $spdx = Read-HookBoundedText -Path (Join-Path $releaseRoot "sbom\Hook-$versionId.spdx.json") -MaxBytes 16MB | ConvertFrom-Json
 Assert-ReleaseCondition ($cyclone.bomFormat -eq "CycloneDX" -and $cyclone.specVersion -eq "1.6" -and $cyclone.metadata.component.version -eq $versionId -and @($cyclone.components).Count -gt 0) "CycloneDX SBOM contract failed."
 Assert-ReleaseCondition ($spdx.spdxVersion -eq "SPDX-2.3" -and $spdx.name -eq "Hook-$versionId" -and @($spdx.packages).Count -gt 0) "SPDX SBOM contract failed."
+& node (Join-Path $PSScriptRoot "release\sbom-inventory.cjs") verify $repoRoot `
+    (Join-Path $releaseRoot "sbom\Hook-$versionId.cdx.json") (Join-Path $releaseRoot "sbom\Hook-$versionId.spdx.json")
+Assert-ReleaseCondition ($LASTEXITCODE -eq 0) "SBOM inventory does not match source lockfiles."
 
 if ($RunSmoke) {
     if ([string]::IsNullOrWhiteSpace($SmokeArtifactRoot)) {

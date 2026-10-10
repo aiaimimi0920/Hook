@@ -207,7 +207,7 @@ pub fn apply_to_url(
 /// Building a `reqwest::Client` per request throws away the connection pool and the TLS
 /// configuration every time, so nothing is ever reused and every call pays a fresh
 /// handshake — on a polling path, once per iteration. Prefer this over
-/// `apply_to_url(Client::builder(), ..).build()` at any call site that runs more than once.
+/// `apply_to_url(Client::builder().use_rustls_tls(), ..).build()` at any call site that runs more than once.
 pub(crate) fn shared_client(
     endpoint: &str,
     timeout: Option<Duration>,
@@ -219,8 +219,33 @@ pub(crate) fn blocking_client(
     endpoint: &str,
     timeout: Option<Duration>,
 ) -> Result<reqwest::blocking::Client, ClientBuildError> {
+    build_blocking_client(endpoint, timeout, false)
+}
+
+// Loom authorization and private-CA policy are scoped to the requested origin.
+pub(crate) fn loom_client(
+    endpoint: &str,
+    timeout: Option<Duration>,
+) -> Result<Client, ClientBuildError> {
+    shared_client_with(endpoint, timeout, "loom-no-redirect", |builder| {
+        builder.redirect(reqwest::redirect::Policy::none())
+    })
+}
+
+pub(crate) fn loom_blocking_client(
+    endpoint: &str,
+    timeout: Option<Duration>,
+) -> Result<reqwest::blocking::Client, ClientBuildError> {
+    build_blocking_client(endpoint, timeout, true)
+}
+
+fn build_blocking_client(
+    endpoint: &str,
+    timeout: Option<Duration>,
+    deny_redirects: bool,
+) -> Result<reqwest::blocking::Client, ClientBuildError> {
     let trust = crate::loom_tls::for_endpoint(endpoint)?;
-    let mut builder = reqwest::blocking::Client::builder();
+    let mut builder = reqwest::blocking::Client::builder().use_rustls_tls();
     if endpoint_is_loopback(endpoint) {
         builder = builder.no_proxy();
     } else {
@@ -232,6 +257,9 @@ pub(crate) fn blocking_client(
     }
     if let Some(timeout) = timeout {
         builder = builder.timeout(timeout);
+    }
+    if deny_redirects {
+        builder = builder.redirect(reqwest::redirect::Policy::none());
     }
     if let Some(trust) = trust {
         builder = trust.apply_blocking(builder);
@@ -281,7 +309,7 @@ fn shared_client_with_trust(
 
     // Built outside the cache lock: `apply_to_url` takes the proxy lock, and holding both
     // would invert the order `apply_loom_settings` uses.
-    let mut builder = apply_to_url(Client::builder(), endpoint)?;
+    let mut builder = apply_to_url(Client::builder().use_rustls_tls(), endpoint)?;
     if let Some(timeout) = timeout {
         builder = builder.timeout(timeout);
     }
@@ -308,12 +336,16 @@ fn shared_client_with_trust(
 }
 
 #[cfg(test)]
-mod tests {
+#[path = "network_proxy_redirect_tests.rs"]
+mod redirect_tests;
+
+#[cfg(test)]
+pub(crate) mod tests {
     use super::*;
 
     /// Every test here mutates the same process-wide proxy setting and client cache, so
     /// they must not overlap.
-    static TEST_GUARD: Mutex<()> = Mutex::new(());
+    pub(crate) static TEST_GUARD: Mutex<()> = Mutex::new(());
 
     fn cached_client_count() -> usize {
         lock_client_cache().clients.len()
@@ -386,7 +418,7 @@ mod tests {
         assert!(outcome.is_err(), "the poisoning thread must have panicked");
     }
 
-    fn use_system_proxy() {
+    pub(crate) fn use_system_proxy() {
         apply_loom_settings(&serde_json::json!({
             "network": { "hook": { "mode": "system" } }
         }))
@@ -410,8 +442,16 @@ mod tests {
             *proxy_store().read().unwrap(),
             RuntimeProxy::Custom("socks5://127.0.0.1:7890".to_owned())
         );
-        assert!(apply_to_url(reqwest::Client::builder(), "https://example.com").is_ok());
-        assert!(apply_to_url(reqwest::Client::builder(), "http://127.0.0.1:8765").is_ok());
+        assert!(apply_to_url(
+            reqwest::Client::builder().use_rustls_tls(),
+            "https://example.com"
+        )
+        .is_ok());
+        assert!(apply_to_url(
+            reqwest::Client::builder().use_rustls_tls(),
+            "http://127.0.0.1:8765"
+        )
+        .is_ok());
         use_system_proxy();
     }
 

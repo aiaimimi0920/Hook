@@ -26,7 +26,17 @@ describe("OCR and translation shortcut visibility", () => {
     let dispose: () => void;
     const requests: string[] = [];
 
+    it("rejects a cached overlay toggle when the live grant was revoked", async () => {
+        graphStore.actions.replaceUnits([translationUnit(true)]);
+        const before = JSON.stringify(attachments());
+        vi.mocked(extensionBridgeClient.authorizeResources).mockRejectedValue(new Error("grant revoked"));
+        await expect(extensionCommandRouter.execute(ocrToggle)).rejects.toThrow("grant revoked");
+        expect(JSON.stringify(attachments())).toBe(before);
+        expect(extensionBridgeClient.invoke).not.toHaveBeenCalled();
+    });
+
     beforeEach(() => {
+        vi.spyOn(extensionBridgeClient, "authorizeResources").mockResolvedValue("extension-auth:00000000-0000-0000-0000-000000000001");
         requests.length = 0;
         vi.spyOn(syncService, "performWorkflowSync").mockResolvedValue(undefined);
         graphStore.actions.replaceUnits([translationUnit(false)]);

@@ -64,7 +64,7 @@ fn publish_live_relay_observation_blocking(
 fn live_relay_observation_client(
     relay: &LiveRelaySession,
 ) -> Result<reqwest::blocking::Client, String> {
-    crate::network_proxy::blocking_client(&relay.base_url, Some(Duration::from_secs(3)))
+    crate::network_proxy::loom_blocking_client(&relay.base_url, Some(Duration::from_secs(3)))
         .map_err(|error| format!("build Loom live observation client: {error}"))
 }
 

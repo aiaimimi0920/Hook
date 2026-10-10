@@ -12,6 +12,7 @@ import { ocrAttachment, ocrCommand, success, toggleCommand, translatedResponse,
 
 describe("declared OCR text command context", () => {
     beforeEach(() => {
+        vi.spyOn(extensionBridgeClient, "authorizeResources").mockResolvedValue("extension-auth:00000000-0000-0000-0000-000000000001");
         vi.spyOn(syncService, "performWorkflowSync").mockResolvedValue(undefined);
         graphStore.actions.replaceUnits([translationUnit()]);
         selectionActions.set(["translation-unit"]);
@@ -76,6 +77,11 @@ describe("declared OCR text command context", () => {
         });
         await new ExtensionCommandRouter().execute(toggleCommand);
         expect(invoke.mock.calls.map(([request]) => request.commandId)).toEqual([ocrCommand, toggleCommand]);
+        const authorize = vi.mocked(extensionBridgeClient.authorizeResources);
+        expect(authorize.mock.calls.map(([request]) => [request.commandId, request.checkOnly ?? false])).toEqual([
+            [toggleCommand, true], [ocrCommand, false], [toggleCommand, false],
+        ]);
+        expect(authorize.mock.invocationCallOrder[2]).toBeGreaterThan(invoke.mock.invocationCallOrder[0]);
         expect(invoke.mock.calls[1][0].input).toMatchObject({ sourceAttachment: { revision: 1, digest: expect.stringMatching(/^[a-f0-9]{64}$/u) } });
         expect(graphStore.units[0].data.extensionState?.attachments).toHaveLength(2);
     });

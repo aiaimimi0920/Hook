@@ -65,7 +65,7 @@ async fn get_live_member_snapshot_http(
     authorization: &crate::device_session::DeviceSessionAuthorization,
     session_id: &str,
 ) -> Result<serde_json::Value, String> {
-    let client = crate::network_proxy::shared_client(base_url, Some(Duration::from_secs(10)))
+    let client = crate::network_proxy::loom_client(base_url, Some(Duration::from_secs(10)))
         .map_err(|error| format!("build Loom live recovery client: {error}"))?;
     let url = live_relay_session_url(base_url, session_id, None)?;
     send_live_relay_json(

@@ -12,7 +12,7 @@ import {
 } from "./extensionBridgeProtocol";
 
 type PendingRequest = {
-    resolve: (value: ExtensionResult) => void;
+    resolve: (value: unknown) => void;
     reject: (error: Error) => void;
     timeout: ReturnType<typeof setTimeout>;
 };
@@ -41,7 +41,7 @@ const invokeTimeout = (value: number | undefined): number => {
     return Math.min(Math.max(Math.trunc(value), MIN_INVOKE_TIMEOUT_MS), MAX_INVOKE_TIMEOUT_MS);
 };
 
-/** Maintains one reconnecting extension session over a Hook-authenticated WebSocket. */
+/** Maintains one reconnecting protocol session; the Hook handshake is not peer authentication. */
 export class ExtensionBridgeClient {
     private socket: WebSocket | null = null;
     private stopped = true;
@@ -100,6 +100,7 @@ export class ExtensionBridgeClient {
         unitAttachments?: readonly ExtensionUnitAttachment[];
         userGestureToken?: string;
         timeoutMs?: number;
+        authorizationId?: string;
     }): Promise<ExtensionResult> {
         const sessionId = this.extensionSessionId;
         const snapshot = extensionRegistry.snapshot();
@@ -125,6 +126,7 @@ export class ExtensionBridgeClient {
                     ...(command.userGestureToken ? { userGestureToken: command.userGestureToken } : {}),
                 },
                 ...(command.resourceUploads?.length ? { resourceUploads: command.resourceUploads } : {}),
+                ...(command.authorizationId ? { authorizationId: command.authorizationId } : {}),
             },
         };
         const socket = this.socket;
@@ -134,8 +136,44 @@ export class ExtensionBridgeClient {
                 this.pending.delete(id);
                 reject(new Error("extension command timed out"));
             }, deadline);
-            this.pending.set(id, { resolve, reject, timeout });
+            this.pending.set(id, { resolve: (value) => resolve(parseExtensionResult(value)), reject, timeout });
             if (!socket || !this.send(socket, payload)) return;
+        });
+    }
+
+    authorizeResources(command: {
+        pluginId: string; commandId: string; target: ExtensionTarget; checkOnly?: boolean;
+    }): Promise<string | undefined> {
+        const sessionId = this.extensionSessionId;
+        const snapshot = extensionRegistry.snapshot();
+        const socket = this.socket;
+        if (!sessionId || !snapshot || socket?.readyState !== 1) {
+            return Promise.reject(new Error("extension bridge is disconnected"));
+        }
+        if (this.pending.size >= 128) return Promise.reject(new Error("extension bridge request limit reached"));
+        const id = requestId("extension-authorize");
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                this.pending.delete(id);
+                reject(new Error("extension authorization timed out"));
+            }, 5_000);
+            this.pending.set(id, { timeout, reject, resolve: (value) => {
+                if (command.checkOnly) {
+                    if ((value as { authorized?: unknown } | null)?.authorized !== true) {
+                        throw new Error("extension authority check was denied");
+                    }
+                    resolve(undefined);
+                    return;
+                }
+                const authorizationId = (value as { authorizationId?: unknown } | null)?.authorizationId;
+                if (typeof authorizationId !== "string" || !/^extension-auth:[0-9a-f-]{36}$/u.test(authorizationId)) {
+                    throw new Error("invalid extension resource authorization");
+                }
+                resolve(authorizationId);
+            } });
+            this.send(socket, { method: "loom.extension.command.authorize", params: {
+                requestId: id, sessionId, ...command, snapshotGeneration: snapshot.generation,
+            } });
         });
     }
 
@@ -218,7 +256,7 @@ export class ExtensionBridgeClient {
             }
             try {
                 const data = parseExtensionHandshakeData(response.data);
-                if (!["contribution.snapshot", "command.invoke"].every((feature) => data.features.includes(feature))) {
+                if (!["contribution.snapshot", "command.invoke", "resource.authorization.v1"].every((feature) => data.features.includes(feature))) {
                     throw new Error("extension handshake omitted a required feature");
                 }
                 this.extensionHandshakeRequestId = null;
@@ -239,7 +277,7 @@ export class ExtensionBridgeClient {
             return;
         }
         try {
-            pending.resolve(parseExtensionResult(response.data));
+            pending.resolve(response.data);
         } catch (error) {
             pending.reject(error instanceof Error ? error : new Error(String(error)));
         }
@@ -254,7 +292,7 @@ export class ExtensionBridgeClient {
                 requestId: id,
                 hookSessionId,
                 ...extensionProtocolIdentity,
-                requiredFeatures: ["contribution.snapshot", "command.invoke"],
+                requiredFeatures: ["contribution.snapshot", "command.invoke", "resource.authorization.v1"],
                 optionalFeatures: ["shortcut.registry", "menu.registry", "notice.effects", "ocr-text.v1"],
             },
         });

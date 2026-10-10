@@ -74,6 +74,7 @@ tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 clipboard-win = "5.4.1"
 
 [target.'cfg(windows)'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["native-tls"] }
 cpal = "0.17.3"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
@@ -83,6 +84,8 @@ windows-sys = { version = "0.61", features = [
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_Storage_FileSystem",
     "Win32_System_SystemInformation",
+    "Win32_System_Pipes",
+    "Win32_System_Threading",
 ] }
 windows = { version = "0.60.0", features = [
     "System",

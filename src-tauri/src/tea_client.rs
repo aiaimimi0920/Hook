@@ -93,7 +93,9 @@ impl TeaIntakeConfig {
 impl TeaIntakeClient {
     pub fn new(config: TeaIntakeConfig) -> Self {
         let http = crate::network_proxy::apply_to_url(
-            reqwest::Client::builder().timeout(Duration::from_secs(20)),
+            reqwest::Client::builder()
+                .use_rustls_tls()
+                .timeout(Duration::from_secs(20)),
             &config.base_url,
         )
         .expect("validated Hook proxy settings should build a Tea client")

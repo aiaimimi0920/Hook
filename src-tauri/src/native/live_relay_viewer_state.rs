@@ -30,7 +30,7 @@ async fn bootstrap_live_viewer_cursor(
     request: &LiveRelayJoinRequest,
     attached: &serde_json::Value,
 ) -> Result<u64, String> {
-    let client = crate::network_proxy::shared_client(base_url, Some(Duration::from_secs(3)))
+    let client = crate::network_proxy::loom_client(base_url, Some(Duration::from_secs(3)))
         .map_err(|error| format!("build Loom live bootstrap client: {error}"))?;
     let mut url = live_relay_session_url(base_url, &request.live_session_id, Some("events"))?;
     url.query_pairs_mut()
@@ -163,7 +163,7 @@ fn close_live_viewer_if_terminal(relay: &LiveRelaySession) -> Result<bool, Strin
     }
     // events/resume 对 closed 会话返回 404；member snapshot 仍保留精确关闭事实。
     let client =
-        crate::network_proxy::blocking_client(&relay.base_url, Some(Duration::from_secs(3)))
+        crate::network_proxy::loom_blocking_client(&relay.base_url, Some(Duration::from_secs(3)))
             .map_err(|error| format!("build Loom live terminal client: {error}"))?;
     let url = live_relay_session_url(&relay.base_url, &relay.live_session_id, None)?;
     let value = send_live_relay_worker_json_blocking(

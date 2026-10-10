@@ -56,6 +56,7 @@ const snapshot = (
         packageDigest: "a".repeat(64),
         trustStatus: "trusted",
         permissionGrantDigest: "b".repeat(64),
+        effectivePermissions: ["hook.unit.attachments.read"],
         scopeId: "scope-demo",
     }],
     contributions: {
@@ -85,6 +86,7 @@ const result = (overrides: Partial<ExtensionResult> = {}): ExtensionResult => ({
 
 describe("ExtensionCommandRouter", () => {
     beforeEach(() => {
+        vi.spyOn(extensionBridgeClient, "authorizeResources").mockResolvedValue("extension-auth:00000000-0000-0000-0000-000000000001");
         graphStore.actions.replaceUnits([unit()]);
         selectionActions.set(["unit-1"]);
         extensionRegistry.beginSession(sessionId);

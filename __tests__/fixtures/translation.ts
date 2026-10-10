@@ -27,6 +27,7 @@ export const translationUnit = (withOcr = true): Unit => ({
 
 export const translationSnapshot = (translationPlugin = translator) => {
     const plugins = ["neuro.official/ocr", translationPlugin].map((id) => ({ id, version: "1.0.0",
+        effectivePermissions: ["hook.unit.attachments.read", "hook.unit.attachments.write", ...(id === "neuro.official/ocr" ? ["hook.unit.image.read"] : [])],
         packageDigest: "a".repeat(64), trustStatus: "trusted", permissionGrantDigest: "b".repeat(64), scopeId: `${id}-scope` }));
     const contribution = (pluginId: string, id: string, extra: Record<string, unknown> = {}) =>
         ({ id, pluginId, scopeId: `${pluginId}-scope`, ...extra });

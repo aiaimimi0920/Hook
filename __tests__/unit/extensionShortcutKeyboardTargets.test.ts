@@ -19,7 +19,8 @@ const createRegistry = () => {
         contributions: {
             shortcuts: [{ id: "neuro.official/ocr.shortcut.recognize", pluginId: "neuro.official/ocr",
                 scopeId: "ocr-test", commandId, payload: { schema: null, payload: { keys: "ctrl+4", global: true } } }],
-            commands: [], menus: [], settings: [], dataTypes: [], renderers: [], unitOverlays: [],
+            commands: [{ id: commandId, commandId, pluginId: "neuro.official/ocr", scopeId: "ocr-test" }],
+            menus: [], settings: [], dataTypes: [], renderers: [], unitOverlays: [],
             backgroundTasks: [], resourceProviders: [], diagnostics: [], eventSubscriptions: [],
         },
     }));

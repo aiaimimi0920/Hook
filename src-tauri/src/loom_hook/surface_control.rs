@@ -13,7 +13,7 @@ async fn send_surface_lifecycle_to_loom(
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface lifecycle: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
-    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(10)))
+    let client = crate::network_proxy::loom_client(base, Some(Duration::from_secs(10)))
         .map_err(|error| format!("build Surface lifecycle client: {error}"))?;
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let lifecycle_url = surface_instance_endpoint(base, instance_id, "lifecycle")?;
@@ -38,7 +38,7 @@ async fn send_surface_confirmation_to_loom(
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface confirmation: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
-    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(10)))
+    let client = crate::network_proxy::loom_client(base, Some(Duration::from_secs(10)))
         .map_err(|error| format!("build Surface confirmation client: {error}"))?;
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     let request = authorization
@@ -62,7 +62,7 @@ async fn send_surface_cancel_to_loom(
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|error| format!("read Loom manifest for Surface cancellation: {error}"))?;
     let base = manifest.transport.base_url.trim_end_matches('/');
-    let client = crate::network_proxy::shared_client(base, Some(Duration::from_secs(10)))
+    let client = crate::network_proxy::loom_client(base, Some(Duration::from_secs(10)))
         .map_err(|error| format!("build Surface cancellation client: {error}"))?;
     let authorization = crate::device_session::authorize_surface_request(app, &manifest).await?;
     request_body["deviceId"] = serde_json::Value::String(authorization.device_id.clone());

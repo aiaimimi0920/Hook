@@ -70,6 +70,21 @@ describe("imageSearchCandidateCache helpers", () => {
         expect(ordered.map((candidate) => candidate.index)).toEqual([2, 0, 1]);
     });
 
+    it("prefetches only three candidates, preserving selection outside the first three", async () => {
+        const candidates = Array.from({ length: 64 }, (_, index) => ({ index, imageUrl: `https://example.com/${index}.png` }));
+        vi.mocked(api.cacheRemoteImageAsset).mockImplementation(async (url) => `C:/cache/${url.split("/").pop()}`);
+        graphStore.setUnits([{
+            id: "bounded-prefetch", type: "art", artId: "image-search", x: 0, y: 0, w: 320, h: 200,
+            params: {}, inputs: [], outputs: [],
+            data: { resultCandidates: candidates, selectedResultIndex: 63 },
+        }]);
+        await prefetchImageSearchCandidateAssets({ unitId: "bounded-prefetch", candidates, selectedIndex: 63 });
+        expect(api.cacheRemoteImageAsset).toHaveBeenCalledTimes(3);
+        expect(vi.mocked(api.cacheRemoteImageAsset).mock.calls.map(([url]) => url)).toEqual([
+            "https://example.com/63.png", "https://example.com/0.png", "https://example.com/1.png",
+        ]);
+    });
+
     it("preserves cached runtime fields across repeated image-search deliveries", () => {
         const merged = mergeImageSearchCandidateRuntimeState(
             [

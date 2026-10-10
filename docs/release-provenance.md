@@ -86,6 +86,22 @@ The tag workflow uses GitHub OIDC build-provenance and SBOM attestations. Runs
 for one effective tag share a non-cancelling concurrency group and refuse an
 existing draft or published release before building.
 
+The classifier resolves one immutable commit before dependency execution; scan,
+build and publication all check out that commit. Build/test runners have only
+contents-read permission. A separate publication runner downloads the exact
+same-run artifact ID, independently verifies the full package against source and
+lockfiles, and only then attests/publishes. It never installs dependencies or runs
+the downloaded executable. Both SBOM formats must contain the complete unique
+ecosystem/name/version inventory, including scoped, nested and aliased npm packages.
+
+Signing is dispatched from main and passes input strings only as data. A read-only
+preflight requires a successful same-repository `release-hook-tag.yml` run whose
+head SHA and tag ref match the requested release. Manual candidate production must
+therefore dispatch the release workflow **at the tag ref**, not at main with only
+an input tag override. The protected signing runner checks out the authenticated
+commit and downloads the exact authenticated artifact ID; artifact-contained
+claims alone are never producer authentication.
+
 Publication is draft-first. Trusted repository code retrieves the draft by the
 ID returned by its creating step, requires the exact asset set, compares every
 remote byte count, and compares every GitHub-provided SHA-256 digest with a
