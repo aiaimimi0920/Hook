@@ -3,7 +3,9 @@
 use serde::Deserialize;
 use tauri::AppHandle;
 
-use super::identity::{persist_device_identity, DeviceIdentityDocument};
+use super::identity::{
+    load_or_create_device_identity_at, persist_device_identity, DeviceIdentityDocument,
+};
 use super::session_attempt::{read_surface_response_body, surface_client};
 
 #[derive(Debug, Deserialize)]
@@ -27,9 +29,30 @@ pub(super) async fn register_device_pairing_request(
     identity: &mut DeviceIdentityDocument,
     app: &AppHandle,
 ) -> Result<(), String> {
-    identity.device_id = Some(register_device_identity(base_url, identity).await?);
     let app_data_dir = crate::effective_app_data_dir(app)?;
+    register_device_pairing_request_at(base_url, identity, &app_data_dir).await
+}
+
+async fn register_device_pairing_request_at(
+    base_url: &str,
+    identity: &mut DeviceIdentityDocument,
+    app_data_dir: &std::path::Path,
+) -> Result<(), String> {
+    identity.device_id = Some(register_device_identity(base_url, identity).await?);
     persist_device_identity(&app_data_dir.join("device-identity.json"), identity)
+}
+
+/// Explicit registration preserves keys and never issues a token or approves a device.
+pub(super) async fn request_pairing_at(
+    base_url: &str,
+    app_data_dir: &std::path::Path,
+) -> Result<bool, String> {
+    super::validate_secure_loom_base_url(base_url)?;
+    let mut identity = load_or_create_device_identity_at(app_data_dir)?;
+    let previous_id = identity.device_id.clone();
+    register_device_pairing_request_at(base_url, &mut identity, app_data_dir).await?;
+    super::cache::invalidate(base_url);
+    Ok(previous_id != identity.device_id)
 }
 
 /// Resolve the identity at one endpoint without overwriting the default Loom association.
@@ -74,3 +97,6 @@ pub(super) async fn register_device_identity(
 
     Ok(device.id)
 }
+
+#[cfg(test)]
+mod tests;

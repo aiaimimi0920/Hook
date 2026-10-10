@@ -156,18 +156,31 @@ async fn attach_live_viewer_http(
     authorization: &crate::device_session::DeviceSessionAuthorization,
     request: &LiveRelayJoinRequest,
     epoch: u64,
+    sequence: u64,
+) -> Result<serde_json::Value, String> {
+    attach_live_viewer_with_policy_http(base_url, authorization, request, epoch, sequence, false)
+        .await
+}
+
+async fn attach_live_viewer_with_policy_http(
+    base_url: &str,
+    authorization: &crate::device_session::DeviceSessionAuthorization,
+    request: &LiveRelayJoinRequest,
+    epoch: u64,
+    sequence: u64,
+    require_existing_membership: bool,
 ) -> Result<serde_json::Value, String> {
     let client = crate::network_proxy::shared_client(base_url, Some(Duration::from_secs(15)))
         .map_err(|error| format!("build Loom live viewer client: {error}"))?;
     let url = live_relay_session_url(base_url, &request.live_session_id, Some("viewers"))?;
-    let body = serde_json::json!({
+    let mut body = serde_json::json!({
         "surfaceInstanceId": request.surface_instance_id,
         "attachmentId": request.attachment_id,
         "envelope": {
             "protocolVersion": LIVE_RELAY_PROTOCOL_VERSION,
             "sessionId": request.live_session_id,
             "epoch": epoch,
-            "sequence": 1,
+            "sequence": sequence,
             "messageType": "session_ack",
             "payload": {
                 "accepted": true,
@@ -175,6 +188,9 @@ async fn attach_live_viewer_http(
             }
         }
     });
+    if require_existing_membership {
+        body["requireExistingMembership"] = serde_json::Value::Bool(true);
+    }
     send_live_relay_json(
         authorization.apply(client.post(url)).json(&body),
         "attach Loom live viewer",
@@ -216,7 +232,8 @@ fn resume_live_viewer_blocking(session: &LiveRelaySession) -> Result<(), String>
         crate::network_proxy::blocking_client(&session.base_url, Some(Duration::from_secs(10)))
             .map_err(|error| format!("build Loom live resume client: {error}"))?;
     let url = live_relay_session_url(&session.base_url, &session.live_session_id, Some("resume"))?;
-    send_live_relay_json_blocking(
+    send_live_relay_worker_json_blocking(
+        session,
         session
             .authorization
             .apply_blocking(client.post(url))
@@ -383,6 +400,15 @@ fn send_live_relay_json_blocking(
     request: reqwest::blocking::RequestBuilder,
     context: &str,
 ) -> Result<serde_json::Value, String> {
+    let (status, bytes) = read_live_relay_json_blocking(request, context, |_| Ok(()))?;
+    parse_live_relay_response(status, &bytes, context)
+}
+
+fn read_live_relay_json_blocking(
+    request: reqwest::blocking::RequestBuilder,
+    context: &str,
+    on_status: impl Fn(u16) -> Result<(), String>,
+) -> Result<(u16, Vec<u8>), String> {
     for attempt in 0..=LIVE_RELAY_BUSY_RETRIES {
         let mut response = request
             .try_clone()
@@ -390,6 +416,8 @@ fn send_live_relay_json_blocking(
             .send()
             .map_err(|error| format!("{context}: {error}"))?;
         let status = response.status().as_u16();
+        // 认证终态依据响应头，不能被后续响应体超限、截断或解析失败绕过。
+        on_status(status)?;
         if response
             .content_length()
             .is_some_and(|length| length > LIVE_RELAY_MAX_JSON_BYTES as u64)
@@ -405,7 +433,7 @@ fn send_live_relay_json_blocking(
             return Err(format!("{context}: response exceeds the JSON size limit"));
         }
         if !is_retryable_daemon_busy(status, &bytes) || attempt == LIVE_RELAY_BUSY_RETRIES {
-            return parse_live_relay_response(status, &bytes, context);
+            return Ok((status, bytes));
         }
         std::thread::sleep(Duration::from_millis(
             LIVE_RELAY_BUSY_RETRY_MS * (attempt as u64 + 1),

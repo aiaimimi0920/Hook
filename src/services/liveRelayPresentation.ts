@@ -40,13 +40,13 @@ export function validateRelayPresentationFrame(frame: LiveRelayFrameDescriptor, 
 
 /** 解码器只拥有候选帧；成功后 URL 所有权移交给 controller，失败或取消即释放。 */
 export function decodeRelayImage(
-    bytes: Uint8Array<ArrayBuffer>,
+    imageBlob: Blob,
     frame: Pick<LiveRelayFrameDescriptor, "width" | "height" | "codec">,
     signal: AbortSignal,
 ): Promise<string> {
     if (signal.aborted) return Promise.reject(new Error("live_relay_decode_cancelled"));
     const image = new Image();
-    const url = URL.createObjectURL(new Blob([bytes], { type: frame.codec === "jpeg" ? "image/jpeg" : "image/bmp" }));
+    const url = URL.createObjectURL(imageBlob);
     return new Promise<string>((resolve, reject) => {
         let settled = false;
         const finish = (error?: string) => {

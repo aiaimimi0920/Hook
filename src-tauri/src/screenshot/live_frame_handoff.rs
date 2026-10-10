@@ -62,6 +62,7 @@ impl FrameMailbox {
     ) {
         #[cfg(test)]
         crate::live_gpu::browser_video_oracle::record_capture_age(id, frame);
+        crate::live_video::capture::offer(id, frame, crop);
         let captured_at_ms = crate::live_capture_now_ms();
         self.arrived.store(captured_at_ms, Ordering::Release);
         let _ = self.ready.try_send(());
@@ -97,7 +98,7 @@ impl FrameMailbox {
         }
     }
 
-    pub fn next(&self, id: &str, encoded_at: u64) -> Result<Option<RawLiveFrame>, String> {
+    pub fn next(&self, id: &str, encoded_at: u64, timing: &mut crate::LiveReadbackTiming) -> Result<Option<RawLiveFrame>, String> {
         let next = {
             let mut raw = self.raw.lock().map_err(|_| "live frame mailbox poisoned")?;
             if let Some(frame) = raw.as_ref() {
@@ -123,19 +124,19 @@ impl FrameMailbox {
             }
         };
         if let Some((frame, permit)) = next {
-            let readback = Readback::copy(&frame)?;
+            let readback = timing.staging_copy(|| Readback::copy(&frame))?;
             // Only the independent staging copy is mapped; capture may now reuse the input.
             if let Ok(mut spare) = self.spare.lock() {
                 *spare = Some(frame);
             }
-            let (image, captured_at_ms) = readback.into_rgb()?;
+            let (image, captured_at_ms) = timing.map_rgb(|| readback.into_rgb())?;
             return Ok(Some(RawLiveFrame {
                 image,
                 captured_at_ms,
                 _permit: permit,
             }));
         }
-        crate::live_gpu::fallback(id, encoded_at, &self.budget).map(|frame| {
+        crate::live_gpu::fallback(id, encoded_at, &self.budget, timing).map(|frame| {
             frame.map(|(image, captured_at_ms, permit)| RawLiveFrame {
                 image,
                 captured_at_ms,
