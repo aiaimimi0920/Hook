@@ -1,5 +1,39 @@
 use super::*;
 
+#[test]
+fn admission_diagnostics_distinguish_contention_policy_and_grant_without_changing_permit() {
+    let (budget, _) = fixture(1, 100);
+    let shared = Arc::new(Mutex::new(budget));
+    let owner = CaptureBudget {
+        id: "0".into(),
+        shared: Arc::clone(&shared),
+        admission: CpuAdmissionCounters::default(),
+    };
+    {
+        let guard = shared.lock().unwrap();
+        assert!(owner.try_cpu(10, 10).is_none());
+        assert_eq!(guard.cpu_grants, 0);
+        assert!(guard.demands["0"].ticket.is_none());
+    }
+    let permit = owner.try_cpu(10, 10).unwrap();
+    assert!(shared.lock().unwrap().cpu_busy);
+    assert!(owner.try_cpu(10, 10).is_none());
+    let snapshot = owner.admission_snapshot();
+    assert_eq!(
+        (
+            snapshot.granted,
+            snapshot.policy_denied,
+            snapshot.lock_unavailable
+        ),
+        (1, 1, 1)
+    );
+    assert_eq!(shared.lock().unwrap().cpu_grants, 1);
+    drop(permit);
+    let guard = shared.lock().unwrap();
+    assert!(!guard.cpu_busy);
+    assert!(guard.cpu_due.is_some());
+}
+
 fn fixture(count: usize, pixels: u64) -> (Budget, Instant) {
     let now = Instant::now();
     let mut budget = Budget::default();
@@ -12,12 +46,27 @@ fn fixture(count: usize, pixels: u64) -> (Budget, Instant) {
                 output_pixels: pixels,
                 shared_source: None,
                 visible: true,
+                encoded_consumers: Arc::new(()),
+                gpu_consumers: Arc::new(()),
                 ticket: None,
                 requested_at: now,
             },
         );
     }
     (budget, now)
+}
+
+#[test]
+fn gpu_lease_keeps_hidden_capture_active_without_cpu_admission() {
+    let (mut budget, now) = fixture(1, 320 * 240);
+    let demand = budget.demands.get_mut("0").unwrap();
+    demand.visible = false;
+    let lease = demand.gpu_consumers.clone();
+    assert!(budget.interval("0") < Duration::from_secs(1));
+    assert!(budget.admit("0", 320 * 240, now).is_none());
+    assert!(!budget.cpu_busy);
+    drop(lease);
+    assert_eq!(budget.interval("0"), Duration::from_secs(1));
 }
 
 #[test]
@@ -72,12 +121,65 @@ fn hidden_and_abandoned_requests_cannot_starve_visible_consumers() {
 }
 
 #[test]
+fn hidden_encoded_consumer_keeps_capture_and_cpu_admission_active() {
+    let (mut budget, now) = fixture(1, 100);
+    budget.demands.get_mut("0").unwrap().visible = false;
+    let _consumer = EncodedFrameConsumer::for_demand(&budget.demands["0"]);
+    assert!(budget.interval("0") < Duration::from_secs(1));
+    assert_eq!(budget.work(), (60.0, 6000.0, 6000.0));
+    assert!(budget.admit("0", 100, now).is_some());
+}
+
+#[test]
+fn encoded_demand_is_reference_counted_and_scoped_to_capture_registration() {
+    let (budget, _) = fixture(1, 100);
+    let shared = Arc::new(Mutex::new(budget));
+    let owner = CaptureBudget {
+        id: "0".into(),
+        shared: shared.clone(),
+        admission: CpuAdmissionCounters::default(),
+    };
+    assert!(!owner.needs_encoded_frames());
+    let first = EncodedFrameConsumer::for_demand(&shared.lock().unwrap().demands["0"]);
+    let second = EncodedFrameConsumer::for_demand(&shared.lock().unwrap().demands["0"]);
+    assert!(owner.needs_encoded_frames());
+    drop(first);
+    assert!(owner.needs_encoded_frames());
+    drop(second);
+    assert!(!owner.needs_encoded_frames());
+    let old = EncodedFrameConsumer::for_demand(&shared.lock().unwrap().demands["0"]);
+    let (replacement, _) = fixture(1, 100);
+    *shared.lock().unwrap() = replacement;
+    assert!(!owner.needs_encoded_frames());
+    let current = EncodedFrameConsumer::for_demand(&shared.lock().unwrap().demands["0"]);
+    drop(old);
+    assert!(owner.needs_encoded_frames());
+    drop(current);
+    assert!(!owner.needs_encoded_frames());
+}
+
+#[test]
+fn abandoned_worker_closure_releases_demand_and_hidden_capture_returns_to_idle() {
+    let (mut budget, now) = fixture(1, 100);
+    budget.demands.get_mut("0").unwrap().visible = false;
+    let consumer = EncodedFrameConsumer::for_demand(&budget.demands["0"]);
+    let pending_worker = move || drop(consumer);
+    assert!(budget.demands["0"].encoded_required());
+    drop(pending_worker);
+    assert_eq!(budget.interval("0"), Duration::from_secs(1));
+    assert_eq!(budget.work(), (1.0, 100.0, 100.0));
+    assert!(budget.admit("0", 100, now).is_none());
+    assert!(EncodedFrameConsumer::acquire("missing-encoded-demand-test").is_err());
+}
+
+#[test]
 fn permit_covers_encode_and_releases_with_cooldown_even_on_error() {
     let (budget, _) = fixture(1, 100);
     let shared = Arc::new(Mutex::new(budget));
     let owner = CaptureBudget {
         id: "0".into(),
         shared: shared.clone(),
+        admission: CpuAdmissionCounters::default(),
     };
     let permit = owner.try_cpu(10, 10).unwrap();
     assert!(owner.try_cpu(10, 10).is_none());
@@ -131,6 +233,7 @@ fn rebinding_source_releases_old_group_and_private_ids_never_alias_shared_ids() 
         .map(|i| CaptureBudget {
             id: i.to_string(),
             shared: shared.clone(),
+            admission: CpuAdmissionCounters::default(),
         })
         .collect();
     owners[0].source_size(10, 10, 100, Some("1".into()));

@@ -4,7 +4,7 @@ import { liveRelayDiscovery, liveRelayViews } from '../store/liveRelayStore';
 import { surfaceStore } from '../store/surfaceStore';
 import './UnitLiveViewer.css';
 
-/** 复用已挂载的 Surface 身份；此入口只观看，不创建授权或申请输入权。 */
+/** 复用 Surface 观看；重新配对只显式提交请求，不批准或申请输入权。 */
 export const UnitLiveViewer: Component<{ unitId: string }> = (props) => {
     const surface = () => surfaceStore.byUnit[props.unitId];
     const available = () => !!surface() && surface().lifecycle !== 'disposed';
@@ -12,11 +12,13 @@ export const UnitLiveViewer: Component<{ unitId: string }> = (props) => {
     const [loaded, setLoaded] = createSignal(false);
     const [selectedId, setSelectedId] = createSignal('');
     const [error, setError] = createSignal('');
+    const [pairingNotice, setPairingNotice] = createSignal('');
     const sessions = createMemo(() => liveRelayDiscovery.sessions.filter((entry) => !entry.closed
         && !liveRelayViews.some((view) => view.status.role === 'source'
             && view.status.liveSessionId === entry.session.sessionId)));
     const selected = () => sessions().find((entry) => entry.session.sessionId === selectedId());
-    const joined = () => liveRelayViews.some((view) => view.status.liveSessionId === selectedId());
+    const joined = () => liveRelayViews.some((view) => view.status.liveSessionId === selectedId()
+        && view.status.connectionState !== 'closed');
     let disposed = false;
     onCleanup(() => { disposed = true; });
 
@@ -24,6 +26,7 @@ export const UnitLiveViewer: Component<{ unitId: string }> = (props) => {
         if (pending() || disposed) return;
         setPending(true);
         setError('');
+        setPairingNotice('');
         try { await operation(); }
         catch (cause) { if (!disposed) setError(cause instanceof Error ? cause.message : String(cause)); }
         finally { if (!disposed) setPending(false); }
@@ -35,6 +38,16 @@ export const UnitLiveViewer: Component<{ unitId: string }> = (props) => {
         setSelectedId('');
         await owner.discover();
         if (!disposed && owner === liveRelayOwner()) setLoaded(true);
+    }
+    async function requestPairing() {
+        const owner = liveRelayOwner();
+        if (!owner) throw new Error('实时投射服务不可用');
+        setLoaded(false);
+        setSelectedId('');
+        await owner.requestPairing();
+        if (!disposed && owner === liveRelayOwner()) {
+            setPairingNotice('配对请求已提交，请在 Loom 批准后刷新列表。');
+        }
     }
     async function join() {
         const owner = liveRelayOwner(), entry = selected(), current = surface();
@@ -49,12 +62,15 @@ export const UnitLiveViewer: Component<{ unitId: string }> = (props) => {
     }
 
     return <section class="hook-unit-live-viewer" aria-label="实时投射观看" aria-busy={pending()}>
-        <header><strong>实时投射</strong>
+        <header><strong>实时投射</strong><div class="hook-unit-live-viewer-actions">
+            <button type="button" class="hook-terminal-btn" disabled={pending() || !liveRelayOwner()}
+                onClick={() => void run(requestPairing)}>重新配对</button>
             <button type="button" class="hook-terminal-btn" disabled={pending() || !liveRelayOwner()}
                 onClick={() => void run(refresh)}>{pending() ? '处理中…' : '刷新列表'}</button>
-        </header>
+        </div></header>
         <span class="hook-inline-muted">通过当前 Loom 与 Surface 加入观看；控制权需另行申请。</span>
         <Show when={!available()}><span role="status">等待当前 Art 的 Surface 挂载。</span></Show>
+        <Show when={pairingNotice()}>{(message) => <span role="status">{message()}</span>}</Show>
         <Show when={loaded()} fallback={<span class="hook-inline-muted">刷新以查找可用会话。</span>}>
             <Show when={sessions().length} fallback={<span role="status">暂无可观看的实时投射。</span>}>
                 <select class="hook-terminal-input" aria-label="选择实时投射" value={selectedId()}

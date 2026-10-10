@@ -16,13 +16,16 @@ mod handoff {
 mod shared {
     include!("live_shared_source.rs");
 }
+mod idle {
+    include!("live_capture_idle.rs");
+}
 pub(crate) fn live_shared_pool_count() -> usize {
     shared::active_pool_count()
 }
 use crate::{
     append_runtime_log_line, live_capture_now_ms, live_capture_surface_crop, LiveCaptureFrame,
-    LiveCaptureFrameBuffer, LiveCaptureFrameDescriptor, LiveCaptureSessionState,
-    LiveCaptureWorkerConfig,
+    LiveCaptureFrameBuffer, LiveCaptureFrameDescriptor, LiveCaptureIteration,
+    LiveCaptureSessionState, LiveCaptureTimingStage, LiveCaptureWorkerConfig,
 };
 use codec::encode_live_jpeg;
 use handoff::FrameMailbox;
@@ -61,6 +64,14 @@ pub(crate) fn spawn_live_capture_worker(
     stop_rx: std::sync::mpsc::Receiver<()>,
 ) -> Result<std::thread::JoinHandle<()>, String> {
     let reservation = reserve_live_source(&mut config)?;
+    // 在会话可发布前注册预算；不依赖新线程何时首次获得调度。
+    let (frame_ready_tx, frame_ready_rx) = std::sync::mpsc::sync_channel(1);
+    let mailbox = std::sync::Arc::new(FrameMailbox::new(
+        &config.session_id,
+        config.target_fps,
+        dropped_frames.clone(),
+        frame_ready_tx,
+    ));
     std::thread::Builder::new()
         .name(format!("hook-live-capture-{}", config.session_id))
         .spawn(move || {
@@ -71,6 +82,8 @@ pub(crate) fn spawn_live_capture_worker(
                 frames.clone(),
                 dropped_frames,
                 stop_rx,
+                mailbox,
+                frame_ready_rx,
             ) {
                 append_runtime_log_line(&format!(
                     "live_capture_failed :: code={code} detail={detail}"
@@ -86,6 +99,7 @@ pub(crate) fn spawn_live_capture_worker(
                 }
             }
             crate::live_gpu::remove(&gpu_session);
+            crate::live_video::capture::invalidate(&gpu_session, true);
             drop(reservation);
         })
         .map_err(|error| format!("failed to spawn live capture worker: {error}"))
@@ -97,14 +111,9 @@ fn run_live_capture_worker(
     frames: std::sync::Arc<std::sync::Mutex<LiveCaptureFrameBuffer>>,
     dropped_frames: std::sync::Arc<AtomicU64>,
     stop_rx: std::sync::mpsc::Receiver<()>,
+    mailbox: std::sync::Arc<FrameMailbox>,
+    frame_ready_rx: std::sync::mpsc::Receiver<()>,
 ) -> Result<(), (&'static str, &'static str, String)> {
-    let (frame_ready_tx, frame_ready_rx) = std::sync::mpsc::sync_channel(1);
-    let mailbox = std::sync::Arc::new(FrameMailbox::new(
-        &config.session_id,
-        config.target_fps,
-        dropped_frames.clone(),
-        frame_ready_tx,
-    ));
     let item_closed = std::sync::Arc::new(AtomicBool::new(false));
     let mut epoch = 1u64;
     let mut frame_id = 0u64;
@@ -128,6 +137,7 @@ fn run_live_capture_worker(
         item_closed.store(false, Ordering::Release);
         mailbox.reset();
         crate::live_gpu::invalidate(&config.session_id);
+        crate::live_video::capture::invalidate(&config.session_id, false);
         let mut active =
             match build_active_capturer(&mut config, mailbox.clone(), item_closed.clone()) {
                 Ok((active, process_id, title)) => {
@@ -182,11 +192,17 @@ fn run_live_capture_worker(
                     value.mark_capture(epoch, arrived);
                 }
             }
-            let next = mailbox
-                .next(&config.session_id, encoded_at)
-                .map_err(|detail| ("frame_handoff_failed", "实时画面交接失败", detail))?;
+            let mut timing = LiveCaptureIteration::new(&state);
+            let next =
+                timing.handoff(|readback| mailbox.next(&config.session_id, encoded_at, readback));
+            timing.admission(mailbox.budget.admission_snapshot());
+            let next =
+                next.map_err(|detail| ("frame_handoff_failed", "实时画面交接失败", detail))?;
             if let Some(raw) = next {
-                let bytes = encode_live_jpeg(&raw.image)
+                let bytes = timing
+                    .result(LiveCaptureTimingStage::JpegEncode, || {
+                        encode_live_jpeg(&raw.image)
+                    })
                     .map_err(|detail| ("frame_encode_failed", "实时画面编码失败", detail))?;
                 frame_id = frame_id.checked_add(1).ok_or((
                     "frame_sequence_exhausted",
@@ -205,27 +221,28 @@ fn run_live_capture_worker(
                     byte_length: bytes.len(),
                     dropped_frames: 0,
                 };
-                let stored_descriptor = {
-                    let mut queue = frames.lock().map_err(|_| {
-                        (
-                            "frame_buffer_poisoned",
-                            "实时画面缓冲区不可用",
-                            "frame buffer lock poisoned".to_string(),
-                        )
+                let stored_descriptor =
+                    timing.result(LiveCaptureTimingStage::FrameStore, || {
+                        let mut queue = frames.lock().map_err(|_| {
+                            (
+                                "frame_buffer_poisoned",
+                                "实时画面缓冲区不可用",
+                                "frame buffer lock poisoned".to_string(),
+                            )
+                        })?;
+                        queue.push(
+                            LiveCaptureFrame {
+                                descriptor,
+                                bytes: std::sync::Arc::new(bytes),
+                            },
+                            &dropped_frames,
+                        );
+                        queue.latest_after(frame_id.saturating_sub(1)).ok_or((
+                            "frame_buffer_failed",
+                            "实时画面缓冲失败",
+                            "stored frame missing".to_string(),
+                        ))
                     })?;
-                    queue.push(
-                        LiveCaptureFrame {
-                            descriptor,
-                            bytes: std::sync::Arc::new(bytes),
-                        },
-                        &dropped_frames,
-                    );
-                    queue.latest_after(frame_id.saturating_sub(1)).ok_or((
-                        "frame_buffer_failed",
-                        "实时画面缓冲失败",
-                        "stored frame missing".to_string(),
-                    ))?
-                };
                 if let Ok(mut value) = state.lock() {
                     value.mark_frame(&stored_descriptor);
                 }
@@ -281,6 +298,10 @@ fn run_live_capture_worker(
             }
             if last_frame_at.elapsed() >= LIVE_CAPTURE_FRAME_TIMEOUT {
                 let errors = mailbox.take_errors();
+                if !idle::requires_idle_recovery(observed_capture != 0, errors) {
+                    last_frame_at = std::time::Instant::now();
+                    continue;
+                }
                 mark_recovering(&state, epoch, "frame_timeout", "实时画面超时，正在恢复");
                 append_runtime_log_line(&format!(
                     "live_capture_frame_timeout :: session={} callback_errors={errors}",

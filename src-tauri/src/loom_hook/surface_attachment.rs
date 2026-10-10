@@ -1,4 +1,26 @@
 // Owns Surface attach and remount recovery requests.
+// Shared instances retain old identities; never activate another device's attachment.
+fn select_mounted_surface_attachment<'a>(
+    attachments: &'a serde_json::Map<String, serde_json::Value>,
+    hook_node_id: &str,
+    device_id: &str,
+) -> Result<(&'a str, &'a serde_json::Value), String> {
+    attachments
+        .iter()
+        .find(|(_, attachment)| {
+            attachment
+                .pointer("/descriptor/hookNodeId")
+                .and_then(serde_json::Value::as_str)
+                == Some(hook_node_id)
+                && attachment
+                    .pointer("/descriptor/deviceId")
+                    .and_then(serde_json::Value::as_str)
+                    == Some(device_id)
+        })
+        .map(|(id, attachment)| (id.as_str(), attachment))
+        .ok_or_else(|| "Surface attach response has no matching attachment".to_owned())
+}
+
 async fn attach_surface_via_loom(
     app: &AppHandle,
     art_id: &str,
@@ -45,15 +67,8 @@ async fn attach_surface_via_loom(
         .pointer("/instance/attachments")
         .and_then(serde_json::Value::as_object)
         .ok_or_else(|| "Surface attach response has no attachments".to_owned())?;
-    let (attachment_id, attachment) = attachments
-        .iter()
-        .find(|(_, attachment)| {
-            attachment
-                .pointer("/descriptor/hookNodeId")
-                .and_then(serde_json::Value::as_str)
-                == Some(hook_node_id)
-        })
-        .ok_or_else(|| "Surface attach response has no matching attachment".to_owned())?;
+    let (attachment_id, attachment) =
+        select_mounted_surface_attachment(attachments, hook_node_id, &authorization.device_id)?;
     let snapshot = mounted
         .pointer(&format!(
             "/instance/attachments/{}/snapshot",

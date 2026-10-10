@@ -29,6 +29,17 @@ manifests and provenance must record `gitDirty=false` and
 `sourceGitDirty=false`. A dirty candidate may be retained as runtime evidence,
 but it is never a formal publication claim.
 
+## 隔离前端构建与原生启动
+
+Windows 隔离构建覆盖 `build.frontendDist` 时，使用相对于 `src-tauri` 的目录路径，
+并核对解析后的目录和前端文件哈希。不要直接填入 `C:/...`：本项目当前 Tauri 工具链
+可能优先将其解析为 URL，导致静态资源没有嵌入 EXE；编译和 headless self-check 仍可能成功。
+
+便携性须另在目标机器启动实际 EXE，绑定其 SHA-256、进程和 WebView2，确认加载
+`http://tauri.localhost/`、完成 `frontend-initialized`，不依赖构建机目录的 `file:///...`。
+该启动检查仍不替代实际业务验收。失败候选及回执保留，修正包使用新的输出目录；
+同一个内部版本号下的不同字节必须按各自 SHA 和 provenance 区分。
+
 ## Joint release acceptance
 
 Before claiming a Hook/Loom joint release, use reviewed commits and unused output

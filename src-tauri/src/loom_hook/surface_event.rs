@@ -46,6 +46,27 @@ async fn send_surface_event_to_loom(
         return Err(format!("Surface event request returned {status}"));
     }
 
+    // Device credentials intentionally cannot read the administrator's full
+    // instance record. Keep that boundary and converge through the scoped stream.
+    if authorization.uses_device_session() {
+        let body = read_bounded_loom_json_body(response, "Surface event acknowledgement").await?;
+        let ack = serde_json::from_slice(&body)
+            .map_err(|error| format!("parse Surface event acknowledgement: {error}"))?;
+        let generation = event
+            .get("generation")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| "Surface event has no generation".to_owned())?;
+        let state = SurfaceEventStreamState::new(
+            instance_id,
+            attachment_id,
+            event_id,
+            generation,
+            base_revision,
+            &ack,
+        )?;
+        return converge_surface_event_from_stream(app, &client, &authorization, base, state).await;
+    }
+
     converge_surface_event_from_instance(
         app,
         &client,
@@ -182,11 +203,9 @@ async fn converge_surface_event_from_instance(
             Ok(response) => {
                 let status = response.status();
                 if status.is_success() {
-                    let body = read_bounded_loom_json_body(
-                        response,
-                        "Surface convergence response",
-                    )
-                    .await?;
+                    let body =
+                        read_bounded_loom_json_body(response, "Surface convergence response")
+                            .await?;
                     match serde_json::from_slice::<serde_json::Value>(&body)
                         .map_err(|error| format!("parse Surface convergence response: {error}"))
                         .and_then(|instance| {
