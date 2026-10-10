@@ -41,7 +41,7 @@ describe("Hook SignPath workflow contract", () => {
   it("signs the exact reviewed candidate and publishes only the returned signed package", () => {
     expect(workflow).toContain("candidate_run_id:");
     expect(workflow).toContain("reviewed_sha256:");
-    expect(workflow).toContain("uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131");
+    expect(workflow).toContain("uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c");
     expect(workflow).toContain("assert-reviewed-signing-candidate.ps1");
     expect(workflow).not.toContain("gh release download");
     expect(workflow).toContain("Reviewed candidate manifest is missing from the Actions artifact.");
