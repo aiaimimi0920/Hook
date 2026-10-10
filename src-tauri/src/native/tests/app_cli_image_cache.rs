@@ -24,9 +24,17 @@
                         assert!(Instant::now() < deadline, "pinned socket was not contacted");
                         std::thread::sleep(Duration::from_millis(5));
                     };
+                    // Windows accepted sockets can inherit the listener's nonblocking mode.
+                    stream.set_nonblocking(false).unwrap();
                     stream.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
                     let mut request = [0u8; 4096];
-                    let size = stream.read(&mut request).unwrap();
+                    let mut size = 0;
+                    while !request[..size].windows(4).any(|window| window == b"\r\n\r\n") {
+                        assert!(size < request.len(), "request headers exceed fixture limit");
+                        let count = stream.read(&mut request[size..]).unwrap();
+                        assert!(count > 0, "request ended before headers");
+                        size += count;
+                    }
                     assert!(String::from_utf8_lossy(&request[..size]).contains("validated-image.invalid"));
                     let reply = if redirect {
                         format!("HTTP/1.1 302 Found\r\nLocation: http://{target_addr}/private\r\nContent-Length: 0\r\n\r\n")
