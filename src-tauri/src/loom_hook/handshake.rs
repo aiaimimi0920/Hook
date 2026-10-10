@@ -43,11 +43,11 @@ pub async fn loom_hook_handshake(
 }
 
 fn perform_loom_hook_handshake(request: HandshakeRequest) -> Result<LoomHookHandshake, String> {
-    use tungstenite::{connect, Message};
+    use tungstenite::Message;
     validate_loom_hook_handshake_request(&request)?;
     let requested_transports = request.transports.clone();
     let ws_url = loom_hook_ws_url();
-    let (mut socket, _) = connect(ws_url.as_str())
+    let (mut socket, _) = connect_authenticated_hook_socket(ws_url.as_str())
         .map_err(|_| "connect Loom Hook protocol failed".to_owned())?;
     if let tungstenite::stream::MaybeTlsStream::Plain(tcp) = socket.get_ref() {
         tcp.set_read_timeout(Some(Duration::from_secs(10)))

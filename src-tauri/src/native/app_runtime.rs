@@ -247,6 +247,7 @@ pub fn run() {
             stop_live_relay_session,
             tea_client::create_tea_ticket,
             loom_hook::loom_hook_handshake,
+            loom_hook::loom_hook_websocket_protocols,
             loom_hook::loom_hook_dispatch_action,
             loom_hook::prefetch_shader,
             read_shared_memory,

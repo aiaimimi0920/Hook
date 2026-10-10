@@ -8,10 +8,10 @@ pub(crate) fn release_hook_art_resources(
     if handles.is_empty() {
         return;
     }
-    use tungstenite::{connect, Message as WsMessage};
+    use tungstenite::Message as WsMessage;
     let (release_request_id, request) =
         hook_art_resource_release_request(node_id, execution_request_id, generation, handles);
-    let Ok((mut socket, _)) = connect(loom_hook_ws_url().as_str()) else {
+    let Ok((mut socket, _)) = connect_authenticated_hook_socket(loom_hook_ws_url().as_str()) else {
         return;
     };
     if let tungstenite::stream::MaybeTlsStream::Plain(tcp) = socket.get_ref() {
@@ -44,7 +44,7 @@ pub(crate) fn release_hook_art_resources(
 }
 
 fn forward_hook_art_cancel(node_id: &str, request_id: &str, generation: u64) {
-    use tungstenite::{connect, Message as WsMessage};
+    use tungstenite::Message as WsMessage;
     let request = serde_json::json!({
         "method": "loom.hook.art.cancel",
         "params": {
@@ -56,7 +56,7 @@ fn forward_hook_art_cancel(node_id: &str, request_id: &str, generation: u64) {
         }
     });
     let ws_url = loom_hook_ws_url();
-    let Ok((mut socket, _)) = connect(ws_url.as_str()) else {
+    let Ok((mut socket, _)) = connect_authenticated_hook_socket(ws_url.as_str()) else {
         crate::append_runtime_log_line(&format!(
             "hook_art_cancel_connect_failed :: request_id={request_id} node_id={node_id}"
         ));
@@ -126,9 +126,9 @@ fn send_hook_control_request(
     timeout: Duration,
     error_event: &str,
 ) {
-    use tungstenite::{connect, Message as WsMessage};
+    use tungstenite::Message as WsMessage;
     let ws_url = loom_hook_ws_url();
-    match connect(ws_url.as_str()) {
+    match connect_authenticated_hook_socket(ws_url.as_str()) {
         Ok((mut socket, _)) => {
             if let tungstenite::stream::MaybeTlsStream::Plain(tcp) = socket.get_ref() {
                 let _ = tcp.set_read_timeout(Some(timeout));
@@ -267,9 +267,9 @@ fn forward_hook_art_execute(
             "disabledParameters": disabled_parameters
         }
     });
-    use tungstenite::{connect, Message as WsMessage};
+    use tungstenite::Message as WsMessage;
     let ws_url = loom_hook_ws_url();
-    let Ok((mut socket, _)) = connect(ws_url.as_str()) else {
+    let Ok((mut socket, _)) = connect_authenticated_hook_socket(ws_url.as_str()) else {
         emit_formal_hook_failure(
             app_handle,
             node_id,

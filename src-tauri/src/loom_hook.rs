@@ -15,6 +15,7 @@ use uuid::Uuid;
 // keeping every Loom Hook source below the Phase 79 line limit.
 include!("loom_hook/protocol_models.rs");
 include!("loom_hook/state_diagnostics.rs");
+include!("loom_hook/websocket_auth.rs");
 include!("loom_hook/formal_delivery.rs");
 include!("loom_hook/art_transport.rs");
 include!("loom_hook/subscription_settings.rs");

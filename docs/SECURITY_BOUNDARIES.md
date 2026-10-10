@@ -5,6 +5,30 @@ identity, remote-image fetching and native input. Vulnerability reporting remain
 in [SECURITY.md](../SECURITY.md); dependency policy is in
 [DEPENDENCY_SECURITY.md](DEPENDENCY_SECURITY.md).
 
+## Local Loom Hook WebSocket
+
+Hook and Loom must be upgraded together for authenticated local transport. Native
+Hook reads the bearer credential from the validated local Loom manifest for each
+connection, accepts only loopback `ws:` endpoints, and does not follow redirects.
+The desktop frontend obtains WebSocket subprotocol credentials through the trusted
+Tauri command boundary. Credentials are not put in URLs or ordinary diagnostics;
+the server acknowledges only the public `loom.hook.v1` protocol. The allowed Tauri
+or development Origin does not replace bearer authentication. Existing extension
+session/grant authorization remains mandatory after transport authentication.
+
+A standalone browser preview has no ambient access to the local manifest. It
+remains offline until an operator explicitly calls `setBrowserLoomToken(token)`
+from `src/services/hookWebSocketAuth.ts` with their own local credential, at the
+development origin `http://localhost:1420` or `http://127.0.0.1:1420`. The credential
+is memory-only; `setBrowserLoomToken(null)` clears it for subsequent connections.
+Never embed a token in source, Vite environment bundles, URLs or shared storage.
+The existing preview handshake fallback is not an authenticated Loom connection.
+
+This channel trusts the local OS account and Hook's application code. It does not
+claim to isolate malicious same-user software that can already read the protected
+Loom manifest. Remote device authentication continues through the separate paired
+HTTPS interfaces, not by forwarding the local administrator token.
+
 ## Device identity storage
 
 Windows device private keys use DPAPI-protected schema v2 storage. Legacy schema
