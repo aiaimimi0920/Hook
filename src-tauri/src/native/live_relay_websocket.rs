@@ -1,6 +1,7 @@
 // Reconnecting loom.live.v1 WebSocket workers for source publication and viewer delivery.
 const LIVE_RELAY_PING_INTERVAL: Duration = Duration::from_secs(2);
 const LIVE_RELAY_PING_EXPIRY: Duration = Duration::from_secs(10);
+include!("live_relay_disconnect_diagnostics.rs");
 
 fn spawn_live_relay_source_worker(
     relay: Arc<LiveRelaySession>,
@@ -8,7 +9,9 @@ fn spawn_live_relay_source_worker(
 ) -> Result<std::thread::JoinHandle<()>, String> {
     std::thread::Builder::new()
         .name("hook-live-relay-source".to_owned())
-        .spawn(move || run_live_relay_source(relay, capture))
+        .spawn(move || {
+            run_live_relay_source(relay, capture);
+        })
         .map_err(|error| format!("spawn live relay source worker: {error}"))
 }
 
@@ -22,7 +25,20 @@ fn spawn_live_relay_viewer_worker(
 }
 
 fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureSession>) {
-    let mut last_frame_id = 0_u64;
+    // Loom owns this epoch; local WGC generations can change without a new session.
+    let session_epoch = relay.state.lock().map(|state| state.epoch).unwrap_or(0);
+    let mut last_frame_id = relay
+        .state
+        .lock()
+        .map(|state| state.last_frame_id)
+        .unwrap_or(0);
+    let capture_id = match capture.state.lock() {
+        Ok(state) => state.session_id.clone(),
+        Err(_) => {
+            mark_live_relay_closed(&relay);
+            return;
+        }
+    };
     while !relay.stop.load(Ordering::SeqCst) {
         if live_relay_capture_ended(&capture) {
             break;
@@ -43,6 +59,12 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
             }
         };
         let mut last_ping = Instant::now();
+        let mut video = LiveRelayVideoSource::new(capture_id.clone(), session_epoch);
+        video.last_capture_ms = relay
+            .state
+            .lock()
+            .map(|state| state.source_capture_timestamp_ms)
+            .unwrap_or(0);
         while !relay.stop.load(Ordering::SeqCst) {
             if live_relay_capture_ended(&capture) {
                 break;
@@ -55,26 +77,46 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
                 );
                 break;
             }
-            let frame = capture
-                .frames
-                .lock()
-                .ok()
-                .and_then(|frames| frames.clone_latest_after(last_frame_id));
-            if let Some(frame) = frame {
-                let network_frame = match encode_live_relay_capture_frame(&frame, profile) {
-                    Ok(frame) => frame,
-                    Err(error) => {
-                        mark_live_relay_recovering(&relay, "source_frame_invalid", error);
-                        break;
-                    }
-                };
+            // Consume an available terminal Close before attempting another publication.
+            let mut timing = LiveRelaySourceIteration::new(&relay.state);
+            if let Err(error) = timing.result(LiveRelayTimingStage::SocketService, || {
+                service_live_relay_source_video_socket(
+                    &relay,
+                    &mut socket,
+                    (profile == LiveRelayMediaProfile::H264).then_some(&mut video),
+                )
+            }) {
+                mark_live_relay_recovering(&relay, "source_read_failed", error);
+                break;
+            }
+            let Some(next_id) = last_frame_id.checked_add(1) else {
+                relay.stop.store(true, Ordering::SeqCst);
+                break;
+            };
+            let frame = match video.next(&capture, profile, next_id, &relay.stop, &mut timing) {
+                Ok(frame) => frame,
+                Err(error) => {
+                    mark_live_relay_recovering(&relay, "source_frame_invalid", error);
+                    break;
+                }
+            };
+            if let Some(network_frame) = frame {
                 if relay.stop.load(Ordering::SeqCst)
                     || relay.reconnect.load(Ordering::SeqCst)
                     || live_relay_capture_ended(&capture)
                 {
                     break;
                 }
-                if let Err(error) = socket.send(tungstenite::Message::Binary(network_frame)) {
+                // A failed write may already have reached Loom. Never reuse its AU identity.
+                last_frame_id = next_id;
+                if let Ok(mut state) = relay.state.lock() {
+                    state.last_frame_id = last_frame_id;
+                    state.source_capture_timestamp_ms = video.last_capture_ms;
+                }
+                if let Err(error) = timing.result(LiveRelayTimingStage::SocketSend, || {
+                    socket.send(tungstenite::Message::Binary(network_frame))
+                }) {
+                    let _ = service_live_relay_source_socket(&relay, &mut socket);
                     mark_live_relay_recovering(
                         &relay,
                         "source_send_failed",
@@ -82,13 +124,13 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
                     );
                     break;
                 }
-                last_frame_id = frame.descriptor.frame_id;
                 if let Ok(mut state) = relay.state.lock() {
-                    state.mark_frame(frame.descriptor.epoch, last_frame_id);
+                    state.mark_frame(session_epoch, last_frame_id);
                 }
                 last_ping = Instant::now();
             } else if last_ping.elapsed() >= Duration::from_secs(2) {
                 if socket.send(tungstenite::Message::Ping(Vec::new())).is_err() {
+                    let _ = service_live_relay_source_socket(&relay, &mut socket);
                     mark_live_relay_recovering(
                         &relay,
                         "source_ping_failed",
@@ -97,10 +139,6 @@ fn run_live_relay_source(relay: Arc<LiveRelaySession>, capture: Arc<LiveCaptureS
                     break;
                 }
                 last_ping = Instant::now();
-            }
-            if let Err(error) = service_live_relay_source_socket(&mut socket) {
-                mark_live_relay_recovering(&relay, "source_read_failed", error);
-                break;
             }
             std::thread::sleep(Duration::from_millis(10));
         }
@@ -124,6 +162,8 @@ fn live_relay_capture_ended(capture: &LiveCaptureSession) -> bool {
 }
 
 fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
+    use LiveRelayDisconnectReason as Disconnect;
+    let mut diagnostics = LiveRelayDisconnectDiagnostics::new(native_acceptance_enabled());
     let mut connected_once = false;
     while !relay.stop.load(Ordering::SeqCst) {
         if connected_once {
@@ -157,9 +197,11 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
         let mut last_ping_attempt = Instant::now() - LIVE_RELAY_PING_INTERVAL;
         let mut pending_ping: Option<(Vec<u8>, Instant)> = None;
         let mut ping_sequence = 0_u64;
-        loop {
+        let connected_at = Instant::now();
+        let mut video = LiveRelayVideoViewer::default();
+        let disconnect = loop {
             if relay.stop.load(Ordering::SeqCst) {
-                break;
+                break Disconnect::Stopped;
             }
             if relay.reconnect.swap(false, Ordering::SeqCst) {
                 mark_live_relay_recovering(
@@ -167,7 +209,7 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
                     "reconnect_requested",
                     "live relay reconnection was requested",
                 );
-                break;
+                break Disconnect::Requested;
             }
             if pending_ping
                 .as_ref()
@@ -182,16 +224,13 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
                 ping_sequence = ping_sequence.saturating_add(1);
                 let payload = ping_sequence.to_be_bytes().to_vec();
                 let sent_at = Instant::now();
-                if socket
-                    .send(tungstenite::Message::Ping(payload.clone()))
-                    .is_err()
-                {
+                if let Err(error) = socket.send(tungstenite::Message::Ping(payload.clone())) {
                     mark_live_relay_recovering(
                         &relay,
                         "viewer_ping_failed",
                         "the Loom live viewer connection stopped responding",
                     );
-                    break;
+                    break Disconnect::Ping(live_relay_socket_error_class(&error));
                 }
                 pending_ping = Some((payload, sent_at));
                 last_ping_attempt = sent_at;
@@ -200,18 +239,18 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
                 Ok(tungstenite::Message::Binary(bytes)) => {
                     match profile
                         .validate_wire(&bytes)
-                        .and_then(|()| accept_live_relay_viewer_frame(&relay, &bytes))
+                        .and_then(|()| video.receive(&relay, &mut socket, &bytes))
                     {
                         Ok(()) => {}
                         Err(error) => {
                             mark_live_relay_recovering(&relay, "viewer_frame_invalid", error);
-                            break;
+                            break Disconnect::InvalidFrame;
                         }
                     }
                 }
                 Ok(tungstenite::Message::Ping(bytes)) => {
-                    if socket.send(tungstenite::Message::Pong(bytes)).is_err() {
-                        break;
+                    if let Err(error) = socket.send(tungstenite::Message::Pong(bytes)) {
+                        break Disconnect::Pong(live_relay_socket_error_class(&error));
                     }
                 }
                 Ok(tungstenite::Message::Pong(bytes)) => {
@@ -225,14 +264,17 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
                         }
                     }
                 }
-                Ok(tungstenite::Message::Close(_)) => break,
+                Ok(tungstenite::Message::Close(close)) => {
+                    close_live_relay_if_device_revoked(&relay, close.as_ref());
+                    break Disconnect::PeerClose(close.map(|frame| u16::from(frame.code)));
+                }
                 Ok(_) => {
                     mark_live_relay_recovering(
                         &relay,
                         "viewer_message_invalid",
                         "Loom sent a non-binary live media message",
                     );
-                    break;
+                    break Disconnect::InvalidMessage;
                 }
                 Err(error) if live_relay_read_timeout(&error) => {}
                 Err(error) => {
@@ -241,10 +283,11 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
                         "viewer_read_failed",
                         format!("read Loom live media: {error}"),
                     );
-                    break;
+                    break Disconnect::Read(live_relay_socket_error_class(&error));
                 }
             }
-        }
+        };
+        diagnostics.record(&relay, disconnect, connected_at.elapsed());
         let _ = socket.close(None);
         if !relay.stop.load(Ordering::SeqCst) {
             live_relay_reconnect_delay(&relay.stop);
@@ -255,17 +298,30 @@ fn run_live_relay_viewer(relay: Arc<LiveRelaySession>) {
 
 fn accept_live_relay_viewer_frame(relay: &LiveRelaySession, bytes: &[u8]) -> Result<(), String> {
     let frame = decode_live_relay_binary_frame(&relay.relay_id, &relay.live_session_id, bytes)?;
+    commit_live_relay_viewer_frame(relay, frame, false)
+}
+
+fn commit_live_relay_viewer_frame(
+    relay: &LiveRelaySession,
+    frame: LiveRelayFrame,
+    allow_warmup: bool,
+) -> Result<(), String> {
+    // 与 terminal 清理共用 state → frames 锁序，迟到帧不能重新填充已关闭的槽。
+    let mut state = relay
+        .state
+        .lock()
+        .map_err(|_| "live relay state poisoned".to_owned())?;
+    if relay.stop.load(Ordering::SeqCst) || state.connection_state == "closed" {
+        return Err("live relay viewer is closed".to_owned());
+    }
+    if frame.descriptor.epoch < state.epoch
+        || (frame.descriptor.epoch == state.epoch
+            && frame.descriptor.frame_id <= state.last_frame_id)
     {
-        let state = relay
-            .state
-            .lock()
-            .map_err(|_| "live relay state poisoned".to_owned())?;
-        if frame.descriptor.epoch < state.epoch
-            || (frame.descriptor.epoch == state.epoch
-                && frame.descriptor.frame_id <= state.last_frame_id)
-        {
-            return Err("Loom delivered a stale or duplicate live frame".to_owned());
+        if allow_warmup {
+            return Ok(());
         }
+        return Err("Loom delivered a stale or duplicate live frame".to_owned());
     }
     let epoch = frame.descriptor.epoch;
     let frame_id = frame.descriptor.frame_id;
@@ -274,11 +330,7 @@ fn accept_live_relay_viewer_frame(relay: &LiveRelaySession, bytes: &[u8]) -> Res
         .lock()
         .map_err(|_| "live relay frame buffer poisoned".to_owned())?
         .push(frame);
-    relay
-        .state
-        .lock()
-        .map_err(|_| "live relay state poisoned".to_owned())?
-        .mark_frame(epoch, frame_id);
+    state.mark_frame(epoch, frame_id);
     Ok(())
 }
 
@@ -312,7 +364,7 @@ fn connect_live_relay_socket(
         .map_err(|error| format!("build Loom live WebSocket request: {error}"))?;
     request.headers_mut().insert(
         SEC_WEBSOCKET_PROTOCOL,
-        HeaderValue::from_static(LIVE_RELAY_MEDIA_OFFER),
+        HeaderValue::from_static(LIVE_RELAY_VIDEO_OFFER),
     );
     relay.authorization.apply_websocket(&mut request)?;
     connect_live_relay_transport(request, &url, relay.role)
@@ -320,13 +372,17 @@ fn connect_live_relay_socket(
 
 fn mark_live_relay_connected(relay: &LiveRelaySession) {
     if let Ok(mut state) = relay.state.lock() {
-        state.mark_connected();
+        if !relay.stop.load(Ordering::SeqCst) {
+            state.mark_connected();
+        }
     }
 }
 
 fn mark_live_relay_recovering(relay: &LiveRelaySession, code: &str, message: impl Into<String>) {
     if let Ok(mut state) = relay.state.lock() {
-        state.mark_recovering(code, message);
+        if !relay.stop.load(Ordering::SeqCst) {
+            state.mark_recovering(code, message);
+        }
     }
 }
 
@@ -378,6 +434,7 @@ mod live_relay_websocket_tests {
                 "device-000-local",
             ),
             publication: None,
+            viewer_identity: None,
             recovery_busy: AtomicBool::new(false),
             event_cursor: std::sync::atomic::AtomicU64::new(0),
             capture: None,

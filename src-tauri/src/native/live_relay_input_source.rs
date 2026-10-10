@@ -17,6 +17,9 @@ fn apply_live_relay_session_state(
             .state
             .lock()
             .map_err(|_| "live relay state poisoned".to_owned())?;
+        if relay.stop.load(Ordering::SeqCst) {
+            return Ok(());
+        }
         state.controller_owned =
             controller.as_deref() == Some(relay.authorization.device_id.as_str());
         state.controller_device_id = controller;

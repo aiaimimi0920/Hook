@@ -10,7 +10,7 @@ const identity = (value: string | undefined): string | null =>
 
 /** 固定单槽白名单：没有图像、标题、观察值、URL、错误正文或凭证，也不计算跨机帧龄。 */
 export function liveRelayDiagnostic(view: LiveRelayView) {
-    const status = view.status, submitted = view.presentation;
+    const status = view.status, submitted = view.presentation, rendered = view.renderProof;
     const valid = !!view.imageUrl && view.relayId === status.relayId && status.connectionState !== 'closed'
         && submitted?.evidence === 'decoded_submitted' && submitted.liveSessionId === status.liveSessionId
         && submitted.epoch === status.epoch && submitted.frameId === view.submittedFrameId
@@ -31,6 +31,15 @@ export function liveRelayDiagnostic(view: LiveRelayView) {
         overwrittenFrames: count(status.overwrittenFrames),
         reconnectCount: count(status.reconnectCount),
         hasError: !!(view.controlError || status.errorCode),
+        renderEvidenceSupported: typeof view.renderEvidenceSupported === 'boolean' ? view.renderEvidenceSupported : null,
+        rendering: valid && rendered?.evidence === 'browser_element_render'
+            && rendered.relayId === view.relayId && rendered.liveSessionId === status.liveSessionId
+            && rendered.epoch === status.epoch && rendered.frameId === submitted.frameId
+            && rendered.generation === submitted.generation
+            && elapsed(rendered.renderTimeMs) !== null && elapsed(rendered.sinceSubmittedMs) !== null ? {
+                evidence: 'browser_element_render', generation: count(rendered.generation), frameId: count(rendered.frameId),
+                renderTimeMs: rendered.renderTimeMs, sinceSubmittedMs: rendered.sinceSubmittedMs,
+            } : null,
         presentation: valid ? {
             evidence: 'decoded_submitted',
             generation: count(submitted.generation),
