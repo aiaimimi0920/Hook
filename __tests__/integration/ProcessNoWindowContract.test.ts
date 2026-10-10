@@ -7,10 +7,35 @@ describe("Hook Windows child process contract", () => {
   it("keeps Hook-owned helper subprocesses hidden on Windows", () => {
     const libSource = readHookLibRustSources();
 
-    expect(libSource).toContain('std::process::Command::new("powershell.exe")');
-    expect(libSource).toContain("const CREATE_NO_WINDOW: u32 = 0x0800_0000;");
-    expect(libSource).toContain("command.creation_flags(CREATE_NO_WINDOW);");
+    const watchdogSource = readFileSync(
+      resolve(process.cwd(), "src-tauri", "src", "emergency_watchdog.rs"),
+      "utf8",
+    );
+    const imageSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "src-tauri",
+        "src",
+        "native",
+        "image_path_commands.rs",
+      ),
+      "utf8",
+    );
+
+    // Downloads must stay in-process; the authenticated watchdog remains hidden.
+    expect(libSource).not.toContain(
+      'std::process::Command::new("powershell.exe")',
+    );
+    expect(imageSource).not.toContain("Command::new");
+    expect(imageSource).toContain("use_native_tls()");
+    expect(watchdogSource).toMatch(
+      /Command::new\(executable\)[\s\S]*?\.creation_flags\(CREATE_NO_WINDOW\.0\)[\s\S]*?\.spawn\(\)/,
+    );
     expect(libSource).not.toContain("mod process_utils;");
-    expect(existsSync(resolve(process.cwd(), "src-tauri", "src", "process_utils.rs"))).toBe(false);
+    expect(
+      existsSync(
+        resolve(process.cwd(), "src-tauri", "src", "process_utils.rs"),
+      ),
+    ).toBe(false);
   });
 });

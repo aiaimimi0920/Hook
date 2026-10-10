@@ -33,7 +33,7 @@ fn loom_connector_disables_system_http_proxy_for_loopback_capability_calls() {
         "Loom capability calls must use the shared Hook proxy policy"
     );
     assert!(
-        proxy_source.contains("apply_to_url(Client::builder(), endpoint)"),
+        proxy_source.contains("apply_to_url(Client::builder().use_rustls_tls(), endpoint)"),
         "the shared client must still run the endpoint through the proxy policy"
     );
     assert!(
