@@ -94,23 +94,15 @@ fn find_cached_remote_image_path(cache_dir: &Path, url: &str) -> Result<Option<P
     }
 
     let prefix = format!("remote_{}.", remote_image_cache_key(url));
-    for entry in fs::read_dir(cache_dir)
-        .map_err(|e| format!("Failed to read image-search cache dir: {}", e))?
-    {
-        let entry =
-            entry.map_err(|e| format!("Failed to inspect image-search cache entry: {}", e))?;
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-        let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
-            continue;
+    for extension in ["png", "jpg", "webp", "bmp", "gif"] {
+        let path = cache_dir.join(format!("{prefix}{extension}"));
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(format!("Failed to inspect cached image: {error}")),
         };
-        if name.starts_with(&prefix)
-            && fs::metadata(&path)
-                .map(|metadata| metadata.len() > 0)
-                .unwrap_or(false)
-        {
+        remote_image_quota::reject_link(&metadata)?;
+        if metadata.is_file() && metadata.len() > 0 && metadata.len() <= MAX_BASE64_IMAGE_ENCODED_BYTES as u64 {
             return Ok(Some(path));
         }
     }
@@ -181,10 +173,15 @@ async fn download_remote_image_bytes_with_reqwest(
     url: &ValidatedRemoteImageUrl,
     referer: Option<&str>,
 ) -> Result<(Option<String>, Vec<u8>), String> {
-    let client = crate::network_proxy::apply_to_url(
-        reqwest::Client::builder(),
-        &url.normalized,
-    )
+    download_remote_image_bytes_with_client(url, referer, reqwest::Client::builder().use_rustls_tls()).await
+}
+
+async fn download_remote_image_bytes_with_client(
+    url: &ValidatedRemoteImageUrl,
+    referer: Option<&str>,
+    builder: reqwest::ClientBuilder,
+) -> Result<(Option<String>, Vec<u8>), String> {
+    let client = crate::network_proxy::apply_to_url(builder, &url.normalized)
     .map_err(|_| "Failed to configure remote image client".to_string())?
     .timeout(Duration::from_secs(20))
     .redirect(reqwest::redirect::Policy::none())
@@ -238,119 +235,5 @@ async fn download_remote_image_bytes_with_reqwest(
         }
         bytes.extend_from_slice(&chunk);
     }
-    Ok((content_type, bytes))
-}
-
-#[cfg(target_os = "windows")]
-fn download_remote_image_bytes_with_powershell_httpclient(
-    url: &str,
-    referer: Option<&str>,
-) -> Result<(Option<String>, Vec<u8>), String> {
-    let script = r#"
-Add-Type -AssemblyName System.Net.Http
-$handler = New-Object System.Net.Http.HttpClientHandler
-$handler.AllowAutoRedirect = $false
-$client = New-Object System.Net.Http.HttpClient($handler)
-$client.Timeout = [TimeSpan]::FromSeconds(30)
-$client.DefaultRequestHeaders.UserAgent.ParseAdd($env:HOOK_FETCH_USER_AGENT)
-$client.DefaultRequestHeaders.Accept.ParseAdd($env:HOOK_FETCH_ACCEPT)
-$client.DefaultRequestHeaders.AcceptLanguage.ParseAdd($env:HOOK_FETCH_ACCEPT_LANGUAGE)
-if ($env:HOOK_FETCH_REFERER) {
-  try {
-    $client.DefaultRequestHeaders.Referrer = [Uri]$env:HOOK_FETCH_REFERER
-  } catch {
-  }
-}
-try {
-  $maxBytes = [int64]$env:HOOK_FETCH_MAX_BYTES
-  $resp = $client.GetAsync($env:HOOK_FETCH_URL, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
-  if (-not $resp.IsSuccessStatusCode) {
-    exit 22
-  }
-  if ($resp.Content.Headers.ContentLength -and $resp.Content.Headers.ContentLength -gt $maxBytes) {
-    exit 23
-  }
-  $stream = $resp.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
-  $memory = New-Object System.IO.MemoryStream
-  $buffer = New-Object byte[] 81920
-  try {
-    while (($read = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-      if (($memory.Length + $read) -gt $maxBytes) { exit 23 }
-      $memory.Write($buffer, 0, $read)
-    }
-    $bytes = $memory.ToArray()
-  } finally {
-    $stream.Dispose()
-    $memory.Dispose()
-  }
-  $contentType = ''
-  if ($resp.Content.Headers.ContentType) {
-    $contentType = $resp.Content.Headers.ContentType.MediaType
-  }
-  @{ contentType = $contentType; dataBase64 = [Convert]::ToBase64String($bytes) } | ConvertTo-Json -Compress
-} finally {
-  $client.Dispose()
-  $handler.Dispose()
-}
-"#;
-
-    let mut command = std::process::Command::new("powershell.exe");
-    command
-        .arg("-NoProfile")
-        .arg("-ExecutionPolicy")
-        .arg("Bypass")
-        .arg("-Command")
-        .arg(script)
-        .env("HOOK_FETCH_URL", url)
-        .env("HOOK_FETCH_USER_AGENT", IMAGE_SEARCH_FETCH_USER_AGENT)
-        .env("HOOK_FETCH_ACCEPT", IMAGE_SEARCH_FETCH_ACCEPT)
-        .env(
-            "HOOK_FETCH_ACCEPT_LANGUAGE",
-            IMAGE_SEARCH_FETCH_ACCEPT_LANGUAGE,
-        )
-        .env(
-            "HOOK_FETCH_REFERER",
-            referer.unwrap_or(""),
-        )
-        .env(
-            "HOOK_FETCH_MAX_BYTES",
-            MAX_BASE64_IMAGE_ENCODED_BYTES.to_string(),
-        )
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
-    let output = command
-        .output()
-        .map_err(|e| format!("PowerShell remote image download failed: {}", e))?;
-    if !output.status.success() {
-        return Err("PowerShell remote image download failed".to_string());
-    }
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_owned();
-    if stdout.is_empty() {
-        return Err("PowerShell remote image download returned empty stdout".to_string());
-    }
-    let response = serde_json::from_str::<serde_json::Value>(&stdout)
-        .map_err(|e| format!("Failed to parse PowerShell remote image response: {}", e))?;
-    let bytes = response
-        .get("dataBase64")
-        .and_then(serde_json::Value::as_str)
-        .and_then(|base64| {
-            base64::engine::general_purpose::STANDARD
-                .decode(base64)
-                .ok()
-        })
-        .ok_or_else(|| "PowerShell remote image response contained no bytes".to_string())?;
-    let content_type = response
-        .get("contentType")
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_owned);
     Ok((content_type, bytes))
 }

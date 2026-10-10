@@ -83,6 +83,12 @@ fn emit_formal_hook_outputs(
     outputs: &serde_json::Value,
     candidates: Option<&serde_json::Value>,
 ) {
+    if candidates.and_then(|value| value.get("items")).and_then(serde_json::Value::as_array)
+        .is_some_and(|items| items.len() > 64)
+    {
+        emit_formal_hook_failure(app_handle, node_id, request_id, "Art candidate limit exceeded (64)");
+        return;
+    }
     let Some(map) = outputs.as_object() else {
         emit_formal_hook_failure(
             app_handle,
@@ -182,4 +188,3 @@ fn apply_hook_settings(app: &AppHandle, settings: &serde_json::Value) {
 }
 
 // Background Listener Function
-

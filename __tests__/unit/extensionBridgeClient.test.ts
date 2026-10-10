@@ -62,13 +62,24 @@ describe("ExtensionBridgeClient", () => {
             status: "succeeded",
             data: {
                 sessionId: "extension:test",
-                features: ["contribution.snapshot", "command.invoke"],
+                features: ["contribution.snapshot", "command.invoke", "resource.authorization.v1"],
                 snapshot: snapshot(),
             },
         });
         expect(extensionRegistry.snapshot()?.generation).toBe(1);
 
+        const authorization = client.authorizeResources({
+            pluginId: "publisher.example/text-tools", commandId: "publisher.example/text-tools.transform",
+            target: { unitId: "unit-1", revision: 2 },
+        });
+        const preflight = JSON.parse(socket.sent[2]!);
+        expect(preflight.method).toBe("loom.extension.command.authorize");
+        expect(preflight.params.snapshotGeneration).toBe(1);
+        expect(preflight.params).not.toHaveProperty("resourceUploads");
+        socket.receive({ protocol: "loom.extension.v1", apiVersion: "1.0", requestId: preflight.params.requestId,
+            status: "succeeded", data: { authorizationId: "extension-auth:00000000-0000-0000-0000-000000000001" } });
         const invocation = client.invoke({
+            authorizationId: await authorization,
             pluginId: "publisher.example/text-tools",
             commandId: "publisher.example/text-tools.transform",
             target: { unitId: "unit-1", revision: 2 },
@@ -85,7 +96,8 @@ describe("ExtensionBridgeClient", () => {
             }],
             userGestureToken: "hook-gesture:1234567890",
         });
-        const invokeRequest = JSON.parse(socket.sent[2]!);
+        const invokeRequest = JSON.parse(socket.sent[3]!);
+        expect(invokeRequest.params.authorizationId).toBe("extension-auth:00000000-0000-0000-0000-000000000001");
         expect(invokeRequest.params.invocation.snapshotGeneration).toBe(1);
         expect(invokeRequest.params.invocation.resourceRefs).toEqual([]);
         expect(invokeRequest.params.resourceUploads).toEqual([
@@ -133,7 +145,7 @@ describe("ExtensionBridgeClient", () => {
             status: "succeeded",
             data: {
                 sessionId: "extension:replacement",
-                features: ["contribution.snapshot", "command.invoke"],
+                features: ["contribution.snapshot", "command.invoke", "resource.authorization.v1"],
                 snapshot: snapshot(),
             },
         });
@@ -158,7 +170,7 @@ describe("ExtensionBridgeClient", () => {
             status: "succeeded",
             data: {
                 sessionId: "extension:budget",
-                features: ["contribution.snapshot", "command.invoke"],
+                features: ["contribution.snapshot", "command.invoke", "resource.authorization.v1"],
                 snapshot: snapshot(),
             },
         });

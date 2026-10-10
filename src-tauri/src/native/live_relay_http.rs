@@ -116,7 +116,7 @@ async fn create_live_session_http(
     authorization: &crate::device_session::DeviceSessionAuthorization,
     body: &serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    let client = crate::network_proxy::shared_client(base_url, Some(Duration::from_secs(15)))
+    let client = crate::network_proxy::loom_client(base_url, Some(Duration::from_secs(15)))
         .map_err(|error| format!("build Loom live-session client: {error}"))?;
     send_live_relay_json(
         authorization
@@ -131,7 +131,7 @@ async fn discover_live_sessions_http(
     base_url: &str,
     authorization: &crate::device_session::DeviceSessionAuthorization,
 ) -> Result<serde_json::Value, String> {
-    let client = crate::network_proxy::shared_client(base_url, Some(Duration::from_secs(10)))
+    let client = crate::network_proxy::loom_client(base_url, Some(Duration::from_secs(10)))
         .map_err(|error| format!("build Loom live discovery client: {error}"))?;
     let value = send_live_relay_json(
         authorization.apply(client.get(format!("{base_url}/v1/live/sessions"))),
@@ -170,7 +170,7 @@ async fn attach_live_viewer_with_policy_http(
     sequence: u64,
     require_existing_membership: bool,
 ) -> Result<serde_json::Value, String> {
-    let client = crate::network_proxy::shared_client(base_url, Some(Duration::from_secs(15)))
+    let client = crate::network_proxy::loom_client(base_url, Some(Duration::from_secs(15)))
         .map_err(|error| format!("build Loom live viewer client: {error}"))?;
     let url = live_relay_session_url(base_url, &request.live_session_id, Some("viewers"))?;
     let mut body = serde_json::json!({
@@ -229,7 +229,7 @@ fn resume_live_viewer_blocking(session: &LiveRelaySession) -> Result<(), String>
         }
     });
     let client =
-        crate::network_proxy::blocking_client(&session.base_url, Some(Duration::from_secs(10)))
+        crate::network_proxy::loom_blocking_client(&session.base_url, Some(Duration::from_secs(10)))
             .map_err(|error| format!("build Loom live resume client: {error}"))?;
     let url = live_relay_session_url(&session.base_url, &session.live_session_id, Some("resume"))?;
     send_live_relay_worker_json_blocking(
@@ -286,7 +286,7 @@ fn change_live_controller_blocking(
         "leaseDurationMs": lease_duration_ms,
     });
     let client =
-        crate::network_proxy::blocking_client(&session.base_url, Some(Duration::from_secs(10)))
+        crate::network_proxy::loom_blocking_client(&session.base_url, Some(Duration::from_secs(10)))
             .map_err(|error| format!("build Loom live controller client: {error}"))?;
     let url = live_relay_session_url(&session.base_url, &session.live_session_id, Some("control"))?;
     let response = send_live_relay_json_blocking(
@@ -342,7 +342,7 @@ fn close_live_session_blocking(session: &LiveRelaySession) -> Result<(), String>
         }
     });
     let client =
-        crate::network_proxy::blocking_client(&session.base_url, Some(Duration::from_secs(10)))
+        crate::network_proxy::loom_blocking_client(&session.base_url, Some(Duration::from_secs(10)))
             .map_err(|error| format!("build Loom live close client: {error}"))?;
     let url = live_relay_session_url(&session.base_url, &session.live_session_id, Some("close"))?;
     send_live_relay_json_blocking(

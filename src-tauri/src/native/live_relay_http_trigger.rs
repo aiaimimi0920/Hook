@@ -39,7 +39,7 @@ fn configure_live_trigger_blocking(
         }
     });
     let client =
-        crate::network_proxy::blocking_client(&session.base_url, Some(Duration::from_secs(10)))
+        crate::network_proxy::loom_blocking_client(&session.base_url, Some(Duration::from_secs(10)))
             .map_err(|error| format!("build Loom live trigger client: {error}"))?;
     let url = live_relay_session_url(
         &session.base_url,

@@ -29,6 +29,7 @@ export interface ExtensionPluginBinding {
     packageDigest: string;
     trustStatus: ExtensionTrustStatus;
     permissionGrantDigest: string;
+    effectivePermissions?: readonly string[];
     scopeId: string;
 }
 
@@ -70,6 +71,12 @@ export interface ContributionSnapshot {
     plugins: ExtensionPluginBinding[];
     contributions: ExtensionContributions;
 }
+
+export const isTrustedExtensionContribution = (
+    snapshot: ContributionSnapshot,
+    contribution: ExtensionContribution,
+): boolean => snapshot.plugins.some((plugin) => plugin.id === contribution.pluginId
+    && plugin.scopeId === contribution.scopeId && plugin.trustStatus === "trusted");
 
 const asRecord = (value: unknown, field: string): Record<string, unknown> => {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -114,11 +121,19 @@ const parsePlugin = (value: unknown, index: number): ExtensionPluginBinding => {
         "packageDigest",
         "trustStatus",
         "permissionGrantDigest",
+        "effectivePermissions",
         "scopeId",
     ], field);
     const trustStatus = asString(record.trustStatus, `${field}.trustStatus`, 32);
     if (!["trusted", "unsigned_developer", "revoked", "untrusted"].includes(trustStatus)) {
         throw new Error(`${field}.trustStatus is unsupported`);
+    }
+    // Older peers may omit this field, but omission never grants resource access.
+    const permissions = record.effectivePermissions ?? [];
+    if (!Array.isArray(permissions) || permissions.length > 64
+        || permissions.some((permission) => typeof permission !== "string" || !permission || permission.length > 128)
+        || new Set(permissions).size !== permissions.length) {
+        throw new Error(`${field}.effectivePermissions must be a bounded unique permission list`);
     }
     return {
         id: asString(record.id, `${field}.id`),
@@ -126,6 +141,7 @@ const parsePlugin = (value: unknown, index: number): ExtensionPluginBinding => {
         packageDigest: asDigest(record.packageDigest, `${field}.packageDigest`),
         trustStatus: trustStatus as ExtensionTrustStatus,
         permissionGrantDigest: asDigest(record.permissionGrantDigest, `${field}.permissionGrantDigest`),
+        effectivePermissions: permissions,
         scopeId: asString(record.scopeId, `${field}.scopeId`),
     };
 };

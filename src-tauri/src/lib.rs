@@ -172,6 +172,10 @@ include!("native/image_limits.rs");
 include!("native/clipboard_cache.rs");
 
 include!("native/remote_image_cache.rs");
+#[path = "native/remote_image_quota.rs"]
+mod remote_image_quota;
+mod watchdog_recovery_auth;
+mod watchdog_recovery_feed;
 
 include!("native/image_dialog_clipboard.rs");
 

@@ -205,13 +205,28 @@ export class ExtensionCommandRouter {
         const target = currentExtensionTarget();
         if (!target) throw new Error("extension command requires a selected unit");
         const payload = extensionContributionPayload(contribution);
+        const authority = extensionRegistry.captureAuthority(contribution);
+        const assertAuthority = () => {
+            authority.assertCurrent();
+            const current = currentExtensionTarget();
+            if (!current || current.unitId !== target.unitId || current.revision !== target.revision) {
+                throw new Error("extension command source changed");
+            }
+        };
+        const permissions = contributionPermissions(payload);
+        for (const permission of permissions) {
+            if (!authority.permissions.has(permission)) {
+                throw new Error(`extension command permission is not granted: ${permission}`);
+            }
+        }
 
         const overlay = cachedOverlayCommand(commandId);
         if (overlay) {
-            const permissions = contributionPermissions(payload);
             if (!permissions.has(ATTACHMENT_READ_PERMISSION) || !permissions.has("hook.unit.attachments.write")) {
                 throw new Error("overlay toggle requires attachment read and write permissions");
             }
+            await extensionBridgeClient.authorizeResources({ pluginId: contribution.pluginId, commandId, target, checkOnly: true });
+            assertAuthority();
             if (toggleCachedUnitOverlay(contribution.scopeId, target, overlay.typeIds)) return null;
             return this.execute(overlay.fallbackCommand);
         }
@@ -230,11 +245,12 @@ export class ExtensionCommandRouter {
         }
         try {
             let commandInput = input;
-            let assertCurrent: (() => void) | undefined;
+            let assertCurrent = assertAuthority;
             if (usesContext) {
                 if (payload.inputContext !== "ocr-text.v1") throw new Error("unsupported command input context");
-                const permissions = contributionPermissions(payload);
                 if (!permissions.has(ATTACHMENT_READ_PERMISSION)) throw new Error("context requires attachment read permission");
+                await extensionBridgeClient.authorizeResources({ pluginId: contribution.pluginId, commandId, target, checkOnly: true });
+                assertCurrent();
                 if (typeof payload.toggleAttachmentType === "string") {
                     if (!permissions.has("hook.unit.attachments.write")) throw new Error("toggle requires attachment write permission");
                     if (toggleCachedUnitOverlay(contribution.scopeId, target, [payload.toggleAttachmentType])) return null;
@@ -242,13 +258,19 @@ export class ExtensionCommandRouter {
                 const prepared = await prepareOcrTextCommandInput(target, (id) => this.execute(id));
                 commandInput = prepared.input;
                 assertCurrent = () => {
+                    assertAuthority();
                     if (context.cancelled) throw new Error("context command was cancelled");
                     prepared.assertCurrent();
                 };
                 if (context.cancelled) return null;
                 assertCurrent();
             }
-            const permissions = contributionPermissions(payload);
+            assertCurrent();
+            // Acquire the single-use lease after optional long-running OCR, not before it.
+            const authorizationId = permissions.has(IMAGE_READ_PERMISSION) || permissions.has(ATTACHMENT_READ_PERMISSION)
+                ? await extensionBridgeClient.authorizeResources({ pluginId: contribution.pluginId, commandId, target })
+                : undefined;
+            assertCurrent();
             const resourceUploads = await resolveCommandResourceUploads(permissions, target);
             const unitAttachments = resolveCommandUnitAttachments(permissions, target, contribution.pluginId);
             assertCurrent?.();
@@ -258,6 +280,7 @@ export class ExtensionCommandRouter {
                 target,
                 input: commandInput,
                 resourceUploads,
+                authorizationId,
                 unitAttachments,
                 userGestureToken: requiresUserGesture(payload) ? gestureToken() : undefined,
                 timeoutMs: commandTimeoutMs(payload),

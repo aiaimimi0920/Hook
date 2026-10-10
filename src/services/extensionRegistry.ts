@@ -1,5 +1,6 @@
 import {
     parseContributionSnapshot,
+    isTrustedExtensionContribution,
     type ContributionSnapshot,
     type ExtensionContribution,
     type ExtensionContributionKind,
@@ -7,7 +8,7 @@ import {
 
 export type ExtensionRegistryListener = (snapshot: ContributionSnapshot | null) => void;
 
-/** Owns one authenticated Hook session and swaps only fully validated snapshots. */
+/** Owns one negotiated Hook session; peer authentication is a separate transport boundary. */
 export class ExtensionRegistry {
     private sessionId: string | null = null;
     private current: ContributionSnapshot | null = null;
@@ -40,7 +41,32 @@ export class ExtensionRegistry {
     }
 
     contributions(kind: ExtensionContributionKind): readonly ExtensionContribution[] {
-        return this.current?.contributions[kind] ?? [];
+        const snapshot = this.current;
+        if (!snapshot) return [];
+        return snapshot.contributions[kind].filter((item) => isTrustedExtensionContribution(snapshot, item));
+    }
+
+    /** Freeze an invocation to the exact session and host-owned snapshot it began with. */
+    captureAuthority(contribution: ExtensionContribution): {
+        permissions: ReadonlySet<string>;
+        assertCurrent: () => void;
+    } {
+        const sessionId = this.sessionId;
+        const snapshot = this.current;
+        const owner = snapshot?.plugins.find((plugin) => plugin.id === contribution.pluginId
+            && plugin.scopeId === contribution.scopeId && plugin.trustStatus === "trusted");
+        if (!sessionId || !snapshot || !owner
+            || !snapshot.contributions.commands.includes(contribution)) {
+            throw new Error("extension command has no trusted authority");
+        }
+        return {
+            permissions: new Set(owner.effectivePermissions ?? []),
+            assertCurrent: () => {
+                if (this.sessionId !== sessionId || this.current !== snapshot) {
+                    throw new Error("extension command authority changed");
+                }
+            },
+        };
     }
 
     diagnostics(): { plugins: number; contributions: number; listeners: number } {

@@ -45,7 +45,7 @@ fn live_source_recovery_path(hook_process_id: u32) -> Result<PathBuf, String> {
         .join("recovery");
     fs::create_dir_all(&root)
         .map_err(|error| format!("create live source recovery directory: {error}"))?;
-    Ok(root.join(format!("live-source-{hook_process_id}.json")))
+    Ok(root.join(format!("live-source-{hook_process_id}.signed")))
 }
 
 #[cfg(target_os = "windows")]
@@ -54,20 +54,23 @@ fn persist_live_source_recovery_records(
 ) -> Result<(), String> {
     let hook_process_id = std::process::id();
     let path = live_source_recovery_path(hook_process_id)?;
+    let journal = LiveSourceRecoveryJournal {
+        schema_version: 2,
+        hook_process_id,
+        records: records.values().cloned().collect(),
+    };
+    let bytes = serde_json::to_vec(&journal)
+        .map_err(|error| format!("serialize live source recovery journal: {error}"))?;
+    if records.len() > 16 { return Err("Live recovery record limit exceeded".into()); }
+    let bytes = crate::watchdog_recovery_auth::sign(&bytes)?;
     if records.is_empty() {
+        crate::watchdog_recovery_feed::publish(&bytes)?;
         match fs::remove_file(&path) {
             Ok(()) => return Ok(()),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
             Err(error) => return Err(format!("remove live source recovery journal: {error}")),
         }
     }
-    let journal = LiveSourceRecoveryJournal {
-        schema_version: 1,
-        hook_process_id,
-        records: records.values().cloned().collect(),
-    };
-    let bytes = serde_json::to_vec(&journal)
-        .map_err(|error| format!("serialize live source recovery journal: {error}"))?;
     let temporary = path.with_extension(format!("json.tmp-{hook_process_id}"));
     let mut file = fs::File::create(&temporary)
         .map_err(|error| format!("create live source recovery journal: {error}"))?;
@@ -76,7 +79,8 @@ fn persist_live_source_recovery_records(
     file.sync_all()
         .map_err(|error| format!("flush live source recovery journal: {error}"))?;
     drop(file);
-    commit_live_source_recovery_journal(&temporary, &path)
+    commit_live_source_recovery_journal(&temporary, &path)?;
+    crate::watchdog_recovery_feed::publish(&bytes)
 }
 
 #[cfg(target_os = "windows")]
@@ -142,19 +146,36 @@ fn unregister_live_source_recovery(hwnd: u64) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", test))]
 pub(crate) fn restore_live_source_windows_for_parent(
     hook_process_id: u32,
+    recovery_key: &[u8; 32],
 ) -> Result<usize, String> {
     let path = live_source_recovery_path(hook_process_id)?;
-    let bytes = match fs::read(&path) {
-        Ok(bytes) => bytes,
+    let file = match fs::File::open(&path) {
+        Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
         Err(error) => return Err(format!("read live source recovery journal: {error}")),
     };
-    let journal: LiveSourceRecoveryJournal = serde_json::from_slice(&bytes)
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    file.take(crate::watchdog_recovery_auth::MAX_JOURNAL_BYTES as u64 + 1).read_to_end(&mut bytes)
+        .map_err(|error| format!("read bounded live recovery journal: {error}"))?;
+    restore_live_source_windows_from_snapshot(hook_process_id, recovery_key, Some(&bytes))
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn restore_live_source_windows_from_snapshot(
+    hook_process_id: u32,
+    recovery_key: &[u8; 32],
+    snapshot: Option<&[u8]>,
+) -> Result<usize, String> {
+    let Some(bytes) = snapshot else { return Ok(0); };
+    let path = live_source_recovery_path(hook_process_id)?;
+    let payload = crate::watchdog_recovery_auth::verify(bytes, recovery_key)?;
+    let journal: LiveSourceRecoveryJournal = serde_json::from_slice(payload)
         .map_err(|error| format!("parse live source recovery journal: {error}"))?;
-    if journal.schema_version != 1 || journal.hook_process_id != hook_process_id {
+    if journal.schema_version != 2 || journal.hook_process_id != hook_process_id || journal.records.len() > 16 {
         return Err("live source recovery journal identity mismatch".to_string());
     }
     let mut restored = 0;
@@ -260,6 +281,7 @@ fn restore_live_source_recovery_record(record: &LiveSourceRecoveryRecord) -> Res
 #[cfg(not(target_os = "windows"))]
 pub(crate) fn restore_live_source_windows_for_parent(
     _hook_process_id: u32,
+    _recovery_key: &[u8; 32],
 ) -> Result<usize, String> {
     Ok(0)
 }

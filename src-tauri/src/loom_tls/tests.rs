@@ -105,6 +105,7 @@ fn blocking_https_accepts_only_valid_scoped_certificates() {
         let (origin, thread) = fixture.serve(Some(OK_RESPONSE));
         let trust = ScopedTrust::from_pem(&origin, fixture.ca_pem.as_bytes()).unwrap();
         let builder = reqwest::blocking::Client::builder()
+            .use_rustls_tls()
             .no_proxy()
             .timeout(Duration::from_secs(3));
         let builder = if custom_ca {
@@ -139,6 +140,7 @@ async fn async_https_uses_the_same_trust_without_disabling_certificate_checks() 
         let (origin, thread) = fixture.serve(Some(OK_RESPONSE));
         let trust = ScopedTrust::from_pem(&origin, fixture.ca_pem.as_bytes()).unwrap();
         let builder = reqwest::Client::builder()
+            .use_rustls_tls()
             .no_proxy()
             .timeout(Duration::from_secs(3));
         let builder = if custom_ca {
@@ -170,6 +172,7 @@ fn blocking_private_ca_clients_do_not_follow_redirects() {
     let (origin, thread) = fixture.serve(Some("HTTP/1.1 302 Found\r\nLocation: https://other.test/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"));
     let trust = ScopedTrust::from_pem(&origin, fixture.ca_pem.as_bytes()).unwrap();
     let builder = reqwest::blocking::Client::builder()
+        .use_rustls_tls()
         .no_proxy()
         .timeout(Duration::from_secs(3))
         .redirect(reqwest::redirect::Policy::limited(10));

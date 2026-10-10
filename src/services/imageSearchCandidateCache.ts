@@ -345,7 +345,8 @@ export const prefetchImageSearchCandidateAssets = async (input: {
         input.selectedIndex,
     );
     try {
-        for (const candidate of orderedCandidates) {
+        // Keep the selected image first, but never auto-download an entire remote result set.
+        for (const candidate of orderedCandidates.slice(0, 3)) {
             if (!isImageSearchPrefetchGenerationCurrent(input.unitId, generation)) {
                 return;
             }

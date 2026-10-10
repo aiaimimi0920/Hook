@@ -222,6 +222,7 @@ fn send_click(source: &mut LiveSourceWindowLifecycle, sequence: &mut u64, point:
 #[ignore = "requires an interactive Phase 3 Win32 or WinForms fixture"]
 fn phase_three_logical_hide_input_reclaim_and_restore() {
     let hwnd = fixture_hwnd();
+    let _watchdog = crate::emergency_watchdog::tests::start_interactive_test_watchdog();
     let fixture_kind = required_env("HOOK_LIVE_PHASE3_FIXTURE_KIND");
     let window_region = (std::env::var("HOOK_LIVE_PHASE3_WINDOW_REGION").as_deref() == Ok("1"))
         .then(|| region_support::client_region(hwnd));
@@ -403,31 +404,30 @@ fn phase_three_logical_hide_input_reclaim_and_restore() {
         errors.push("mouse drag was not delivered".to_string());
     }
 
-    let watchdog_recovery_verified =
-        match crate::restore_live_source_windows_for_parent(std::process::id()) {
-            Ok(1) => {
-                let mut watchdog_restored = RECT::default();
-                unsafe {
-                    windows::Win32::UI::WindowsAndMessaging::GetWindowRect(
-                        hwnd,
-                        &mut watchdog_restored,
-                    )
-                }
-                .is_ok()
-                    && watchdog_restored == original
-                    && !recovery_path.exists()
+    let watchdog_recovery_verified = match crate::restore_live_source_windows_for_parent(
+        std::process::id(),
+        &crate::watchdog_recovery_auth::public_key(),
+    ) {
+        Ok(1) => {
+            let mut watchdog_restored = RECT::default();
+            unsafe {
+                windows::Win32::UI::WindowsAndMessaging::GetWindowRect(hwnd, &mut watchdog_restored)
             }
-            Ok(count) => {
-                errors.push(format!(
-                    "watchdog restored {count} source windows instead of one"
-                ));
-                false
-            }
-            Err(error) => {
-                errors.push(format!("watchdog recovery failed: {error}"));
-                false
-            }
-        };
+            .is_ok()
+                && watchdog_restored == original
+                && !recovery_path.exists()
+        }
+        Ok(count) => {
+            errors.push(format!(
+                "watchdog restored {count} source windows instead of one"
+            ));
+            false
+        }
+        Err(error) => {
+            errors.push(format!("watchdog recovery failed: {error}"));
+            false
+        }
+    };
     if !watchdog_recovery_verified {
         errors.push("watchdog recovery did not restore the exact source window".to_string());
     }

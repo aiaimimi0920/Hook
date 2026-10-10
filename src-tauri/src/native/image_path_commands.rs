@@ -98,6 +98,10 @@ async fn cache_remote_image_asset(
     if let Some(existing_path) = find_cached_remote_image_path(&cache_dir, &normalized_url)? {
         return Ok(existing_path.to_string_lossy().to_string());
     }
+    let _admission = remote_image_quota::admit(cache_dir.clone()).await?;
+    if let Some(existing_path) = find_cached_remote_image_path(&cache_dir, &normalized_url)? {
+        return Ok(existing_path.to_string_lossy().to_string());
+    }
 
     let normalized_referer = if let Some(referer) = referer.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
         validate_remote_image_url(referer)
@@ -121,12 +125,15 @@ async fn cache_remote_image_asset(
                     "image_search_cache_reqwest_failed :: host={} category=transport",
                     validated_url.host
                 ));
-                download_remote_image_bytes_with_powershell_httpclient(
-                    &normalized_url,
+                // Schannel preserves Windows certificate compatibility without a second DNS lookup.
+                download_remote_image_bytes_with_client(
+                    &validated_url,
                     normalized_referer.as_deref(),
+                    reqwest::Client::builder().use_native_tls(),
                 )
-                .map_err(|powershell_error| {
-                    let _ = (reqwest_error, powershell_error);
+                .await
+                .map_err(|native_tls_error| {
+                    let _ = (reqwest_error, native_tls_error);
                     "Remote image download and fallback both failed".to_string()
                 })?
             }
@@ -153,7 +160,7 @@ async fn cache_remote_image_asset(
         remote_image_cache_key(&normalized_url),
         extension
     ));
-    fs::write(&target_path, bytes.as_slice())
+    remote_image_quota::write_new(&target_path, bytes.as_slice())
         .map_err(|e| format!("Failed to write cached remote image: {}", e))?;
     append_runtime_log_line(&format!(
         "image_search_cache_saved :: file={} bytes={}",

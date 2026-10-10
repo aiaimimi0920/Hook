@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
 
-import type { ContributionSnapshot, ExtensionContribution } from "./extensionProtocol";
+import { isTrustedExtensionContribution, type ContributionSnapshot, type ExtensionContribution } from "./extensionProtocol";
 import { currentExtensionWhenContext } from "./extensionContext";
 import { compileExtensionWhen } from "./extensionWhen";
 
@@ -114,12 +114,14 @@ export const applyExtensionPresentationSnapshot = (snapshot: ContributionSnapsho
         const commandId = menu.commandId;
         if (!commandId) continue;
         const command = commands.get(commandId);
-        if (!command) continue;
+        if (!command || !isTrustedExtensionContribution(snapshot, menu)
+            || command.pluginId !== menu.pluginId || command.scopeId !== menu.scopeId) continue;
         if (menu.placement === "hook.unit.toolbar") toolbar.push(itemFrom(menu, command, menu.placement));
         if (menu.placement === "hook.commandPalette") palette.push(itemFrom(menu, command, menu.placement));
     }
     const paletteCommandIds = new Set(palette.map((item) => item.commandId));
     for (const command of snapshot.contributions.commands) {
+        if (!isTrustedExtensionContribution(snapshot, command)) continue;
         const commandId = command.commandId ?? command.id;
         if (paletteCommandIds.has(commandId)) continue;
         palette.push(itemFrom({ ...command, placement: "hook.commandPalette" }, command, "hook.commandPalette"));
