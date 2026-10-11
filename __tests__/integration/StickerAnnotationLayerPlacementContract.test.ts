@@ -18,6 +18,17 @@ const annotationTextControllerSource = readFileSync(
 );
 
 describe("Hook sticker annotation layer placement contract", () => {
+    it("isolates live drafts from the committed SVG and leaves pointer capture on the host", () => {
+        const source = readFileSync(resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"), "utf8");
+        const committed = source.indexOf("<StickerAnnotationElements");
+        const committedEnd = source.indexOf("</svg>", committed);
+        const draft = source.indexOf('data-sticker-draft-layer="true"');
+        expect(draft).toBeGreaterThan(committedEnd);
+        expect(source.slice(draft, source.indexOf("<StickerAnnotationDraftOverlays", draft)))
+            .toContain('"pointer-events": "none", transform: "translateZ(0)"');
+        expect(source).toContain('<Show when={!!draftLine() || !!draftShape()}>');
+    });
+
     it("renders the sticker annotation layer inside the clipped sticker-visual container so bounded shapes cannot visibly spill outside the sticker", () => {
         const visualStart = unitViewSource.indexOf('<div class="sticker-visual"');
         const visualOverlays = unitViewSource.indexOf("<UnitVisualOverlays");

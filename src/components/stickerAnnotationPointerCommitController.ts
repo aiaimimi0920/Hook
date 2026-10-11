@@ -1,4 +1,5 @@
-import type { Accessor, Setter } from "solid-js";
+import { batch, type Accessor, type Setter } from "solid-js";
+import { buildStickerCropEdit } from "../services/stickerCropEdits";
 
 import { graphStore } from "../store/graphStore";
 import { stickerToolSettings, uiActions } from "../store/uiStore";
@@ -13,7 +14,6 @@ import type { Unit } from "../types/unit";
 import {
     clampCropRectToStickerBounds,
     clampShapeRectToStickerBounds,
-    computeNextCropFrame,
     constrainLinearToolEndpoint,
     createContentEraserStroke,
     HIGHLIGHTER_LAYER_OPACITY,
@@ -308,20 +308,11 @@ export const createStickerAnnotationPointerCommitController = (
                 const unit = options.unit();
                 if (!unit) return;
                 rememberCurrentState();
-                const nextCrop = computeNextCropFrame(
-                    { x: unit.x, y: unit.y, w: unit.w, h: unit.h },
-                    options.imageEditState(),
-                    rect,
-                );
-                graphStore.actions.updateUnit(options.unitId(), nextCrop.unitRect);
-                await patchUnitData({
-                    imageEditState: {
-                        ...options.imageEditState(),
-                        contentEraseStrokes: options.imageEditState().contentEraseStrokes,
-                        cropRect: nextCrop.cropRect,
-                        sourceSize: nextCrop.sourceSize,
-                    },
-                }, { propagateEdit: true });
+                const crop = buildStickerCropEdit(unit, rect);
+                await batch(() => {
+                    graphStore.actions.updateUnit(options.unitId(), crop.frame);
+                    return patchUnitData(crop.data, { propagateEdit: true });
+                });
                 return;
             }
             const rawCornerRadius =

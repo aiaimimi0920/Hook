@@ -5,6 +5,7 @@ import { drawAnnotationsWithHighlighterLayer } from "./stickerAnnotationLayer";
 import { eraseStrokePathToTransparency } from "./stickerAnnotationDrawing";
 import { loadImage, resolveFiniteCanvasDimension } from "./stickerCanvas";
 import { resolveStickerContentFrame } from "./stickerEditPropagation";
+import { croppedImageSourceResolution, drawCroppedStickerImage } from "./stickerCropImage";
 import { resolveRuntimeStickerCompositeBaseImageSrc } from "./stickerExportSource";
 
 const computeContainPlacement = (
@@ -110,11 +111,12 @@ export const renderStickerCompositeWithAnnotations = async (
         width: image.naturalWidth || image.width,
         height: image.naturalHeight || image.height,
     };
+    const outputSourceSize = croppedImageSourceResolution(unit.data.imageEditState, sourceSize) || sourceSize;
     const outputWidth = preserveSourceResolution
-        ? resolveFiniteCanvasDimension(sourceSize.width || renderWidth, "source width")
+        ? resolveFiniteCanvasDimension(outputSourceSize.width || renderWidth, "source width")
         : renderWidth;
     const outputHeight = preserveSourceResolution
-        ? resolveFiniteCanvasDimension(sourceSize.height || renderHeight, "source height")
+        ? resolveFiniteCanvasDimension(outputSourceSize.height || renderHeight, "source height")
         : renderHeight;
     const coordinateScale = {
         x: outputWidth / renderWidth,
@@ -148,12 +150,15 @@ export const renderStickerCompositeWithAnnotations = async (
 
     context.save();
     context.globalAlpha = unit.data.opacityNormal ?? 1;
-    if (unit.data.imageEditState?.flippedX || unit.data.imageEditState?.flippedY) {
+    const hasLogicalCrop = !!(cropRect && unit.data.imageEditState?.sourceSize);
+    if (!hasLogicalCrop && (unit.data.imageEditState?.flippedX || unit.data.imageEditState?.flippedY)) {
         context.translate(unit.data.imageEditState?.flippedX ? renderWidth : 0, unit.data.imageEditState?.flippedY ? renderHeight : 0);
         context.scale(unit.data.imageEditState?.flippedX ? -1 : 1, unit.data.imageEditState?.flippedY ? -1 : 1);
     }
 
-    if (cropRect) {
+    if (hasLogicalCrop) {
+        drawCroppedStickerImage(context, image, contentFrame, unit.data.imageEditState!);
+    } else if (cropRect) {
         context.drawImage(
             image,
             cropRect.x,
