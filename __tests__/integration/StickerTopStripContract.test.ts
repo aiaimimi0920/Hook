@@ -248,7 +248,7 @@ describe("Hook sticker top strip contract", () => {
         expect(propertyBarSource).toContain('<Show when={props.tool === "crop"}>{renderCropFields()}</Show>');
         expect(propertyBarCropSource).toContain("flipStickerEditDataForFrame");
         expect(propertyBarCropSource).toContain("flipRasterizedAnnotationLayer");
-        expect(propertyBarCropSource).toContain("computeRestoredCropFrame");
+        expect(propertyBarCropSource).toContain("buildStickerCropReset");
         const cropFieldsSource = sourceBetween(
             propertyBarSectionSource,
             "const renderCropFields = () => (",
