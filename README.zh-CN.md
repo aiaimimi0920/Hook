@@ -24,13 +24,13 @@
 
 ## 为什么是 Hook
 
-本地 Loom Art/扩展集成需要原生桌面运行时，并显式设置 `HOOK_ENABLE_LOOM_HOOK=1`。
+原生桌面 Hook 默认自动发现并连接经过认证的本机 Loom；设置 `HOOK_ENABLE_LOOM_HOOK=0` 可关闭集成。
 纯浏览器预览仅保留本地功能，不匿名连接 Loom 或执行真实 Art。
 详见[安全边界](docs/SECURITY_BOUNDARIES.md#authenticated-native-local-bridge)。
 
-本地测试包提供 `hook-with-loom.cmd` 联动启动入口：先启动 Loom，退出旧 Hook，
-再使用此入口启用 OCR、翻译等已安装扩展。它只为本次 Hook 子进程启用联动，
-不会修改用户或系统环境变量；直接打开 `hook.exe` 仍是独立模式。
+启动 Loom 后，直接打开 `hook.exe` 即可使用 OCR、翻译等已安装扩展。
+Loom 未运行时，本地截图和编辑仍可使用。测试包保留可选的 `hook-with-loom.cmd`
+兼容入口，它尊重显式关闭设置，不会修改用户或系统环境变量。
 选中图片贴图后，`Ctrl+4` 重新识别，`Alt+4` 显示或隐藏 OCR；`Ctrl+5` 重新翻译，
 `Alt+5` 显示或隐藏翻译。没有结果时会先生成结果；对应 Loom 能力需已安装、启用并授权。
 

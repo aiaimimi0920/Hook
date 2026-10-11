@@ -108,15 +108,17 @@ not proof of peer identity.
 
 The native Art/shader/coordination callers and extension host use the private
 `loom.json` `hookBridge` descriptor with protocol `loom.local-bridge.v1`.
-`HOOK_ENABLE_LOOM_HOOK` must explicitly enable integration; the default is off.
+Native desktop integration defaults on; `HOOK_ENABLE_LOOM_HOOK=0` explicitly disables it.
 Startup capability refresh and extension registrations obey the same gate as
 direct native connection attempts. Local capture and standalone session restore
 do not need to connect to Loom.
 
-Local test packages provide `hook-with-loom.cmd` as an explicit integration
-entry point. It sets `HOOK_ENABLE_LOOM_HOOK=1` for the launched child only;
-it neither persists environment settings nor disables discovery authentication
-or capability grants. Close the existing Hook instance before using it.
+Opening `hook.exe` directly uses authenticated local discovery. Local test packages
+retain `hook-with-loom.cmd` as an optional compatibility entry point; it supplies
+the enabled default only when unset and preserves explicit disable. It neither
+persists environment settings nor disables discovery authentication or capability
+grants. Restart Hook for environment changes to take effect. Browser preview stays
+disconnected, and a missing native boot profile does not grant connection authority.
 
 Native code accepts only the descriptor's canonical loopback WSS endpoint,
 authenticates its pinned leaf certificate with Rustls/WebPKI, then proves the

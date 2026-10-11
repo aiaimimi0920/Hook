@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { readLoomHookRustSources } from "../helpers/loomHookRustSources";
 
-describe("Hook opt-in authenticated Loom Hook connection", () => {
+describe("Hook default-on authenticated local Loom connection", () => {
   it("uses the gated native instantiation listener during Tauri setup", () => {
     const backendSource = readHookLibRustSources();
 
@@ -15,7 +15,7 @@ describe("Hook opt-in authenticated Loom Hook connection", () => {
     expect(readLoomHookRustSources()).toContain("if !crate::loom_bridge_client::enabled()");
   });
 
-  it("requires explicit opt-in for startup handshakes and extension listeners", () => {
+  it("respects the native boot policy for startup handshakes and extension listeners", () => {
     const startupSource = readFileSync(
       resolve(process.cwd(), "src", "services", "appStartupLifecycle.ts"),
       "utf8",

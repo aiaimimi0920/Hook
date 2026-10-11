@@ -7,6 +7,13 @@ const launcherVbsSource = readFileSync(resolve(process.cwd(), "start-hook.vbs"),
 const buildSource = readFileSync(resolve(process.cwd(), "build-hook-release.bat"), "utf8");
 
 describe("Hook release launcher contract", () => {
+    it("defaults to authenticated local discovery without overriding an explicit disable or endpoint", () => {
+        const config = readFileSync(resolve(process.cwd(), "launch-config.cmd"), "utf8");
+        expect(config).toContain('if not defined HOOK_ENABLE_LOOM_HOOK set "HOOK_ENABLE_LOOM_HOOK=1"');
+        expect(launcherVbsSource).toContain('Call SetDefaultEnv("HOOK_ENABLE_LOOM_HOOK", "1")');
+        expect(config).not.toContain('set "LOOM_HOOK_WS_URL=');
+        expect(launcherVbsSource).not.toContain('SetDefaultEnv("LOOM_HOOK_WS_URL"');
+    });
     it("delegates release startup to the hidden VBS launcher and still stops any already-running hook.exe first", () => {
         expect(launcherSource).toContain('call "%~dp0launch-config.cmd"');
         expect(launcherSource).toContain('wscript.exe //nologo "%~dp0start-hook.vbs"');

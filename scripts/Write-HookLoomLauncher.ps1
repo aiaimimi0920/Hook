@@ -1,4 +1,4 @@
-# The launcher is an explicit, process-local opt-in; the standalone EXE stays off by default.
+# Compatibility launcher: the native EXE also defaults on; explicit opt-out wins.
 function Write-HookLoomLauncher {
     param([Parameter(Mandatory = $true)][string]$HookExe)
 
@@ -13,7 +13,7 @@ function Write-HookLoomLauncher {
     $content = @(
         '@echo off',
         'setlocal',
-        'set "HOOK_ENABLE_LOOM_HOOK=1"',
+        'if not defined HOOK_ENABLE_LOOM_HOOK set "HOOK_ENABLE_LOOM_HOOK=1"',
         ('start "" "%~dp0' + $exe.Name + '"'),
         'endlocal',
         ''

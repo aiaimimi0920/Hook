@@ -4,7 +4,7 @@ import { readHookLibRustSources } from "../helpers/hookLibRustSources";
 import { defaultBootProfile, normalizeBootProfile } from "../../src/services/bootProfile";
 
 describe("Hook boot profile", () => {
-  it("defaults to standalone overlay mode so directly launching hook.exe does not wait for Loom Hook", () => {
+  it("keeps browser preview and missing native profiles disconnected", () => {
     expect(defaultBootProfile).toMatchObject({
       startupMode: "silent",
       initialUiMode: "overlay",
@@ -15,10 +15,10 @@ describe("Hook boot profile", () => {
     });
   });
 
-  it("keeps the Rust direct-exe boot profile standalone unless HOOK_ENABLE_LOOM_HOOK explicitly enables it", () => {
+  it("uses the native connector policy for the desktop boot profile", () => {
     const rustSource = readHookLibRustSources();
 
-    expect(rustSource).toContain('read_env_bool("HOOK_ENABLE_LOOM_HOOK", false)');
+    expect(rustSource).toContain('loom_hook_enabled: crate::loom_bridge_client::enabled()');
   });
 
   it("normalizes partial or invalid raw profile values", () => {

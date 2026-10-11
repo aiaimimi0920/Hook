@@ -30,7 +30,7 @@ pub(crate) fn flush_control_reply(socket: &mut BridgeSocket) -> tungstenite::Res
 }
 
 pub(crate) fn enabled() -> bool {
-    crate::read_env_bool("HOOK_ENABLE_LOOM_HOOK", false)
+    crate::read_env_bool("HOOK_ENABLE_LOOM_HOOK", true)
 }
 
 pub(crate) fn require_enabled() -> Result<(), String> {

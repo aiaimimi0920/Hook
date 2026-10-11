@@ -24,21 +24,23 @@ $bytes = [IO.File]::ReadAllBytes($launcher)
 if ($bytes[0] -eq 0xef) { throw 'Launcher must not have a BOM.' }
 $previous = $env:HOOK_ENABLE_LOOM_HOOK
 try {
-    $env:HOOK_ENABLE_LOOM_HOOK = '0'
-    & cmd.exe /d /c ('"' + $launcher + '"')
-    if ($LASTEXITCODE -ne 0) { throw 'Launcher failed.' }
-    $result = Join-Path $root 'result.txt'
-    $deadline = [DateTime]::UtcNow.AddSeconds(10)
-    while (-not (Test-Path -LiteralPath $result)) {
-        if ([DateTime]::UtcNow -gt $deadline) { throw 'Launcher child did not report.' }
-        Start-Sleep -Milliseconds 50
+    foreach ($value in @($null, '0')) {
+        $env:HOOK_ENABLE_LOOM_HOOK = $value
+        $expected = if ($null -eq $value) { '1' } else { $value }
+        & cmd.exe /d /c ('"' + $launcher + '"')
+        if ($LASTEXITCODE -ne 0) { throw 'Launcher failed.' }
+        $result = Join-Path $root 'result.txt'
+        $deadline = [DateTime]::UtcNow.AddSeconds(10)
+        while (-not (Test-Path -LiteralPath $result) -or [IO.File]::ReadAllText($result) -ne $expected) {
+            if ([DateTime]::UtcNow -gt $deadline) { throw 'Launcher child did not report expected policy.' }
+            Start-Sleep -Milliseconds 50
+        }
+        if ($env:HOOK_ENABLE_LOOM_HOOK -ne $value) { throw 'Launcher changed the parent environment.' }
     }
-    if ([IO.File]::ReadAllText($result) -ne '1') { throw 'Child did not opt into Loom.' }
-    if ($env:HOOK_ENABLE_LOOM_HOOK -ne '0') { throw 'Launcher changed the parent environment.' }
     $rejected = $false
     try { Write-HookLoomLauncher -HookExe $exe | Out-Null } catch { $rejected = $true }
     if (-not $rejected) { throw 'Existing launcher was overwritten.' }
 } finally {
     $env:HOOK_ENABLE_LOOM_HOOK = $previous
 }
-Write-Output '[hook-loom-launcher] Passed: child enabled, parent unchanged, no BOM, no overwrite.'
+Write-Output '[hook-loom-launcher] Passed: default enabled, explicit disable preserved, parent unchanged, no BOM, no overwrite.'
