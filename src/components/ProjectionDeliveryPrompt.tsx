@@ -88,13 +88,13 @@ const DeliveryPromptCard = (props: { invitation: DeliveryInvitation; count: numb
                 if (event.key === "Escape" && !deliveryBusy()) { event.preventDefault(); dismiss(); }
             }}>
             <header><strong>收到投射</strong><span aria-label="待处理数量">{props.count}</span>
-                <button type="button" class="hook-terminal-btn" aria-label="稍后处理投射" title="稍后处理"
+                <button type="button" class="otter-terminal-btn" aria-label="稍后处理投射" title="稍后处理"
                     disabled={deliveryBusy()} on:click={dismiss}>×</button></header>
             <p aria-live="polite"><b>{props.invitation.sourceName}</b> 请求投送{props.invitation.envelope.content.kind === "art" ? " Art 图像" : "贴图"}并持续同步。</p>
             <div class="projection-delivery-prompt-actions">
-                <button type="button" class="hook-terminal-btn hook-terminal-btn--active" disabled={deliveryBusy()}
+                <button type="button" class="otter-terminal-btn otter-terminal-btn--active" disabled={deliveryBusy()}
                     on:click={() => decide(true)}>接收并显示</button>
-                <button type="button" class="hook-terminal-btn" disabled={deliveryBusy()}
+                <button type="button" class="otter-terminal-btn" disabled={deliveryBusy()}
                     on:click={() => decide(false)}>拒绝</button>
             </div>
             <Show when={deliveryError()}><p role="alert">{projectionError(deliveryError())}</p></Show>

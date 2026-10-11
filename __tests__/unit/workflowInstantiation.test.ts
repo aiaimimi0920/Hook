@@ -121,7 +121,7 @@ describe("buildWorkflowInstantiation", () => {
         expect(unit.outputs.map((p) => p.id)).toEqual(["output_image"]);
     });
 
-    it("4c. preserves the publisher-qualified Art identity used by the Loom Hook catalog", () => {
+    it("4c. preserves the publisher-qualified Art identity used by the Loom Otter catalog", () => {
         const capability = {
             id: "neuro.official/surface-device-dashboard",
             inputs: [],

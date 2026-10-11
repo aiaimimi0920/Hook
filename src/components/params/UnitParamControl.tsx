@@ -63,8 +63,8 @@ export const UnitParamControl: Component<UnitParamControlProps> = (props) => {
         onContextMenu={handleDisable}
     >
       <div
-        class="hook-param-link-port absolute w-4 h-4 rounded-full border shadow-sm cursor-pointer hover:scale-110 transition-transform z-[55]"
-        classList={{ "hook-param-link-port--linked": props.isLinked }}
+        class="otter-param-link-port absolute w-4 h-4 rounded-full border shadow-sm cursor-pointer hover:scale-110 transition-transform z-[55]"
+        classList={{ "otter-param-link-port--linked": props.isLinked }}
         style={{ left: "-13px", top: "50%", transform: "translateY(-50%)" }}
         data-port-type="input"
         data-port-name={props.param.id}

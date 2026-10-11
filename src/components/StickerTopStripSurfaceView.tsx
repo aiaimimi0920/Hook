@@ -34,8 +34,8 @@ export const StickerTopStripSurfaceView: Component<StickerTopStripSurfaceViewPro
                     type="button"
                     class={toolbarButtonLeftBorderClass}
                     classList={{
-                        "hook-toolbar-button--active": props.openMenu === "view",
-                        "hook-toolbar-idle": props.openMenu !== "view",
+                        "otter-toolbar-button--active": props.openMenu === "view",
+                        "otter-toolbar-idle": props.openMenu !== "view",
                     }}
                     aria-label="Art 视图"
                     title={`Art 视图：${selectedSurfaceView()?.label ?? "未声明"}`}
@@ -80,13 +80,13 @@ export const StickerTopStripSurfaceView: Component<StickerTopStripSurfaceViewPro
                                         type="button"
                                         class={toolbarMenuItemClass}
                                         classList={{
-                                            "hook-toolbar-menu-item--active": props.selectedSurfaceViewId === view.id,
-                                            "hook-toolbar-menu-item--idle": props.selectedSurfaceViewId !== view.id,
+                                            "otter-toolbar-menu-item--active": props.selectedSurfaceViewId === view.id,
+                                            "otter-toolbar-menu-item--idle": props.selectedSurfaceViewId !== view.id,
                                         }}
                                         onClick={() => props.onSurfaceViewChange?.(view.id)}
                                     >
                                         <span class="min-w-0 flex-1 truncate">{view.label}</span>
-                                        <span class="hook-toolbar-shortcut ml-auto text-[10px]">
+                                        <span class="otter-toolbar-shortcut ml-auto text-[10px]">
                                             {view.fullSize.width}×{view.fullSize.height}
                                         </span>
                                     </button>

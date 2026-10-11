@@ -1,4 +1,4 @@
-name: Hook Runtime Performance Gates
+name: Otter Runtime Performance Gates
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
         default: true
         type: boolean
       run_soak:
-        description: Build Hook and run the real process memory/queue soak
+        description: Build Otter and run the real process memory/queue soak
         required: true
         default: false
         type: boolean
@@ -78,28 +78,28 @@ jobs:
           HOOK_SHADER_BENCH_MAX_ADJUSTMENT_P95_MS: "3000"
         run: npm run bench:shader
 
-      - name: Build Hook for real process soak
+      - name: Build Otter for real process soak
         if: github.event_name == 'workflow_dispatch' && inputs.run_soak
         shell: powershell
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-hook-exe.ps1 `
-            -OutputDir ".\release\Hook\runtime-soak" `
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-otter-exe.ps1 `
+            -OutputDir ".\release\Otter\runtime-soak" `
             -Force
 
-      - name: Run real Hook process memory and queue soak
+      - name: Run real Otter process memory and queue soak
         if: github.event_name == 'workflow_dispatch' && inputs.run_soak
         shell: powershell
         run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-hook-runtime-soak.ps1 `
-            -HookExe ".\release\Hook\runtime-soak\hook.exe" `
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-otter-runtime-soak.ps1 `
+            -OtterExe ".\release\Otter\runtime-soak\otter.exe" `
             -DurationSeconds ([int]"${{ inputs.soak_seconds }}") `
-            -OutputPath ".\artifacts\runtime-performance\hook-runtime-soak.json"
+            -OutputPath ".\artifacts\runtime-performance\otter-runtime-soak.json"
 
       - name: Upload runtime performance reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: hook-runtime-performance-${{ github.run_id }}
+          name: otter-runtime-performance-${{ github.run_id }}
           path: artifacts/runtime-performance
           if-no-files-found: ignore
           retention-days: 14

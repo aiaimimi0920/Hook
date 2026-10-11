@@ -66,7 +66,7 @@ fn capture(id: &str, source: HWND) -> CaptureGuard {
 fn native_wgc_continuous_h264_and_stop() {
     let _probe = PROBE_LOCK.lock().unwrap_or_else(|error| error.into_inner());
     let output = std::path::PathBuf::from(
-        std::env::var_os("HOOK_C1_NATIVE_OUTPUT").expect("explicit output required"),
+        crate::brand_env::var_os("HOOK_C1_NATIVE_OUTPUT").expect("explicit output required"),
     );
     assert!(output.is_absolute());
     std::fs::create_dir(&output).unwrap();

@@ -25,7 +25,7 @@ const tauriConfig = JSON.parse(await fs.readFile(
 ));
 const tauriCsp = tauriConfig?.app?.security?.csp;
 if (typeof tauriCsp !== "string" || tauriCsp.length === 0) {
-    throw new Error("Hook Tauri CSP is missing");
+    throw new Error("Otter Tauri CSP is missing");
 }
 const outputPath = path.resolve(
     root,

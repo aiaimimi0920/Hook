@@ -48,7 +48,7 @@ import {
 } from "./store/uiStore";
 
 
-import { loomHook } from "./services/client";
+import { loomOtter } from "./services/client";
 import { syncService } from "./services/syncService";
 import {
     createOverlaySyntheticDispatcher,
@@ -114,12 +114,12 @@ export default function App() {
   const onSessionRevisionConflict = (event: Event) => {
       const detail = (event as CustomEvent<{ message?: string }>).detail;
       setSessionConflictMessage(
-          detail?.message ?? "Loom 与 Hook 同时修改了画布。请刷新后重试。",
+          detail?.message ?? "Loom 与 Otter 同时修改了画布。请刷新后重试。",
       );
   };
-  window.addEventListener("hook:session-revision-conflict", onSessionRevisionConflict);
+  window.addEventListener("otter:session-revision-conflict", onSessionRevisionConflict);
   onCleanup(() => {
-      window.removeEventListener("hook:session-revision-conflict", onSessionRevisionConflict);
+      window.removeEventListener("otter:session-revision-conflict", onSessionRevisionConflict);
   });
 
   const decideCurrentSurfaceConfirmation = async (approved: boolean) => {
@@ -128,7 +128,7 @@ export default function App() {
       setSurfaceConfirmationSubmitting(true);
       setSurfaceConfirmationError(undefined);
       try {
-          await loomHook.decideSurfaceConfirmation({
+          await loomOtter.decideSurfaceConfirmation({
               protocolVersion: SURFACE_PROTOCOL_VERSION,
               confirmationId: current.confirmationId,
               instanceId: current.instanceId,
@@ -192,7 +192,7 @@ export default function App() {
       ctrlReleasedSinceCaptureStart: false,
   };
 
-  const { createTeaTicketFromCurrentHookState } = createAppTeaTicketController({
+  const { createTeaTicketFromCurrentOtterState } = createAppTeaTicketController({
       lastVoiceSession,
       setLastTeaTicket,
       setLastTeaTicketError,
@@ -318,7 +318,7 @@ export default function App() {
           setAppSettingsOpen,
           handleCopy,
           handlePaste,
-          createTeaTicketFromCurrentHookState,
+          createTeaTicketFromCurrentOtterState,
           setLastVoiceHotkey,
           setLastVoiceSession,
           setVoiceStatus,
@@ -361,7 +361,7 @@ export default function App() {
                 error instanceof Error ? `${error.message}\n${error.stack ?? ""}` : String(error);
             try {
                 window.localStorage.setItem(
-                    "hook-last-error",
+                    "otter-last-error",
                     `[${new Date().toISOString()}] render-error\n${detail}`,
                 );
             } catch {
@@ -371,12 +371,12 @@ export default function App() {
                 void api.debugLogEvent("render-error", detail);
             }
             return (
-                <div class="hook-render-error">
+                <div class="otter-render-error">
                     {"render-error (click 重试 to recover)\n\n" + detail}
-                    <div class="hook-render-error__actions">
+                    <div class="otter-render-error__actions">
                         <button
                             type="button"
-                            class="hook-render-error__retry"
+                            class="otter-render-error__retry"
                             onClick={reset}
                         >
                             重试
@@ -503,22 +503,22 @@ export default function App() {
 
         <Show when={longCaptureSession()}>
             {(session) => (
-                <div class="hook-terminal-shell hook-terminal-shell--strong hook-capture-status-shell absolute right-5 top-5 z-[2147483646] px-4 py-3 text-xs pointer-events-none">
-                    <div class="hook-capture-status-title mb-1 text-sm font-semibold">长截图录制中</div>
+                <div class="otter-terminal-shell otter-terminal-shell--strong otter-capture-status-shell absolute right-5 top-5 z-[2147483646] px-4 py-3 text-xs pointer-events-none">
+                    <div class="otter-capture-status-title mb-1 text-sm font-semibold">长截图录制中</div>
                     <div>已保留 {session().frameCount} 帧</div>
                     <div>已忽略 {session().duplicateCount ?? 0} 张重复画面</div>
                     <div>方向 {session().axis ?? "自动检测"}</div>
-                    <div class="hook-capture-status-copy mt-1">{session().lastMessage ?? "请慢速向下滚动，Hook 会录制非重复画面，完成后统一拼接"}</div>
-                    <div class="hook-capture-status-shortcut mt-2">Enter/Ctrl+3 完成，Esc 取消</div>
+                    <div class="otter-capture-status-copy mt-1">{session().lastMessage ?? "请慢速向下滚动，Otter 会录制非重复画面，完成后统一拼接"}</div>
+                    <div class="otter-capture-status-shortcut mt-2">Enter/Ctrl+3 完成，Esc 取消</div>
                 </div>
             )}
         </Show>
 
-        <div hidden aria-hidden="true" data-testid="hook-tea-automation-surface">
+        <div hidden aria-hidden="true" data-testid="otter-tea-automation-surface">
             <button
                 type="button"
                 data-testid="tea-ticket-button"
-                onClick={() => void createTeaTicketFromCurrentHookState("automation")}
+                onClick={() => void createTeaTicketFromCurrentOtterState("automation")}
             />
             <output data-testid="tea-ticket-output">
                 {lastTeaTicket()?.id || lastTeaTicketError() || ""}

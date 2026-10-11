@@ -17,9 +17,9 @@ $errors = New-Object System.Collections.Generic.List[string]
 $forbiddenLicensePattern = '(?i)\b(UNLICENSED|PROPRIETARY|NOASSERTION)\b|LicenseRef-Proprietary|SEE LICENSE IN'
 
 $packageJson = Get-Content -LiteralPath $packageJsonPath -Raw | ConvertFrom-Json
-$facts.Add(@{ source = "project"; name = "hook"; license = [string]$packageJson.license })
+$facts.Add(@{ source = "project"; name = "otter"; license = [string]$packageJson.license })
 if ([string]$packageJson.license -ne "MIT") {
-    $errors.Add("package.json must declare the Hook project license as MIT.")
+    $errors.Add("package.json must declare the Otter project license as MIT.")
 }
 
 $directNpmPackages = @()
@@ -95,7 +95,7 @@ if ($errors.Count -gt 0) {
     throw $message
 }
 
-Write-Host "[hook-license-audit] Direct npm manifests checked: $($directNpmPackages.Count)"
-Write-Host "[hook-license-audit] Resolved Rust packages checked: $($cargoMetadata.packages.Count)"
-Write-Host "[hook-license-audit] Rust license expressions observed: $($rustLicenseExpressions.Count)"
-Write-Host "[hook-license-audit] No explicit proprietary, unlicensed, or unresolved license marker was found."
+Write-Host "[otter-license-audit] Direct npm manifests checked: $($directNpmPackages.Count)"
+Write-Host "[otter-license-audit] Resolved Rust packages checked: $($cargoMetadata.packages.Count)"
+Write-Host "[otter-license-audit] Rust license expressions observed: $($rustLicenseExpressions.Count)"
+Write-Host "[otter-license-audit] No explicit proprietary, unlicensed, or unresolved license marker was found."

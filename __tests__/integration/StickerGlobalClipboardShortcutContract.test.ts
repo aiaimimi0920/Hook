@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -18,7 +18,7 @@ describe("sticker global clipboard shortcut contract", () => {
   it("captures Ctrl+C/Ctrl+V from the low-level keyboard hook when the overlay is intentionally unfocused", () => {
     const appSource = readSource("src/app.tsx");
     const commandSource = readSource("src/services/appCommandListeners.ts");
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
 
     const keyMatcherBlock = sourceBetween(
       rustSource,
@@ -57,10 +57,10 @@ describe("sticker global clipboard shortcut contract", () => {
     expect(appSource).toContain("registerAppCommandListeners");
   });
 
-  it("captures Hook-owned sticker shortcuts with a low-level keyboard hook so they do not leak to the app underneath", () => {
+  it("captures Otter-owned sticker shortcuts with a low-level keyboard hook so they do not leak to the app underneath", () => {
     const appSource = readSource("src/app.tsx");
     const overlayWindowApiSource = readSource("src/services/apiOverlayWindow.ts");
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
 
     const keyboardHookProc = sourceBetween(
       rustSource,
@@ -136,7 +136,7 @@ describe("sticker global clipboard shortcut contract", () => {
   });
 
   it("fails open for Alt input owned by another foreground process", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const passthroughHelper = sourceBetween(
       rustSource,
       "fn should_passthrough_foreign_alt_input",
@@ -167,7 +167,7 @@ describe("sticker global clipboard shortcut contract", () => {
     expect(passthroughHelper).toContain("!capture_active");
     expect(passthroughHelper).toContain("!drag_active");
     expect(passthroughHelper).toContain("!native_drag_preflight_active");
-    expect(passthroughHelper).toContain("!hook_has_foreground_window");
+    expect(passthroughHelper).toContain("!otter_has_foreground_window");
     expect(passthroughHelper).toContain("let routed_overlay_wheel = is_wheel_message && should_route_overlay_mouse;");
     expect(passthroughHelper).toContain("&& !routed_overlay_wheel");
     expect(keyboardHookBlock).toContain("should_passthrough_foreign_alt_input(");

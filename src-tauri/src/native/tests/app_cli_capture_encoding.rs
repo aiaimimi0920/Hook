@@ -52,11 +52,11 @@
 
     #[test]
     fn file_url_from_path_escapes_windows_path_for_webview_images() {
-        let path = PathBuf::from(r"C:\Users\Public\Hook Cache\long#1%.png");
+        let path = PathBuf::from(r"C:\Users\Public\Otter Cache\long#1%.png");
 
         assert_eq!(
             file_url_from_path(&path),
-            "file:///C:/Users/Public/Hook%20Cache/long%231%25.png"
+            "file:///C:/Users/Public/Otter%20Cache/long%231%25.png"
         );
     }
 
@@ -85,7 +85,7 @@
     #[test]
     fn find_cached_remote_image_path_matches_url_hash_prefix() {
         let root = std::env::temp_dir().join(format!(
-            "hook-remote-image-cache-test-{}-{}",
+            "otter-remote-image-cache-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
@@ -106,7 +106,7 @@
         let _env_guard = clipboard_cache_env_lock();
         let env_name = "HOOK_CLIPBOARD_CACHE_DIR";
         let cache_dir = std::env::temp_dir().join(format!(
-            "hook-file-capture-response-test-{}-{}",
+            "otter-file-capture-response-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
@@ -135,18 +135,18 @@
     #[test]
     fn internal_capture_file_allocation_is_atomic_for_identical_timestamps() {
         let root = std::env::temp_dir().join(format!(
-            "hook-internal-capture-allocation-test-{}-{}",
+            "otter-internal-capture-allocation-test-{}-{}",
             std::process::id(),
             file_timestamp_component(),
         ));
         std::fs::create_dir_all(&root).expect("create capture allocation test dir");
 
         let (mut first, first_path) =
-            create_internal_capture_file(&root, "Hook_long_capture", "1234").unwrap();
+            create_internal_capture_file(&root, "Otter_long_capture", "1234").unwrap();
         first.write_all(b"first").unwrap();
         drop(first);
         let (mut second, second_path) =
-            create_internal_capture_file(&root, "Hook_long_capture", "1234").unwrap();
+            create_internal_capture_file(&root, "Otter_long_capture", "1234").unwrap();
         second.write_all(b"second").unwrap();
         drop(second);
 
@@ -161,7 +161,7 @@
         let _env_guard = clipboard_cache_env_lock();
         let env_name = "HOOK_CLIPBOARD_CACHE_DIR";
         let cache_dir = std::env::temp_dir().join(format!(
-            "hook-failed-hdr-capture-test-{}-{}",
+            "otter-failed-hdr-capture-test-{}-{}",
             std::process::id(),
             file_timestamp_component(),
         ));
@@ -201,7 +201,7 @@
         let _env_guard = clipboard_cache_env_lock();
         let env_name = "HOOK_CLIPBOARD_CACHE_DIR";
         let root = std::env::temp_dir().join(format!(
-            "hook-stage-drag-file-copy-test-{}-{}",
+            "otter-stage-drag-file-copy-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
@@ -242,7 +242,7 @@
     #[test]
     fn bounded_file_copy_rejects_an_oversized_source_before_copying() {
         let root = std::env::temp_dir().join(format!(
-            "hook-bounded-file-copy-test-{}-{}",
+            "otter-bounded-file-copy-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));

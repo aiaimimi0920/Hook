@@ -43,7 +43,7 @@ describe("overlay synthetic events: JavaScript Surface relay", () => {
         h.sticker.append(iframe);
         const received: Array<{ type: string; x?: number; y?: number; gestureId?: number }> = [];
         let parentMouseEvents = 0;
-        iframe.addEventListener("hook:javascript-surface-pointer", (event) => {
+        iframe.addEventListener("otter:javascript-surface-pointer", (event) => {
             received.push((event as CustomEvent).detail);
         });
         for (const eventType of ["mousedown", "mousemove", "mouseup", "click"]) {
@@ -91,7 +91,7 @@ describe("overlay synthetic events: JavaScript Surface relay", () => {
         host.append(iframe);
         h.sticker.append(host);
         const received: Array<{ type: string; x?: number; y?: number }> = [];
-        iframe.addEventListener("hook:javascript-surface-pointer", (event) => {
+        iframe.addEventListener("otter:javascript-surface-pointer", (event) => {
             received.push((event as CustomEvent).detail);
         });
         h.setHit(() => host);
@@ -115,7 +115,7 @@ describe("overlay synthetic events: JavaScript Surface relay", () => {
         host.append(iframe);
         h.sticker.append(host);
         let relayedPointerEvents = 0;
-        iframe.addEventListener("hook:javascript-surface-pointer", () => {
+        iframe.addEventListener("otter:javascript-surface-pointer", () => {
             relayedPointerEvents += 1;
         });
         h.setHit(() => host);

@@ -32,7 +32,7 @@ async fn talk_connector_redacts_sensitive_values_from_http_error_bodies() {
     let error = capture_voice_once_with_manifest(
         manifest,
         TalkVoiceCaptureRequest {
-            request_id: Some("hook-request-redaction".to_string()),
+            request_id: Some("otter-request-redaction".to_string()),
             mode: Some("dictation".to_string()),
             context: Some(json!({ "source": "hook-panel" })),
             timeout_ms: None,
@@ -75,7 +75,7 @@ async fn talk_connector_labels_malformed_success_response_as_invoke_response_par
     let error = capture_voice_once_with_manifest(
         manifest,
         TalkVoiceCaptureRequest {
-            request_id: Some("hook-request-parse".to_string()),
+            request_id: Some("otter-request-parse".to_string()),
             mode: Some("dictation".to_string()),
             context: Some(json!({ "source": "hook-panel" })),
             timeout_ms: None,
@@ -108,7 +108,7 @@ async fn talk_connector_times_out_wedged_local_talk_server() {
     let error = capture_voice_once_with_manifest(
         manifest,
         TalkVoiceCaptureRequest {
-            request_id: Some("hook-request-timeout".to_string()),
+            request_id: Some("otter-request-timeout".to_string()),
             mode: Some("dictation".to_string()),
             context: None,
             timeout_ms: Some(50),

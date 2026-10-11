@@ -287,7 +287,7 @@ export const UnitView: Component<Props> = (props) => {
       }}
 
       data-unit-id={props.unit.id} // NEW: For global hit-testing (Link Node)
-      data-hook-drag-follow-unit-id={props.unit.id}
+      data-otter-drag-follow-unit-id={props.unit.id}
       tabIndex={-1}
       onPointerEnter={() => enterStickerGpuWarmHover(props.unit.id)}
       onPointerLeave={() => leaveStickerGpuWarmHover(props.unit.id)}

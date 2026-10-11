@@ -80,7 +80,7 @@ describe("surface host keydown relay policy", () => {
         expect(isSurfaceRelayedKeydown(userEvent)).toBe(false);
         expect(acceptsSurfaceRelayedKeydown(relayed)).toBe(false);
         expect(acceptsSurfaceRelayedKeydown(relayed, { surfaceRelayed: true })).toBe(true);
-        // Hook replays the native overlay keyboard hook as untrusted keydowns, so an
+        // Otter replays the native overlay keyboard hook as untrusted keydowns, so an
         // untagged synthetic event must stay indistinguishable from a real keystroke.
         expect(userEvent.isTrusted).toBe(false);
         expect(acceptsSurfaceRelayedKeydown(userEvent)).toBe(true);
@@ -91,9 +91,9 @@ describe("surface host keydown relay policy", () => {
         const relayed = markSurfaceRelayedKeydown(new KeyboardEvent("keydown", { key: "Escape" }));
         const record = relayed as unknown as Record<string, unknown>;
 
-        expect(Object.keys(relayed)).not.toContain("hookSurfaceRelayedKeydown");
+        expect(Object.keys(relayed)).not.toContain("otterSurfaceRelayedKeydown");
         expect(() => {
-            record.hookSurfaceRelayedKeydown = false;
+            record.otterSurfaceRelayedKeydown = false;
         }).toThrow();
         expect(isSurfaceRelayedKeydown(relayed)).toBe(true);
     });

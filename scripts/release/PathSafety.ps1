@@ -1,13 +1,13 @@
 Set-StrictMode -Version Latest
 
 # Formal release paths are untrusted until containment and reparse-point checks pass.
-function Assert-HookSafeRelativePath {
+function Assert-OtterSafeRelativePath {
     param([Parameter(Mandatory = $true)][string]$RelativePath)
     if ([string]::IsNullOrWhiteSpace($RelativePath) -or
         $RelativePath.IndexOf([char]0) -ge 0 -or
         [regex]::IsMatch($RelativePath, '[\x00-\x1f:]') -or
         [System.IO.Path]::IsPathRooted($RelativePath)) {
-        throw "Invalid Hook release-relative path: $RelativePath"
+        throw "Invalid Otter release-relative path: $RelativePath"
     }
     $normalized = $RelativePath.Replace("/", "\")
     foreach ($segment in $normalized.Split(@("\"), [System.StringSplitOptions]::None)) {
@@ -15,27 +15,27 @@ function Assert-HookSafeRelativePath {
         if ([string]::IsNullOrWhiteSpace($segment) -or $segment -in @(".", "..") -or
             $segment.EndsWith(" ") -or $segment.EndsWith(".") -or
             $baseName -match '^(?i:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$') {
-            throw "Invalid Hook release-relative path: $RelativePath"
+            throw "Invalid Otter release-relative path: $RelativePath"
         }
     }
     return $normalized
 }
 
-function Resolve-HookReleasePath {
+function Resolve-OtterReleasePath {
     param(
         [Parameter(Mandatory = $true)][string]$RootPath,
         [Parameter(Mandatory = $true)][string]$RelativePath
     )
     $root = [System.IO.Path]::GetFullPath($RootPath).TrimEnd("\", "/")
-    $relative = Assert-HookSafeRelativePath -RelativePath $RelativePath
+    $relative = Assert-OtterSafeRelativePath -RelativePath $RelativePath
     $candidate = [System.IO.Path]::GetFullPath((Join-Path $root $relative))
     if (-not $candidate.StartsWith($root + "\", [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Hook release path escapes its root: $RelativePath"
+        throw "Otter release path escapes its root: $RelativePath"
     }
     return $candidate
 }
 
-function Assert-HookNoReparsePoints {
+function Assert-OtterNoReparsePoints {
     param(
         [Parameter(Mandatory = $true)][string]$RootPath,
         [Parameter(Mandatory = $true)][string]$Path
@@ -43,7 +43,7 @@ function Assert-HookNoReparsePoints {
     $root = [System.IO.Path]::GetFullPath($RootPath).TrimEnd("\", "/")
     $candidate = [System.IO.Path]::GetFullPath($Path)
     if ($candidate -ne $root -and -not $candidate.StartsWith($root + "\", [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Hook release path is outside its trusted root: $candidate"
+        throw "Otter release path is outside its trusted root: $candidate"
     }
     $current = $root
     $paths = @($root)
@@ -55,12 +55,12 @@ function Assert-HookNoReparsePoints {
     foreach ($entry in $paths) {
         if (-not (Test-Path -LiteralPath $entry)) { break }
         if (((Get-Item -LiteralPath $entry -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
-            throw "Hook release paths must not contain reparse points: $entry"
+            throw "Otter release paths must not contain reparse points: $entry"
         }
     }
 }
 
-function Assert-HookAbsolutePathNoReparsePoints {
+function Assert-OtterAbsolutePathNoReparsePoints {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [string]$TrustedRootPath = ""
@@ -71,21 +71,21 @@ function Assert-HookAbsolutePathNoReparsePoints {
     } else {
         [System.IO.Path]::GetFullPath($TrustedRootPath)
     }
-    Assert-HookNoReparsePoints -RootPath $trustedRoot -Path $candidate
+    Assert-OtterNoReparsePoints -RootPath $trustedRoot -Path $candidate
     return $candidate
 }
 
-function Get-HookSafeReleaseFiles {
+function Get-OtterSafeReleaseFiles {
     param([Parameter(Mandatory = $true)][string]$RootPath)
     $root = [System.IO.Path]::GetFullPath($RootPath).TrimEnd("\", "/")
-    Assert-HookNoReparsePoints -RootPath $root -Path $root
+    Assert-OtterNoReparsePoints -RootPath $root -Path $root
     $pending = [System.Collections.Generic.Stack[string]]::new()
     $files = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
     $pending.Push($root)
     while ($pending.Count -gt 0) {
         foreach ($item in @(Get-ChildItem -LiteralPath $pending.Pop() -Force)) {
             if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
-                throw "Hook release paths must not contain reparse points: $($item.FullName)"
+                throw "Otter release paths must not contain reparse points: $($item.FullName)"
             }
             if ($item.PSIsContainer) { $pending.Push($item.FullName) } else { $files.Add($item) }
         }
@@ -93,27 +93,27 @@ function Get-HookSafeReleaseFiles {
     return @($files)
 }
 
-function Get-HookReleaseDigest {
+function Get-OtterReleaseDigest {
     param([Parameter(Mandatory = $true)][string]$Path)
     $item = Get-Item -LiteralPath $Path
     return [pscustomobject]@{
         bytes = [int64]$item.Length
-        sha256 = Get-HookFileSha256 -Path $item.FullName
+        sha256 = Get-OtterFileSha256 -Path $item.FullName
     }
 }
 
-function Read-HookBoundedText {
+function Read-OtterBoundedText {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [int64]$MaxBytes = 4MB
     )
     $item = Get-Item -LiteralPath $Path
-    if ($item.Length -gt $MaxBytes) { throw "Hook release file exceeds the $MaxBytes-byte limit: $Path" }
+    if ($item.Length -gt $MaxBytes) { throw "Otter release file exceeds the $MaxBytes-byte limit: $Path" }
     $encoding = [System.Text.UTF8Encoding]::new($false, $true)
     return [System.IO.File]::ReadAllText($item.FullName, $encoding)
 }
 
-function Get-HookArchiveEntries {
+function Get-OtterArchiveEntries {
     param(
         [Parameter(Mandatory = $true)][string]$ZipPath,
         [int]$MaxEntries = 64,
@@ -126,14 +126,14 @@ function Get-HookArchiveEntries {
         $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
         $total = 0L
         foreach ($entry in $archive.Entries) {
-            if ($archive.Entries.Count -gt $MaxEntries) { throw "Hook archive exceeds its entry limit: $ZipPath" }
+            if ($archive.Entries.Count -gt $MaxEntries) { throw "Otter archive exceeds its entry limit: $ZipPath" }
             $raw = $entry.FullName.TrimEnd("/", "\")
             if ([string]::IsNullOrWhiteSpace($raw)) { continue }
-            $relative = Assert-HookSafeRelativePath -RelativePath $raw
-            if (-not $seen.Add($relative)) { throw "Duplicate Hook archive entry: $relative" }
+            $relative = Assert-OtterSafeRelativePath -RelativePath $raw
+            if (-not $seen.Add($relative)) { throw "Duplicate Otter archive entry: $relative" }
             if ($entry.Name.Length -eq 0) { continue }
             $total += [int64]$entry.Length
-            if ($total -gt $MaxUncompressedBytes) { throw "Hook archive exceeds its uncompressed limit: $ZipPath" }
+            if ($total -gt $MaxUncompressedBytes) { throw "Otter archive exceeds its uncompressed limit: $ZipPath" }
             $paths.Add($relative)
         }
         return @($paths | Sort-Object)
@@ -142,7 +142,7 @@ function Get-HookArchiveEntries {
     }
 }
 
-function Get-HookArchiveEntryDigest {
+function Get-OtterArchiveEntryDigest {
     param(
         [Parameter(Mandatory = $true)][string]$ZipPath,
         [Parameter(Mandatory = $true)][string]$EntryName,
@@ -152,7 +152,7 @@ function Get-HookArchiveEntryDigest {
     $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
     try {
         $entry = $archive.GetEntry($EntryName.Replace("\", "/"))
-        if ($null -eq $entry -or $entry.Length -gt $MaxBytes) { throw "Missing or oversized Hook archive entry: $EntryName" }
+        if ($null -eq $entry -or $entry.Length -gt $MaxBytes) { throw "Missing or oversized Otter archive entry: $EntryName" }
         $stream = $entry.Open()
         $algorithm = [System.Security.Cryptography.SHA256]::Create()
         try {
@@ -167,7 +167,7 @@ function Get-HookArchiveEntryDigest {
     }
 }
 
-function Read-HookArchiveEntryText {
+function Read-OtterArchiveEntryText {
     param(
         [Parameter(Mandatory = $true)][string]$ZipPath,
         [Parameter(Mandatory = $true)][string]$EntryName,
@@ -178,7 +178,7 @@ function Read-HookArchiveEntryText {
     try {
         $entry = $archive.GetEntry($EntryName.Replace("\", "/"))
         if ($null -eq $entry -or $entry.Length -gt $MaxBytes) {
-            throw "Missing or oversized Hook archive text entry: $EntryName"
+            throw "Missing or oversized Otter archive text entry: $EntryName"
         }
         $stream = $entry.Open()
         $encoding = [System.Text.UTF8Encoding]::new($false, $true)

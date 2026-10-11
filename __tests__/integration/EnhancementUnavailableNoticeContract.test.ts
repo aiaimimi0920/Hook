@@ -45,11 +45,11 @@ describe("enhancement unavailable notice contract", () => {
         expect(unitNoticesSource).toContain("event.stopPropagation()");
         expect(unitNoticesSource).toContain("ENHANCEMENT_NOTICE_TIMEOUT_MS");
         expect(unitNoticesSource).toContain("window.setTimeout");
-        expect(unitNoticesSource).toContain("hook-enhancement-notice-stack");
+        expect(unitNoticesSource).toContain("otter-enhancement-notice-stack");
         expect(unitNoticesSource).toContain("orderEnhancementNoticesForDisplay");
         expect(unitNoticesSource).toContain("stackElement.scrollTop = 0");
         expect(unitNoticesSource).toContain("role=\"button\"");
-        expect(unitNoticesSource).toContain('data-hook-unit-notice-layer="true"');
+        expect(unitNoticesSource).toContain('data-otter-unit-notice-layer="true"');
         expect(unitNoticesSource).toContain("<Portal mount={props.noticesLayer!}>");
         expect(unitNoticesSource).toContain("registerDragFollowerElement");
         expect(unitViewSource).toContain("<UnitEnhancementNotices");
@@ -59,7 +59,7 @@ describe("enhancement unavailable notice contract", () => {
         expect(appSource).toContain("noticesLayerRef={canvasOverlayLayers().notices}");
         expect(canvasLayersSource).toContain('id="unit-notices-layer"');
         expect(canvasLayersSource).toContain("z-[2000000]");
-        expect(unitOverlaysSource).not.toContain("hook-enhancement-notice-stack");
+        expect(unitOverlaysSource).not.toContain("otter-enhancement-notice-stack");
         expect(extensionNoticeSource).toContain("payload.message.slice(0, 2048)");
         expect(extensionNoticeSource).toContain('source: { namespace: "extension", id: scopeId }');
         expect(noticeQueueSource).toContain("MAX_ENHANCEMENT_NOTICES_PER_UNIT");
@@ -73,6 +73,6 @@ describe("enhancement unavailable notice contract", () => {
         expect(shortcutSource).toContain("add-art-capability-refresh-failed");
         expect(shortcutSource).toContain('feature: "Loom"');
         expect(shortcutSource).toContain("uiActions.closeActions(unitId)");
-        expect(shortcutSource).toContain("无法连接 Loom Hook");
+        expect(shortcutSource).toContain("无法连接 Loom Otter");
     });
 });

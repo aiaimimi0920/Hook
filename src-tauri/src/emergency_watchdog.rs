@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-pub const WATCHDOG_ARGUMENT: &str = "--hook-emergency-watchdog";
+pub const WATCHDOG_ARGUMENT: &str = "--otter-emergency-watchdog";
 
 pub fn parse_parent_pid(args: &[String]) -> Result<Option<u32>, String> {
     let Some(index) = args.iter().position(|arg| arg == WATCHDOG_ARGUMENT) else {
@@ -24,7 +24,7 @@ pub fn spawn_for_current_process() -> Result<u32, String> {
     use windows::Win32::System::Threading::CREATE_NO_WINDOW;
 
     let executable = std::env::current_exe()
-        .map_err(|error| format!("resolve Hook executable for emergency watchdog: {error}"))?;
+        .map_err(|error| format!("resolve Otter executable for emergency watchdog: {error}"))?;
     let parent_pid = std::process::id();
     let mut child = std::process::Command::new(executable)
         .arg(WATCHDOG_ARGUMENT)
@@ -32,7 +32,7 @@ pub fn spawn_for_current_process() -> Result<u32, String> {
         .creation_flags(CREATE_NO_WINDOW.0)
         .stdin(std::process::Stdio::piped())
         .spawn()
-        .map_err(|error| format!("spawn Hook emergency watchdog: {error}"))?;
+        .map_err(|error| format!("spawn Otter emergency watchdog: {error}"))?;
     if crate::watchdog_recovery_feed::install(
         child.stdin.take().ok_or("Missing watchdog key pipe")?,
     )
@@ -327,7 +327,7 @@ pub(crate) mod tests {
     #[cfg(windows)]
     #[test]
     fn watchdog_test_child() {
-        let Ok(pid) = std::env::var("HOOK_TEST_WATCHDOG_PARENT_PID") else {
+        let Ok(pid) = crate::brand_env::var("HOOK_TEST_WATCHDOG_PARENT_PID") else {
             return;
         };
         assert_eq!(run(pid.parse().unwrap()), 0);

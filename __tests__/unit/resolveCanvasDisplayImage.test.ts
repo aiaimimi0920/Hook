@@ -164,7 +164,7 @@ describe("resolveCanvasDisplayImage", () => {
             mkUnit({
                 id: "workflow-art",
                 type: "art",
-                artId: "hook-wf-color-transfer-compress",
+                artId: "otter-wf-color-transfer-compress",
                 outputs: [{ id: "output", type: "image", direction: "output" }],
                 data: {
                     previewSrc: "SHADER_PREVIEW",
@@ -185,7 +185,7 @@ describe("resolveCanvasDisplayImage", () => {
             mkUnit({
                 id: "workflow-art",
                 type: "art",
-                artId: "hook-wf-color-transfer-compress",
+                artId: "otter-wf-color-transfer-compress",
                 outputs: [{ id: "output", type: "image", direction: "output" }],
                 data: { previewSrc: "SHADER_PREVIEW" },
             }),

@@ -11,7 +11,7 @@ import {
     type SurfacePatch,
     type SurfaceResultCommit,
 } from "../../src/services/surfaceProtocol";
-import { hookSurfaceHostCapabilities } from "../../src/services/surfaceHostCapabilities";
+import { otterSurfaceHostCapabilities } from "../../src/services/surfaceHostCapabilities";
 
 describe("Surface protocol", () => {
     it("requires stable unique scene node ids", () => {
@@ -69,8 +69,8 @@ describe("Surface protocol", () => {
         })).toBe(false);
     });
 
-    it("advertises the declarative and sandboxed JavaScript runtimes implemented by Hook", () => {
-        const capabilities = hookSurfaceHostCapabilities();
+    it("advertises the declarative and sandboxed JavaScript runtimes implemented by Otter", () => {
+        const capabilities = otterSurfaceHostCapabilities();
         expect(capabilities.runtimes).toEqual(["declarative", "javascript"]);
         expect(capabilities.nodes).toEqual([...DECLARATIVE_SURFACE_NODE_TYPES]);
         expect(capabilities.transports).toEqual(["loom_resource"]);

@@ -39,7 +39,7 @@ assert.deepEqual(stockSuite.filter((query) => !customSuite.includes(query)), [st
 assert.deepEqual(customSuite.filter((query) => !stockSuite.includes(query)), [customPath]);
 assert.equal(stockSuite.length, customSuite.length, "Security-extended coverage must be preserved");
 
-const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "hook-codeql-worker-"));
+const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "otter-codeql-worker-"));
 const evidence = { cliVersion: version.version, libraryPackVersion: libraryVersion, sourceCommit: upstream.sourceCommit,
     stockQuerySha256: sha256(stock), stockQueryCount: stockSuite.length,
     customQueryCount: customSuite.length, preservedOtherQueries: stockSuite.length - 1,

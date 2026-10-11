@@ -20,14 +20,14 @@ enum LiveExtensionAvailability {
 #[serde(rename_all = "snake_case")]
 enum LiveExtensionOwner {
     LoomCapabilityPlugin,
-    HookWindowsBackend,
+    OtterWindowsBackend,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum LiveExtensionTrustBoundary {
     LoomVerifiedCapabilityPackage,
-    HookNativeBackend,
+    OtterNativeBackend,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -90,8 +90,8 @@ fn live_extension_capability_report() -> LiveExtensionCapabilityReport {
         unavailable_live_extension(
             id,
             LiveExtensionKind::Interaction,
-            LiveExtensionOwner::HookWindowsBackend,
-            LiveExtensionTrustBoundary::HookNativeBackend,
+            LiveExtensionOwner::OtterWindowsBackend,
+            LiveExtensionTrustBoundary::OtterNativeBackend,
             None,
             None,
             "backend_not_implemented",
@@ -174,11 +174,11 @@ mod live_extension_capability_tests {
                 LiveExtensionKind::Interaction => {
                     assert_eq!(
                         capability.execution_owner,
-                        LiveExtensionOwner::HookWindowsBackend
+                        LiveExtensionOwner::OtterWindowsBackend
                     );
                     assert_eq!(
                         capability.trust_boundary,
-                        LiveExtensionTrustBoundary::HookNativeBackend
+                        LiveExtensionTrustBoundary::OtterNativeBackend
                     );
                 }
             }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -8,7 +8,7 @@ const readSource = (relativePath: string) =>
 
 describe("capture shortcut de-duplication", () => {
   it("keeps rdev as the fallback for Loom-managed global shortcuts", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
 
     expect(rustSource).toContain("fn configured_global_shortcut_is_registered(");
     expect(rustSource).toContain("fn refresh_configured_global_shortcuts(");
@@ -18,8 +18,8 @@ describe("capture shortcut de-duplication", () => {
   });
 
   it("registers extension global shortcuts without hardcoding OCR", () => {
-    const rustSource = readHookLibRustSources();
-    const runtimeSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
+    const runtimeSource = readOtterLibRustSources();
 
     expect(rustSource).toContain("fn set_extension_shortcuts(");
     expect(rustSource).toContain("fn extension_shortcut_payload(");
@@ -30,7 +30,7 @@ describe("capture shortcut de-duplication", () => {
   });
 
   it("debounces repeated Tauri Ctrl+1/Ctrl+3 pressed events instead of re-entering capture mode", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
 
     expect(rustSource).toContain("tauri_ctrl_1_last_trigger");
     expect(rustSource).toContain("tauri_ctrl_3_last_trigger");
@@ -40,7 +40,7 @@ describe("capture shortcut de-duplication", () => {
   });
 
   it("refuses to reconfigure the overlay when a native capture session is already active", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
 
     expect(rustSource).toContain("fn try_begin_capture_input_runtime() -> bool");
     expect(rustSource).toContain("CAPTURE_MOUSE_HOOK_ACTIVE.swap(true, Ordering::SeqCst)");

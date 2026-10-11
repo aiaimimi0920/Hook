@@ -52,7 +52,7 @@ export const StringControl: Component<StringControlProps> = (props) => {
   return (
     <div class="flex items-center gap-3 w-full h-6">
       <label
-        class="hook-param-label font-medium text-[11px] shrink-0 truncate cursor-context-menu"
+        class="otter-param-label font-medium text-[11px] shrink-0 truncate cursor-context-menu"
         style={{ "min-width": "70px" }}
       >
         {props.label}
@@ -61,7 +61,7 @@ export const StringControl: Component<StringControlProps> = (props) => {
         <Show when={props.multiline} fallback={
           <input
             type="text"
-            class="hook-param-control w-full border rounded px-2 py-1 text-[11px] focus:outline-none transition-colors"
+            class="otter-param-control w-full border rounded px-2 py-1 text-[11px] focus:outline-none transition-colors"
             value={draftValue()}
             placeholder="Enter text..."
             disabled={props.isDisabled}
@@ -93,7 +93,7 @@ export const StringControl: Component<StringControlProps> = (props) => {
           />
         }>
           <div
-            class="hook-param-control w-full h-6 border rounded px-2 flex items-center text-[11px] transition-colors cursor-pointer group/text"
+            class="otter-param-control w-full h-6 border rounded px-2 flex items-center text-[11px] transition-colors cursor-pointer group/text"
             classList={{ "pointer-events-none opacity-50": props.isDisabled }}
             onMouseDown={stopInteractiveEvent}
             onPointerDown={stopInteractiveEvent}
@@ -107,7 +107,7 @@ export const StringControl: Component<StringControlProps> = (props) => {
             }}
           >
             <span class="truncate flex-1 min-w-0">{props.value}</span>
-            <svg class="hook-param-editor-icon w-3 h-3 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="otter-param-editor-icon w-3 h-3 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
             </svg>
           </div>

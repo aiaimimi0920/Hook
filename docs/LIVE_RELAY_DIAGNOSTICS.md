@@ -146,7 +146,7 @@ URL 只在进程内校验，不输出到诊断属性。
 记录表示当前帧曾获得浏览器绘制证据；后续 CSS 遮挡、透明度或显示器状态不在其
 持续监测范围内。Element Timing 不是 compositor acknowledgement，更不是物理屏幕扫描证明。
 
-从 Hook 根目录运行 `node scripts/test-live-relay-render-browser.mjs <output-directory>`
+从 Otter 根目录运行 `node scripts/test-live-relay-render-browser.mjs <output-directory>`
 可挂载生产观看组件并验证实际 Chromium image-paint、换图、CSS 隐藏/恢复、坏图、
 epoch 换代、关闭与卸载。只有 native rect sync 与入站 store 数据使用夹具；不代表
 真实 WGC、跨设备或目标 WebView2 已通过。输出目录应放在本地临时工作区。
@@ -154,8 +154,8 @@ epoch 换代、关闭与卸载。只有 native rect sync 与入站 store 数据�
 2026-10-07 已另用独立 Wry/Tao 嵌入式宿主，在 WebView2 Runtime `154.0.4258.62`
 中复用同一生产观看组件夹具，验证 image-paint、连续换帧、隐藏/恢复、坏图、epoch/
 generation 换代、关闭和卸载后迟到结果；图片 URL 归零。该宿主使用隔离 profile、
-loopback 页面和进程退出清理边界，不注册全局输入 Hook、不启用 CDP，也不退出日常 Hook。
-此结果补充目标 runtime 的软件层兼容证据，**不是 v0.2.32.25 Hook EXE 的运行验收**：
+loopback 页面和进程退出清理边界，不注册全局输入 Otter、不启用 CDP，也不退出日常 Otter。
+此结果补充目标 runtime 的软件层兼容证据，**不是 v0.2.32.25 Otter EXE 的运行验收**：
 入站 store 与 native rect sync 仍是夹具，真实采集、跨机、合成确认和物理显示均未测试。
 上述 Chromium 命令不运行这个原生宿主；不能用浏览器版本号或诊断 buildVersion 替代包绑定。
 
@@ -237,21 +237,21 @@ loopback CDP TCP 连接及其进程归属，并保留实际发送的 CDP methods
 
 DOM 无权读取本机 EXE；版本相同也可能是不同构建。原生试验必须另外记录：
 
-1. 本轮两个 Hook 包和 Loom daemon 的 SHA-256、各自源码提交与构建 provenance。
-2. 实际运行 Hook 的 PID、进程开始时间和 `ExecutablePath`；路径必须等于选定候选。
+1. 本轮两个 Otter 包和 Loom daemon 的 SHA-256、各自源码提交与构建 provenance。
+2. 实际运行 Otter 的 PID、进程开始时间和 `ExecutablePath`；路径必须等于选定候选。
 3. 对该进程路径上的 EXE 算 SHA-256，并与候选 provenance 的 `artifact.sha256` 比较。
-4. CDP listener 的 owner 或其已验证进程父链属于该 Hook；不能仅凭端口、窗口标题或版本。
+4. CDP listener 的 owner 或其已验证进程父链属于该 Otter；不能仅凭端口、窗口标题或版本。
 5. 快照的 `buildVersion` 等于候选 provenance；快照文件本身也记录 SHA-256。
 
 Windows 只读核对的核心操作如下（变量由候选验收工具提供，不填凭证）：
 
 ```powershell
 $process = Get-CimInstance Win32_Process -Filter "ProcessId = $hookProcessId"
-if (-not $process -or -not $process.ExecutablePath) { throw 'Hook process identity unavailable' }
+if (-not $process -or -not $process.ExecutablePath) { throw 'Otter process identity unavailable' }
 $actualPath = [IO.Path]::GetFullPath($process.ExecutablePath)
-if ($actualPath -ine [IO.Path]::GetFullPath($expectedExePath)) { throw 'Hook process path mismatch' }
+if ($actualPath -ine [IO.Path]::GetFullPath($expectedExePath)) { throw 'Otter process path mismatch' }
 $actualSha256 = (Get-FileHash -LiteralPath $actualPath -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($actualSha256 -cne $expectedSha256.ToLowerInvariant()) { throw 'Hook process digest mismatch' }
+if ($actualSha256 -cne $expectedSha256.ToLowerInvariant()) { throw 'Otter process digest mismatch' }
 ```
 
 进程退出、PID/开始时间变化或无法读路径时停止，不能退回“任选同名进程”。构建后的

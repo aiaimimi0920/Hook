@@ -12,7 +12,7 @@ const propertyBarCropSource = readFileSync(
 );
 const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}\n${propertyBarCropSource}`;
 
-describe("Hook sticker scale contract", () => {
+describe("Otter sticker scale contract", () => {
     it("exposes canvas size as a deferred crop property from the top strip property bar", () => {
         expect(propertyBarRenderSource).toContain("MiniDeferredNumericField");
         expect(propertyBarRenderSource).toContain('title="大小"');

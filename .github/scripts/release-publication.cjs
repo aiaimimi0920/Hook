@@ -21,19 +21,19 @@ function sha256File(filePath) {
 function collectExpectedAssets(packageDirectory, tag) {
   assertTag(tag);
   const root = path.resolve(packageDirectory);
-  const zipName = `hook-windows-x64-${tag}.zip`;
+  const zipName = `otter-windows-x64-${tag}.zip`;
   const files = [
     path.join(root, "packages", zipName),
     path.join(root, "packages", `${zipName}.sha256`),
   ];
   const records = files.map((filePath) => {
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-      throw new Error(`Expected Hook release asset is missing: ${filePath}`);
+      throw new Error(`Expected Otter release asset is missing: ${filePath}`);
     }
     return { name: path.basename(filePath), path: filePath, bytes: fs.statSync(filePath).size };
   });
   if (new Set(records.map((record) => record.name)).size !== records.length) {
-    throw new Error("Hook release asset names must be unique.");
+    throw new Error("Otter release asset names must be unique.");
   }
   return records;
 }
@@ -64,7 +64,7 @@ async function assertReleaseAbsent({ github, owner, repo, tag }) {
   const releases = await github.paginate(github.rest.repos.listReleases, { owner, repo, per_page: 100 });
   const existing = releases.find((release) => release.tag_name === tag);
   if (existing) {
-    throw new Error(`Hook release ${tag} already exists as ${existing.draft ? "draft" : "published"}: ${existing.html_url}`);
+    throw new Error(`Otter release ${tag} already exists as ${existing.draft ? "draft" : "published"}: ${existing.html_url}`);
   }
 }
 
@@ -73,7 +73,7 @@ async function publishVerifiedDraft({ github, owner, repo, releaseId, tag, packa
   const id = Number(releaseId);
   if (!Number.isSafeInteger(id) || id <= 0) throw new Error(`Draft release ID is invalid: ${releaseId}`);
   const { data: release } = await github.rest.repos.getRelease({ owner, repo, release_id: id });
-  if (!release.draft || release.tag_name !== tag) throw new Error(`Release ${id} is not the expected Hook draft for ${tag}.`);
+  if (!release.draft || release.tag_name !== tag) throw new Error(`Release ${id} is not the expected Otter draft for ${tag}.`);
   const actual = await github.paginate(github.rest.repos.listReleaseAssets, { owner, repo, release_id: id, per_page: 100 });
   await compareAssets(collectExpectedAssets(packageDirectory, tag), actual);
   return github.rest.repos.updateRelease({ owner, repo, release_id: id, draft: false, make_latest: "legacy" });

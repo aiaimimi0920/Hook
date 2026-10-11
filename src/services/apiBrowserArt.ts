@@ -15,7 +15,7 @@ export const browserDispatchActionFallback = async (
         : {};
     // Terminate the local pending request, but never prepare/upload images or invent a success.
     if (typeof payload.node_id === "string" && typeof payload.request_id === "string") {
-        window.dispatchEvent(new CustomEvent("hook-browser-art-ready", {
+        window.dispatchEvent(new CustomEvent("otter-browser-art-ready", {
             detail: {
                 art_id: payload.node_id,
                 request_id: payload.request_id,

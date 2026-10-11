@@ -2,8 +2,8 @@ export const LIVE_EXTENSION_PROTOCOL_VERSION = "hook.live.extensions.v1" as cons
 
 export type LiveExtensionKind = "application_adapter" | "visual_observation" | "interaction";
 export type LiveExtensionAvailability = "available" | "unavailable";
-export type LiveExtensionOwner = "loom_capability_plugin" | "hook_windows_backend";
-export type LiveExtensionTrustBoundary = "loom_verified_capability_package" | "hook_native_backend";
+export type LiveExtensionOwner = "loom_capability_plugin" | "otter_windows_backend";
+export type LiveExtensionTrustBoundary = "loom_verified_capability_package" | "otter_native_backend";
 
 export interface LiveExtensionCapability {
     id: string;
@@ -36,8 +36,8 @@ const interaction = (id: string): LiveExtensionCapability => ({
     id,
     kind: "interaction",
     availability: "unavailable",
-    executionOwner: "hook_windows_backend",
-    trustBoundary: "hook_native_backend",
+    executionOwner: "otter_windows_backend",
+    trustBoundary: "otter_native_backend",
     reason: "backend_not_implemented",
 });
 
@@ -96,8 +96,8 @@ function parseCapability(input: unknown): LiveExtensionCapability {
     }
     member(value.kind, ["application_adapter", "visual_observation", "interaction"], "kind");
     member(value.availability, ["available", "unavailable"], "availability");
-    member(value.executionOwner, ["loom_capability_plugin", "hook_windows_backend"], "owner");
-    member(value.trustBoundary, ["loom_verified_capability_package", "hook_native_backend"], "trust boundary");
+    member(value.executionOwner, ["loom_capability_plugin", "otter_windows_backend"], "owner");
+    member(value.trustBoundary, ["loom_verified_capability_package", "otter_native_backend"], "trust boundary");
     if (value.reason !== undefined && (typeof value.reason !== "string" || value.reason.length > 160 || value.reason.length === 0)) {
         throw new Error("invalid live extension capability reason");
     }
@@ -105,7 +105,7 @@ function parseCapability(input: unknown): LiveExtensionCapability {
         throw new Error("unavailable live extension capability requires a reason");
     }
     if (value.kind === "interaction") {
-        if (value.executionOwner !== "hook_windows_backend" || value.trustBoundary !== "hook_native_backend"
+        if (value.executionOwner !== "otter_windows_backend" || value.trustBoundary !== "otter_native_backend"
             || value.observationSource !== undefined || value.maximumConfidence !== undefined) {
             throw new Error("invalid live interaction extension boundary");
         }

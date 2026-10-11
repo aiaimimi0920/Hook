@@ -2,10 +2,10 @@ import { listen } from "@tauri-apps/api/event";
 import type { Setter } from "solid-js";
 
 import { graphStore } from "../store/graphStore";
-import type { AppSettings, HookCacheSettings } from "../types/appSettings";
+import type { AppSettings, OtterCacheSettings } from "../types/appSettings";
 import {
     getCurrentAppSettings,
-    normalizeHookCacheSettings,
+    normalizeOtterCacheSettings,
     saveCurrentAppSettings,
 } from "./appSettings";
 import type { AppListenerRegistry } from "./appListenerRegistry";
@@ -19,9 +19,9 @@ import {
     type WorkflowSnapshotPayload,
 } from "./workflowPayload";
 
-type HookCacheControlPayload = {
+type OtterCacheControlPayload = {
     action?: "settings" | "clearRecycleBin" | "clearReferenceLibrary";
-    settings?: Partial<HookCacheSettings>;
+    settings?: Partial<OtterCacheSettings>;
 };
 
 type AppArtControlListenerDependencies = {
@@ -57,13 +57,13 @@ export async function registerAppArtControlListeners({
         }
     }));
 
-    await registry.register(() => listen<HookCacheControlPayload>(
+    await registry.register(() => listen<OtterCacheControlPayload>(
         "hook/cache_control",
         (event) => {
             runBackgroundTask("cache control", (async () => {
                 const action = event.payload?.action;
                 if (action === "settings" && event.payload.settings) {
-                    const cache = normalizeHookCacheSettings(event.payload.settings);
+                    const cache = normalizeOtterCacheSettings(event.payload.settings);
                     const saved = await saveCurrentAppSettings({
                         ...getCurrentAppSettings(),
                         cache,
@@ -102,10 +102,10 @@ export async function registerAppArtControlListeners({
         "art/loom_connection_state",
         async (event) => {
             if (!event.payload?.connected) {
-                console.warn("Loom Hook desktop bridge disconnected");
+                console.warn("Loom Otter desktop bridge disconnected");
                 return;
             }
-            logger.debug("Loom Hook desktop bridge connected, refreshing capabilities");
+            logger.debug("Loom Otter desktop bridge connected, refreshing capabilities");
             try {
                 await refreshCapabilities();
             } catch (error) {

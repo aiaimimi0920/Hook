@@ -197,7 +197,7 @@ pub(super) fn try_fast_capture_window(
     }
     let hwnd = HWND(raw_handle as *mut std::ffi::c_void);
     if unsafe { IsIconic(hwnd) }.as_bool() {
-        // Telegram may minimize its Qt top-level surface when Hook's overlay
+        // Telegram may minimize its Qt top-level surface when Otter's overlay
         // takes focus. Restore it before creating the capture item; otherwise
         // WGC can accept the HWND but never emit a frame.
         let _ = unsafe { ShowWindowAsync(hwnd, SHOW_WINDOW_CMD(9)) };
@@ -211,7 +211,7 @@ pub(super) fn try_fast_capture_window(
     let _ = unsafe { BringWindowToTop(hwnd) };
     let _ = unsafe { SetForegroundWindow(hwnd) };
     // Request a synchronous repaint as well. Telegram may have a stable
-    // visible window but no pending compositor update after Hook's overlay
+    // visible window but no pending compositor update after Otter's overlay
     // released focus; WGC otherwise waits forever for its first frame.
     let _ = unsafe {
         RedrawWindow(
@@ -334,7 +334,7 @@ pub(super) fn try_fast_capture_window(
 }
 
 pub(super) fn wgc_fast_path_mode() -> String {
-    std::env::var("HOOK_WGC_FAST_PATH_MODE")
+    crate::brand_env::var("HOOK_WGC_FAST_PATH_MODE")
         .ok()
         .map(|value| value.trim().to_ascii_lowercase())
         .filter(|value| matches!(value.as_str(), "auto" | "persistent" | "transient"))

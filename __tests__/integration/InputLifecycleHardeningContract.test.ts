@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -40,7 +40,7 @@ describe("input lifecycle hardening contract", () => {
   });
 
   it("uses a bounded ordered mouse queue that coalesces moves while reserving capacity for edges", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const queueImplementation = sourceBetween(
       rustSource,
       "struct CaptureMouseEventQueue {",
@@ -80,8 +80,8 @@ describe("input lifecycle hardening contract", () => {
   });
 
   it("accepts only paired native capture button edges and never synthesizes release from polling", () => {
-    const rustSource = readHookLibRustSources();
-    const hookBlock = sourceBetween(
+    const rustSource = readOtterLibRustSources();
+    const otterBlock = sourceBetween(
       rustSource,
       'unsafe extern "system" fn capture_mouse_hook_proc',
       "fn install_capture_mouse_hook_thread",
@@ -91,26 +91,26 @@ describe("input lifecycle hardening contract", () => {
       "static CAPTURE_MOUSE_HOOK_BUTTON_DOWN: AtomicBool = AtomicBool::new(false);",
     );
     expect(rustSource).toContain("fn claim_capture_button_transition");
-    expect(hookBlock).toContain(
+    expect(otterBlock).toContain(
       "claim_capture_button_transition(&CAPTURE_MOUSE_HOOK_BUTTON_DOWN, true)",
     );
-    expect(hookBlock).toContain(
+    expect(otterBlock).toContain(
       "claim_capture_button_transition(&CAPTURE_MOUSE_HOOK_BUTTON_DOWN, false)",
     );
-    expect(hookBlock).toContain("capture_mouse_up_ignored_unpaired");
+    expect(otterBlock).toContain("capture_mouse_up_ignored_unpaired");
     expect(rustSource).toContain("capture_mouse_down_emit_failed_fail_open");
     expect(rustSource).toContain("capture_mouse_up_emit_failed_fail_open");
     expect(rustSource).toContain("reset_overlay_pointer_session();");
-    expect(rustSource).not.toContain("hook-left-button-release-watchdog");
+    expect(rustSource).not.toContain("otter-left-button-release-watchdog");
     expect(rustSource).not.toContain("capture_left_button_release_watchdog");
   });
 
   it("suppresses sub-35ms Up/Down bounce and coalesces move streams without fixed sleeps", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const eventWorker = sourceBetween(
       rustSource,
-      'name("hook-capture-mouse-events"',
-      'name("hook-capture-mouse-hook"',
+      'name("otter-capture-mouse-events"',
+      'name("otter-capture-mouse-hook"',
     );
     const emitMouseEvent = sourceBetween(
       rustSource,
@@ -135,7 +135,7 @@ describe("input lifecycle hardening contract", () => {
   });
 
   it("does not enqueue duplicate input-shield moves while the low-level hook owns the pointer session", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const inputShield = sourceBetween(
       rustSource,
       "fn route_overlay_input_shield_mouse_message(",
@@ -152,7 +152,7 @@ describe("input lifecycle hardening contract", () => {
   });
 
   it("queries foreground ownership only when Alt is actually pressed", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const mouseHook = sourceBetween(
       rustSource,
       'unsafe extern "system" fn capture_mouse_hook_proc',
@@ -190,7 +190,7 @@ describe("input lifecycle hardening contract", () => {
   });
 
   it("counts Esc+Delete chords before every focus, cursor, and native-dialog gate", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const tracker = readSource("src-tauri/src/emergency_exit.rs");
     const keyboardHook = sourceBetween(
       rustSource,
@@ -222,7 +222,7 @@ describe("input lifecycle hardening contract", () => {
   });
 
   it("restores the system cursor on startup, normal exit, panic, and emergency exit", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const setupBlock = sourceBetween(
       rustSource,
       "let single_instance_guard =",

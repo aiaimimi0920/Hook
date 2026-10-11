@@ -5,7 +5,7 @@ import path from "node:path";
 const readSource = (relativePath: string) =>
   fs.readFileSync(path.resolve(process.cwd(), relativePath), "utf8");
 
-describe("Hook overlay interactivity recovery", () => {
+describe("Otter overlay interactivity recovery", () => {
   it("restores click-through without hiding and re-showing the overlay window before refreshing hit-test rects after capture success", () => {
     const source = readSource("src/hooks/captureUnitController.ts");
 

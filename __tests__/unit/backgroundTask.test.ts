@@ -13,7 +13,7 @@ describe("background task rejection handling", () => {
         runBackgroundTask("capture activation", Promise.reject(new Error("secret-bearing detail")));
         await Promise.resolve();
 
-        expect(error).toHaveBeenCalledWith("[Hook] capture activation failed (Error)");
+        expect(error).toHaveBeenCalledWith("[Otter] capture activation failed (Error)");
         expect(JSON.stringify(error.mock.calls)).not.toContain("secret-bearing detail");
     });
 

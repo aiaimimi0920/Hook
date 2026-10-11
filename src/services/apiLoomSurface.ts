@@ -18,11 +18,11 @@ export const loomPlanningApi = {
 
 export const loomProtocolApi = {
     handshake: (request: HandshakeRequest): Promise<HandshakeResponse> =>
-        safeInvoke("loom_hook_handshake", { request }, browserHandshakeFallback, false),
+        safeInvoke("loom_otter_handshake", { request }, browserHandshakeFallback, false),
 
     dispatchAction: (actionEnum: { action: string; payload: unknown }): Promise<void> =>
         safeInvoke(
-            "loom_hook_dispatch_action",
+            "loom_otter_dispatch_action",
             { action: actionEnum },
             () => browserDispatchActionFallback(actionEnum),
             false,

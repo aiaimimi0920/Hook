@@ -76,7 +76,7 @@ describe("Surface state store", () => {
         expect(surfaceStore.byUnit["unit:stock"].generation).toBe(3);
     });
 
-    it("restores a full snapshot after the Hook local state is recreated", () => {
+    it("restores a full snapshot after the Otter local state is recreated", () => {
         const recovered = snapshot();
         recovered.revision = 4;
         recovered.authoritativeState = { price: 104, refreshed: true };

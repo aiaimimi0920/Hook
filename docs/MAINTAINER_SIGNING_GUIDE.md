@@ -1,4 +1,4 @@
-# Hook Maintainer Signing Guide
+# Otter Maintainer Signing Guide
 
 This document is maintainer-facing. It complements the public policy documents:
 
@@ -12,10 +12,10 @@ This document is maintainer-facing. It complements the public policy documents:
 - `docs/SIGNPATH_APPLICATION_CHECKLIST.md`
 - `docs/SIGNPATH_APPLICATION_DRAFT.md`
 
-Its purpose is to keep Hook ready for SignPath Foundation review or another
+Its purpose is to keep Otter ready for SignPath Foundation review or another
 Windows signing provider without relying on tribal memory.
 
-Hook is currently in a **portable-first** public release phase. For the
+Otter is currently in a **portable-first** public release phase. For the
 high-level phase definition, see `docs/RELEASE_STRATEGY.md`.
 
 For a pre-filled application-oriented working sheet, use
@@ -26,7 +26,7 @@ For fuller copy-ready English submission answers, use
 
 ## Current release model
 
-Hook currently maintains two Windows release lanes, but only one is public in
+Otter currently maintains two Windows release lanes, but only one is public in
 the current phase:
 
 1. **portable**
@@ -94,7 +94,7 @@ Before approving a signed release:
 1. confirm the tag matches the intended public version;
 2. confirm the workflow ran from the correct repository and tag;
 3. confirm the tag is reachable from the protected public `main` branch;
-4. open the public `hook-uiaccess-signing-candidate-Vx.x.x.json` release asset
+4. open the public `otter-uiaccess-signing-candidate-Vx.x.x.json` release asset
    and review its workflow run ID, commit, and SHA-256;
 5. confirm the signed artifact belongs only to the installer/UIAccess lane;
 6. confirm README and UIAccess docs still describe package differences
@@ -102,7 +102,7 @@ Before approving a signed release:
 7. confirm no local hotfix binary was manually substituted into the release;
 8. confirm the public privacy and code-signing documents are still accurate.
 
-## If Hook uses SignPath Foundation
+## If Otter uses SignPath Foundation
 
 Additional operating reminders:
 
@@ -110,7 +110,7 @@ Additional operating reminders:
 - keep release provenance obvious from the public GitHub repo;
 - avoid undocumented side-loading of binaries;
 - be prepared for the publisher name to reflect the signing provider rather than
-  the Hook brand alone.
+  the Otter brand alone.
 
 ### Repository workflow configuration
 
@@ -123,12 +123,12 @@ The manual workflow is `.github/workflows/signpath-signing.yml`. Configure the
 - variable `SIGNPATH_SIGNING_POLICY_SLUG`
 
 Install the SignPath GitHub App for this repository and set the SignPath project
-default artifact configuration to a ZIP whose signed payload is `hook.exe`.
+default artifact configuration to a ZIP whose signed payload is `otter.exe`.
 Configure the SignPath signing policy to require manual approval for every
 request. Do not guess or commit any of these account identifiers.
 
 After the normal tag workflow creates a portable GitHub release, manually run
-`Sign Hook UIAccess Release` for the same public tag. Supply the release
+`Sign Otter UIAccess Release` for the same public tag. Supply the release
 workflow run ID and the reviewed SHA-256 from the Actions signing-candidate
 manifest. The signing workflow downloads the exact candidate retained by that
 run, verifies its tag, commit, run ID, artifact manifest, and bytes, then uploads
@@ -136,7 +136,7 @@ only that reviewed artifact to SignPath. It waits for approval, verifies the
 returned Authenticode signature during packaging, and attaches the signed
 installer zip to the existing release.
 
-## If Hook uses a commercial provider instead
+## If Otter uses a commercial provider instead
 
 The same governance still applies:
 

@@ -83,7 +83,7 @@ describe("graph image resolution: auxiliary images", () => {
             {
                 id: "workflow-art",
                 type: "art",
-                artId: "hook-wf-color-transfer-compress",
+                artId: "otter-wf-color-transfer-compress",
                 x: 0,
                 y: 0,
                 w: 100,
@@ -115,7 +115,7 @@ describe("graph image resolution: auxiliary images", () => {
         ];
         const capabilities: ArtCapability[] = [
             {
-                id: "hook-wf-color-transfer-compress",
+                id: "otter-wf-color-transfer-compress",
                 label: "颜色迁移+压缩",
                 description: "",
                 supported_transports: ["shared_memory"],

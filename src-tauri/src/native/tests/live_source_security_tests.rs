@@ -1,10 +1,10 @@
 #[test]
-fn administrator_hook_can_control_an_ordinary_source() {
+fn administrator_otter_can_control_an_ordinary_source() {
     assert!(live_input_integrity_allows(0x3000, 0x2000));
 }
 
 #[test]
-fn ordinary_hook_cannot_control_an_administrator_source() {
+fn ordinary_otter_cannot_control_an_administrator_source() {
     assert!(!live_input_integrity_allows(0x2000, 0x3000));
 }
 
@@ -34,10 +34,10 @@ fn reads_real_process_token_identity_and_preflights_own_process() {
 
 #[cfg(target_os = "windows")]
 #[test]
-#[ignore = "reads identities of the currently reported Hook and source PIDs; no input"]
+#[ignore = "reads identities of the currently reported Otter and source PIDs; no input"]
 fn reported_live_process_identities_follow_uipi_direction() {
-    let controller_pid = std::env::var("HOOK_LIVE_PROBE_CONTROLLER_PID").unwrap().parse().unwrap();
-    let source_pid = std::env::var("HOOK_LIVE_PROBE_SOURCE_PID").unwrap().parse().unwrap();
+    let controller_pid = crate::brand_env::var("HOOK_LIVE_PROBE_CONTROLLER_PID").unwrap().parse().unwrap();
+    let source_pid = crate::brand_env::var("HOOK_LIVE_PROBE_SOURCE_PID").unwrap().parse().unwrap();
     let controller = live_input_process_identity(controller_pid).unwrap();
     let source = live_input_process_identity(source_pid).unwrap();
     println!("Live identity: controllerIL={} sourceIL={} sameUser={} oldEquality={} correctedAllowed={}",

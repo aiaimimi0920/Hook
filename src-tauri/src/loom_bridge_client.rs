@@ -1,4 +1,4 @@
-//! Hook-owned implementation of the public loom.local-bridge.v1 transport contract.
+//! Otter-owned implementation of the public loom.local-bridge.v1 transport contract.
 //! Discovery secrets stay native; no anonymous or endpoint-only override is supported.
 mod identity;
 mod stream;
@@ -48,7 +48,7 @@ pub(crate) fn connect(timeout: Duration) -> Result<BridgeSocket, String> {
     let identity = manifest
         .hook_bridge
         .ok_or("Authenticated Loom bridge is unavailable")?;
-    if let Ok(endpoint) = std::env::var("LOOM_HOOK_WS_URL") {
+    if let Ok(endpoint) = crate::brand_env::var("LOOM_HOOK_WS_URL") {
         if !endpoint.trim().is_empty() && endpoint.trim() != identity.endpoint {
             return Err("Loom bridge endpoint override does not match trusted discovery".into());
         }

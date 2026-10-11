@@ -1,4 +1,4 @@
-//! C1 独立合成画面探针；不启动 Hook、不采集桌面、不连接 Loom。
+//! C1 独立合成画面探针；不启动 Otter、不采集桌面、不连接 Loom。
 #[path = "../src/live_video/annex_b.rs"]
 mod annex_b;
 #[cfg(windows)]

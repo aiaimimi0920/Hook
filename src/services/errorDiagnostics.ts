@@ -11,8 +11,8 @@ import { api } from "./api";
  * Returns a disposer that removes the window listeners. Mirrors the behavior
  * that previously lived inline in App's onMount.
  */
-const DIAGNOSTIC_STORAGE_KEY = "hook-last-error";
-const DIAGNOSTIC_OVERLAY_ID = "hook-error-overlay";
+const DIAGNOSTIC_STORAGE_KEY = "otter-last-error";
+const DIAGNOSTIC_OVERLAY_ID = "otter-error-overlay";
 
 export function installErrorDiagnostics(tauriRuntimeAvailable: boolean): () => void {
     const persistDiagnostic = (kind: string, detail: string) => {
@@ -48,7 +48,7 @@ export function installErrorDiagnostics(tauriRuntimeAvailable: boolean): () => v
     };
 
     const onUnhandledRejection = (event: PromiseRejectionEvent) => {
-        console.error("[Hook] Unhandled promise rejection (suppressed):", event.reason);
+        console.error("[Otter] Unhandled promise rejection (suppressed):", event.reason);
         event.preventDefault();
         const reason = event.reason;
         const detail =
@@ -58,7 +58,7 @@ export function installErrorDiagnostics(tauriRuntimeAvailable: boolean): () => v
     window.addEventListener("unhandledrejection", onUnhandledRejection);
 
     const onWindowError = (event: ErrorEvent) => {
-        console.error("[Hook] Uncaught error:", event.error ?? event.message);
+        console.error("[Otter] Uncaught error:", event.error ?? event.message);
         const err = event.error;
         const detail =
             err instanceof Error

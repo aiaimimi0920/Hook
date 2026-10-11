@@ -25,7 +25,7 @@
   <rect x="168" y="182" width="48" height="66" rx="16" fill="#0F130A"/>
   <rect x="140" y="256" width="104" height="14" rx="7" fill="#0F130A"/>
 
-  <text x="360" y="128" fill="#F7FCE8" font-size="58" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Hook</text>
+  <text x="360" y="128" fill="#F7FCE8" font-size="58" font-family="Segoe UI, Arial, sans-serif" font-weight="700">Otter</text>
   <text x="360" y="176" fill="#B9C6A6" font-size="24" font-family="Segoe UI, Arial, sans-serif">
     Capture, annotate, organize, and connect your desktop workflow.
   </text>

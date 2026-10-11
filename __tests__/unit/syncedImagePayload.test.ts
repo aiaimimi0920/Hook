@@ -67,21 +67,21 @@ describe("synced image payload helpers", () => {
     it("uses file-backed image references without syncing giant base64 payloads", async () => {
         const payload = await buildSyncedImagePayload({
             data: {
-                src: "file:///C:/Users/Public/Hook/cache/long.png",
-                filePath: "C:/Users/Public/Hook/cache/long.png",
+                src: "file:///C:/Users/Public/Otter/cache/long.png",
+                filePath: "C:/Users/Public/Otter/cache/long.png",
                 previewSrc: "data:image/png;base64,preview-should-not-sync",
                 rasterizedAnnotationLayerSrc: null,
             },
         } as any);
 
         expect(payload).toEqual({
-            src: "file:///C:/Users/Public/Hook/cache/long.png",
-            filePath: "C:/Users/Public/Hook/cache/long.png",
+            src: "file:///C:/Users/Public/Otter/cache/long.png",
+            filePath: "C:/Users/Public/Otter/cache/long.png",
             rasterizedAnnotationLayerSrc: null,
         });
     });
 
-    it("marks stickers with Hook-only edit state as requiring a baked sync image", () => {
+    it("marks stickers with Otter-only edit state as requiring a baked sync image", () => {
         expect(
             requiresBakedStickerSyncImage({
                 type: "sticker",
@@ -127,7 +127,7 @@ describe("synced image payload helpers", () => {
         ).toBe(true);
     });
 
-    it("uses the baked Hook-side composite as the sync image when Loom cannot reconstruct the visual result", async () => {
+    it("uses the baked Otter-side composite as the sync image when Loom cannot reconstruct the visual result", async () => {
         const renderBakedPreviewSrc = vi
             .fn()
             .mockResolvedValue("data:image/png;base64,baked-sync-preview");
@@ -138,8 +138,8 @@ describe("synced image payload helpers", () => {
                 w: 160,
                 h: 90,
                 data: {
-                    src: "file:///C:/Users/Public/Hook/cache/base.png",
-                    filePath: "C:/Users/Public/Hook/cache/base.png",
+                    src: "file:///C:/Users/Public/Otter/cache/base.png",
+                    filePath: "C:/Users/Public/Otter/cache/base.png",
                     rasterizedAnnotationLayerSrc: "data:image/png;base64,LAYER",
                     annotationState: {
                         elements: [
@@ -171,7 +171,7 @@ describe("synced image payload helpers", () => {
         });
     });
 
-    it("includes vector and edit state in the sync signature so Hook can re-render Loom payloads when visuals change", () => {
+    it("includes vector and edit state in the sync signature so Otter can re-render Loom payloads when visuals change", () => {
         const baseUnit = {
             type: "sticker",
             w: 160,

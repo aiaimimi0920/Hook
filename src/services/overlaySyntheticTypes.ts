@@ -19,8 +19,8 @@ export type OverlaySyntheticEventType =
     | "wheel"
     | "contextmenu";
 
-export const OVERLAY_GLOBAL_MOUSE_UP_EVENT = "hook:overlay-global-mouse-up";
-export const JAVASCRIPT_SURFACE_POINTER_EVENT = "hook:javascript-surface-pointer";
+export const OVERLAY_GLOBAL_MOUSE_UP_EVENT = "otter:overlay-global-mouse-up";
+export const JAVASCRIPT_SURFACE_POINTER_EVENT = "otter:javascript-surface-pointer";
 
 export interface JavaScriptSurfacePointerDetail extends OverlaySyntheticMousePayload {
     type: OverlaySyntheticEventType;

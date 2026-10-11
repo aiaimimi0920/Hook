@@ -33,7 +33,7 @@ fn native_minimize_then_activation_restores_without_closing_capture() {
             CreateWindowExW(
                 WS_EX_APPWINDOW,
                 windows::core::w!("STATIC"),
-                windows::core::w!("Hook minimize recovery test"),
+                windows::core::w!("Otter minimize recovery test"),
                 WS_OVERLAPPEDWINDOW,
                 0,
                 0,
@@ -115,7 +115,7 @@ fn logical_minimize_preserves_shell_entry_and_activation_restores_shared_source(
                 CreateWindowExW(
                     style,
                     windows::core::w!("STATIC"),
-                    windows::core::w!("Hook owned visibility fixture"),
+                    windows::core::w!("Otter owned visibility fixture"),
                     WS_POPUP,
                     0,
                     0,

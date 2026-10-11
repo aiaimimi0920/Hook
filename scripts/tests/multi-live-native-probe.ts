@@ -42,7 +42,7 @@ try {
             if (await candidate.evaluate(() => Boolean((window as unknown as TauriWindow).__TAURI_INTERNALS__))) return candidate;
         }
     });
-    await waitFor(async () => (await readFile(join(output, "logs/hook-runtime.log"), "utf8")).includes("frontend-initialized") ? true : undefined);
+    await waitFor(async () => (await readFile(join(output, "logs/otter-runtime.log"), "utf8")).includes("frontend-initialized") ? true : undefined);
     assert.equal(await page.locator(".hook-live-relay-panel").count(), 0);
     result.steps.push({ globalLiveBadgeAbsent: true });
     const dpr = await page.evaluate(() => devicePixelRatio);

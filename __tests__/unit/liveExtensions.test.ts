@@ -41,8 +41,8 @@ describe("hook.live.extensions.v1", () => {
             ...unavailableLiveExtensionReport,
             capabilities: [{
                 ...adapter,
-                executionOwner: "hook_windows_backend",
-                trustBoundary: "hook_native_backend",
+                executionOwner: "otter_windows_backend",
+                trustBoundary: "otter_native_backend",
             }],
         })).toThrow(/Loom package trust/);
     });

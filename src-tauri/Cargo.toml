@@ -1,12 +1,12 @@
 [package]
-name = "hook"
+name = "otter"
 version = "0.2.33"
 description = "Windows-first Tauri desktop capture, sticker editing, and visual workflow workspace."
 authors = ["yamiyu"]
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/aiaimimi0920/Hook"
-homepage = "https://github.com/aiaimimi0920/Hook"
+repository = "https://github.com/aiaimimi0920/Otter"
+homepage = "https://github.com/aiaimimi0920/Otter"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,7 +14,7 @@ homepage = "https://github.com/aiaimimi0920/Hook"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "hook_lib"
+name = "otter_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -26,7 +26,7 @@ rcgen = { version = "0.13.2", default-features = false, features = ["crypto", "r
 
 [features]
 default = ["remote-surface"]
-# Force-enables capture-path diagnostic logging (writes hook_runtime.log next to
+# Force-enables capture-path diagnostic logging (writes otter_runtime.log next to
 # the exe) without needing any environment variable. Build a diagnostic exe with
 # `cargo tauri build --no-bundle --features diag_capture`.
 diag_capture = []
@@ -62,7 +62,7 @@ tauri-plugin-global-shortcut = "2.3.1"
 shared_memory = "0.12.4"
 rdev = "0.5.3"
 
-# Hook-owned capture crates, imported from Cap and kept local to Hook.
+# Otter-owned capture crates, imported from Cap and kept local to Otter.
 scap-targets = { path = "crates/scap-targets" }
 scap-direct3d = { path = "crates/scap-direct3d" }
 anyhow = "1.0"

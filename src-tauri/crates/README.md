@@ -1,10 +1,10 @@
-# Hook capture crates
+# Otter capture crates
 
-This directory contains Hook-owned capture backend crates imported from the old
+This directory contains Otter-owned capture backend crates imported from the old
 top-level `Cap/` source subset.
 
 These crates are not a separate Neuro product. They are local implementation
-dependencies for Hook's screenshot and foreground capture backend.
+dependencies for Otter's screenshot and foreground capture backend.
 
 Current imported crates:
 

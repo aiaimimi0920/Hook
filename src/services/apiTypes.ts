@@ -133,7 +133,7 @@ export interface ToolSettingsData {
     stickerToolSettings?: Record<string, unknown> | null;
 }
 
-export interface TeaHookContext {
+export interface TeaOtterContext {
     active_window: string | null;
     selection_text: string | null;
     ocr_text: string | null;
@@ -142,16 +142,16 @@ export interface TeaHookContext {
     app: string | null;
 }
 
-export interface TeaHookAttachment {
+export interface TeaOtterAttachment {
     kind: string;
     reference: string;
 }
 
-export interface TeaHookIntakeRequest {
+export interface TeaOtterIntakeRequest {
     source: string;
     text: string;
-    context: TeaHookContext;
-    attachments: TeaHookAttachment[];
+    context: TeaOtterContext;
+    attachments: TeaOtterAttachment[];
 }
 
 export interface TeaTicketSummary {

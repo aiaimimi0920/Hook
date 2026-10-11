@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 beforeEach(() => { vi.resetModules(); localStorage.clear(); });
 afterEach(() => { localStorage.clear(); });
 const paused = async () => (await import("../../src/store/managedProjectionReceiverStore")).projectionReceiverPaused();
-it("fresh installs follow Loom without needing an address or policy in Hook", async () => {
+it("fresh installs follow Loom without needing an address or policy in Otter", async () => {
     expect(await paused()).toBe(false);
 });
 it("preserves an explicitly saved legacy disable as a local pause", async () => {

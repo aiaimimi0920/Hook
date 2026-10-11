@@ -201,7 +201,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
 
   const label = (
     <label
-      class="hook-param-label font-medium text-[11px] truncate cursor-context-menu"
+      class="otter-param-label font-medium text-[11px] truncate cursor-context-menu"
       style={{ "min-width": "70px", "max-width": "104px" }}
       onContextMenu={(event) => props.onContextMenu(event)}
     >
@@ -210,12 +210,12 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
   );
 
   const stepper = (
-    <div class="hook-param-stepper flex items-center shrink-0 overflow-hidden rounded border">
+    <div class="otter-param-stepper flex items-center shrink-0 overflow-hidden rounded border">
       <button
         type="button"
         data-param-step-down
         disabled={props.isDisabled}
-        class="hook-param-stepper__button w-5 h-6 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+        class="otter-param-stepper__button w-5 h-6 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -230,7 +230,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
         min={props.min}
         max={props.max}
         step={props.step ?? "any"}
-        class="hook-param-stepper__input w-16 h-6 bg-transparent border-x px-1 text-center text-[11px] focus:outline-none disabled:opacity-50"
+        class="otter-param-stepper__input w-16 h-6 bg-transparent border-x px-1 text-center text-[11px] focus:outline-none disabled:opacity-50"
         value={draftValue()}
         disabled={props.isDisabled}
         onInput={(event) => {
@@ -272,7 +272,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
         type="button"
         data-param-step-up
         disabled={props.isDisabled}
-        class="hook-param-stepper__button w-5 h-6 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+        class="otter-param-stepper__button w-5 h-6 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -322,11 +322,11 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
               onContextMenu={(event) => props.onContextMenu(event)}
             >
               <div
-                class="hook-param-slider__track absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-full"
+                class="otter-param-slider__track absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-full"
                 style={{ height: "6px" }}
               />
               <div
-                class="hook-param-slider__fill absolute left-0 top-1/2 -translate-y-1/2 rounded-full"
+                class="otter-param-slider__fill absolute left-0 top-1/2 -translate-y-1/2 rounded-full"
                 style={{
                   height: "6px",
                   width: `${sliderProgress() * 100}%`,
@@ -350,7 +350,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
               >
                 <div
                   data-param-slider-thumb-visual
-                  class="hook-param-slider__thumb absolute left-1/2"
+                  class="otter-param-slider__thumb absolute left-1/2"
                   style={{
                     bottom: "2px",
                     width: "12px",

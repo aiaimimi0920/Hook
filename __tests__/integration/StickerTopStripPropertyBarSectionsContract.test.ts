@@ -9,7 +9,7 @@ const propertyBarSource = readFileSync(propertyBarPath, "utf8");
 const sectionsExists = existsSync(sectionsPath);
 const sectionsSource = sectionsExists ? readFileSync(sectionsPath, "utf8") : "";
 
-describe("Hook sticker top strip property bar sections extraction contract", () => {
+describe("Otter sticker top strip property bar sections extraction contract", () => {
     it("keeps tool-specific section renderers in a dedicated helper module instead of redefining them inline in the property bar", () => {
         expect(sectionsExists).toBe(true);
         expect(sectionsSource).toContain("export const createStickerTopStripPropertyBarSections =");

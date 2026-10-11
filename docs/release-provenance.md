@@ -1,6 +1,6 @@
-# Hook Release Provenance
+# Otter Release Provenance
 
-A publishable Hook release comes from a clean Git worktree and an exact
+A publishable Otter release comes from a clean Git worktree and an exact
 `vx.y.z` tag that is reachable from `origin/main` (legacy uppercase tags remain
 accepted). Internal `vx.y.z.n` builds cannot be published. See [versioning](VERSIONING.md).
 The dependency gate scans
@@ -11,15 +11,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\Test-Dep
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-DependencySecurityScan.ps1
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 `
-  -VersionId Vx.y.z -OutputRoot ..\release\Hook -RequireCleanSource
+  -VersionId Vx.y.z -OutputRoot ..\release\Otter -RequireCleanSource
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 `
-  -PackageDir ..\release\Hook\Vx.y.z -RunSmoke -RequireCleanSource
+  -PackageDir ..\release\Otter\Vx.y.z -RunSmoke -RequireCleanSource
 ```
 
 The native gate above requires an interactive Windows desktop and WebView2 CDP;
 maintainers run it before tagging. GitHub-hosted runners instead use
-`-RunHeadlessSmoke`, which executes the packaged `hook.exe --self-check`, binds
+`-RunHeadlessSmoke`, which executes the packaged `otter.exe --self-check`, binds
 the result to the verified executable digest and product version, enforces a
 timeout, and uploads the smoke evidence. It is not a substitute for the local
 60-second native Tauri/WebView2 acceptance.
@@ -42,8 +42,8 @@ Windows 隔离构建覆盖 `build.frontendDist` 时，使用相对于 `src-tauri
 
 ## Joint release acceptance
 
-Before claiming a Hook/Loom joint release, use reviewed commits and unused output
-directories in each independent repository. Run the full applicable Hook source
+Before claiming a Otter/Loom joint release, use reviewed commits and unused output
+directories in each independent repository. Run the full applicable Otter source
 gates: lint, application/test type checks, frontend and Surface browser tests,
 Rust formatting/tests, production build, strict effective-line checks and the
 packaged executable's version/self-check contract. Record commands and results
@@ -95,7 +95,7 @@ the downloaded executable. Both SBOM formats must contain the complete unique
 ecosystem/name/version inventory, including scoped, nested and aliased npm packages.
 
 Signing is dispatched from main and passes input strings only as data. A read-only
-preflight requires a successful same-repository `release-hook-tag.yml` run whose
+preflight requires a successful same-repository `release-otter-tag.yml` run whose
 head SHA and tag ref match the requested release. Manual candidate production must
 therefore dispatch the release workflow **at the tag ref**, not at main with only
 an input tag override. The protected signing runner checks out the authenticated

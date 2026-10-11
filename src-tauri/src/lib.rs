@@ -31,7 +31,7 @@ mod long_capture;
 mod loom_bridge_client;
 mod loom_config;
 pub mod loom_connector;
-mod loom_hook;
+mod loom_otter;
 mod loom_tls;
 mod mouse_monitor;
 mod network_proxy;
@@ -48,7 +48,7 @@ mod wall_client;
 mod wall_live;
 
 #[cfg(all(test, target_os = "windows"))]
-#[link(name = "hook_test_manifest", kind = "static")]
+#[link(name = "otter_test_manifest", kind = "static")]
 extern "C" {}
 
 use capture::{CaptureMetadata, CaptureResponse};
@@ -57,7 +57,7 @@ use file_naming::{
     create_unique_file, render_file_stem, FileNamingContext, FileNamingPatternKind,
     FileNamingSettings,
 };
-use loom_hook::LoomHook;
+use loom_otter::LoomOtter;
 use single_instance::{single_instance_name, try_acquire_single_instance};
 
 use base64::Engine as _;
@@ -434,3 +434,4 @@ mod app_cli_tests {
     include!("native/tests/app_cli_workflow_archive.rs");
     include!("native/tests/app_cli_release_smoke.rs");
 }
+pub mod brand_env;

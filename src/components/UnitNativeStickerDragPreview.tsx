@@ -12,7 +12,7 @@ export const UnitNativeStickerDragPreview: Component<UnitNativeStickerDragPrevie
         {(preview) => (
             <Portal>
                 <div
-                    class="hook-sticker-export-drag-preview"
+                    class="otter-sticker-export-drag-preview"
                     style={{
                         position: "fixed",
                         left: `${preview.x + 18}px`,

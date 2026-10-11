@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -15,8 +15,8 @@ const sourceBetween = (source: string, start: string, end: string) => {
 };
 
 describe("overlay mouse activate no-focus contract", () => {
-  it("keeps the overlay non-activating by default so only explicit Hook interactions transfer focus", () => {
-    const rustSource = readHookLibRustSources();
+  it("keeps the overlay non-activating by default so only explicit Otter interactions transfer focus", () => {
+    const rustSource = readOtterLibRustSources();
     const setupOverlayBlock = sourceBetween(
       rustSource,
       "fn setup_overlay_window",

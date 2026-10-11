@@ -34,7 +34,7 @@ fn fixture() -> Fixture {
             CreateWindowExW(
                 WS_EX_NOACTIVATE,
                 windows::core::w!("STATIC"),
-                windows::core::w!("Hook owned input fault fixture"),
+                windows::core::w!("Otter owned input fault fixture"),
                 WS_POPUP,
                 0,
                 0,

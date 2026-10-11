@@ -34,8 +34,8 @@ if (-not (Test-Path -LiteralPath $resolvedExePath -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $resolvedManifestPath -PathType Leaf)) {
     throw "Missing reviewed signing candidate manifest: $resolvedManifestPath"
 }
-$resolvedExePath = Assert-HookAbsolutePathNoReparsePoints -Path $resolvedExePath -TrustedRootPath (Split-Path -Parent $resolvedExePath)
-$resolvedManifestPath = Assert-HookAbsolutePathNoReparsePoints -Path $resolvedManifestPath -TrustedRootPath (Split-Path -Parent $resolvedManifestPath)
+$resolvedExePath = Assert-OtterAbsolutePathNoReparsePoints -Path $resolvedExePath -TrustedRootPath (Split-Path -Parent $resolvedExePath)
+$resolvedManifestPath = Assert-OtterAbsolutePathNoReparsePoints -Path $resolvedManifestPath -TrustedRootPath (Split-Path -Parent $resolvedManifestPath)
 $exeInfo = Get-Item -LiteralPath $resolvedExePath
 if ($exeInfo.Length -le 0 -or $exeInfo.Length -gt 512MB) {
     throw "Reviewed signing candidate has an invalid size: $($exeInfo.Length) bytes"
@@ -44,14 +44,14 @@ if ($ReviewedSha256 -notmatch '^[0-9A-Fa-f]{64}$') {
     throw "Reviewed SHA-256 must contain exactly 64 hexadecimal characters."
 }
 
-$manifest = Read-HookBoundedText -Path $resolvedManifestPath -MaxBytes 1MB | ConvertFrom-Json
-$actualSha256 = Get-HookFileSha256 -Path $resolvedExePath
+$manifest = Read-OtterBoundedText -Path $resolvedManifestPath -MaxBytes 1MB | ConvertFrom-Json
+$actualSha256 = Get-OtterFileSha256 -Path $resolvedExePath
 $reviewedSha256 = $ReviewedSha256.ToLowerInvariant()
 $manifestSha256 = ([string]$manifest.sha256).ToLowerInvariant()
 
 $checks = [ordered]@{
     "manifest schemaVersion" = ([string]$manifest.schemaVersion -eq "1")
-    "manifest artifact" = ([string]$manifest.artifact -eq "hook.exe")
+    "manifest artifact" = ([string]$manifest.artifact -eq "otter.exe")
     "manifest tag" = ([string]$manifest.tag -eq $ExpectedTag)
     "manifest commit" = ([string]$manifest.commit -eq $ExpectedCommit)
     "manifest runId" = ([string]$manifest.runId -eq $ExpectedRunId)
@@ -65,4 +65,4 @@ if ($failed.Count -gt 0) {
     throw "Signing candidate provenance validation failed: $((($failed | ForEach-Object Key) -join ', '))"
 }
 
-Write-Host "[hook-signing-candidate] Reviewed artifact digest verified: $actualSha256"
+Write-Host "[otter-signing-candidate] Reviewed artifact digest verified: $actualSha256"

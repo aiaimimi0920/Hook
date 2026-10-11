@@ -21,10 +21,10 @@ if (-not $OutputDir) {
     $OutputDir = Join-Path $repoRoot "docs\assets"
 }
 if (-not $TempRoot) {
-    $TempRoot = Join-Path $env:TEMP "hook-homepage-desktop-capture"
+    $TempRoot = Join-Path $env:TEMP "otter-homepage-desktop-capture"
 }
 
-$exePath = Resolve-HookExePath -RequestedPath $ExePath -RepoRoot $repoRoot
+$exePath = Resolve-OtterExePath -RequestedPath $ExePath -RepoRoot $repoRoot
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $runRoot = Join-Path $TempRoot "run-$timestamp"
 $cardDir = Join-Path $TempRoot "cards"
@@ -69,10 +69,10 @@ try {
     $env:HOOK_ENABLE_LOOM_HOOK = "0"
 
     $process = Start-Process -FilePath $exePath -PassThru
-    $window = Wait-HookWindow -Process $process -TimeoutSeconds 30
-    Focus-HookWindow -Handle $window.Handle
-    Move-HookWindow -Handle $window.Handle -Left 120 -Top 80 -Width 1360 -Height 860
-    $window = Wait-HookWindow -Process $process -TimeoutSeconds 10
+    $window = Wait-OtterWindow -Process $process -TimeoutSeconds 30
+    Focus-OtterWindow -Handle $window.Handle
+    Move-OtterWindow -Handle $window.Handle -Left 120 -Top 80 -Width 1360 -Height 860
+    $window = Wait-OtterWindow -Process $process -TimeoutSeconds 10
     Start-Sleep -Seconds 4
 
     $overviewRaw = Join-Path $screenDir "overview-raw.png"
@@ -88,7 +88,7 @@ try {
 
     $menuVisible = $false
     for ($attempt = 1; $attempt -le 3 -and -not $menuVisible; $attempt++) {
-        Focus-HookWindow -Handle $window.Handle
+        Focus-OtterWindow -Handle $window.Handle
         Invoke-MouseClick -X $clickPoint.X -Y $clickPoint.Y -Button "Right"
         Start-Sleep -Milliseconds 1000
         [void](Save-WindowCapture -Handle $window.Handle -Path $contextRaw)

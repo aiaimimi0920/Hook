@@ -42,7 +42,7 @@ const invokeTimeout = (value: number | undefined): number => {
     return Math.min(Math.max(Math.trunc(value), MIN_INVOKE_TIMEOUT_MS), MAX_INVOKE_TIMEOUT_MS);
 };
 
-/** Maintains one reconnecting protocol session; the Hook handshake is not peer authentication. */
+/** Maintains one reconnecting protocol session; the Otter handshake is not peer authentication. */
 export class ExtensionBridgeClient {
     private socket: ExtensionTransport | null = null;
     private stopped = true;

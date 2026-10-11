@@ -14,7 +14,7 @@ const teaControllerSource = readFileSync(
 const teaApiSource = readFileSync(resolve(process.cwd(), "src", "services", "apiTea.ts"), "utf8");
 const rustSource = readFileSync(resolve(process.cwd(), "src-tauri", "src", "lib.rs"), "utf8");
 
-describe("Hook Tea ticket desktop entry contract", () => {
+describe("Otter Tea ticket desktop entry contract", () => {
   it("exposes a Tauri API wrapper for Tea ticket creation", () => {
     expect(teaApiSource).toContain("createTeaTicket");
     expect(teaApiSource).toContain('"create_tea_ticket"');
@@ -30,21 +30,21 @@ describe("Hook Tea ticket desktop entry contract", () => {
     expect(rustSource).not.toMatch(/"create_tea_ticket"\s*=>/);
   });
 
-  it("listens for the tray event and submits the current Hook context to Tea", () => {
+  it("listens for the tray event and submits the current Otter context to Tea", () => {
     expect(appSource).toContain("registerAppCommandListeners");
     expect(commandSource).toContain('"trigger-create-tea-ticket"');
-    expect(appSource).toContain("createTeaTicketFromCurrentHookState");
+    expect(appSource).toContain("createTeaTicketFromCurrentOtterState");
     expect(teaControllerSource).toContain("api.createTeaTicket");
     expect(teaControllerSource).toContain("graphStore.units.length");
     expect(teaControllerSource).toContain("lastVoiceSession()?.outputText");
   });
 
   it("keeps stable non-visual automation anchors for Tea ticket smoke coverage", () => {
-    expect(appSource).toContain('data-testid="hook-tea-automation-surface"');
+    expect(appSource).toContain('data-testid="otter-tea-automation-surface"');
     expect(appSource).toContain("hidden aria-hidden=\"true\"");
     expect(appSource).toContain('data-testid="tea-ticket-output"');
     expect(appSource).toContain('data-testid="tea-ticket-button"');
-    expect(appSource).toContain('onClick={() => void createTeaTicketFromCurrentHookState("automation")}');
+    expect(appSource).toContain('onClick={() => void createTeaTicketFromCurrentOtterState("automation")}');
     expect(appSource).toContain('{lastTeaTicket()?.id || lastTeaTicketError() || ""}');
     expect(appSource).not.toContain('data-testid="voice-status-panel"');
     expect(appSource).not.toContain('Tea Ticket: {lastTeaTicket()?.id || lastTeaTicketError() || "not submitted"}');

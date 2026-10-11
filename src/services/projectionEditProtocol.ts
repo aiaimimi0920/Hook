@@ -1,4 +1,4 @@
-/** Validate opaque Loom objects before they reach Hook's SVG/canvas renderers. */
+/** Validate opaque Loom objects before they reach Otter's SVG/canvas renderers. */
 import type { StickerAnnotation, StickerStrokeStyle } from "../types/stickerEditing";
 import type { ProjectionEditDocument, ProjectionEditRequest, ProjectionEditObjects } from "../types/projectionEdit";
 

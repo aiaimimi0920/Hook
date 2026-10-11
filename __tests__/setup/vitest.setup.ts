@@ -134,7 +134,7 @@ const createCanvas2DContextStub = (canvas: HTMLCanvasElement): CanvasRenderingCo
 
 declare global {
   interface HTMLCanvasElement {
-    __hookCanvas2DContext__?: CanvasRenderingContext2D;
+    __otterCanvas2DContext__?: CanvasRenderingContext2D;
   }
 }
 
@@ -149,10 +149,10 @@ if (typeof HTMLCanvasElement !== "undefined") {
     options?: unknown,
   ): RenderingContext | null {
     if (contextId === "2d") {
-      if (!this.__hookCanvas2DContext__) {
-        this.__hookCanvas2DContext__ = createCanvas2DContextStub(this);
+      if (!this.__otterCanvas2DContext__) {
+        this.__otterCanvas2DContext__ = createCanvas2DContextStub(this);
       }
-      return this.__hookCanvas2DContext__;
+      return this.__otterCanvas2DContext__;
     }
 
     return originalGetContext.call(this, contextId, options as never);

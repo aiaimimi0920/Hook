@@ -69,7 +69,7 @@ const renderColorPickerPreview = (preview: ColorPickerPreview) => {
 
     return (
         <div
-            class="hook-color-sample-tooltip pointer-events-none fixed z-[10000] px-2 py-1 text-[11px] font-semibold"
+            class="otter-color-sample-tooltip pointer-events-none fixed z-[10000] px-2 py-1 text-[11px] font-semibold"
             style={{
                 left: `${left}px`,
                 top: `${top}px`,
@@ -78,7 +78,7 @@ const renderColorPickerPreview = (preview: ColorPickerPreview) => {
         >
             <div class="flex items-center gap-2">
                 <span
-                    class="hook-color-sample-tooltip__swatch h-5 w-5"
+                    class="otter-color-sample-tooltip__swatch h-5 w-5"
                     style={{ background: preview.hex }}
                 />
                 <span>取色预览 {preview.hex}</span>
@@ -100,7 +100,7 @@ export const StickerDesktopColorPickerOverlay: Component<StickerDesktopColorPick
         ]);
         for (const result of results) {
             if (result.status === "rejected") {
-                console.warn("[Hook] Failed to update desktop color picker capture state", result.reason);
+                console.warn("[Otter] Failed to update desktop color picker capture state", result.reason);
             }
         }
     });
@@ -139,7 +139,7 @@ export const StickerDesktopColorPickerOverlay: Component<StickerDesktopColorPick
         const unlisteners: Array<() => void> = [];
 
         void queueBackendState(true).catch((error) => {
-            console.warn("[Hook] Failed to activate desktop color picker capture", error);
+            console.warn("[Otter] Failed to activate desktop color picker capture", error);
         });
         void listen<GlobalColorPickerMousePayload>("capture/global_mouse_move", (event) => {
             if (disposed) return;
@@ -153,7 +153,7 @@ export const StickerDesktopColorPickerOverlay: Component<StickerDesktopColorPick
                 unlisteners.push(unlisten);
             })
             .catch((error) => {
-                console.warn("[Hook] Failed to listen for desktop color picker moves", error);
+                console.warn("[Otter] Failed to listen for desktop color picker moves", error);
             });
         void listen<GlobalColorPickerMousePayload>("capture/global_mouse_down", (event) => {
             if (disposed) return;
@@ -167,7 +167,7 @@ export const StickerDesktopColorPickerOverlay: Component<StickerDesktopColorPick
                 unlisteners.push(unlisten);
             })
             .catch((error) => {
-                console.warn("[Hook] Failed to listen for desktop color picker clicks", error);
+                console.warn("[Otter] Failed to listen for desktop color picker clicks", error);
             });
 
         onCleanup(() => {
@@ -175,7 +175,7 @@ export const StickerDesktopColorPickerOverlay: Component<StickerDesktopColorPick
             unlisteners.forEach((unlisten) => unlisten());
             setColorPickerPreview(null);
             void queueBackendState(false).catch((error) => {
-                console.warn("[Hook] Failed to deactivate desktop color picker capture", error);
+                console.warn("[Otter] Failed to deactivate desktop color picker capture", error);
             });
         });
     });

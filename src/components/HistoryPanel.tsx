@@ -33,14 +33,14 @@ export const HistoryPanel: Component<HistoryPanelProps> = (props) => {
     return (
         <Show when={isHistoryPanelOpen()}>
             <div
-                class="hook-terminal-shell hook-terminal-shell--strong absolute right-4 top-16 z-[1200] flex max-h-[70vh] w-64 flex-col gap-3 overflow-hidden p-3 text-[11px]"
+                class="otter-terminal-shell otter-terminal-shell--strong absolute right-4 top-16 z-[1200] flex max-h-[70vh] w-64 flex-col gap-3 overflow-hidden p-3 text-[11px]"
                 onMouseDown={(event) => event.stopPropagation()}
                 onWheel={(event) => event.stopPropagation()}
             >
                 <div class="flex items-center justify-between">
                     <span class="text-[12px] font-semibold text-[var(--theme-text)]">历史记录</span>
                     <button
-                        class="hook-terminal-btn px-2 py-0.5"
+                        class="otter-terminal-btn px-2 py-0.5"
                         onClick={() => uiActions.setHistoryPanelOpen(false)}
                         title="关闭历史面板"
                     >
@@ -49,16 +49,16 @@ export const HistoryPanel: Component<HistoryPanelProps> = (props) => {
                 </div>
 
                 <div class="flex flex-col gap-1.5">
-                    <span class="hook-history-caption">取色历史</span>
+                    <span class="otter-history-caption">取色历史</span>
                     <Show
                         when={colors().length > 0}
-                        fallback={<span class="hook-history-empty">暂无取色记录</span>}
+                        fallback={<span class="otter-history-empty">暂无取色记录</span>}
                     >
                         <div class="flex flex-wrap gap-1.5">
                             <For each={colors()}>
                                 {(entry) => (
                                     <button
-                                        class="hook-color-swatch h-6 w-6 transition-transform hover:scale-110"
+                                        class="otter-color-swatch h-6 w-6 transition-transform hover:scale-110"
                                         style={{ "background-color": entry.hex }}
                                         title={`${entry.hex} — 点击复制并设为当前颜色`}
                                         onClick={() => void copyColor(entry.hex)}
@@ -70,15 +70,15 @@ export const HistoryPanel: Component<HistoryPanelProps> = (props) => {
                 </div>
 
                 <div class="flex min-h-0 flex-col gap-1.5">
-                    <span class="hook-history-caption">截图历史</span>
+                    <span class="otter-history-caption">截图历史</span>
                     <Show
                         when={screenshots().length > 0}
-                        fallback={<span class="hook-history-empty">暂无截图记录</span>}
+                        fallback={<span class="otter-history-empty">暂无截图记录</span>}
                     >
                         <div class="grid grid-cols-3 gap-1.5 overflow-y-auto pr-1">
                             <For each={screenshots()}>
                                 {(entry) => (
-                                    <div class="hook-history-item group relative aspect-square overflow-hidden">
+                                    <div class="otter-history-item group relative aspect-square overflow-hidden">
                                         <img
                                             src={entry.thumbnail}
                                             alt="screenshot"
@@ -87,7 +87,7 @@ export const HistoryPanel: Component<HistoryPanelProps> = (props) => {
                                             onClick={() => props.onReuseScreenshot(entry.thumbnail)}
                                         />
                                         <button
-                                            class="hook-history-remove absolute right-0 top-0 hidden px-1 text-[10px] group-hover:block"
+                                            class="otter-history-remove absolute right-0 top-0 hidden px-1 text-[10px] group-hover:block"
                                             title="从历史中删除"
                                             onClick={(event) => {
                                                 event.stopPropagation();

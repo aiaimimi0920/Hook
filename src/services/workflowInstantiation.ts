@@ -1,7 +1,7 @@
 // Pure workflow-snapshot instantiation.
 //
 // Extracted from app.tsx's instantiateWorkflowSnapshot: the transform that turns
-// an incoming Loom Hook workflow snapshot into local `Unit`/`Link` records (with
+// an incoming Loom Otter workflow snapshot into local `Unit`/`Link` records (with
 // reference-mode reuse of existing units, port synthesis, execution-config
 // derivation, and geometry/opacity defaults), plus the two branchy merge
 // reducers used to fold the result into the graph store.

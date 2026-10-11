@@ -2,7 +2,7 @@
   "render": {
     "pattern": "{app}_{kind}_{label}_{shortId}_{width}x{height}_{date}_{time}",
     "context": {
-      "app": "Hook",
+      "app": "Otter",
       "kind": "sticker",
       "label": "图片压缩",
       "title": "参考窗口",
@@ -21,7 +21,7 @@
       "second": 15,
       "millisecond": 420
     },
-    "expected": "Hook_sticker_图片压缩_8f2a_1920x1080_20260802_14301542"
+    "expected": "Otter_sticker_图片压缩_8f2a_1920x1080_20260802_14301542"
   },
   "sanitize": [
     {
@@ -38,7 +38,7 @@
     },
     {
       "input": "..",
-      "expected": "Hook"
+      "expected": "Otter"
     },
     {
       "input": "a\\..\\b",
@@ -47,8 +47,8 @@
   ],
   "invalidPatterns": [
     "",
-    "Hook_{unknown}",
-    "Hook_{date",
-    "Hook_date}"
+    "Otter_{unknown}",
+    "Otter_{date",
+    "Otter_date}"
   ]
 }

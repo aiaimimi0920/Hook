@@ -3,7 +3,7 @@
     #[test]
     fn session_asset_cleanup_keeps_assets_referenced_only_by_workflow_archive_index() {
         let root = std::env::temp_dir().join(format!(
-            "hook-session-asset-archive-cleanup-test-{}-{}",
+            "otter-session-asset-archive-cleanup-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));

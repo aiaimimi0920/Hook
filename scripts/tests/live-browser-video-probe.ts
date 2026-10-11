@@ -13,7 +13,7 @@ const repo = resolve(import.meta.dirname, "../..");
 const output = resolve(process.argv[2] ?? `${repo}/artifacts/live-browser-video-${Date.now()}`);
 assert(output.startsWith(resolve(repo, "artifacts") + sep));
 await mkdir(output, { recursive: false });
-const title = `HookLiveVideoProbe-${randomUUID()}`;
+const title = `OtterLiveVideoProbe-${randomUUID()}`;
 const channel = process.env.HOOK_BROWSER_VIDEO_CHANNEL ?? "chrome";
 assert(channel === "chrome" || channel === "msedge", "Only isolated Chrome or Edge fixtures are supported");
 const video = resolve(output, "video.mp4");

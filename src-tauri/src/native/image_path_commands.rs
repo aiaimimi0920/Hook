@@ -1,4 +1,4 @@
-// Reads local images and downloads remote image-search assets into Hook's cache.
+// Reads local images and downloads remote image-search assets into Otter's cache.
 
 fn mime_from_image_format(format: image::ImageFormat) -> Option<&'static str> {
     match format {

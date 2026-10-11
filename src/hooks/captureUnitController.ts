@@ -29,18 +29,18 @@ export const restorePostCaptureInteractivity = async () => {
     try {
         await api.setOverlayClickThrough(true);
     } catch {
-        console.error("[Hook] capture interactivity restore failed (click-through)");
+        console.error("[Otter] capture interactivity restore failed (click-through)");
     }
     if (graphStore.units.length > 0) {
         try {
             await api.setMouseMonitorActive(true);
         } catch {
-            console.error("[Hook] capture interactivity restore failed (mouse-monitor)");
+            console.error("[Otter] capture interactivity restore failed (mouse-monitor)");
         }
         try {
             await syncService.updateBackendRects();
         } catch {
-            console.error("[Hook] capture interactivity restore failed (backend-rects)");
+            console.error("[Otter] capture interactivity restore failed (backend-rects)");
         }
     }
 };

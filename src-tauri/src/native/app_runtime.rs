@@ -189,7 +189,7 @@ pub fn run() {
             get_loom_shortcut_settings,
             set_extension_shortcuts,
             get_installed_fonts,
-            hook_has_foreground_window,
+            otter_has_foreground_window,
             initialize_overlay,
             get_boot_profile,
             request_native_acceptance_exit,
@@ -246,9 +246,9 @@ pub fn run() {
             reclaim_live_relay_control,
             stop_live_relay_session,
             tea_client::create_tea_ticket,
-            loom_hook::loom_hook_handshake,
-            loom_hook::loom_hook_dispatch_action,
-            loom_hook::prefetch_shader,
+            loom_otter::loom_otter_handshake,
+            loom_otter::loom_otter_dispatch_action,
+            loom_otter::prefetch_shader,
             read_shared_memory,
             release_art_shared_memory,
             read_image_from_path,
@@ -261,7 +261,7 @@ pub fn run() {
         .expect("error while building tauri application");
     let exit_code = app.run_return(|app_handle, event| match event {
         tauri::RunEvent::ExitRequested { code, .. } => {
-            loom_hook::shutdown_listener(app_handle);
+            loom_otter::shutdown_listener(app_handle);
             extension_bridge_native::shutdown(app_handle);
             record_process_exit_event("tauri_exit_requested", code);
             shutdown_live_relay_sessions(app_handle);
@@ -269,7 +269,7 @@ pub fn run() {
             prepare_for_hook_process_exit("tauri_exit_requested");
         }
         tauri::RunEvent::Exit => {
-            loom_hook::shutdown_listener(app_handle);
+            loom_otter::shutdown_listener(app_handle);
             extension_bridge_native::shutdown(app_handle);
             record_process_exit_event("tauri_exit", None);
             shutdown_live_relay_sessions(app_handle);

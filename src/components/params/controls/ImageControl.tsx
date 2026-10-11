@@ -35,9 +35,9 @@ export const ImageControl: Component<ImageControlProps> = (props) => {
       <div class="flex-1 flex gap-2 min-w-0">
         <Show when={props.widget === "image_link"}>
              <button
-               class={`hook-terminal-btn w-[60%] flex items-center justify-center gap-1 h-6 px-1 text-[10px] transition-all cursor-crosshair active:scale-95 ${
+               class={`otter-terminal-btn w-[60%] flex items-center justify-center gap-1 h-6 px-1 text-[10px] transition-all cursor-crosshair active:scale-95 ${
                  isLinked()
-                   ? "hook-terminal-btn--active"
+                   ? "otter-terminal-btn--active"
                    : ""
                }`}
                disabled={props.isDisabled}
@@ -64,9 +64,9 @@ export const ImageControl: Component<ImageControlProps> = (props) => {
         </Show>
 
         <label
-          class={`hook-terminal-btn flex-1 flex items-center justify-center gap-1.5 h-6 px-2 transition-all cursor-pointer relative group ${
+          class={`otter-terminal-btn flex-1 flex items-center justify-center gap-1.5 h-6 px-2 transition-all cursor-pointer relative group ${
             isData()
-              ? "hook-terminal-btn--success"
+              ? "otter-terminal-btn--success"
               : ""
           }`}
           classList={{ "pointer-events-none opacity-50": props.isDisabled }}
@@ -97,7 +97,7 @@ export const ImageControl: Component<ImageControlProps> = (props) => {
                 <span class="truncate text-[10px]">{props.value ? "Selected" : "Choose File"}</span>
                 </>
             }>
-                <div class="hook-image-thumb mr-0.5 h-4 w-4 shrink-0 bg-cover bg-center" style={{ "background-image": `url(${props.value})` }} />
+                <div class="otter-image-thumb mr-0.5 h-4 w-4 shrink-0 bg-cover bg-center" style={{ "background-image": `url(${props.value})` }} />
                 <span class="truncate text-[9px]">Img</span>
             </Show>
         </label>

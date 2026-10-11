@@ -34,12 +34,12 @@ struct LoomQuickBinding {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-struct LoomHookGeneral {
+struct LoomOtterGeneral {
     #[serde(default = "enabled_by_default")]
     close_to_tray: bool,
 }
 
-impl Default for LoomHookGeneral {
+impl Default for LoomOtterGeneral {
     fn default() -> Self {
         Self {
             close_to_tray: true,
@@ -50,7 +50,7 @@ impl Default for LoomHookGeneral {
 #[derive(Clone, Debug, Default, Deserialize)]
 struct LoomSettings {
     #[serde(default)]
-    hook_general: LoomHookGeneral,
+    hook_general: LoomOtterGeneral,
     #[serde(default)]
     shortcuts: HashMap<String, LoomShortcut>,
     #[serde(default)]

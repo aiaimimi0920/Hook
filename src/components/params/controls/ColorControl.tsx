@@ -15,22 +15,22 @@ export const ColorControl: Component<ColorControlProps> = (props) => {
   return (
     <div class="flex items-center gap-3 w-full h-6">
       <label
-        class="hook-param-label font-medium text-[11px] shrink-0 truncate cursor-context-menu"
+        class="otter-param-label font-medium text-[11px] shrink-0 truncate cursor-context-menu"
         style={{ "min-width": "70px" }}
       >
         {props.label}
       </label>
       <div class="flex items-center gap-2 flex-1 justify-end">
-        <span class="hook-param-value text-[10px] font-mono uppercase tracking-wider">
+        <span class="otter-param-value text-[10px] font-mono uppercase tracking-wider">
           {props.value || "transparent"}
         </span>
         <div
-          class="hook-param-color-swatch relative w-6 h-6 rounded-full overflow-hidden transition-colors group cursor-pointer"
+          class="otter-param-color-swatch relative w-6 h-6 rounded-full overflow-hidden transition-colors group cursor-pointer"
           onContextMenu={(event) => props.onContextMenu(event)}
         >
           <Show when={!props.value}>
-            <div class="hook-param-color-empty absolute inset-0 flex items-center justify-center">
-              <div class="hook-param-color-empty__slash absolute h-0.5 w-full rotate-45" />
+            <div class="otter-param-color-empty absolute inset-0 flex items-center justify-center">
+              <div class="otter-param-color-empty__slash absolute h-0.5 w-full rotate-45" />
             </div>
           </Show>
           <input

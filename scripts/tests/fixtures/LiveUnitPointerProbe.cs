@@ -2,7 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-// Physical OS input, not CDP DOM events: exercises Hook's native pointer worker.
+// Physical OS input, not CDP DOM events: exercises Otter's native pointer worker.
 internal static class LiveUnitPointerProbe
 {
     [StructLayout(LayoutKind.Sequential)] private struct Point { public int X, Y; }

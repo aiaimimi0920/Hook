@@ -2,16 +2,16 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const hookRoot = process.cwd();
+const otterRoot = process.cwd();
 const readSource = (relativePath: string) =>
-  readFileSync(resolve(hookRoot, relativePath), "utf8");
+  readFileSync(resolve(otterRoot, relativePath), "utf8");
 
 describe("runtime performance infrastructure contract", () => {
   it("keeps the stable serial lane and adds an independent parallel race lane", () => {
     const packageJson = JSON.parse(readSource("package.json")) as {
       scripts: Record<string, string>;
     };
-    const workflow = readSource(".github/workflows/build-hook-exe.yml");
+    const workflow = readSource(".github/workflows/build-otter-exe.yml");
 
     expect(packageJson.scripts.test).toContain("--maxWorkers 1");
     expect(packageJson.scripts.test).toContain("--no-file-parallelism");
@@ -24,11 +24,11 @@ describe("runtime performance infrastructure contract", () => {
 
   it("provides executable frame, queue, memory, shader, and real-process soak gates", () => {
     const performanceTestPath = resolve(
-      hookRoot,
+      otterRoot,
       "__tests__/performance/RuntimePerformanceGates.test.ts",
     );
-    const soakScriptPath = resolve(hookRoot, "scripts/run-hook-runtime-soak.ps1");
-    const workflowPath = resolve(hookRoot, ".github/workflows/runtime-performance.yml");
+    const soakScriptPath = resolve(otterRoot, "scripts/run-otter-runtime-soak.ps1");
+    const workflowPath = resolve(otterRoot, ".github/workflows/runtime-performance.yml");
     const shaderRunner = readSource("scripts/run-shader-benchmark.mjs");
 
     expect(existsSync(performanceTestPath)).toBe(true);
@@ -40,7 +40,7 @@ describe("runtime performance infrastructure contract", () => {
     expect(shaderRunner).toContain("HOOK_SHADER_BENCH_ENFORCE");
     expect(shaderRunner).toContain("Shader performance budget failed");
     expect(readSource(".github/workflows/runtime-performance.yml")).toContain(
-      "run-hook-runtime-soak.ps1",
+      "run-otter-runtime-soak.ps1",
     );
   });
 });

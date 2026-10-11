@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 const colorPickerSource = readFileSync(resolve(process.cwd(), "src/components/ColorPicker.tsx"), "utf8");
 const uiStoreSource = readFileSync(resolve(process.cwd(), "src/store/uiStore.ts"), "utf8");
 
-describe("Hook sticker color copy contract", () => {
+describe("Otter sticker color copy contract", () => {
     it("keeps sampled rgb data and exposes one-click HEX/RGB copy actions from the modal color picker", () => {
         expect(uiStoreSource).toContain("sampledRgb");
         expect(uiStoreSource).toContain("setStickerSampledRgb");

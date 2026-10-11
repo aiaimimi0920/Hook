@@ -50,7 +50,7 @@ $fixtureSources = @{
 }
 $fixtureSource = Join-Path $PSScriptRoot $fixtureSources[$FixtureKind]
 $fixtureDir = Join-Path $resolvedOutput "fixture"
-$fixtureExe = Join-Path $fixtureDir "HookLiveScreenshotPhaseZeroFixture.exe"
+$fixtureExe = Join-Path $fixtureDir "OtterLiveScreenshotPhaseZeroFixture.exe"
 $readyPath = Join-Path $resolvedOutput "fixture-ready.json"
 $probePath = Join-Path $resolvedOutput "probe.json"
 $stdoutPath = Join-Path $resolvedOutput "cargo-test.stdout.log"

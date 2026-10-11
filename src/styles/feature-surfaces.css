@@ -1,5 +1,5 @@
 /* Capture, preview, history, property, and toolbar surface states. */
-.hook-capture-chip {
+.otter-capture-chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -9,47 +9,47 @@
   box-shadow: var(--shadow-subtle);
 }
 
-.hook-capture-chip__tag {
+.otter-capture-chip__tag {
   border: 1px solid color-mix(in srgb, var(--theme-signal) 25%, transparent);
   background: color-mix(in srgb, var(--theme-signal) 12%, transparent);
   color: var(--theme-text);
 }
 
-.hook-capture-status-shell {
+.otter-capture-status-shell {
   min-width: 256px;
   border-color: var(--theme-border-strong);
   background: var(--theme-panel-raised);
   color: var(--theme-text);
 }
 
-.hook-capture-status-title {
+.otter-capture-status-title {
   color: var(--theme-signal-text);
 }
 
-.hook-capture-status-copy {
+.otter-capture-status-copy {
   color: var(--theme-text-secondary);
 }
 
-.hook-capture-status-shortcut {
+.otter-capture-status-shortcut {
   color: var(--theme-text-muted);
 }
 
-.hook-art-error-overlay {
+.otter-art-error-overlay {
   background: color-mix(in srgb, var(--theme-danger) 14%, var(--theme-overlay));
   color: var(--theme-danger-text);
 }
 
-.hook-art-error-overlay__title,
-.hook-inline-danger {
+.otter-art-error-overlay__title,
+.otter-inline-danger {
   color: var(--theme-danger-text);
 }
 
-.hook-enhancement-notice-stack {
+.otter-enhancement-notice-stack {
   overflow-x: hidden;
   overflow-y: auto;
 }
 
-.hook-enhancement-notice {
+.otter-enhancement-notice {
   flex: 0 0 auto;
   width: 100%;
   box-sizing: border-box;
@@ -61,239 +61,239 @@
   box-shadow: var(--shadow-subtle);
 }
 
-.hook-enhancement-notice__title {
+.otter-enhancement-notice__title {
   color: var(--theme-signal-text);
 }
 
-.hook-enhancement-notice__copy,
-.hook-inline-muted,
-.hook-history-caption,
-.hook-history-empty {
+.otter-enhancement-notice__copy,
+.otter-inline-muted,
+.otter-history-caption,
+.otter-history-empty {
   color: var(--theme-text-muted);
 }
 
-.hook-scrollbar {
+.otter-scrollbar {
   scrollbar-color: color-mix(in srgb, var(--theme-text) 24%, transparent) transparent;
   scrollbar-width: thin;
 }
 
-.hook-preview-header {
+.otter-preview-header {
   border-bottom: 1px solid var(--theme-border);
   color: var(--theme-text-secondary);
 }
 
-.hook-image-preview-frame,
-.hook-history-item {
+.otter-image-preview-frame,
+.otter-history-item {
   border: 1px solid var(--theme-border);
   background: var(--theme-control);
 }
 
-.hook-color-picker__field,
-.hook-color-picker__preview,
-.hook-param-color-swatch {
+.otter-color-picker__field,
+.otter-color-picker__preview,
+.otter-param-color-swatch {
   border: 1px solid var(--theme-border);
 }
 
-.hook-color-picker__footer {
+.otter-color-picker__footer {
   background: var(--theme-panel);
   border-top: 1px solid var(--theme-border);
 }
 
-.hook-color-swatch {
+.otter-color-swatch {
   border: 1px solid var(--theme-border);
 }
 
-.hook-color-swatch:hover,
-.hook-color-swatch--selected {
+.otter-color-swatch:hover,
+.otter-color-swatch--selected {
   border-color: var(--theme-signal-text);
 }
 
-.hook-color-swatch--selected {
+.otter-color-swatch--selected {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--theme-signal) 40%, transparent);
 }
 
-.hook-param-color-empty {
+.otter-param-color-empty {
   background: var(--theme-control);
 }
 
-.hook-param-color-empty__slash {
+.otter-param-color-empty__slash {
   background: var(--theme-danger-text);
 }
 
-.hook-color-sample-tooltip {
+.otter-color-sample-tooltip {
   border: 1px solid var(--theme-border);
   background: var(--theme-panel);
   color: var(--theme-text);
   box-shadow: var(--shadow-subtle);
 }
 
-.hook-color-sample-tooltip__swatch {
+.otter-color-sample-tooltip__swatch {
   border: 1px solid var(--theme-border);
 }
 
-.hook-history-remove {
+.otter-history-remove {
   border: 1px solid var(--theme-border-danger);
   background: var(--theme-panel);
   color: var(--theme-danger-text);
 }
 
-.hook-history-remove:hover {
+.otter-history-remove:hover {
   background: var(--theme-danger-soft);
 }
 
-.hook-panel-caption,
-.hook-candidate-index,
-.hook-param-group-count,
-.hook-locally-edited {
+.otter-panel-caption,
+.otter-candidate-index,
+.otter-param-group-count,
+.otter-locally-edited {
   color: var(--theme-text-muted);
 }
 
-.hook-candidate-card {
+.otter-candidate-card {
   border: 1px solid var(--theme-border);
   background: color-mix(in srgb, var(--theme-text) 3%, transparent);
   color: var(--theme-text);
 }
 
-.hook-candidate-card:hover {
+.otter-candidate-card:hover {
   background: var(--theme-hover);
 }
 
-.hook-candidate-preview {
+.otter-candidate-preview {
   border: 1px solid var(--theme-border);
   background: var(--theme-control);
 }
 
-.hook-candidate-title {
+.otter-candidate-title {
   color: var(--theme-text);
 }
 
-.hook-separator {
+.otter-separator {
   background: var(--theme-line);
 }
 
-.hook-port-disabled-line {
+.otter-port-disabled-line {
   background: var(--theme-danger-text);
 }
 
-.hook-panel-port {
+.otter-panel-port {
   border: 1px solid color-mix(in srgb, var(--theme-text) 48%, transparent);
   background: var(--theme-success);
   box-shadow: var(--shadow-subtle);
 }
 
-.hook-port-visibility {
+.otter-port-visibility {
   color: var(--theme-text-secondary);
 }
 
-.hook-port-visibility:hover {
+.otter-port-visibility:hover {
   background: var(--theme-hover);
   color: var(--theme-text);
 }
 
-.hook-port-visibility--hidden {
+.otter-port-visibility--hidden {
   color: var(--theme-text-muted);
   opacity: 0.58;
 }
 
-.hook-inline-upload {
+.otter-inline-upload {
   border: 1px solid var(--theme-border);
   background: var(--theme-control);
   color: var(--theme-text);
 }
 
-.hook-inline-upload:hover {
+.otter-inline-upload:hover {
   background: var(--theme-control-hover);
 }
 
-.hook-inline-upload--loaded {
+.otter-inline-upload--loaded {
   border-color: var(--theme-border-success);
   background: var(--theme-success-soft);
   color: var(--theme-success-text);
 }
 
-.hook-inline-upload--loaded:hover {
+.otter-inline-upload--loaded:hover {
   background: color-mix(in srgb, var(--theme-success) 24%, transparent);
 }
 
-.hook-param-group-header {
+.otter-param-group-header {
   border: 1px solid var(--theme-border);
   background: color-mix(in srgb, var(--theme-text) 4%, transparent);
   color: var(--theme-text-secondary);
 }
 
-.hook-add-art-header,
-.hook-property-strip {
+.otter-add-art-header,
+.otter-property-strip {
   border-color: var(--theme-border);
 }
 
-.hook-add-art-empty {
+.otter-add-art-empty {
   color: var(--theme-text-muted);
 }
 
-.hook-compact-control {
+.otter-compact-control {
   border: 1px solid var(--theme-border);
   background: var(--theme-control);
   color: var(--theme-text-secondary);
 }
 
-.hook-compact-control:hover {
+.otter-compact-control:hover {
   border-color: var(--theme-border-strong);
   background: var(--theme-control-hover);
   color: var(--theme-text);
 }
 
-.hook-compact-input {
+.otter-compact-input {
   background: transparent;
   color: var(--theme-text);
 }
 
-.hook-compact-input::placeholder {
+.otter-compact-input::placeholder {
   color: var(--theme-text-muted);
 }
 
-.hook-toolbar-idle {
+.otter-toolbar-idle {
   background: color-mix(in srgb, var(--theme-text) 5%, transparent);
   color: var(--theme-text-secondary);
 }
 
-.hook-toolbar-idle:hover,
-.hook-toolbar-menu-idle:hover {
+.otter-toolbar-idle:hover,
+.otter-toolbar-menu-idle:hover {
   background: var(--theme-hover);
   color: var(--theme-text);
 }
 
-.hook-toolbar-menu-idle {
+.otter-toolbar-menu-idle {
   color: var(--theme-text-secondary);
 }
 
-.hook-toolbar-disabled {
+.otter-toolbar-disabled {
   background: color-mix(in srgb, var(--theme-text) 4%, transparent);
   color: var(--theme-text-muted);
   opacity: 0.58;
 }
 
-.hook-toolbar-shortcut,
-.hook-property-icon {
+.otter-toolbar-shortcut,
+.otter-property-icon {
   color: var(--theme-text-muted);
 }
 
-.hook-actions-separator {
+.otter-actions-separator {
   background: var(--theme-line);
 }
 
-.hook-actions-border {
+.otter-actions-border {
   border-color: var(--theme-border);
 }
 
-.hook-image-thumb {
+.otter-image-thumb {
   border: 1px solid var(--theme-border);
   background-color: var(--theme-control);
 }
 
-.hook-param-editor-icon {
+.otter-param-editor-icon {
   color: var(--theme-text-muted);
 }
 
-.group\/text:hover .hook-param-editor-icon {
+.group\/text:hover .otter-param-editor-icon {
   color: var(--theme-text-secondary);
 }

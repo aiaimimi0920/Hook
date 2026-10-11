@@ -1,6 +1,6 @@
-# Hook Governance and Signing Roles
+# Otter Governance and Signing Roles
 
-Hook is currently maintained as a small open-source project. Public identities
+Otter is currently maintained as a small open-source project. Public identities
 are recorded here without publishing private legal identity or account data.
 
 ## Maintainer
@@ -52,4 +52,4 @@ The normative signing rules are in
 
 - Security reports: [`SECURITY.md`](SECURITY.md)
 - Privacy questions and ordinary project reports:
-  <https://github.com/aiaimimi0920/Hook/issues>
+  <https://github.com/aiaimimi0920/Otter/issues>

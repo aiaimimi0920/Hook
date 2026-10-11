@@ -30,10 +30,10 @@ pub(super) fn fixture() -> (TcpListener, BridgeIdentity, Arc<ServerConfig>) {
 
 #[test]
 fn connector_defaults_on_and_respects_explicit_disable() {
-    if std::env::var_os("HOOK_BRIDGE_DISABLED_TEST_CHILD").is_some() {
-        let expected = std::env::var("HOOK_BRIDGE_EXPECT_ENABLED").unwrap() == "1";
+    if crate::brand_env::var_os("HOOK_BRIDGE_DISABLED_TEST_CHILD").is_some() {
+        let expected = crate::brand_env::var("HOOK_BRIDGE_EXPECT_ENABLED").unwrap() == "1";
         assert_eq!(enabled(), expected);
-        assert_eq!(crate::boot_profile_from_env().loom_hook_enabled, expected);
+        assert_eq!(crate::boot_profile_from_env().loom_otter_enabled, expected);
         if expected {
             assert!(require_enabled().is_ok());
         } else {
@@ -140,9 +140,9 @@ fn pinned_client_proves_discovery_authority_before_application_messages() {
 #[test]
 #[ignore = "requires a running same-user local Loom with authenticated discovery"]
 fn default_native_policy_connects_to_running_local_loom() {
-    assert!(std::env::var_os("HOOK_ENABLE_LOOM_HOOK").is_none());
-    assert!(std::env::var_os("LOOM_HOOK_WS_URL").is_none());
-    assert!(crate::boot_profile_from_env().loom_hook_enabled);
+    assert!(crate::brand_env::var_os("HOOK_ENABLE_LOOM_HOOK").is_none());
+    assert!(crate::brand_env::var_os("LOOM_HOOK_WS_URL").is_none());
+    assert!(crate::boot_profile_from_env().loom_otter_enabled);
     let mut socket =
         connect(Duration::from_secs(2)).expect("default authenticated local discovery");
     socket.close(None).expect("close local bridge probe");

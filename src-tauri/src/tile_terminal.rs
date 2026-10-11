@@ -99,7 +99,7 @@ fn tile_media_mode(binding: tauri::State<'_, OutputBinding>) -> WallMediaFormat 
 }
 
 pub fn run(output_id: Option<String>) -> Result<(), String> {
-    let media_format = match std::env::var("HOOK_TILE_MEDIA_FORMAT").as_deref() {
+    let media_format = match crate::brand_env::var("HOOK_TILE_MEDIA_FORMAT").as_deref() {
         Ok("raw_bgra") | Err(std::env::VarError::NotPresent) => WallMediaFormat::RawBgra,
         Ok("png") => WallMediaFormat::Png,
         _ => return Err("tile_media_format_invalid".into()),
@@ -151,7 +151,7 @@ pub fn run(output_id: Option<String>) -> Result<(), String> {
                 "main",
                 tauri::WebviewUrl::App(fragment.into()),
             )
-            .title("Hook Tile")
+            .title("Otter Tile")
             .inner_size(760.0, 560.0)
             .visible(!output_mode)
             .decorations(!output_mode)
@@ -185,7 +185,7 @@ pub fn parse_output_argument(args: &[String]) -> Result<Option<String>, String> 
     {
         return Ok(Some(args[1].clone()));
     }
-    Err("usage: Hook --tile | --tile-output monitor-<64 hex digits>".into())
+    Err("usage: Otter --tile | --tile-output monitor-<64 hex digits>".into())
 }
 
 #[cfg(test)]

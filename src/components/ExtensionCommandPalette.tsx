@@ -48,7 +48,7 @@ export const ExtensionCommandPalette: Component = () => {
             >
                 <section
                     ref={(el) => { dialog = el; }}
-                    class="hook-terminal-shell hook-terminal-shell--strong w-[min(560px,90vw)] max-h-[70vh] overflow-y-auto p-2"
+                    class="otter-terminal-shell otter-terminal-shell--strong w-[min(560px,90vw)] max-h-[70vh] overflow-y-auto p-2"
                     role="dialog"
                     aria-modal="true"
                     aria-label="扩展命令面板"

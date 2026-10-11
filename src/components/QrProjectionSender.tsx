@@ -127,12 +127,12 @@ export const QrProjectionSender = (props: { unitId: string; retry: (id: string) 
     };
     return <Show when={unit()} fallback={<p role="status">图块已关闭。</p>}>
         <Show when={props.shareAction === "qr"} fallback={<>
-        <Show when={!props.shareAction}><p>将此图块的正式图像投射到另一台运行 Hook 的电脑，后续编辑会自动同步。</p></Show>
+        <Show when={!props.shareAction}><p>将此图块的正式图像投射到另一台运行 Otter 的电脑，后续编辑会自动同步。</p></Show>
         <Show when={!link() && !props.shareAction}>
             <div class="qr-projection-actions" role="group" aria-label="投射连接方式">
-                <button type="button" class="hook-terminal-btn" aria-pressed={shared()} disabled={busy()}
+                <button type="button" class="otter-terminal-btn" aria-pressed={shared()} disabled={busy()}
                     onClick={() => selectProtocol(PROJECTION_PROTOCOL)}>共享 Loom（无需账号）</button>
-                <button type="button" class="hook-terminal-btn" aria-pressed={!shared()} disabled={busy()}
+                <button type="button" class="otter-terminal-btn" aria-pressed={!shared()} disabled={busy()}
                     onClick={() => selectProtocol(PROJECTION_PROTOCOL_V2)}>Loom 账号联网</button>
             </div>
         </Show>
@@ -147,12 +147,12 @@ export const QrProjectionSender = (props: { unitId: string; retry: (id: string) 
         <Show when={!shared()}>
             <p>当前账号模式要求两端在各自的本机 Loom 登录同一账号。官方会员中继尚未开放。</p>
             <Show when={account()}>{(value) => <p role="status">本机 Loom 已登录 · {value().deviceName}</p>}</Show>
-            <button type="button" class="hook-terminal-btn" disabled={busy() || accountLoading()} onClick={() => void refreshConnection()}>
+            <button type="button" class="otter-terminal-btn" disabled={busy() || accountLoading()} onClick={() => void refreshConnection()}>
                 {accountLoading() ? "正在读取 Loom 登录状态…" : "刷新 Loom 登录状态"}</button>
         </Show>
         <Show when={shared() && loopback()}><p class="qr-projection-warning">此地址指向本机 Loom。二维码分享需要双方可达的地址；跨 Loom 设备投送由各自的 Loom 转发。</p></Show>
-        <Show when={shared() && !props.shareAction}><button type="button" class="hook-terminal-btn" disabled={busy()} onClick={() => openProjection(props.unitId, "targets")}>选择设备与设备组</button></Show>
-        <Show when={link()} fallback={<button type="button" class="hook-terminal-btn hook-terminal-btn--active" disabled={busy() || accountLoading() || (shared() ? !origin().trim() : !account())} onClick={() => void generate()}>
+        <Show when={shared() && !props.shareAction}><button type="button" class="otter-terminal-btn" disabled={busy()} onClick={() => openProjection(props.unitId, "targets")}>选择设备与设备组</button></Show>
+        <Show when={link()} fallback={<button type="button" class="otter-terminal-btn otter-terminal-btn--active" disabled={busy() || accountLoading() || (shared() ? !origin().trim() : !account())} onClick={() => void generate()}>
             {busy() ? "准备图像与设备连接…" : props.shareAction === "link" ? "生成投射链接" : "生成投射二维码"}</button>}>
             {(saved) => <>
                 <p role="status">{saved().stopped ? "投射已停止" : saved().stopPending ? "本机已停止 · 等待通知远端" : projectionStatusLabel(projectionStatuses[props.unitId])}</p>
@@ -161,19 +161,19 @@ export const QrProjectionSender = (props: { unitId: string; retry: (id: string) 
                         <label class="qr-projection-field">投射链接<textarea readOnly rows={5} value={projectionInvitationLink(saved().envelope)} aria-label="投射链接" /></label>
                     </Show>
                     <p>邀请剩余 {remaining()} 秒。接收后，关联不受二维码有效期影响。</p>
-                    <button type="button" class="hook-terminal-btn" onClick={() => void copy()}>{copied() ? "已复制" : props.shareAction === "link" ? "复制链接" : "复制邀请内容"}</button>
+                    <button type="button" class="otter-terminal-btn" onClick={() => void copy()}>{copied() ? "已复制" : props.shareAction === "link" ? "复制链接" : "复制邀请内容"}</button>
                 </Show>
                 <Show when={saved().role === "receiver"}><p>这是接收贴图。解除关联会保留当前图像及本地标注。</p></Show>
                 <Show when={saved().stopReason ?? projectionStatuses[props.unitId]?.error}>{(code) => <p role="status" class="qr-projection-warning">{projectionError(code())}</p>}</Show>
                 <div class="qr-projection-actions">
-                    <button type="button" class="hook-terminal-btn" disabled={saved().stopped} onClick={() => props.retry(props.unitId)}>立即重试</button>
-                    <button type="button" class="hook-terminal-btn hook-terminal-btn--danger" disabled={saved().stopPending} onClick={stop}>
+                    <button type="button" class="otter-terminal-btn" disabled={saved().stopped} onClick={() => props.retry(props.unitId)}>立即重试</button>
+                    <button type="button" class="otter-terminal-btn otter-terminal-btn--danger" disabled={saved().stopPending} onClick={stop}>
                         {saved().stopped ? "移除已停止的关联" : saved().role === "source" ? "停止投射" : "解除关联"}</button>
                 </div>
             </>}
         </Show>
         <Show when={error()}><p role="alert" class="qr-projection-warning">{error()}</p></Show>
-        <Show when={!props.shareAction}><button type="button" class="hook-terminal-btn" disabled={busy()} onClick={() => openProjectionReceiver()}>接收其他设备的投射</button></Show>
+        <Show when={!props.shareAction}><button type="button" class="otter-terminal-btn" disabled={busy()} onClick={() => openProjectionReceiver()}>接收其他设备的投射</button></Show>
         </>}>
             <Show when={link()} fallback={<Show when={!error()}><p role="status">正在生成二维码…</p></Show>}>
                 {(saved) => <Show when={!saved().offlineTransport && saved().role === "source" && !saved().linked && !saved().stopPending && !saved().stopped && remaining() > 0}

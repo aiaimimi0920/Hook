@@ -8,7 +8,7 @@ import {
 
 export type ExtensionRegistryListener = (snapshot: ContributionSnapshot | null) => void;
 
-/** Owns one negotiated Hook session; peer authentication is a separate transport boundary. */
+/** Owns one negotiated Otter session; peer authentication is a separate transport boundary. */
 export class ExtensionRegistry {
     private sessionId: string | null = null;
     private current: ContributionSnapshot | null = null;

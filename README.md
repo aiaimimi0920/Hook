@@ -1,4 +1,4 @@
-# Hook
+# Otter
 
 <p align="center">
   <a href="README.md"><strong>English</strong></a>
@@ -15,33 +15,33 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/aiaimimi0920/Hook/actions/workflows/build-hook-exe.yml"><img src="https://github.com/aiaimimi0920/Hook/actions/workflows/build-hook-exe.yml/badge.svg" alt="Build Hook EXE" /></a>
+  <a href="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml"><img src="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml/badge.svg" alt="Build Otter EXE" /></a>
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows" />
   <img src="https://img.shields.io/badge/Tauri-v2-24C8DB" alt="Tauri v2" />
   <img src="https://img.shields.io/badge/SolidJS-TypeScript-2C4F7C" alt="SolidJS TypeScript" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-F4EA2A" alt="MIT License" /></a>
 </p>
 
-## Why Hook
+## Why Otter
 
-Native Hook automatically discovers and connects to authenticated local Loom by
+Native Otter automatically discovers and connects to authenticated local Loom by
 default. Set `HOOK_ENABLE_LOOM_HOOK=0` to disable integration. Browser preview stays local: it does
 not connect anonymously to Loom or execute real Arts. See [security boundaries](docs/SECURITY_BOUNDARIES.md#authenticated-native-local-bridge).
 
-Start Loom and open `hook.exe` directly for OCR/translation and other installed
+Start Loom and open `otter.exe` directly for OCR/translation and other installed
 extensions. Without Loom, local capture and editing remain available. The optional
-`hook-with-loom.cmd` compatibility launcher preserves an explicit opt-out and
+`otter-with-loom.cmd` compatibility launcher preserves an explicit opt-out and
 does not change user or machine environment variables.
 Select an image sticker: `Ctrl+4` reruns OCR, `Alt+4` toggles OCR, `Ctrl+5` reruns
 translation, and `Alt+5` toggles translation (missing results are created first).
 The corresponding Loom capabilities must be installed, enabled, and authorized.
 
-Hook combines a transparent desktop capture surface with a persistent sticker
+Otter combines a transparent desktop capture surface with a persistent sticker
 workspace. Captures can remain on the desktop, be edited and annotated, or be
 connected to local Art/Loom workflows without leaving the application.
 
 [QR projection](docs/QR_PROJECTION.md) is available from the Ctrl+E toolbar and
-links a sticker or formal Art image to another Windows Hook. Choose a shared
+links a sticker or formal Art image to another Windows Otter. Choose a shared
 HTTPS Loom with device pairing and no official login, or the existing Loom
 account mode. Receiver layout stays independent. Shared Loom supports online-device
 selection and continuous delivery with receiver confirmation or automatic display.
@@ -136,7 +136,7 @@ Actual executable/process SHA binding is external; these counters are not displa
   capture continues, then controlled through ordered mouse, wheel, drag, and
   keyboard messages with explicit reclaim and watchdog recovery;
 - Live input follows Windows UIPI direction: the same user's source may have
-  equal or lower integrity than Hook. An administrator Hook is not blocked from
+  equal or lower integrity than Otter. An administrator Otter is not blocked from
   controlling ordinary programs; upward, cross-user/session, and secure-desktop
   input stays blocked. Refusals appear as short Unit notices, not silent clicks;
 - HDR-aware Windows 11 capture with automatic SDR fallback;
@@ -169,7 +169,7 @@ Actual executable/process SHA binding is external; these counters are not displa
   This remains an internal development slice;
   scheduling and multi-computer acceptance are pending;
 - installable Loom Capability Plugins can contribute commands, shortcuts, toolbar
-  menus, result attachments, overlays, and unit-scoped notices without a Hook
+  menus, result attachments, overlays, and unit-scoped notices without a Otter
   business branch; the official OCR package contributes its own `Ctrl+4`,
   `Alt+4`, cached full/layout copy, click-to-copy, and Shift+click multi-block
   selection behavior only while installed and enabled;
@@ -181,7 +181,7 @@ Actual executable/process SHA binding is external; these counters are not displa
 - all sticker and Art notices stay bound to their owning unit, stack in its upper-right corner, and can be dismissed one at a time;
 - the official OCR package automatically performs bounded local QR/barcode
   decoding during `Ctrl+4`, then contributes generic result attachments, green hit markers, and
-  click-to-copy behavior; Hook core contains no QR/barcode decoder or product branch;
+  click-to-copy behavior; Otter core contains no QR/barcode decoder or product branch;
 - optional Talk voice capture and Tea ticket creation through local capability
   bridges;
 - single-instance enforcement, tray residency, runtime diagnostics, and an
@@ -234,7 +234,7 @@ builds/packages a local release. It is not a lightweight lint-only command.
 `npm run test:surface-browser` launches an isolated headless Chromium, imports
 the production JavaScript Surface document builder, and exercises healthy,
 timer, DOM, CPU long-task, and heap-growth budget paths. It does not launch a
-second native Hook process or bypass Hook's global single-instance safety mutex.
+second native Otter process or bypass Otter's global single-instance safety mutex.
 
 The live-capture G2 probe is interactive and runs for 600 seconds by default. It
 uses an animated same-integrity WinForms fixture to prove fresh WGC frames,
@@ -247,13 +247,13 @@ frames; it does not send frames through `loom.surface.v1` or JSON/Base64.
 The G3 probe covers the deliberately narrow Windows 11, single-SDR-display,
 same-integrity Win32/WinForms declaration. It verifies changing frames while the
 source is a near-transparent compositor window, independent input edges, exact
-restore, local reclaim, recovery-journal execution, and worker cleanup. Hook does
+restore, local reclaim, recovery-journal execution, and worker cleanup. Otter does
 not claim native-minimize, elevated, cross-session, WPF, WinUI, or arbitrary
 custom-control support from this result.
 
 Validate a built native candidate in two stages. Preflight only hashes the
-candidate, checks the CDP dependency/port, and reports any live Hook main or
-watchdog process; it never launches or stops Hook:
+candidate, checks the CDP dependency/port, and reports any live Otter main or
+watchdog process; it never launches or stops Otter:
 
 Phase 71 is the canonical-only baseline: acceptance and release checks exercise
 only the current app-data identity, publisher-qualified packages, and formal
@@ -268,54 +268,54 @@ acceptance summaries remain in Git history and do not certify a later binary.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\Invoke-HookNativeCandidateAcceptance.ps1 `
-  -HookExe ..\release\Hook\candidate\hook.exe `
+  -File .\scripts\Invoke-OtterNativeCandidateAcceptance.ps1 `
+  -OtterExe ..\release\Otter\candidate\otter.exe `
   -ExpectedSha256 <candidate-sha256> `
   -PreflightOnly
 ```
 
-After every existing Hook instance has been exited normally, remove
+After every existing Otter instance has been exited normally, remove
 `-PreflightOnly` to run the real WebView2/Tauri IPC probe, global
 single-instance refusal, process-tree memory soak, normal exit, watchdog/CDP
 teardown, and restart check. The script uses isolated app data and WebView2
 storage. It enables `HOOK_NATIVE_ACCEPTANCE=1` only for the spawned candidate so
 the gated clean-exit command can return through the normal Tauri shutdown path;
-it does not rename/bypass the mutex or disable global Hook behavior.
+it does not rename/bypass the mutex or disable global Otter behavior.
 
 The Phase 69 dual-end gate uses the outer orchestrator instead of treating a
 daemon-only or browser-only smoke as sufficient. It verifies both candidate
 hashes, starts an isolated packaged Loom daemon and fixture Art Store, installs
-the real dashboard Surface, and delegates to the native Hook runner:
+the real dashboard Surface, and delegates to the native Otter runner:
 
 ```powershell
-# Safe while another Hook is running: hashes/files/ports/processes only.
+# Safe while another Otter is running: hashes/files/ports/processes only.
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\Invoke-HookLoomSurfaceCandidateAcceptance.ps1 `
-  -HookExe ..\release\Hook\candidate\hook.exe `
-  -ExpectedHookSha256 <candidate-sha256> `
+  -File .\scripts\Invoke-OtterLoomSurfaceCandidateAcceptance.ps1 `
+  -OtterExe ..\release\Otter\candidate\otter.exe `
+  -ExpectedOtterSha256 <candidate-sha256> `
   -LoomPackageDir ..\release\Loom\candidate `
   -ExpectedLoomDaemonSha256 <loom-daemon-sha256> `
   -PreflightOnly
 
-# Safe isolated Loom-side rehearsal; does not launch Hook.
+# Safe isolated Loom-side rehearsal; does not launch Otter.
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\Invoke-HookLoomSurfaceCandidateAcceptance.ps1 `
-  -HookExe ..\release\Hook\candidate\hook.exe `
-  -ExpectedHookSha256 <candidate-sha256> `
+  -File .\scripts\Invoke-OtterLoomSurfaceCandidateAcceptance.ps1 `
+  -OtterExe ..\release\Otter\candidate\otter.exe `
+  -ExpectedOtterSha256 <candidate-sha256> `
   -LoomPackageDir ..\release\Loom\candidate `
   -ExpectedLoomDaemonSha256 <loom-daemon-sha256> `
   -ValidateLoomServicesOnly
 ```
 
-With all existing Hook main/watchdog processes normally exited, omit both
-switches for the full packaged Hook GUI → packaged Loom Surface click/resource/
+With all existing Otter main/watchdog processes normally exited, omit both
+switches for the full packaged Otter GUI → packaged Loom Surface click/resource/
 formal-result loop, ten-minute process-tree soak, clean exit, restart recovery,
-and final listener/process cleanup. The native runner waits for Hook's awaited
+and final listener/process cleanup. The native runner waits for Otter's awaited
 `frontend-initialized` marker before both the first Surface probe and the restart
 probe, so CDP availability alone is not treated as frontend readiness.
 
 When Loom reports a newly registered device as pending, the runner approves that
-exact public-key device through the isolated Loom control plane while Hook waits
+exact public-key device through the isolated Loom control plane while Otter waits
 for the bounded authorization transition. Native acceptance exits through the
 normal Tauri run loop and requires exactly one process-exit cleanup record before
 checking watchdog, CDP, and restart recovery.
@@ -324,8 +324,8 @@ Build a portable executable directly:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\build-local-hook-exe.ps1 `
-  -OutputDir ..\release\Hook\local-build `
+  -File .\scripts\build-local-otter-exe.ps1 `
+  -OutputDir ..\release\Otter\local-build `
   -Force
 ```
 
@@ -335,13 +335,18 @@ in [`TECHNICAL_ARCHITECTURE.md`](TECHNICAL_ARCHITECTURE.md).
 
 ## Release packages
 
+Hook has been renamed to **Otter**. The instructions below describe builds from
+the current source. Previously published packages, including Hook v0.2.33, keep
+their original filenames and `hook.exe`; use the executable actually included
+in that release. See [rename compatibility](docs/RENAMING.md).
+
 - **Portable (current recommended package)**
-  - extract the zip and run `hook.exe`;
+  - extract the zip and run `otter.exe`;
   - the only current user-facing package in ordinary builds and tag releases;
   - includes the project license, third-party notices, and bundled-source
     license texts;
   - if Windows blocks interaction with elevated foreground windows such as
-    **Task Manager**, try running Hook as **administrator** as the current
+    **Task Manager**, try running Otter as **administrator** as the current
     workaround.
 - **Installer (planned for future signed releases)**
   - the repository retains the UIAccess installer and SignPath preparation;
@@ -365,7 +370,7 @@ inventory and vulnerability response are in
 ## Code signing status
 
 Free code signing provided by [SignPath.io](https://signpath.io/), certificate
-by [SignPath Foundation](https://signpath.org/), applies only after the Hook
+by [SignPath Foundation](https://signpath.org/), applies only after the Otter
 project is provisioned and a hosted signing request receives manual approval.
 The current portable package must be treated as unsigned unless a release
 explicitly includes an approved signed installer.
@@ -380,13 +385,14 @@ explicitly includes an approved signed installer.
 
 The public Tauri bundle identifier and the only automatic local-data identity is
 `com.yamiyu.hook`. Development and test automation can select an isolated root
-explicitly with `HOOK_APPDATA_DIR`; Hook does not scan or migrate obsolete roots.
+explicitly with `OTTER_APPDATA_DIR` (`HOOK_APPDATA_DIR` remains a fallback);
+Otter does not scan or migrate obsolete roots.
 
 ## Contributing
 
 Focused issues and pull requests are welcome:
 
-- Issues: <https://github.com/aiaimimi0920/Hook/issues>
+- Issues: <https://github.com/aiaimimi0920/Otter/issues>
 - Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Documentation index: [`docs/README.md`](docs/README.md)
 
@@ -397,7 +403,7 @@ MIT. See [`LICENSE`](LICENSE).
 ## Friendly links
 
 - [linux.do](https://linux.do/) — thanks to the linux.do community for helping
-  introduce Hook to more users.
+  introduce Otter to more users.
 
 Development CI policy: valid vulnerability, license, lint, format, and size findings
 are advisory in independent reporting workflows. Tool/report/upload failures remain

@@ -69,7 +69,7 @@ fn save_session_to_dir(
     ensure_expected_session_revision(expected_document_revision, current_revision)?;
     let next_revision = current_revision
         .checked_add(1)
-        .ok_or_else(|| "SESSION_REVISION_EXHAUSTED Hook session revision overflow".to_string())?;
+        .ok_or_else(|| "SESSION_REVISION_EXHAUSTED Otter session revision overflow".to_string())?;
     let prepared_ocr_migration = match existing_session.as_ref() {
         Some(existing) => prepare_ocr_migration_backup(&app_dir, existing, &stickers)?,
         None => false,

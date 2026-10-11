@@ -314,7 +314,7 @@ fn validate_live_relay_publish_request(request: &LiveRelayPublishRequest) -> Res
         (None, None) => {}
         _ => return Err("source binding requires both Surface identifiers or neither".to_owned()),
     }
-    validate_live_relay_identifier(&request.source_hook_id, "source Hook id")?;
+    validate_live_relay_identifier(&request.source_hook_id, "source Otter id")?;
     if let Some(session_id) = &request.live_session_id {
         validate_live_relay_identifier(session_id, "live session id")?;
     }

@@ -8,10 +8,12 @@ use std::{
 #[test]
 #[ignore = "requires HOOK_C1_DECODER_INPUT from owned WGC capture and new HOOK_C1_DECODER_OUTPUT"]
 fn native_decoder_reads_continuous_wgc_h264_and_restarts_at_idr() {
-    let input =
-        PathBuf::from(std::env::var_os("HOOK_C1_DECODER_INPUT").expect("owned input required"));
-    let output =
-        PathBuf::from(std::env::var_os("HOOK_C1_DECODER_OUTPUT").expect("new output required"));
+    let input = PathBuf::from(
+        crate::brand_env::var_os("HOOK_C1_DECODER_INPUT").expect("owned input required"),
+    );
+    let output = PathBuf::from(
+        crate::brand_env::var_os("HOOK_C1_DECODER_OUTPUT").expect("new output required"),
+    );
     assert!(input.is_absolute() && output.is_absolute());
     std::fs::create_dir(&output).unwrap();
     let bytes = std::fs::read(input.join("synthetic.h264")).unwrap();
@@ -74,8 +76,9 @@ fn native_decoder_reads_continuous_wgc_h264_and_restarts_at_idr() {
 #[test]
 #[ignore = "requires HOOK_C1_NETWORK_INPUT with owned WGC network AU evidence"]
 fn native_decoder_reads_non_macroblock_aligned_network_frames() {
-    let input =
-        PathBuf::from(std::env::var_os("HOOK_C1_NETWORK_INPUT").expect("owned input required"));
+    let input = PathBuf::from(
+        crate::brand_env::var_os("HOOK_C1_NETWORK_INPUT").expect("owned input required"),
+    );
     let bytes = std::fs::read(input.join("network.h264")).unwrap();
     assert!(bytes.len() <= 4 * 1024 * 1024);
     let packets: Vec<serde_json::Value> =

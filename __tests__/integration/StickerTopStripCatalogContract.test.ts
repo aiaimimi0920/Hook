@@ -9,7 +9,7 @@ const topStripSource = readFileSync(topStripPath, "utf8");
 const catalogExists = existsSync(catalogPath);
 const catalogSource = catalogExists ? readFileSync(catalogPath, "utf8") : "";
 
-describe("Hook sticker top strip catalog extraction contract", () => {
+describe("Otter sticker top strip catalog extraction contract", () => {
     it("keeps top strip tool option catalogs and type guards in a dedicated helper module instead of redefining them inline in StickerTopStrip", () => {
         expect(catalogExists).toBe(true);
         expect(catalogSource).toContain("export type ShapeCreateTool =");

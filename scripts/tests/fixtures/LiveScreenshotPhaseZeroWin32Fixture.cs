@@ -3,7 +3,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using Forms = System.Windows.Forms;
 
-namespace Hook.LiveScreenshot.PhaseZero
+namespace Otter.LiveScreenshot.PhaseZero
 {
     internal static class Win32Program
     {
@@ -161,7 +161,7 @@ namespace Hook.LiveScreenshot.PhaseZero
             }
             readyPath = Path.GetFullPath(args[0]);
             IntPtr instance = GetModuleHandle(null);
-            const string className = "HookLiveScreenshotPhaseZeroNative";
+            const string className = "OtterLiveScreenshotPhaseZeroNative";
             var definition = new WindowClass
             {
                 Size = (uint)Marshal.SizeOf(typeof(WindowClass)),
@@ -178,7 +178,7 @@ namespace Hook.LiveScreenshot.PhaseZero
             int height = 470;
             int x = screen.WorkingArea.Left + Math.Max(0, (screen.WorkingArea.Width - width) / 2);
             int y = screen.WorkingArea.Top + Math.Max(0, (screen.WorkingArea.Height - height) / 2);
-            IntPtr window = CreateWindowEx(WsExTopmost, className, "Hook Live Screenshot Phase 0 Win32 Fixture",
+            IntPtr window = CreateWindowEx(WsExTopmost, className, "Otter Live Screenshot Phase 0 Win32 Fixture",
                 WsOverlappedWindow, x, y, width, height, IntPtr.Zero, IntPtr.Zero, instance, IntPtr.Zero);
             if (window == IntPtr.Zero)
             {

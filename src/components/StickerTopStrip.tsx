@@ -388,7 +388,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                 );
             });
         } catch (error) {
-            console.error("[Hook] Failed to apply sticker history action", error);
+            console.error("[Otter] Failed to apply sticker history action", error);
         }
     };
 
@@ -417,7 +417,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                 }
             });
         } catch (error) {
-            console.error("[Hook] Failed to rasterize sticker annotations", error);
+            console.error("[Otter] Failed to rasterize sticker annotations", error);
         }
     };
 
@@ -458,8 +458,8 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                     stripRef = element;
                     syncDragFollowerRegistration();
                 }}
-                data-hook-drag-follow-unit-id={props.unitId}
-                class="hook-terminal-shell hook-terminal-shell--strong pointer-events-none fixed z-[1210] box-border"
+                data-otter-drag-follow-unit-id={props.unitId}
+                class="otter-terminal-shell otter-terminal-shell--strong pointer-events-none fixed z-[1210] box-border"
                 style={{
                     left: `${layout().container.left}px`,
                     top: `${layout().container.top}px`,

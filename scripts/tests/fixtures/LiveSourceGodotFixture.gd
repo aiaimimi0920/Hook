@@ -9,7 +9,7 @@ var button := Button.new()
 
 
 func _initialize() -> void:
-	root.title = "Hook Live Input Godot Fixture"
+	root.title = "Otter Live Input Godot Fixture"
 	root.size = Vector2i(420, 220)
 	root.position = Vector2i(-10000, -10000)
 	button.text = "Apply action"

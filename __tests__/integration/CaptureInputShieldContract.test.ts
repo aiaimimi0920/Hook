@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -15,9 +15,9 @@ const sourceBetween = (source: string, start: string, end: string) => {
 };
 
 describe("capture input shield contract", () => {
-  it("uses a Hook-owned Windows low-level mouse hook for capture input instead of relying on rdev mouse grab", () => {
+  it("uses a Otter-owned Windows low-level mouse hook for capture input instead of relying on rdev mouse grab", () => {
     const cargoToml = readSource("src-tauri/Cargo.toml");
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
 
     expect(cargoToml).toContain('rdev = "0.5.3"');
     expect(rustSource).toContain("install_capture_mouse_hook_thread");
@@ -28,7 +28,7 @@ describe("capture input shield contract", () => {
   });
 
   it("keeps physical cursor movement alive while the capture shield owns hit testing", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const hookProcBlock = sourceBetween(
       rustSource,
       "unsafe extern \"system\" fn capture_mouse_hook_proc",
@@ -128,7 +128,7 @@ describe("capture input shield contract", () => {
     const appSource = readSource("src/app.tsx");
     const nativeActionSource = readSource("src/services/appNativeActionController.ts");
     const pointerListenerSource = readSource("src/services/appPointerListeners.ts");
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const cssSource = readSource("src/styles/feature-surfaces.css");
     const canvasSelectionSource = readSource("src/components/CanvasSelection.tsx");
 
@@ -138,17 +138,17 @@ describe("capture input shield contract", () => {
     expect(rustSource).toContain("set_capture_cursor_crosshair()");
     expect(rustSource).toContain("SetSystemCursor");
     expect(rustSource).toContain("SystemParametersInfoW(SPI_SETCURSORS");
-    expect(canvasSelectionSource).not.toContain("hook-capture-crosshair");
+    expect(canvasSelectionSource).not.toContain("otter-capture-crosshair");
     expect(canvasSelectionSource).not.toContain("截图模式");
-    expect(cssSource).not.toContain(".hook-capture-crosshair");
+    expect(cssSource).not.toContain(".otter-capture-crosshair");
   });
 
   it("coalesces high-frequency capture mouse move events before emitting them to the webview", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const eventThreadBlock = sourceBetween(
       rustSource,
-      '.name("hook-capture-mouse-events".to_string())',
-      '.name("hook-capture-mouse-hook".to_string())',
+      '.name("otter-capture-mouse-events".to_string())',
+      '.name("otter-capture-mouse-hook".to_string())',
     );
 
     expect(eventThreadBlock).toContain("let mut deferred_event");
@@ -162,7 +162,7 @@ describe("capture input shield contract", () => {
   });
 
   it("keeps the overlay no-activate so clicking stickers does not steal focus from video surfaces", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const setupOverlayBlock = sourceBetween(
       rustSource,
       "fn setup_overlay_window",
@@ -203,7 +203,7 @@ describe("capture input shield contract", () => {
   });
 
   it("keeps sticker hover synthetic while the overlay window stays click-through so hover/click do not leak or black out the app underneath", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const appSource = readSource("src/app.tsx");
     const pointerListenerSource = readSource("src/services/appPointerListeners.ts");
     const overlayDispatchSource = readSource("src/services/overlaySyntheticDispatch.ts");
@@ -285,7 +285,7 @@ describe("capture input shield contract", () => {
   });
 
   it("reuses the native shield as a full-screen capture blocker so Ctrl+1 drag-select never hovers the app underneath", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const shieldBlock = sourceBetween(
       rustSource,
       "fn sync_overlay_input_shield_region(",
@@ -303,7 +303,7 @@ describe("capture input shield contract", () => {
   });
 
   it("keeps a synthetic hover-exit handoff so leaving a sticker clears overlay hover state before native mouse input resumes underneath", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const hookProcBlock = sourceBetween(
       rustSource,
       "unsafe extern \"system\" fn capture_mouse_hook_proc",

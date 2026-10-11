@@ -178,7 +178,7 @@ const benchmarkResolution = (
   };
 };
 
-window.runHookShaderBenchmark = async (options = {}): Promise<ShaderBenchmarkReport> => {
+window.runOtterShaderBenchmark = async (options = {}): Promise<ShaderBenchmarkReport> => {
   const normalizedOptions: Required<ShaderBenchmarkOptions> = {
     restoreIterations: Math.max(1, Math.floor(options.restoreIterations ?? 5)),
     adjustmentIterations: Math.max(1, Math.floor(options.adjustmentIterations ?? 30)),
@@ -195,7 +195,7 @@ window.runHookShaderBenchmark = async (options = {}): Promise<ShaderBenchmarkRep
 
 declare global {
   interface Window {
-    runHookShaderBenchmark: (
+    runOtterShaderBenchmark: (
       options?: ShaderBenchmarkOptions,
     ) => Promise<ShaderBenchmarkReport>;
   }

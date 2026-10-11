@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -8,7 +8,7 @@ const readSource = (relativePath: string) =>
 
 describe("edit-existing-image entry", () => {
   it("registers the open_image_for_edit Tauri command and tray menu item", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
 
     expect(rustSource).toContain("fn open_image_for_edit()");
     expect(rustSource).toContain("open_image_for_edit,");
@@ -19,7 +19,7 @@ describe("edit-existing-image entry", () => {
   });
 
   it("reads the picked file only and never modifies the original", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     // open_image_for_edit decodes via the bounded read path; no write/create.
     expect(rustSource).toContain("read_image_from_path(path.to_string_lossy().to_string())");
   });

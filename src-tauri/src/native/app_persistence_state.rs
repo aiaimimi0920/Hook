@@ -6,7 +6,7 @@ fn resolve_effective_app_data_dir(current_dir: &Path) -> PathBuf {
 }
 
 fn configured_app_data_dir_override() -> Option<PathBuf> {
-    std::env::var_os(APP_DATA_OVERRIDE_ENV)
+    crate::brand_env::var_os(APP_DATA_OVERRIDE_ENV)
         .map(PathBuf::from)
         .filter(|path| !path.as_os_str().is_empty())
 }
@@ -33,19 +33,19 @@ struct AppSettingsState {
     save_lock: Mutex<()>,
 }
 
-static RUNTIME_HOOK_CACHE_SETTINGS: OnceLock<Mutex<app_settings::CacheSettings>> = OnceLock::new();
+static RUNTIME_OTTER_CACHE_SETTINGS: OnceLock<Mutex<app_settings::CacheSettings>> = OnceLock::new();
 static SESSION_FILE_IO_LOCK: Mutex<()> = Mutex::new(());
 
-fn set_runtime_hook_cache_settings(settings: app_settings::CacheSettings) {
-    let cache = RUNTIME_HOOK_CACHE_SETTINGS
+fn set_runtime_otter_cache_settings(settings: app_settings::CacheSettings) {
+    let cache = RUNTIME_OTTER_CACHE_SETTINGS
         .get_or_init(|| Mutex::new(app_settings::CacheSettings::default()));
     if let Ok(mut current) = cache.lock() {
         *current = settings;
     }
 }
 
-fn runtime_hook_cache_settings() -> app_settings::CacheSettings {
-    RUNTIME_HOOK_CACHE_SETTINGS
+fn runtime_otter_cache_settings() -> app_settings::CacheSettings {
+    RUNTIME_OTTER_CACHE_SETTINGS
         .get_or_init(|| Mutex::new(app_settings::CacheSettings::default()))
         .lock()
         .map(|settings| settings.clone())
@@ -111,7 +111,7 @@ fn prepare_file_naming_context(
 ) -> FileNamingContext {
     let mut context = context.unwrap_or_default().with_dimensions(width, height);
     if context.app.trim().is_empty() {
-        context.app = "Hook".to_string();
+        context.app = "Otter".to_string();
     }
     if context.kind.trim().is_empty() {
         context.kind = default_kind.to_string();
@@ -159,6 +159,6 @@ fn save_app_settings(
     settings: app_settings::AppSettings,
 ) -> Result<app_settings::AppSettings, String> {
     let saved = state.save(&effective_app_data_dir(&app)?, settings)?;
-    set_runtime_hook_cache_settings(saved.cache.clone());
+    set_runtime_otter_cache_settings(saved.cache.clone());
     Ok(saved)
 }

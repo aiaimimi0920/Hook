@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 
-function Get-HookFileSha256 {
+function Get-OtterFileSha256 {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]

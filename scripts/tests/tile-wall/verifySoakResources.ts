@@ -11,7 +11,7 @@ const report = await readJson<{ logicalProcessors: number; samples: Sample[] }>(
 assert(report.logicalProcessors > 0 && report.samples.length >= 60 && report.samples.length <= 720);
 const first = Date.parse(report.samples[0].atUtc), last = Date.parse(report.samples.at(-1)!.atUtc);
 assert(last - first >= 115000);
-const product = (row: ProcessSample) => /^(hook|loom-daemon|hook_lib-[0-9a-f]+|msedgewebview2)$/.test(row.name);
+const product = (row: ProcessSample) => /^(otter|hook|loom-daemon|otter_lib-[0-9a-f]+|msedgewebview2)$/.test(row.name);
 const mean = (values: number[]) => values.reduce((total, value) => total + value, 0) / values.length;
 const key = (row: ProcessSample) => `${row.pid}:${row.startedUtc}`;
 const baseline = report.samples.filter((row) => Date.parse(row.atUtc) - first >= 60000 && Date.parse(row.atUtc) - first < 90000);
@@ -42,7 +42,7 @@ for (const [identity, row] of stable) {
 const executableKey = (value: string) => path.resolve(value).toLowerCase();
 const required = [
     { role: 'daemon', pid: runtime.daemonPid, executable: runtime.daemonExe },
-    { role: 'output', pid: runtime.outputPid, executable: runtime.hookExe },
+    { role: 'output', pid: runtime.outputPid, executable: runtime.otterExe },
     { role: 'source', pid: source.pid, executable: source.executable },
 ];
 for (const item of required) {

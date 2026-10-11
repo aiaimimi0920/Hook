@@ -13,7 +13,7 @@ async fn loom_connector_maps_failed_invoke_response_body() {
         let mut buffer = [0_u8; 1024];
         let _ = stream.read(&mut buffer).expect("read request");
         let body = json!({
-            "requestId": "hook-loom-failed",
+            "requestId": "otter-loom-failed",
             "status": "failed",
             "error": {
                 "code": "invalid_input",
@@ -37,7 +37,7 @@ async fn loom_connector_maps_failed_invoke_response_body() {
     let result = invoke_brain_plan_with_manifest(
         manifest,
         LoomBrainPlanRequest {
-            request_id: Some("hook-loom-failed".to_string()),
+            request_id: Some("otter-loom-failed".to_string()),
             goal: " ".to_string(),
             constraints: Vec::new(),
             context: None,
@@ -47,7 +47,7 @@ async fn loom_connector_maps_failed_invoke_response_body() {
     .await
     .expect("HTTP 200 failed local capability response maps to result");
 
-    assert_eq!(result.request_id, "hook-loom-failed");
+    assert_eq!(result.request_id, "otter-loom-failed");
     assert_eq!(result.status, "failed");
     let error = result.error.expect("failed response error");
     assert_eq!(error.code, "invalid_input");
@@ -64,7 +64,7 @@ async fn loom_connector_maps_failed_invoke_response_body_even_when_http_status_i
         let (mut stream, _) = listener.accept().expect("accept Loom invoke");
         let _ = read_http_request(&mut stream);
         let body = json!({
-            "requestId": "hook-loom-failed-400",
+            "requestId": "otter-loom-failed-400",
             "status": "failed",
             "error": {
                 "code": "invalid_input",
@@ -88,7 +88,7 @@ async fn loom_connector_maps_failed_invoke_response_body_even_when_http_status_i
     let result = invoke_brain_plan_with_manifest(
         manifest,
         LoomBrainPlanRequest {
-            request_id: Some("hook-loom-failed-400".to_string()),
+            request_id: Some("otter-loom-failed-400".to_string()),
             goal: " ".to_string(),
             constraints: Vec::new(),
             context: None,
@@ -98,7 +98,7 @@ async fn loom_connector_maps_failed_invoke_response_body_even_when_http_status_i
     .await
     .expect("structured failed local capability response maps to result");
 
-    assert_eq!(result.request_id, "hook-loom-failed-400");
+    assert_eq!(result.request_id, "otter-loom-failed-400");
     assert_eq!(result.status, "failed");
     assert_eq!(
         result.error.expect("failed response error").code,
@@ -132,7 +132,7 @@ async fn loom_connector_labels_malformed_invoke_response_as_invoke_parse_error()
     let error = invoke_brain_plan_with_manifest(
         manifest,
         LoomBrainPlanRequest {
-            request_id: Some("hook-loom-bad-json".to_string()),
+            request_id: Some("otter-loom-bad-json".to_string()),
             goal: "Bad JSON test".to_string(),
             constraints: Vec::new(),
             context: None,
@@ -180,7 +180,7 @@ async fn loom_connector_redacts_sensitive_response_body_from_displayed_errors() 
     let error = invoke_brain_plan_with_manifest(
         manifest,
         LoomBrainPlanRequest {
-            request_id: Some("hook-loom-redact".to_string()),
+            request_id: Some("otter-loom-redact".to_string()),
             goal: "Redaction test".to_string(),
             constraints: Vec::new(),
             context: None,
@@ -233,7 +233,7 @@ async fn loom_connector_redacts_sensitive_malformed_success_response_errors() {
     let error = invoke_brain_plan_with_manifest(
         manifest,
         LoomBrainPlanRequest {
-            request_id: Some("hook-loom-redact-parse".to_string()),
+            request_id: Some("otter-loom-redact-parse".to_string()),
             goal: "Redaction parse test".to_string(),
             constraints: Vec::new(),
             context: None,

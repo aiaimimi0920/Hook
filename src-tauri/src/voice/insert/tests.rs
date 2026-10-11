@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn windows_paste_shortcut_can_be_disabled_before_native_keyboard_side_effects() {
-        let previous = std::env::var_os("HOOK_DISABLE_NATIVE_CLIPBOARD");
+        let previous = crate::brand_env::var_os("HOOK_DISABLE_NATIVE_CLIPBOARD");
         std::env::set_var("HOOK_DISABLE_NATIVE_CLIPBOARD", "1");
 
         let result = WindowsPasteShortcut.send_paste();

@@ -113,7 +113,7 @@ export const createStickerAnnotationEraseController = (
             }, { propagateEdit: true });
             return true;
         } catch (error) {
-            console.error("[Hook] Failed to commit content erase", error);
+            console.error("[Otter] Failed to commit content erase", error);
             return false;
         }
     };
@@ -159,7 +159,7 @@ export const createStickerAnnotationEraseController = (
             }
             return true;
         } catch (error) {
-            console.error("[Hook] Failed to initialize live erase canvas", error);
+            console.error("[Otter] Failed to initialize live erase canvas", error);
             return false;
         }
     };

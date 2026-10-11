@@ -46,7 +46,7 @@ describe("overlay synthetic events: Art Surface pass-through", () => {
         document.body.append(visual);
 
         const received: string[] = [];
-        frame.addEventListener("hook:javascript-surface-pointer", (event) => {
+        frame.addEventListener("otter:javascript-surface-pointer", (event) => {
             received.push((event as CustomEvent).detail.type);
         });
         h.setHit(() => annotationRoot);

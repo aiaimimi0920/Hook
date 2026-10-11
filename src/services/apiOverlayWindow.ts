@@ -4,7 +4,7 @@ import type { PinRect } from "./apiTypes";
 
 export const overlayWindowApi = {
     hasForegroundWindow: (): Promise<boolean> =>
-        safeInvoke("hook_has_foreground_window", undefined, () => true, false),
+        safeInvoke("otter_has_foreground_window", undefined, () => true, false),
 
     updatePinRects: (rects: PinRect[]): Promise<void> =>
         safeInvoke("update_pin_rects", { rects }, () => undefined, false),

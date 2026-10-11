@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { readLoomHookRustSources } from "../helpers/loomHookRustSources";
+import { readLoomOtterRustSources } from "../helpers/loomOtterRustSources";
 
 describe("Color Transfer shader node contract", () => {
   it("does not cache contextual shader arts before their image context is known", () => {
@@ -44,17 +44,17 @@ describe("Color Transfer shader node contract", () => {
   });
 
   it("materializes data URI shader inputs before sending them to Loom", () => {
-    const rustSource = readLoomHookRustSources();
+    const rustSource = readLoomOtterRustSources();
 
     expect(rustSource).toContain("materialize_shader_image_input");
     expect(rustSource).toContain('starts_with("data:")');
-    expect(rustSource).toContain("loom_hook_shader_input");
-    expect(rustSource).toContain("loom_hook_shader_reference");
+    expect(rustSource).toContain("loom_otter_shader_input");
+    expect(rustSource).toContain("loom_otter_shader_reference");
     expect(rustSource).not.toContain("repair_art_path");
   });
 
   it("runs contextual shader prefetch work away from the Tauri IPC handler thread", () => {
-    const rustSource = readLoomHookRustSources();
+    const rustSource = readLoomOtterRustSources();
 
     expect(rustSource).toMatch(/pub\s+async\s+fn\s+prefetch_shader/);
     expect(rustSource).toContain("tauri::async_runtime::spawn_blocking");
@@ -62,7 +62,7 @@ describe("Color Transfer shader node contract", () => {
   });
 
   it("uses the installed Loom Art package as the only shader-prefetch runtime", () => {
-    const rustSource = readLoomHookRustSources();
+    const rustSource = readLoomOtterRustSources();
 
     expect(rustSource).toContain('"method": "loom.hook.art.execute"');
     expect(rustSource).not.toContain("/v1/python-arts/shader/prefetch");

@@ -76,20 +76,20 @@ fn load_device_identity_at(
 ) -> Result<DeviceIdentityDocument, String> {
     let _guard = DEVICE_IDENTITY_IO_LOCK
         .lock()
-        .map_err(|_| "Hook device identity lock is unavailable".to_owned())?;
+        .map_err(|_| "Otter device identity lock is unavailable".to_owned())?;
     let path = app_data_dir.join("device-identity.json");
     match fs::metadata(&path) {
         Ok(metadata) => {
             if metadata.len() > DEVICE_IDENTITY_MAX_JSON_BYTES as u64 {
                 return Err(format!(
-                    "Hook device identity exceeds {} bytes",
+                    "Otter device identity exceeds {} bytes",
                     DEVICE_IDENTITY_MAX_JSON_BYTES
                 ));
             }
             let bytes =
-                fs::read(&path).map_err(|error| format!("read Hook device identity: {error}"))?;
+                fs::read(&path).map_err(|error| format!("read Otter device identity: {error}"))?;
             let stored = serde_json::from_slice::<StoredDeviceIdentityDocument>(&bytes)
-                .map_err(|error| format!("Hook device identity is invalid: {error}"))?;
+                .map_err(|error| format!("Otter device identity is invalid: {error}"))?;
             let decoded = decode_from_storage(stored.schema_version, &stored.private_key)?;
             let identity = DeviceIdentityDocument {
                 schema_version: LEGACY_IDENTITY_SCHEMA_VERSION,
@@ -106,14 +106,14 @@ fn load_device_identity_at(
             return Ok(identity);
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(format!("inspect Hook device identity: {error}")),
+        Err(error) => return Err(format!("inspect Otter device identity: {error}")),
     }
 
     if !allow_create {
-        return Err("Hook device identity is missing; automatic renewal cannot pair".to_owned());
+        return Err("Otter device identity is missing; automatic renewal cannot pair".to_owned());
     }
     fs::create_dir_all(app_data_dir)
-        .map_err(|error| format!("create Hook app data directory: {error}"))?;
+        .map_err(|error| format!("create Otter app data directory: {error}"))?;
     let signing_key = SigningKey::generate(&mut OsRng);
     let identity = DeviceIdentityDocument {
         schema_version: LEGACY_IDENTITY_SCHEMA_VERSION,
@@ -128,13 +128,13 @@ fn load_device_identity_at(
 pub(super) fn validate_device_identity(identity: &DeviceIdentityDocument) -> Result<(), String> {
     if identity.schema_version != LEGACY_IDENTITY_SCHEMA_VERSION {
         return Err(format!(
-            "unsupported Hook device identity schema {}",
+            "unsupported Otter device identity schema {}",
             identity.schema_version
         ));
     }
     let private_key = decode_signing_key(&identity.private_key)?;
     if BASE64.encode(private_key.verifying_key().to_bytes()) != identity.public_key {
-        return Err("Hook device identity public/private key pair does not match".to_owned());
+        return Err("Otter device identity public/private key pair does not match".to_owned());
     }
     Ok(())
 }
@@ -145,7 +145,7 @@ pub(super) fn persist_device_identity(
 ) -> Result<(), String> {
     let _guard = DEVICE_IDENTITY_IO_LOCK
         .lock()
-        .map_err(|_| "Hook device identity lock is unavailable".to_owned())?;
+        .map_err(|_| "Otter device identity lock is unavailable".to_owned())?;
     persist_device_identity_locked(path, identity)
 }
 
@@ -155,9 +155,9 @@ fn persist_device_identity_locked(
 ) -> Result<(), String> {
     let parent = path
         .parent()
-        .ok_or_else(|| "Hook device identity path has no parent".to_owned())?;
+        .ok_or_else(|| "Otter device identity path has no parent".to_owned())?;
     fs::create_dir_all(parent)
-        .map_err(|error| format!("create Hook device identity directory: {error}"))?;
+        .map_err(|error| format!("create Otter device identity directory: {error}"))?;
     validate_device_identity(identity)?;
     let (schema_version, private_key) = encode_for_storage(&identity.private_key)?;
     let stored = StoredDeviceIdentityDocument {
@@ -167,10 +167,10 @@ fn persist_device_identity_locked(
         public_key: identity.public_key.clone(),
     };
     let bytes = serde_json::to_vec_pretty(&stored)
-        .map_err(|error| format!("serialize Hook device identity: {error}"))?;
+        .map_err(|error| format!("serialize Otter device identity: {error}"))?;
     if bytes.len() > DEVICE_IDENTITY_MAX_JSON_BYTES {
         return Err(format!(
-            "Hook device identity exceeds {} bytes",
+            "Otter device identity exceeds {} bytes",
             DEVICE_IDENTITY_MAX_JSON_BYTES
         ));
     }
@@ -181,10 +181,10 @@ fn persist_device_identity_locked(
         file.write_all(&bytes)
             .and_then(|_| file.flush())
             .and_then(|_| file.sync_all())
-            .map_err(|error| format!("write Hook device identity: {error}"))?;
+            .map_err(|error| format!("write Otter device identity: {error}"))?;
         drop(file);
         crate::replace_session_file(&temporary, path)
-            .map_err(|error| error.replace("Hook session", "Hook device identity"))?;
+            .map_err(|error| error.replace("Otter session", "Otter device identity"))?;
         restrict_identity_path(path)
     })();
     if result.is_err() {
@@ -206,17 +206,17 @@ fn create_identity_temporary(parent: &Path) -> Result<(std::path::PathBuf, fs::F
         match OpenOptions::new().write(true).create_new(true).open(&path) {
             Ok(file) => return Ok((path, file)),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(format!("create Hook device identity temporary: {error}")),
+            Err(error) => return Err(format!("create Otter device identity temporary: {error}")),
         }
     }
-    Err("allocate Hook device identity temporary file".to_owned())
+    Err("allocate Otter device identity temporary file".to_owned())
 }
 
 #[cfg(unix)]
 fn restrict_identity_file(file: &fs::File) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
     file.set_permissions(fs::Permissions::from_mode(0o600))
-        .map_err(|error| format!("restrict Hook device identity temporary: {error}"))
+        .map_err(|error| format!("restrict Otter device identity temporary: {error}"))
 }
 
 #[cfg(not(unix))]
@@ -228,7 +228,7 @@ fn restrict_identity_file(_file: &fs::File) -> Result<(), String> {
 fn restrict_identity_path(path: &Path) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(path, fs::Permissions::from_mode(0o600))
-        .map_err(|error| format!("restrict Hook device identity: {error}"))
+        .map_err(|error| format!("restrict Otter device identity: {error}"))
 }
 
 #[cfg(not(unix))]
@@ -239,9 +239,9 @@ fn restrict_identity_path(_path: &Path) -> Result<(), String> {
 pub(super) fn decode_signing_key(encoded: &str) -> Result<SigningKey, String> {
     let bytes = BASE64
         .decode(encoded.trim())
-        .map_err(|_| "Hook device private key is not valid Base64".to_owned())?;
+        .map_err(|_| "Otter device private key is not valid Base64".to_owned())?;
     let bytes: [u8; 32] = bytes
         .try_into()
-        .map_err(|_| "Hook device private key must contain 32 Ed25519 bytes".to_owned())?;
+        .map_err(|_| "Otter device private key must contain 32 Ed25519 bytes".to_owned())?;
     Ok(SigningKey::from_bytes(&bytes))
 }

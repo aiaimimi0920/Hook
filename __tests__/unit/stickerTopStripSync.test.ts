@@ -36,7 +36,7 @@ describe("sticker top-strip background sync", () => {
         await flushRejectionHandler();
 
         expect(consoleError).toHaveBeenCalledWith(
-            "[Hook] Failed to sync a committed sticker edit",
+            "[Otter] Failed to sync a committed sticker edit",
             error,
         );
         consoleError.mockRestore();
@@ -50,7 +50,7 @@ describe("sticker top-strip background sync", () => {
         expect(syncTopStripBackendRects()).toBeUndefined();
         await flushRejectionHandler();
 
-        expect(consoleError).toHaveBeenCalledWith("[Hook] Failed to sync top-strip rectangles", error);
+        expect(consoleError).toHaveBeenCalledWith("[Otter] Failed to sync top-strip rectangles", error);
         consoleError.mockRestore();
     });
 });

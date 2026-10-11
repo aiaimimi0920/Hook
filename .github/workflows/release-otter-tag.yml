@@ -1,0 +1,313 @@
+name: Release Otter Tag
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/release-otter-tag.yml"
+      - ".github/workflows/dependency-security.yml"
+      - ".github/scripts/*osv*.cjs"
+      - ".github/scripts/security-run-context.cjs"
+      - "scripts/security/**"
+      - "scripts/tests/*security*.cjs"
+      - "scripts/tests/Test-DependencySecurityContract.ps1"
+      - "scripts/Invoke-DependencySecurityScan.ps1"
+      - "security/**"
+      - "package-lock.json"
+      - "src-tauri/**/Cargo.lock"
+  push:
+    branches: [main]
+    tags:
+      - 'V*.*.*'
+      - 'v*.*.*'
+      - '!V*.*.*.*'
+      - '!v*.*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish manually (required unless scan-only)
+        required: false
+        type: string
+      scan-only:
+        description: Scan this workflow ref without building, signing, or publishing
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  # Keep maintenance scans separate from release publication for the same ref.
+  group: release-otter-${{ github.event_name }}-${{ github.event.pull_request.number || (github.event_name == 'workflow_dispatch' && inputs.tag) || github.ref }}-${{ inputs['scan-only'] }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  scan-context:
+    name: Classify scan and release intent
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.context.outputs.publish }}
+      mode: ${{ steps.context.outputs.mode }}
+      ref: ${{ steps.context.outputs.ref }}
+      commit: ${{ steps.source.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: context
+        env:
+          SCAN_ONLY_JSON: ${{ toJSON(inputs['scan-only']) }}
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: node .github/scripts/security-run-context.cjs
+      - id: source
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          SOURCE_REF: ${{ steps.context.outputs.ref }}
+        with:
+          script: |
+            const { execFileSync } = require('node:child_process');
+            const commit = execFileSync('git', ['rev-parse', '--verify', `${process.env.SOURCE_REF}^{commit}`], { encoding: 'utf8' }).trim();
+            if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error('Invalid release source commit');
+            core.setOutput('commit', commit);
+
+  dependency-security:
+    name: Verify dependency scan evidence
+    needs: scan-context
+    uses: ./.github/workflows/dependency-security.yml
+    with:
+      # Keep this caller/job identity: default-branch scans refresh its existing SARIF configuration.
+      checkout-ref: ${{ needs.scan-context.outputs.commit }}
+      security-mode: ${{ needs.scan-context.outputs.mode }}
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+  release:
+    name: Build and verify Otter release
+    # Job-level gating also excludes its always()/failure() artifact and cleanup steps.
+    if: ${{ needs.scan-context.outputs.publish == 'true' && ((github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && toJSON(inputs['scan-only']) == 'false' && inputs.tag != '')) }}
+    needs: [scan-context, dependency-security]
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    outputs:
+      artifact-id: ${{ steps.release-evidence.outputs.artifact-id }}
+    steps:
+      - name: Checkout release ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.scan-context.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve release tag
+        shell: powershell
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") { $env:REQUESTED_TAG } else { $env:GITHUB_REF_NAME }
+          if ($tag -notmatch '^[vV]\d+\.\d+\.\d+$') { throw "Release tag must match Vx.x.x. Received: $tag" }
+          "HOOK_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Verify release provenance and product versions
+        shell: powershell
+        run: |
+          git fetch origin main --no-tags
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-release-version.ps1 `
+            -Tag "$env:HOOK_TAG" -RequireTagAtHead -RequireReachableFromBranch "origin/main"
+
+      - name: Check release publication state
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          HOOK_TAG: ${{ env.HOOK_TAG }}
+        with:
+          script: |
+            const publication = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/release-publication.cjs`);
+            await publication.assertReleaseAbsent({ github, owner: context.repo.owner, repo: context.repo.repo, tag: process.env.HOOK_TAG });
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@a5f673d0ba8626c3977bb416a1612774bc82181b # 1.95.0
+        with:
+          components: rustfmt
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: src-tauri
+        env:
+          NODE_OPTIONS: --no-deprecation
+      - name: Install npm dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Test release and line-policy contracts
+        shell: powershell
+        run: |
+          npm run test:effective-lines
+          if ($LASTEXITCODE -ne 0) { throw "Effective-line checker tests failed with exit code $LASTEXITCODE." }
+          npm run check:effective-lines
+          if ($LASTEXITCODE -ne 0) { throw "Effective-line ratchet failed with exit code $LASTEXITCODE." }
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\tests\Test-DependencySecurityContract.ps1
+          if ($LASTEXITCODE -ne 0) { throw "Dependency security contract failed with exit code $LASTEXITCODE." }
+      - name: Audit open-source dependency metadata
+        run: npm run audit:licenses
+      - name: TypeScript and lint gates
+        run: npm run lint && npm run typecheck && npm run typecheck:test
+      - name: Run frontend tests
+        run: npm test
+      - name: Rust format check
+        run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
+      - name: Rust tests
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-rust-tests-ci.ps1
+
+      - name: Build formal Otter release
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -VersionId "$env:HOOK_TAG" -OutputRoot .\release\Otter -RequireCleanSource
+      - name: Verify and smoke formal Otter release
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -PackageDir ".\release\Otter\$env:HOOK_TAG" -RunHeadlessSmoke -RequireCleanSource
+      - name: Upload formal release smoke evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: otter-formal-release-smoke-${{ env.HOOK_TAG }}
+          path: artifacts/release-smoke/${{ env.HOOK_TAG }}-headless
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Build reviewed UIAccess signing candidate
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-local-otter-exe.ps1 `
+            -OutputDir ".\release\Otter\signing-candidate" -RequireCleanSource -UiAccess -AllowUnsignedUiAccessBuild -Force
+      - name: Create signing candidate digest manifest
+        shell: powershell
+        run: |
+          . .\scripts\file-hash.ps1
+          $candidateDir = [System.IO.Path]::GetFullPath(".\release\Otter\signing-candidate")
+          $candidateExe = Join-Path $candidateDir "otter.exe"
+          $manifest = [ordered]@{
+            schemaVersion = 1; artifact = "otter.exe"; tag = $env:HOOK_TAG
+            commit = (git rev-parse HEAD).Trim(); runId = "${{ github.run_id }}"
+            sha256 = Get-OtterFileSha256 -Path $candidateExe
+          } | ConvertTo-Json
+          $evidencePath = [System.IO.Path]::GetFullPath(".\release\Otter\otter-uiaccess-signing-candidate-$env:HOOK_TAG.json")
+          [System.IO.File]::WriteAllText((Join-Path $candidateDir "manifest.json"), $manifest + "`n", [Text.UTF8Encoding]::new($false))
+          [System.IO.File]::WriteAllText($evidencePath, $manifest + "`n", [Text.UTF8Encoding]::new($false))
+      - name: Upload reviewed signing candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: otter-uiaccess-signing-candidate-${{ env.HOOK_TAG }}
+          path: release/Otter/signing-candidate/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Transfer verified release evidence
+        id: release-evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: otter-release-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release/Otter/${{ env.HOOK_TAG }}/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Attest and publish verified Otter release
+    needs: [scan-context, release]
+    runs-on: windows-latest
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout release verification code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.scan-context.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate publication tag and source
+        shell: powershell
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") { $env:REQUESTED_TAG } else { $env:GITHUB_REF_NAME }
+          if ($tag -cnotmatch '\A[vV][0-9]+\.[0-9]+\.[0-9]+\z') { throw "Invalid publication tag." }
+          git fetch origin main --no-tags
+          if ($LASTEXITCODE -ne 0) { throw "Could not fetch protected branch." }
+          & .\scripts\assert-release-version.ps1 -Tag $tag -RequireTagAtHead -RequireReachableFromBranch "origin/main"
+          "HOOK_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Download exact same-run evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.release.outputs.artifact-id }}
+          merge-multiple: true
+          path: release/Otter/${{ env.HOOK_TAG }}
+      # No dependency installation, compilation, or execution of downloaded binaries here.
+      - name: Independently verify transferred release evidence
+        shell: powershell
+        run: |
+          & .\scripts\verify-release.ps1 -PackageDir ".\release\Otter\$env:HOOK_TAG" -RequireCleanSource
+
+      - name: Attest release build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: release/Otter/${{ env.HOOK_TAG }}/packages/otter-windows-x64-${{ env.HOOK_TAG }}.zip
+      - name: Attest release SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: release/Otter/${{ env.HOOK_TAG }}/packages/otter-windows-x64-${{ env.HOOK_TAG }}.zip
+          sbom-path: release/Otter/${{ env.HOOK_TAG }}/sbom/Otter-${{ env.HOOK_TAG }}.cdx.json
+
+      - name: Create verified draft release
+        id: draft-release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          token: ${{ github.token }}
+          tag_name: ${{ env.HOOK_TAG }}
+          name: ${{ env.HOOK_TAG }}
+          body_path: docs/GITHUB_RELEASE_BODY.md
+          draft: true
+          generate_release_notes: false
+          files: |
+            release/Otter/${{ env.HOOK_TAG }}/packages/otter-windows-x64-${{ env.HOOK_TAG }}.zip
+            release/Otter/${{ env.HOOK_TAG }}/packages/otter-windows-x64-${{ env.HOOK_TAG }}.zip.sha256
+          fail_on_unmatched_files: true
+
+      - name: Verify assets and publish draft release
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          HOOK_PACKAGE_DIRECTORY: release/Otter/${{ env.HOOK_TAG }}
+          HOOK_RELEASE_ID: ${{ steps.draft-release.outputs.id }}
+          HOOK_TAG: ${{ env.HOOK_TAG }}
+        with:
+          script: |
+            const publication = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/release-publication.cjs`);
+            await publication.publishVerifiedDraft({
+              github, owner: context.repo.owner, repo: context.repo.repo,
+              releaseId: process.env.HOOK_RELEASE_ID, tag: process.env.HOOK_TAG,
+              packageDirectory: process.env.HOOK_PACKAGE_DIRECTORY,
+            });
+
+      - name: Remove failed draft release
+        if: failure() && steps.draft-release.outputs.id != ''
+        continue-on-error: true
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          HOOK_RELEASE_ID: ${{ steps.draft-release.outputs.id }}
+          HOOK_TAG: ${{ env.HOOK_TAG }}
+        with:
+          script: |
+            const publication = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/release-publication.cjs`);
+            const deleted = await publication.deleteFailedDraft({
+              github, owner: context.repo.owner, repo: context.repo.repo,
+              releaseId: process.env.HOOK_RELEASE_ID, tag: process.env.HOOK_TAG,
+            });
+            if (!deleted) core.warning('No matching unpublished Otter draft was deleted.');

@@ -5,7 +5,7 @@ mod rdev_app_scoped_shortcut_tests {
     use super::{rdev_should_dispatch_app_scoped_shortcut, RdevAppScopedShortcut};
 
     #[test]
-    fn delete_requires_hook_foreground_focus() {
+    fn delete_requires_otter_foreground_focus() {
         assert!(rdev_should_dispatch_app_scoped_shortcut(
             RdevAppScopedShortcut::Delete,
             true,

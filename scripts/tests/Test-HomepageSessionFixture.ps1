@@ -21,7 +21,7 @@ function Assert-Throws {
     throw $Message
 }
 
-$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("hook-homepage-fixture-test-" + [Guid]::NewGuid().ToString("N"))
+$tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("otter-homepage-fixture-test-" + [Guid]::NewGuid().ToString("N"))
 [System.IO.Directory]::CreateDirectory($tempRoot) | Out-Null
 try {
     $pngBytes = [Convert]::FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
@@ -51,7 +51,7 @@ try {
         New-HomepageSessionJson -CaptureCardPath $oversizePath -StickerCardPath $paths[1] -WorkflowCardPath $paths[2] | Out-Null
     } "Oversized fixture images must be rejected."
 
-    Write-Output "Hook homepage session fixture contract passed: embedded=5 max-card-bytes=$((8MB))"
+    Write-Output "Otter homepage session fixture contract passed: embedded=5 max-card-bytes=$((8MB))"
 } finally {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

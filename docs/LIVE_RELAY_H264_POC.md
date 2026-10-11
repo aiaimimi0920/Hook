@@ -6,10 +6,10 @@
 raw/JPEG 回退。跟踪 [Loom #91](https://github.com/aiaimimi0920/Loom/issues/91)。
 
 v0.2.32.39 已接入产品 source/viewer worker，并完成下述 PC1/PC3 一源一收功能验收。
-产品接线和验收文档由 [Hook #68](https://github.com/aiaimimi0920/Hook/pull/68) 交付；
+产品接线和验收文档由 [Otter #68](https://github.com/aiaimimi0920/Otter/pull/68) 交付；
 Loom 协商与连续性由 #93/#94 交付。本轮不发布公共 release，不宣称 GPU decoder、
 零拷贝呈现或性能实测提升，A3-P 保持用户豁免。
-所有原生测试只使用自有 HWND 或先前生成的自有码流，不退出日常 Hook/Loom。
+所有原生测试只使用自有 HWND 或先前生成的自有码流，不退出日常 Otter/Loom。
 
 开发分支显式 offer `loom.live.h264.v1`，旧 Loom 仍选择 JPEG/raw；源端必须收到允许
 策略才发送 H.264。接收端在图片缓存之前顺序解码，缓存只能丢已解码图像，不能跳过
@@ -40,9 +40,9 @@ cargo build --locked --example live_h264_probe
 
 `synthetic.h264` 供独立解码验证，`summary.json` 记录编码器、各 access unit 边界和
 时间戳。NAL 检查仅验证结构；必须由独立 decoder 验证完整序列和从强制 IDR 开始的
-后半序列。验证工具不是产品依赖，不能把外部工具测试冒充已实现 Hook decoder。
+后半序列。验证工具不是产品依赖，不能把外部工具测试冒充已实现 Otter decoder。
 
-独立解码命令（从 Hook 根目录运行，FFmpeg 使用用户已有的可执行文件，不自动下载）：
+独立解码命令（从 Otter 根目录运行，FFmpeg 使用用户已有的可执行文件，不自动下载）：
 
 ```powershell
 python scripts/verify-live-h264-probe.py --probe-dir C:\absolute\probe-output `
@@ -182,10 +182,10 @@ GPU 模式释放 JPEG demand、静态 IDR 请求复用有界纹理、策略禁�
 
 ### 真实网络接线与尺寸修复
 
-隔离自有窗口通过真实 WGC → Hook source worker → loopback Loom → 两个独立 Hook viewer
+隔离自有窗口通过真实 WGC → Otter source worker → loopback Loom → 两个独立 Otter viewer
 worker 验证连续帧和重连；旁路同授权观看 socket 检查真实 NLLV codec，而不是把 IPC
 `raw_bgra` 当成网络编码。旧 JPEG socket 加入后切换图片，退出后重新收到 SPS/PPS/IDR。
-该入口不安装日常 Hook 的全局输入钩子，不读取其他应用像素；不是 WebView 产品呈现验收。
+该入口不安装日常 Otter 的全局输入钩子，不读取其他应用像素；不是 WebView 产品呈现验收。
 
 首次640×432链路通过，但680×430源能编码、viewer却回退。真实网络 AU 对产品 decoder
 复现 `decoder negotiated dimensions mismatch`：MF输出surface按宏块补边，不能要求
@@ -230,7 +230,7 @@ PC3独立decoder对已有680×430网络码流的24帧测试通过；它只排除
 提交仅修改文档，不改变该候选源码。Loom使用已含协商/连续性代码的daemon-only候选，
 SHA-256为 `688d905138565a68e1179f4e12909b13706313be78b6cd6e175b8d9cc0d97bb5`。
 
-- `product-pair-r5`：实际Hook通过正常界面捕获自有窗口、发布、在PC3晚加入观看。
+- `product-pair-r5`：实际Otter通过正常界面捕获自有窗口、发布、在PC3晚加入观看。
   服务端记录真实wire H264，原生decoder输出576×360 BGRA，经二进制IPC/BMP Blob
   到WebView图片。80次可见抽样包含64个不同的浏览器呈现帧；不是FPS或每帧历史证明。
 - 同轮旧JPEG观看socket加入后，旧socket和实际PC3观看端均收到JPEG；退出旧socket后，
@@ -250,7 +250,7 @@ SHA-256为 `688d905138565a68e1179f4e12909b13706313be78b6cd6e175b8d9cc0d97bb5`。
 `c1-revocation-contract-review.json`及各轮 `part-cleanup-verified.json`。
 最终代码Rust库576项通过、24项默认ignored；原生入口另有显式执行证据。前端未改，
 复用同源码452文件/2181测试、lint、类型检查、Surface browser和production build证据。
-本轮未退出日常Hook、未改系统信任、未物理断网或重置驱动；SSH只转管理/CDP，媒体
+本轮未退出日常Otter、未改系统信任、未物理断网或重置驱动；SSH只转管理/CDP，媒体
 直接使用局域网HTTPS/WSS。2/4端矩阵、真实device loss、物理呈现与公共发行许可不在本轮。
 
 ### 整体完成条件

@@ -96,7 +96,7 @@ describe("editable focus ownership", () => {
     expect(isEditableFocusRequestCurrent(generation)).toBe(false);
   });
 
-  it("blurs the active editor and cancels delayed refocus when Hook loses focus", () => {
+  it("blurs the active editor and cancels delayed refocus when Otter loses focus", () => {
     const input = document.createElement("input");
     document.body.append(input);
     input.focus();

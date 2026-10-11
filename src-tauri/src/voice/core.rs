@@ -364,7 +364,7 @@ mod tests {
     };
 
     #[test]
-    fn voice_config_parses_hook_voice_contract_defaults_for_hook() {
+    fn voice_config_parses_otter_voice_contract_defaults_for_otter() {
         let raw = r#"
 [trigger]
 mode = "toggle"
@@ -402,8 +402,8 @@ dir = ".runtime/hook/voice/logs"
     }
 
     #[test]
-    fn voice_session_state_machine_matches_hook_voice_contract() {
-        let mut session = VoiceSession::new("hook-session");
+    fn voice_session_state_machine_matches_otter_voice_contract() {
+        let mut session = VoiceSession::new("otter-session");
 
         session.apply(VoiceEvent::TriggerStart).expect("start");
         assert_eq!(session.status(), SessionStatus::Recording);

@@ -3,9 +3,9 @@ use super::*;
 
 #[test]
 fn environment_configuration_is_fail_closed_and_frozen_per_process() {
-    if let Ok(mode) = std::env::var("HOOK_TLS_TEST_CHILD") {
+    if let Ok(mode) = crate::brand_env::var("HOOK_TLS_TEST_CHILD") {
         let origin = "https://loom.test";
-        let path = std::env::var_os("HOOK_LOOM_TLS_CA_FILE").unwrap();
+        let path = crate::brand_env::var_os("HOOK_LOOM_TLS_CA_FILE").unwrap();
         if mode == "valid" {
             assert!(for_endpoint(origin).unwrap().is_some());
             assert!(for_endpoint("https://other.test").unwrap().is_none());
@@ -22,7 +22,11 @@ fn environment_configuration_is_fail_closed_and_frozen_per_process() {
         } else {
             assert!(for_endpoint(origin).is_err());
             assert!(for_endpoint("http://127.0.0.1").is_err());
-            std::fs::write(&path, std::env::var("HOOK_TLS_TEST_CA_PEM").unwrap()).unwrap();
+            std::fs::write(
+                &path,
+                crate::brand_env::var("HOOK_TLS_TEST_CA_PEM").unwrap(),
+            )
+            .unwrap();
             assert!(for_endpoint(origin).is_err());
             assert!(crate::network_proxy::shared_client(origin, None).is_err());
             assert!(crate::network_proxy::blocking_client(origin, None).is_err());
@@ -34,7 +38,7 @@ fn environment_configuration_is_fail_closed_and_frozen_per_process() {
     }
     let fixture = TlsFixture::new(false, false);
     for mode in ["valid", "invalid"] {
-        let path = std::env::temp_dir().join(format!("hook-tls-{}.pem", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("otter-tls-{}.pem", uuid::Uuid::new_v4()));
         std::fs::write(
             &path,
             if mode == "valid" {
@@ -78,7 +82,7 @@ fn environment_configuration_is_fail_closed_and_frozen_per_process() {
 #[test]
 fn regular_ca_files_are_read_with_the_same_byte_budget() {
     let fixture = TlsFixture::new(false, false);
-    let path = std::env::temp_dir().join(format!("hook-tls-{}.pem", uuid::Uuid::new_v4()));
+    let path = std::env::temp_dir().join(format!("otter-tls-{}.pem", uuid::Uuid::new_v4()));
     std::fs::write(&path, &fixture.ca_pem).unwrap();
     let load = || {
         load_config(

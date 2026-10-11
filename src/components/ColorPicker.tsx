@@ -346,7 +346,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
         >
             <div
                 ref={(el) => { panelRef = el; }}
-                class="hook-terminal-shell hook-terminal-shell--strong overflow-y-auto p-4"
+                class="otter-terminal-shell otter-terminal-shell--strong overflow-y-auto p-4"
                 style={{ width: "320px", "max-height": "calc(100vh - 16px)", ...pickerStyle() }}
                 onClick={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
@@ -355,7 +355,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                 <div class="mb-3 flex items-center justify-between">
                     <span class="text-sm font-semibold">颜色选择器</span>
                     <button
-                        class="hook-toolbar-button"
+                        class="otter-toolbar-button"
                         onClick={() => props.onClose()}
                     >
                         ✕
@@ -364,7 +364,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
 
                 <div
                     ref={(el) => { svPickerRef = el; }}
-                    class="hook-color-picker__field relative mb-3 h-48 cursor-crosshair"
+                    class="otter-color-picker__field relative mb-3 h-48 cursor-crosshair"
                     style={{
                         background: `linear-gradient(to bottom, transparent, black), linear-gradient(to right, white, ${hueGradient()})`,
                     }}
@@ -383,7 +383,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
 
                 <div
                     ref={(el) => { hueSliderRef = el; }}
-                    class="hook-color-picker__field relative mb-3 h-4 cursor-pointer"
+                    class="otter-color-picker__field relative mb-3 h-4 cursor-pointer"
                     style={{
                         background: "linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)",
                     }}
@@ -401,11 +401,11 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                 </div>
 
                 <div class="mb-3 flex items-center gap-2">
-                    <span class="hook-param-label text-sm">透明度</span>
+                    <span class="otter-param-label text-sm">透明度</span>
                     <div
                         ref={(el) => { alphaSliderRef = el; }}
                         data-alpha-slider
-                        class="hook-color-picker__field relative h-4 flex-1 cursor-pointer"
+                        class="otter-color-picker__field relative h-4 flex-1 cursor-pointer"
                         style={{
                             background: alphaSliderBackground(),
                             "background-size": "100% 100%, 8px 8px, 8px 8px, 8px 8px, 8px 8px",
@@ -423,15 +423,15 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                             }}
                         />
                     </div>
-                    <span class="hook-param-value text-sm">{Math.round(alpha() * 100)}%</span>
+                    <span class="otter-param-value text-sm">{Math.round(alpha() * 100)}%</span>
                 </div>
 
                 <Show when={props.palette && props.palette.length > 0}>
                     <div class="mb-3">
                         <div class="mb-1 flex h-6 items-center justify-between">
-                            <span class="hook-terminal-caption text-xs">调色板</span>
+                            <span class="otter-terminal-caption text-xs">调色板</span>
                             <button
-                                class="hook-terminal-btn hook-terminal-btn--danger px-2 py-0.5 text-xs"
+                                class="otter-terminal-btn otter-terminal-btn--danger px-2 py-0.5 text-xs"
                                 classList={{
                                     invisible: !(selectedPaletteColor() && isRemovablePaletteColor(selectedPaletteColor()!)),
                                 }}
@@ -451,9 +451,9 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                                     const displayColor = isTransparent ? "transparent" : normalizedColor ?? "#ff0000";
                                     return (
                                         <button
-                                            class="hook-color-swatch h-6 w-6 overflow-hidden"
+                                            class="otter-color-swatch h-6 w-6 overflow-hidden"
                                             classList={{
-                                                "hook-color-swatch--selected": selectedPaletteColor() === paletteColor,
+                                                "otter-color-swatch--selected": selectedPaletteColor() === paletteColor,
                                             }}
                                             style={{
                                                 background: `linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)`,
@@ -486,10 +486,10 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                     </div>
                 </Show>
 
-                <div class="hook-terminal-caption mb-1 text-xs">当前颜色（可编辑颜色码）</div>
+                <div class="otter-terminal-caption mb-1 text-xs">当前颜色（可编辑颜色码）</div>
                 <div class="flex items-center gap-3">
                     <div
-                        class="hook-color-picker__preview h-12 w-12 flex-shrink-0"
+                        class="otter-color-picker__preview h-12 w-12 flex-shrink-0"
                         style={{
                             background: `linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)`,
                             "background-size": "8px 8px",
@@ -504,7 +504,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                     <div class="flex-1">
                         <input
                             type="text"
-                            class="hook-terminal-input w-full px-2 py-1 font-mono text-sm"
+                            class="otter-terminal-input w-full px-2 py-1 font-mono text-sm"
                             placeholder="#RRGGBB 或 #RRGGBBAA"
                             value={hexDraft()}
                             onFocus={() => setHexEditing(true)}
@@ -519,9 +519,9 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                     </div>
                 </div>
 
-                <div class="hook-color-picker__footer sticky bottom-0 mt-3 flex flex-wrap items-center gap-2 pt-2">
+                <div class="otter-color-picker__footer sticky bottom-0 mt-3 flex flex-wrap items-center gap-2 pt-2">
                     <button
-                        class="hook-terminal-btn hook-terminal-btn--success px-3 py-1 text-sm"
+                        class="otter-terminal-btn otter-terminal-btn--success px-3 py-1 text-sm"
                         onClick={handleApply}
                         onPointerDown={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
@@ -531,7 +531,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                     </button>
                     <Show when={props.onAddToPalette}>
                         <button
-                            class="hook-terminal-btn px-3 py-1 text-sm"
+                            class="otter-terminal-btn px-3 py-1 text-sm"
                             onClick={handleAddToPalette}
                             onPointerDown={(e) => e.stopPropagation()}
                             onMouseDown={(e) => e.stopPropagation()}
@@ -542,7 +542,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                     </Show>
                     <Show when={props.onPickFromScreen}>
                         <button
-                            class="hook-terminal-btn px-3 py-1 text-sm"
+                            class="otter-terminal-btn px-3 py-1 text-sm"
                             onClick={handlePickFromScreen}
                             onPointerDown={(e) => e.stopPropagation()}
                             onMouseDown={(e) => e.stopPropagation()}
@@ -552,7 +552,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                         </button>
                     </Show>
                     <button
-                        class="hook-terminal-btn px-3 py-1 text-sm"
+                        class="otter-terminal-btn px-3 py-1 text-sm"
                         onClick={handleCopyHex}
                         onPointerDown={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
@@ -561,7 +561,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                         复制HEX
                     </button>
                     <button
-                        class="hook-terminal-btn px-3 py-1 text-sm"
+                        class="otter-terminal-btn px-3 py-1 text-sm"
                         onClick={handleCopyRgb}
                         onPointerDown={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}

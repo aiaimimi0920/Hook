@@ -11,7 +11,7 @@ function validateInputs({ tag, runId, digest }) {
 function validateRun(run, { repository, workflowId, commit, tag, runId }) {
   if (String(run.id) !== runId || run.repository?.full_name !== repository ||
       run.head_repository?.full_name !== repository || run.workflow_id !== workflowId ||
-      run.path !== ".github/workflows/release-hook-tag.yml" ||
+      run.path !== ".github/workflows/release-otter-tag.yml" ||
       run.status !== "completed" || run.conclusion !== "success" ||
       run.head_sha !== commit || run.head_branch !== tag ||
       !["push", "workflow_dispatch"].includes(run.event)) {
@@ -20,7 +20,7 @@ function validateRun(run, { repository, workflowId, commit, tag, runId }) {
 }
 
 function validateArtifact(artifacts, { tag, runId, commit }) {
-  const matches = artifacts.filter(a => a.name === `hook-uiaccess-signing-candidate-${tag}`);
+  const matches = artifacts.filter(a => a.name === `otter-uiaccess-signing-candidate-${tag}`);
   if (matches.length !== 1) throw new Error("Expected exactly one signing candidate artifact");
   const artifact = matches[0];
   if (artifact.expired || !Number.isSafeInteger(artifact.id) || artifact.id <= 0 ||
@@ -36,7 +36,7 @@ function validateArtifact(artifacts, { tag, runId, commit }) {
 async function verifyCandidate({ github, owner, repo, tag, runId, digest }) {
   validateInputs({ tag, runId, digest });
   const repository = `${owner}/${repo}`;
-  const { data: workflow } = await github.rest.actions.getWorkflow({ owner, repo, workflow_id: "release-hook-tag.yml" });
+  const { data: workflow } = await github.rest.actions.getWorkflow({ owner, repo, workflow_id: "release-otter-tag.yml" });
   const { data: source } = await github.rest.repos.getCommit({ owner, repo, ref: `refs/tags/${tag}` });
   const { data: ancestry } = await github.rest.repos.compareCommits({ owner, repo, base: source.sha, head: "main" });
   if (!["ahead", "identical"].includes(ancestry.status)) throw new Error("Tag is not reachable from main");

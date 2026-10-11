@@ -15,7 +15,7 @@ const lifecycleSource = readFileSync(
 );
 const uiStoreSource = readFileSync(resolve(process.cwd(), "src/store/uiStore.ts"), "utf8");
 
-describe("Hook sticker edit cancel contract", () => {
+describe("Otter sticker edit cancel contract", () => {
     it("uses Escape to cancel active sticker drawing/edit drafts without deleting the sticker", () => {
         expect(shortcutsSource).toContain("cancel-sticker-edit");
         expect(shortcutsSource).toContain("context: 'sticker-editing'");

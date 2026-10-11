@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -8,7 +8,7 @@ const readSource = (relativePath: string) =>
 
 describe("capture mode readiness", () => {
   it("does not make the full-screen overlay interactive before the frontend capture listener runs", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const captureStart = rustSource.indexOf("fn enter_capture_mode");
     const captureEnd = rustSource.indexOf("fn enter_long_capture_mode", captureStart);
     const captureBlock = rustSource.slice(captureStart, captureEnd);
@@ -42,7 +42,7 @@ describe("capture mode readiness", () => {
   });
 
   it("does not make the overlay interactive as a side effect of disabling sticker hit-test monitoring", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const monitorStart = rustSource.indexOf("fn set_mouse_monitor_active");
     const monitorEnd = rustSource.indexOf("#[tauri::command]", monitorStart + 1);
     const monitorBlock = rustSource.slice(monitorStart, monitorEnd);

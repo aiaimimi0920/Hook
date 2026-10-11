@@ -1,15 +1,15 @@
-# Hook UIAccess Distribution Notes
+# Otter UIAccess Distribution Notes
 
 This document explains both:
 
-- why Hook has a future **installer / UIAccess** path; and
+- why Otter has a future **installer / UIAccess** path; and
 - why the project is currently in a **portable-first** public release phase.
 
 ## The short version
 
 - **Portable** is the current public release package and the current recommended
   package for users.
-- **Installer** is the future signed package path that Hook is still preparing,
+- **Installer** is the future signed package path that Otter is still preparing,
   but it is not the current public release package yet.
 
 The difference is not cosmetic. It comes from how Windows enforces **UIAccess**
@@ -17,12 +17,12 @@ The difference is not cosmetic. It comes from how Windows enforces **UIAccess**
 
 ## Why the installer package exists
 
-Hook uses a transparent desktop overlay and needs to stay interactive even when
+Otter uses a transparent desktop overlay and needs to stay interactive even when
 special Windows foreground windows are active.
 
 One concrete example is **Task Manager**:
 
-- a normal portable Hook build can still work for most everyday capture and
+- a normal portable Otter build can still work for most everyday capture and
   sticker workflows;
 - but when Task Manager is the foreground window, Windows may stop a portable
   build from receiving the same level of input/interaction that the installed
@@ -48,7 +48,7 @@ Because of that:
 
 ## Current phase: portable-first public releases
 
-Hook is currently shipping only the portable public release because the project
+Otter is currently shipping only the portable public release because the project
 does not yet have real public release signing material wired into the GitHub
 release path.
 
@@ -56,13 +56,13 @@ That means the current user-facing recommendation is:
 
 - use the portable package;
 - if a special Windows foreground/elevation scenario causes interaction limits,
-  try launching Hook as **administrator** as the current workaround.
+  try launching Otter as **administrator** as the current workaround.
 
 This is a transition strategy, not the final ideal distribution model.
 
 ## Future phase: signed installer public releases
 
-Hook still intends to publish a signed installer/UIAccess package again once a
+Otter still intends to publish a signed installer/UIAccess package again once a
 real signing provider path is ready for public release use.
 
 At that point:
@@ -77,7 +77,7 @@ At that point:
 
 Choose the installer package when:
 
-- you plan to use Hook as a long-running desktop tool;
+- you plan to use Otter as a long-running desktop tool;
 - you want the best chance of reliable interaction under special foreground
   windows such as Task Manager;
 - you want the binary installed into `Program Files`, which is part of the
@@ -96,7 +96,7 @@ Choose the portable package when:
   limit interaction and may require administrator launch as a workaround.
 
 If you must stay on the portable package and hit one of those Windows
-restrictions, a fallback is to try launching Hook as **administrator**. That is
+restrictions, a fallback is to try launching Otter as **administrator**. That is
 the current phase workaround, not the preferred long-term distribution model.
 
 ## Install and uninstall notes
@@ -106,16 +106,16 @@ the current phase workaround, not the preferred long-term distribution model.
 - when a signed installer zip is present, install by extracting it and running
   its generated `install-hook.ps1` wrapper from an elevated PowerShell session;
 - maintainers testing a separately signed executable may instead run
-  `scripts/install-hook-uiaccess.ps1 -SourceExe <path-to-signed-hook.exe>` from
+  `scripts/install-otter-uiaccess.ps1 -SourceExe <path-to-signed-otter.exe>` from
   an elevated PowerShell session;
-- the helper installs `hook.exe` into `Program Files\yamiyu\Hook`;
-- uninstall by closing Hook and removing the installed `Program Files\yamiyu\Hook`
+- the helper installs `otter.exe` into `Program Files\yamiyu\Otter`;
+- uninstall by closing Otter and removing the installed `Program Files\yamiyu\Otter`
   directory and any shortcuts you created for it.
 
 ### Portable package
 
 - install by extracting the zip anywhere you control;
-- uninstall by closing Hook and deleting the extracted portable folder.
+- uninstall by closing Otter and deleting the extracted portable folder.
 
 ## Maintainer notes
 
@@ -125,9 +125,9 @@ the current public phase is portable-first:
 - **portable zip** is the baseline public artifact;
 - **installer zip** is the signed UIAccess-oriented package;
 - the installer package stages:
-  - `hook.exe`
+  - `otter.exe`
   - `install-hook.ps1`
-  - `install-hook-uiaccess.ps1`
+  - `install-otter-uiaccess.ps1`
 
 ## GitHub Actions requirements
 
@@ -137,7 +137,7 @@ the reviewed unsigned UIAccess candidate; that JSON is audit metadata, not an
 installer or executable release package.
 
 Installer/UIAccess releases require a real code-signing certificate in GitHub
-Actions. Hook uses the hosted SignPath model instead of exporting a PFX or
+Actions. Otter uses the hosted SignPath model instead of exporting a PFX or
 private key into the repository. The protected `signpath-production` GitHub
 Environment supplies:
 

@@ -47,7 +47,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
     return source.slice(startIndex, endIndex);
 };
 
-describe("Hook sticker style controls contract", () => {
+describe("Otter sticker style controls contract", () => {
     it("exposes per-shape independent stroke/fill color slots backed by one shared palette", () => {
         expect(propertyBarRenderSource).toContain("MiniColorField");
         expect(propertyBarRenderSource).toContain("MiniNumericField");

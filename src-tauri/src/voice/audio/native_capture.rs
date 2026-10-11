@@ -73,7 +73,7 @@ pub(super) fn capture_native_windows_audio(
 fn native_windows_recording_duration(
     request: &AudioCaptureRequest,
 ) -> Result<Duration, VoiceError> {
-    let requested_seconds = match std::env::var_os("HOOK_NATIVE_AUDIO_SECONDS") {
+    let requested_seconds = match crate::brand_env::var_os("HOOK_NATIVE_AUDIO_SECONDS") {
         Some(raw) => {
             let raw = raw.to_string_lossy();
             let seconds = raw.trim().parse::<u64>().map_err(|error| {

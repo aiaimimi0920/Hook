@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -19,9 +19,9 @@ const stickerFrameGeometrySource = readFileSync(
     "utf8",
 );
 const shortcutsSource = readFileSync(resolve(process.cwd(), "src/hooks/useShortcuts.ts"), "utf8");
-const rustSource = readHookLibRustSources();
+const rustSource = readOtterLibRustSources();
 
-describe("Hook sticker wheel resize contract", () => {
+describe("Otter sticker wheel resize contract", () => {
     it("keeps the minified ctrl+wheel guard without focusing the sticker container during wheel opacity edits", () => {
         expect(unitViewSource).toContain("ShortcutManager.isGestureActive(e, 'sticker_resize')");
         expect(unitViewSource).toContain("if (isMinified()) return;");

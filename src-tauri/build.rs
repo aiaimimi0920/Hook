@@ -5,12 +5,13 @@ fn main() {
     println!("cargo:rerun-if-changed=windows/test.manifest.xml");
     println!("cargo:rerun-if-changed=windows/uiaccess.manifest.xml");
     println!("cargo:rerun-if-env-changed=HOOK_WINDOWS_UIACCESS");
+    println!("cargo:rerun-if-env-changed=OTTER_WINDOWS_UIACCESS");
 
     let mut attributes = tauri_build::Attributes::new();
 
     #[cfg(target_os = "windows")]
     {
-        let app_manifest = if hook_windows_uiaccess_requested() {
+        let app_manifest = if otter_windows_uiaccess_requested() {
             println!("cargo:rustc-env=HOOK_WINDOWS_UIACCESS_BUILD=1");
             include_str!("windows/uiaccess.manifest.xml")
         } else {
@@ -21,7 +22,7 @@ fn main() {
     }
 
     #[cfg(not(target_os = "windows"))]
-    if hook_windows_uiaccess_requested() {
+    if otter_windows_uiaccess_requested() {
         println!("cargo:rustc-env=HOOK_WINDOWS_UIACCESS_BUILD=1");
     }
 
@@ -32,7 +33,7 @@ fn main() {
         let resource_lib =
             std::path::Path::new(&std::env::var("OUT_DIR").expect("Cargo OUT_DIR is required"))
                 .join("resource.lib");
-        let test_resource_lib = resource_lib.with_file_name("hook_test_manifest.lib");
+        let test_resource_lib = resource_lib.with_file_name("otter_test_manifest.lib");
         std::fs::copy(&resource_lib, &test_resource_lib)
             .expect("failed to prepare Windows test manifest resource");
         println!(
@@ -45,8 +46,10 @@ fn main() {
     }
 }
 
-fn hook_windows_uiaccess_requested() -> bool {
-    std::env::var("HOOK_WINDOWS_UIACCESS")
+fn otter_windows_uiaccess_requested() -> bool {
+    std::env::var_os("OTTER_WINDOWS_UIACCESS")
+        .or_else(|| std::env::var_os("HOOK_WINDOWS_UIACCESS"))
+        .and_then(|value| value.into_string().ok())
         .map(|value| {
             let normalized = value.trim().to_ascii_lowercase();
             matches!(normalized.as_str(), "1" | "true" | "yes" | "on")

@@ -9,7 +9,7 @@ const original: SessionSticker = {
     id: "image", src: "data:image/png;base64,original", previewSrc: "data:image/png;base64,edited",
     x: 0, y: 0, w: 10, h: 10,
 };
-const committed = { id: original.id, src: "C:\\Hook\\images\\source.png", previewSrc: "C:\\Hook\\images\\preview.png" };
+const committed = { id: original.id, src: "C:\\Otter\\images\\source.png", previewSrc: "C:\\Otter\\images\\preview.png" };
 
 describe("native persistence asset reference contract", () => {
     beforeEach(() => {

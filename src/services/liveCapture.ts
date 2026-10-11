@@ -25,7 +25,7 @@ export interface LiveCaptureStatus {
     maxBufferedFrames: number;
     epoch: number;
     frameId: number;
-    /** Logical source size in the Hook WebView coordinate space. */
+    /** Logical source size in the Otter WebView coordinate space. */
     width: number;
     height: number;
     droppedFrames: number;

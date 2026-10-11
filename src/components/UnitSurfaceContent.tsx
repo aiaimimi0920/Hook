@@ -1,5 +1,5 @@
 import { Component, Show, Suspense, lazy, untrack } from "solid-js";
-import { loomHook } from "../services/client";
+import { loomOtter } from "../services/client";
 import type { SurfaceSnapshot } from "../services/surfaceProtocol";
 import { blurActiveEditableOutside } from "../services/editableFocus";
 import { surfaceResourceStore } from "../store/surfaceResourceStore";
@@ -77,10 +77,10 @@ const surfacePresentationStyle = (presentation?: SurfacePresentation) => {
 
 /** Renders Art surface runtimes and the mutually exclusive shader preview. */
 export const UnitSurfaceContent: Component<UnitSurfaceContentProps> = (props) => {
-    const dispatchSurfaceEvent = (event: Parameters<typeof loomHook.dispatchSurfaceEvent>[0]) => {
+    const dispatchSurfaceEvent = (event: Parameters<typeof loomOtter.dispatchSurfaceEvent>[0]) => {
         const unitId = props.unit.id;
         const surfaceGeneration = props.surface?.generation;
-        void loomHook.dispatchSurfaceEvent(event).catch((error) => {
+        void loomOtter.dispatchSurfaceEvent(event).catch((error) => {
             const isCurrentSurface = untrack(() =>
                 props.unit.id === unitId &&
                 props.surface?.generation === surfaceGeneration &&

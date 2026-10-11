@@ -2,10 +2,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-describe("Hook actions-menu shortcut contract", () => {
+describe("Otter actions-menu shortcut contract", () => {
   it("keeps Shift+1 scoped to the selected unit actions menu", () => {
     const shortcutSource = readFileSync(resolve(process.cwd(), "src", "services", "shortcuts.ts"), "utf8");
-    const hooksSource = readFileSync(resolve(process.cwd(), "src", "hooks", "useShortcuts.ts"), "utf8");
+    const ottersSource = readFileSync(resolve(process.cwd(), "src", "hooks", "useShortcuts.ts"), "utf8");
     const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
 
     expect(shortcutSource).toMatch(
@@ -13,8 +13,8 @@ describe("Hook actions-menu shortcut contract", () => {
     );
     expect(shortcutSource).not.toContain("open-global-add-node-menu");
     expect(shortcutSource).not.toContain("close-global-add-node-menu");
-    expect(hooksSource).not.toContain("onOpenGlobalAddNodeMenu");
-    expect(hooksSource).not.toContain("onCloseGlobalAddNodeMenu");
+    expect(ottersSource).not.toContain("onOpenGlobalAddNodeMenu");
+    expect(ottersSource).not.toContain("onCloseGlobalAddNodeMenu");
     expect(appSource).not.toContain("onOpenGlobalAddNodeMenu");
     expect(appSource).not.toContain("onCloseGlobalAddNodeMenu");
     expect(appSource).not.toContain('"global-add-node-menu"');

@@ -13,7 +13,7 @@ import {
     supportsShaderPreview,
     supportsSurface,
 } from "../services/artCapabilities";
-import { loomHook } from "../services/client";
+import { loomOtter } from "../services/client";
 import { resolveConnectedUnitImageForPort, resolveEffectiveNodeParams } from "../services/graphImageResolution";
 import type { ArtCapability } from "../services/protocol";
 import { surfaceAttachmentRequests } from "../services/surfaceAttachmentRequests";
@@ -85,7 +85,7 @@ export const createUnitSurfaceController = (options: UnitSurfaceControllerOption
             if (lease.transport.kind !== "loom_resource" && lease.transport.kind !== "shared_memory") continue;
             const resourceId = lease.resource.resourceId;
             if (!surfaceResourceStore.actions.begin(resourceId)) continue;
-            void loomHook.fetchSurfaceResource(lease).catch((error) => {
+            void loomOtter.fetchSurfaceResource(lease).catch((error) => {
                 surfaceResourceStore.actions.fail(resourceId);
                 const currentSurface = surfaceStore.byUnit[unitId];
                 if (
@@ -111,7 +111,7 @@ export const createUnitSurfaceController = (options: UnitSurfaceControllerOption
             hasDeclarativeSurface() ||
             !surfaceAttachmentRequests.begin(unitId)
         ) return;
-        void loomHook.attachSurface(artId, unitId).catch((error) => {
+        void loomOtter.attachSurface(artId, unitId).catch((error) => {
             const currentUnit = options.unit();
             if (
                 disposed ||

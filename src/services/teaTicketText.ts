@@ -41,13 +41,13 @@ export interface TeaTicketTextInput {
     voiceOutput: string;
 }
 
-/** Composes the full Tea ticket body from the current Hook context. */
+/** Composes the full Tea ticket body from the current Otter context. */
 export const composeTeaTicketText = (input: TeaTicketTextInput): string =>
     [
-        `Hook desktop ticket request (${input.trigger})`,
+        `Otter desktop ticket request (${input.trigger})`,
         `units: ${input.unitCount}`,
         `links: ${input.linkCount}`,
         input.selectedSummary ? `selected_units:\n${input.selectedSummary}` : "selected_units: none",
         input.voiceOutput ? `voice_context:\n${input.voiceOutput}` : "voice_context: none",
-        "requested_action: Analyze this Hook context and propose the next AI work-order plan.",
+        "requested_action: Analyze this Otter context and propose the next AI work-order plan.",
     ].join("\n");

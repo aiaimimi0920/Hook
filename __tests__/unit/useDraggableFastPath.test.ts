@@ -84,7 +84,7 @@ describe("useDraggable compositor fast path", () => {
     graphStore.setUnits([unit()]);
 
     const follower = document.createElement("div");
-    follower.setAttribute("data-hook-drag-follow-unit-id", "sticker-fast-path");
+    follower.setAttribute("data-otter-drag-follow-unit-id", "sticker-fast-path");
     follower.style.transform = "scale(1)";
     follower.style.transitionProperty = "opacity";
     document.body.append(follower);
@@ -116,7 +116,7 @@ describe("useDraggable compositor fast path", () => {
   it("ignores unregistered data-attribute followers instead of falling back to a document scan", () => {
     graphStore.setUnits([unit()]);
     const staleFollower = document.createElement("div");
-    staleFollower.setAttribute("data-hook-drag-follow-unit-id", "sticker-fast-path");
+    staleFollower.setAttribute("data-otter-drag-follow-unit-id", "sticker-fast-path");
     document.body.append(staleFollower);
 
     const draggable = createDraggable();
@@ -185,7 +185,7 @@ describe("useDraggable compositor fast path", () => {
     graphStore.setUnits([unit()]);
 
     const follower = document.createElement("div");
-    follower.setAttribute("data-hook-drag-follow-unit-id", "sticker-fast-path");
+    follower.setAttribute("data-otter-drag-follow-unit-id", "sticker-fast-path");
     follower.style.willChange = "opacity";
     document.body.append(follower);
     registerDragFollowerElement("sticker-fast-path", follower);
@@ -206,7 +206,7 @@ describe("useDraggable compositor fast path", () => {
   it("releases eviction protection when the draggable owner is disposed mid-drag", () => {
     graphStore.setUnits([unit()]);
     const follower = document.createElement("div");
-    follower.setAttribute("data-hook-drag-follow-unit-id", "sticker-fast-path");
+    follower.setAttribute("data-otter-drag-follow-unit-id", "sticker-fast-path");
     document.body.append(follower);
     registerDragFollowerElement("sticker-fast-path", follower);
     registerStickerGpuWarmElement("sticker-fast-path", follower, 320, 180, 1);

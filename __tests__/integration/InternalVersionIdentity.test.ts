@@ -13,7 +13,7 @@ function run(command: string): string {
   { encoding: "utf8", timeout: 15000, stdio: ["ignore", "pipe", "pipe"] }).trim();
 }
 function fixture(action: (root: string) => void): void {
-  const root = mkdtempSync(join(tmpdir(), "hook-version-"));
+  const root = mkdtempSync(join(tmpdir(), "otter-version-"));
   try {
     writeFileSync(join(root, "package.json"), JSON.stringify({ version: "0.2.30" }));
     writeFileSync(join(root, "version-state.json"), JSON.stringify({ publicVersion: "0.2.30", internalRevision: 0 }));
@@ -23,7 +23,7 @@ function fixture(action: (root: string) => void): void {
   }
 }
 
-describe("Hook internal version allocation", () => {
+describe("Otter internal version allocation", () => {
   it("increments only the internal revision and leaves public metadata byte-identical", { timeout: 60000 }, () => fixture(root => {
     const before = readFileSync(join(root, "package.json"));
     expect(run(`& ${quote(bump)} -RepoRoot ${quote(root)}`)).toBe("v0.2.30.1");
@@ -35,13 +35,13 @@ describe("Hook internal version allocation", () => {
   }));
 
   it("distinguishes public identity and prevents publishing an internal candidate", { timeout: 60000 }, () => fixture(root => {
-    const prefix = `. ${quote(helper)}; $identity = Get-HookVersionIdentity -RepoRoot ${quote(root)}`;
+    const prefix = `. ${quote(helper)}; $identity = Get-OtterVersionIdentity -RepoRoot ${quote(root)}`;
     expect(JSON.parse(run(`${prefix}; $identity | ConvertTo-Json`))).toMatchObject({
       productVersion: "0.2.30", buildVersion: "v0.2.30.0", channel: "internal",
     });
-    expect(() => run(`${prefix}; Assert-HookPublicBuildIdentity $identity '0.2.30'`)).toThrow();
-    expect(run(`${prefix} -PublicRelease; Assert-HookPublicBuildIdentity $identity '0.2.30'; $identity.buildVersion`)).toBe("v0.2.30");
-    expect(() => run(`${prefix} -PublicRelease; Assert-HookPublicBuildIdentity $identity '0.2.31'`)).toThrow();
+    expect(() => run(`${prefix}; Assert-OtterPublicBuildIdentity $identity '0.2.30'`)).toThrow();
+    expect(run(`${prefix} -PublicRelease; Assert-OtterPublicBuildIdentity $identity '0.2.30'; $identity.buildVersion`)).toBe("v0.2.30");
+    expect(() => run(`${prefix} -PublicRelease; Assert-OtterPublicBuildIdentity $identity '0.2.31'`)).toThrow();
   }));
 
   it.each([-1, 0.5, "1", 65536, null])("rejects malformed revision %s without changing state", { timeout: 30000 }, revision => fixture(root => {

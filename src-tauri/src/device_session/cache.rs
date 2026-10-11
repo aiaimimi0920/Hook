@@ -28,7 +28,7 @@ pub(super) fn get(
 ) -> Result<Option<DeviceSessionAuthorization>, String> {
     let mut sessions = cache()
         .lock()
-        .map_err(|_| "Hook device session cache is unavailable".to_owned())?;
+        .map_err(|_| "Otter device session cache is unavailable".to_owned())?;
     prune_expired(&mut sessions, now_ms);
     Ok(sessions
         .get(cache_key)
@@ -50,7 +50,7 @@ pub(super) fn insert(
 ) -> Result<(), String> {
     let mut sessions = cache()
         .lock()
-        .map_err(|_| "Hook device session cache is unavailable".to_owned())?;
+        .map_err(|_| "Otter device session cache is unavailable".to_owned())?;
     insert_bounded(
         &mut sessions,
         cache_key,

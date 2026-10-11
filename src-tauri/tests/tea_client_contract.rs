@@ -1,5 +1,5 @@
-use hook_lib::tea_client::{
-    HookAttachment, HookContext, HookIntakeRequest, TeaIntakeClient, TeaIntakeConfig,
+use otter_lib::tea_client::{
+    OtterAttachment, OtterContext, OtterIntakeRequest, TeaIntakeClient, TeaIntakeConfig,
 };
 use serde_json::Value;
 use std::io::{Read, Write};
@@ -55,7 +55,7 @@ fn read_http_request(mut stream: TcpStream) -> String {
 }
 
 #[tokio::test]
-async fn posts_hook_intake_to_tea_with_bearer_auth() {
+async fn posts_otter_intake_to_tea_with_bearer_auth() {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock tea");
     let base_url = format!("http://{}", listener.local_addr().expect("local addr"));
     let (sender, receiver) = mpsc::channel();
@@ -69,14 +69,14 @@ async fn posts_hook_intake_to_tea_with_bearer_auth() {
     let client = TeaIntakeClient::new(TeaIntakeConfig {
         base_url,
         auth_token: "secret-token".to_string(),
-        source: "hook-test".to_string(),
+        source: "otter-test".to_string(),
         enabled: true,
     });
     let ticket = client
-        .create_ticket(HookIntakeRequest {
-            source: "hook-test".to_string(),
+        .create_ticket(OtterIntakeRequest {
+            source: "otter-test".to_string(),
             text: "Please fix failing smoke".to_string(),
-            context: HookContext {
+            context: OtterContext {
                 active_window: Some("PowerShell".to_string()),
                 selection_text: Some("cargo test failed".to_string()),
                 ocr_text: None,
@@ -84,7 +84,7 @@ async fn posts_hook_intake_to_tea_with_bearer_auth() {
                 cwd: Some("C:\\repo".to_string()),
                 app: Some("hook".to_string()),
             },
-            attachments: vec![HookAttachment {
+            attachments: vec![OtterAttachment {
                 kind: "screenshot".to_string(),
                 reference: "file://capture.png".to_string(),
             }],
@@ -102,7 +102,7 @@ async fn posts_hook_intake_to_tea_with_bearer_auth() {
     assert!(raw_request.contains("authorization: Bearer secret-token"));
 
     let body: Value = serde_json::from_str(raw_request.split("\r\n\r\n").nth(1).unwrap()).unwrap();
-    assert_eq!(body["source"], "hook-test");
+    assert_eq!(body["source"], "otter-test");
     assert_eq!(body["text"], "Please fix failing smoke");
     assert_eq!(body["context"]["active_window"], "PowerShell");
     assert_eq!(body["context"]["selection_text"], "cargo test failed");

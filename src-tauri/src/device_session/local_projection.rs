@@ -1,4 +1,4 @@
-//! Enroll this Hook with its own Loom using the already trusted local manifest.
+//! Enroll this Otter with its own Loom using the already trusted local manifest.
 //! Remote invitations must never receive the local administrator credential.
 use super::session_attempt::{read_surface_response_body, surface_client};
 use crate::loom_connector::{classify_loom_base_url, LoomBaseUrlKind, LoomManifest};
@@ -116,7 +116,7 @@ pub(super) async fn register(
                 .post(format!("{base}/v1/devices"))
                 .bearer_auth(token)
                 .json(&serde_json::json!({
-                    "name": "Hook", "kind": "computer", "address": "hook://local",
+                    "name": "Otter", "kind": "computer", "address": "hook://local",
                     "publicKey": public_key,
                 }))
                 .send()

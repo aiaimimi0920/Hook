@@ -8,7 +8,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Forms = System.Windows.Forms;
 
-namespace Hook.LiveScreenshot.PhaseZero
+namespace Otter.LiveScreenshot.PhaseZero
 {
     internal static class WpfProgram
     {
@@ -79,7 +79,7 @@ namespace Hook.LiveScreenshot.PhaseZero
         internal FixtureWindow(string readyPath, int screenIndex)
         {
             this.readyPath = Path.GetFullPath(readyPath);
-            Title = "Hook Live Screenshot Phase 0 WPF Fixture";
+            Title = "Otter Live Screenshot Phase 0 WPF Fixture";
             Width = 686;
             Height = 470;
             ResizeMode = ResizeMode.NoResize;

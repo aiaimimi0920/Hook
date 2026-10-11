@@ -54,7 +54,7 @@ export function isGlobalShortcutEditingTarget(target: EventTarget | null): boole
     }
   }
   return target.closest(
-    "input, textarea, select, [contenteditable='true'], [contenteditable='plaintext-only'], [data-hook-global-shortcuts='ignore']",
+    "input, textarea, select, [contenteditable='true'], [contenteditable='plaintext-only'], [data-otter-global-shortcuts='ignore']",
   ) !== null;
 }
 
@@ -96,7 +96,7 @@ export function isActionsMenuDismissShortcut(
 }
 
 /**
- * Hook to set up keyboard shortcut handling
+ * Otter to set up keyboard shortcut handling
  */
 export function useShortcuts(options: UseShortcutsOptions) {
   onMount(() => {
@@ -140,7 +140,7 @@ export function useShortcuts(options: UseShortcutsOptions) {
       e.key === 'Alt' && !e.ctrlKey && !e.metaKey;
 
     // Prevent only the WebView accelerator default. Do not stop propagation:
-    // Alt is also a modifier used by other input consumers, and Hook must not
+    // Alt is also a modifier used by other input consumers, and Otter must not
     // make the key disappear from the remaining event chain.
     const suppressBareAlt = (e: KeyboardEvent) => {
       if (!shouldSuppressBareAlt(e)) return false;

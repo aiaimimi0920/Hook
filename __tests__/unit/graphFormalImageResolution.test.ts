@@ -78,7 +78,7 @@ describe("graph image resolution: formal boundaries", () => {
             {
                 id: "workflow-art",
                 type: "art",
-                artId: "hook-wf-color-transfer-compress",
+                artId: "otter-wf-color-transfer-compress",
                 x: 0,
                 y: 0,
                 w: 100,
@@ -117,7 +117,7 @@ describe("graph image resolution: formal boundaries", () => {
         const workflowArt: Unit = {
             id: "workflow-art",
             type: "art",
-            artId: "hook-wf-color-transfer-compress",
+            artId: "otter-wf-color-transfer-compress",
             x: 0,
             y: 0,
             w: 100,

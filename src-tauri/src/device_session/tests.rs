@@ -4,7 +4,7 @@ use super::*;
 #[test]
 fn existing_identity_loader_never_creates_missing_identity() {
     let root =
-        std::env::temp_dir().join(format!("hook-existing-identity-{}", uuid::Uuid::new_v4()));
+        std::env::temp_dir().join(format!("otter-existing-identity-{}", uuid::Uuid::new_v4()));
     assert!(super::identity::load_existing_device_identity_at(&root).is_err());
     assert!(!root.exists());
 }
@@ -47,7 +47,7 @@ pub(super) fn loom_manifest(
 #[test]
 fn identity_round_trip_preserves_one_ed25519_key_pair() {
     let root = std::env::temp_dir().join(format!(
-        "hook-device-identity-test-{}",
+        "otter-device-identity-test-{}",
         uuid::Uuid::new_v4()
     ));
     let first = load_or_create_device_identity_at(&root).expect("create identity");
@@ -76,7 +76,7 @@ fn identity_round_trip_preserves_one_ed25519_key_pair() {
 #[test]
 fn plaintext_identity_is_migrated_to_dpapi_without_changing_the_key_pair() {
     let root = std::env::temp_dir().join(format!(
-        "hook-device-identity-migration-test-{}",
+        "otter-device-identity-migration-test-{}",
         uuid::Uuid::new_v4()
     ));
     std::fs::create_dir_all(&root).expect("create identity root");
@@ -122,7 +122,7 @@ fn plaintext_identity_is_migrated_to_dpapi_without_changing_the_key_pair() {
 #[test]
 fn persisted_identity_replacement_is_valid_and_debug_redacts_private_key() {
     let root = std::env::temp_dir().join(format!(
-        "hook-device-identity-replace-test-{}",
+        "otter-device-identity-replace-test-{}",
         uuid::Uuid::new_v4()
     ));
     let mut identity = load_or_create_device_identity_at(&root).expect("create identity");

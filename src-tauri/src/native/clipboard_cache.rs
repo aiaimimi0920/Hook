@@ -1,12 +1,13 @@
 // Owns clipboard-cache lifetime, containment, staging, and log-safe file naming.
 
 fn clipboard_cache_dir() -> PathBuf {
-    std::env::var("HOOK_CLIPBOARD_CACHE_DIR")
+    // Keep the existing disk identity so saved image references survive rebranding.
+    crate::brand_env::var("HOOK_CLIPBOARD_CACHE_DIR")
         .ok()
         .map(PathBuf::from)
         .filter(|path| !path.as_os_str().is_empty())
         .or_else(|| {
-            std::env::var("LOCALAPPDATA")
+            crate::brand_env::var("LOCALAPPDATA")
                 .ok()
                 .map(PathBuf::from)
                 .filter(|path| !path.as_os_str().is_empty())
@@ -17,7 +18,7 @@ fn clipboard_cache_dir() -> PathBuf {
 
 fn cleanup_clipboard_cache() -> Result<(), String> {
     let dir = clipboard_cache_dir();
-    let settings = runtime_hook_cache_settings();
+    let settings = runtime_otter_cache_settings();
     cleanup_clipboard_cache_dir(
         &dir,
         SystemTime::now(),
@@ -36,7 +37,7 @@ fn cleanup_clipboard_cache_dir(
         return Ok(());
     }
 
-    let retention_days = runtime_hook_cache_settings().temp_cache_retention_days;
+    let retention_days = runtime_otter_cache_settings().temp_cache_retention_days;
     let max_age = std::time::Duration::from_secs(u64::from(retention_days) * 24 * 60 * 60);
     let mut entries = Vec::new();
     for entry in fs::read_dir(dir).map_err(|e| format!("Failed to read clipboard cache: {}", e))? {
@@ -93,7 +94,7 @@ fn cleanup_clipboard_cache_dir(
 fn ensure_clipboard_cache_dir() -> Result<PathBuf, String> {
     let cache_dir = clipboard_cache_dir();
     fs::create_dir_all(&cache_dir).map_err(|e| format!("Failed to create cache dir: {}", e))?;
-    let settings = runtime_hook_cache_settings();
+    let settings = runtime_otter_cache_settings();
     let _ = cleanup_clipboard_cache_dir(
         &cache_dir,
         SystemTime::now(),
@@ -163,7 +164,7 @@ fn stage_drag_out_file_copy(
     let staged_stem = preferred_stem
         .filter(|stem| !stem.trim().is_empty())
         .or_else(|| source_path.file_stem().and_then(|stem| stem.to_str()))
-        .unwrap_or("Hook");
+        .unwrap_or("Otter");
     let (mut staged_file, staged_path) =
         create_unique_file(&staging_dir, staged_stem, Some(staged_extension))?;
     if let Err(error) = copy_file_with_limit(

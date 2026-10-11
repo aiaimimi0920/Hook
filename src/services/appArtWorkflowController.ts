@@ -5,14 +5,14 @@ import { api } from "./api";
 import { supportsShaderPreview } from "./artCapabilities";
 import {
     getCurrentAppSettings,
-    normalizeHookCacheSettings,
+    normalizeOtterCacheSettings,
     saveCurrentAppSettings,
 } from "./appSettings";
-import { loomHook } from "./client";
+import { loomOtter } from "./client";
 import {
-    applyHookGeneralSettings,
-    normalizeHookGeneralSettings,
-} from "./hookGeneralSettings";
+    applyOtterGeneralSettings,
+    normalizeOtterGeneralSettings,
+} from "./otterGeneralSettings";
 import type { ArtCapability } from "./protocol";
 import { shaderCache } from "./shaderCache";
 import { pruneRecycleBinEntries } from "./stickerLibraryModel";
@@ -44,7 +44,7 @@ export function createAppArtWorkflowController(
     const refreshCapabilities = async () => {
         if (capabilityRefreshPromise) return capabilityRefreshPromise;
         capabilityRefreshPromise = (async () => {
-            const handshake = await loomHook.connect();
+            const handshake = await loomOtter.connect();
             const arts = handshake.capabilities.artDefinitions;
             graphStore.setCapabilities(arts);
             arts
@@ -63,11 +63,11 @@ export function createAppArtWorkflowController(
         if (!settings || typeof settings !== "object") return;
         dependencies.applyLoomShortcutSettings(settings);
         const record = settings as Record<string, unknown>;
-        applyHookGeneralSettings(normalizeHookGeneralSettings(record.hook_general));
+        applyOtterGeneralSettings(normalizeOtterGeneralSettings(record.hook_general));
 
         const hookCache = record.hookCache;
         if (!hookCache || typeof hookCache !== "object") return;
-        const cache = normalizeHookCacheSettings(hookCache);
+        const cache = normalizeOtterCacheSettings(hookCache);
         const saved = await saveCurrentAppSettings({
             ...getCurrentAppSettings(),
             cache,

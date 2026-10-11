@@ -15,7 +15,7 @@ const unitImageModelSource = readFileSync(resolve(process.cwd(), "src/components
 const unitImageContentSource = readFileSync(resolve(process.cwd(), "src/components/UnitStickerImageContent.tsx"), "utf8");
 const exportSource = readFileSync(resolve(process.cwd(), "src/services/stickerCompositeRenderer.ts"), "utf8");
 
-describe("Hook sticker border contract", () => {
+describe("Otter sticker border contract", () => {
     it("wires a user-facing border control through runtime rendering and export composition", () => {
         expect(propertyBarRenderSource).toContain('title="边框开关"');
         expect(propertyBarRenderSource).toContain("toggleStickerBorder");

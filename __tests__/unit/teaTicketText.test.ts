@@ -64,12 +64,12 @@ describe("composeTeaTicketText", () => {
         });
         expect(text).toBe(
             [
-                "Hook desktop ticket request (panel)",
+                "Otter desktop ticket request (panel)",
                 "units: 3",
                 "links: 2",
                 "selected_units:\nid=a type=sticker art=none originWorkflow=none originNode=none",
                 "voice_context:\ndo the thing",
-                "requested_action: Analyze this Hook context and propose the next AI work-order plan.",
+                "requested_action: Analyze this Otter context and propose the next AI work-order plan.",
             ].join("\n"),
         );
     });
@@ -106,7 +106,7 @@ describe("composeTeaTicketText", () => {
             selectedSummary: "",
             voiceOutput: "",
         });
-        expect(text).toContain("Hook desktop ticket request (auto)");
+        expect(text).toContain("Otter desktop ticket request (auto)");
         expect(text).toContain("units: 42");
         expect(text).toContain("links: 7");
     });

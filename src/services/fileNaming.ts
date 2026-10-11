@@ -85,7 +85,7 @@ export const sanitizeWindowsFilenameStem = (value: string): string => {
 
     output = Array.from(output).slice(0, MAX_FILENAME_STEM_CHARS).join("");
     output = output.replace(/[. ]+$/u, "");
-    if (!output || output === "." || output === "..") output = "Hook";
+    if (!output || output === "." || output === "..") output = "Otter";
 
     const base = output.replace(/[. ]+$/u, "").split(".", 1)[0].toUpperCase();
     const numberedDevice = /^(COM|LPT)([1-9])$/u.test(base);
@@ -107,7 +107,7 @@ export const renderFileNamingStem = (
         .join("");
     const unitId = context.unitId ?? "";
     const values: Record<string, string> = {
-        app: context.app?.trim() || "Hook",
+        app: context.app?.trim() || "Otter",
         kind: context.kind?.trim() || "image",
         label: context.label?.trim() || context.kind?.trim() || "image",
         title,
@@ -128,7 +128,7 @@ export const buildUnitFileNamingContext = (
     unit: Unit,
     capabilityLabel?: string,
 ): FileNamingContext => ({
-    app: "Hook",
+    app: "Otter",
     kind: unit.type,
     label: capabilityLabel?.trim() || (unit.type === "art" ? "art" : "image"),
     title: capabilityLabel?.trim() || "",

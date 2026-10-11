@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const rustSource = readHookLibRustSources();
+const rustSource = readOtterLibRustSources();
 const selectionSource = readFileSync(resolve(process.cwd(), "src/hooks/useSelection.ts"), "utf8");
 const captureUnitSource = readFileSync(resolve(process.cwd(), "src/hooks/captureUnitController.ts"), "utf8");
 const canvasSelectionSource = readFileSync(resolve(process.cwd(), "src/components/CanvasSelection.tsx"), "utf8");
@@ -20,21 +20,21 @@ const sliceFunctionBlock = (startMarker: string, endMarker: string) => {
 };
 
 describe("capture focus preservation contract", () => {
-    it("does not force Hook to take foreground focus when entering region capture mode", () => {
+    it("does not force Otter to take foreground focus when entering region capture mode", () => {
         const block = sliceFunctionBlock("fn enter_capture_mode", "fn enter_long_capture_mode");
 
         expect(block).toContain("show_overlay_host_impl(window, true);");
         expect(block).not.toContain("window.set_focus()");
     });
 
-    it("does not force Hook to take foreground focus when entering long capture mode", () => {
+    it("does not force Otter to take foreground focus when entering long capture mode", () => {
         const block = sliceFunctionBlock("fn enter_long_capture_mode", "fn encode_rgb_image_as_capture_response");
 
         expect(block).toContain("show_overlay_host_impl(window, true);");
         expect(block).not.toContain("window.set_focus()");
     });
 
-    it("keeps ordinary region capture from hiding the Hook overlay or flashing a visible composition overlay", () => {
+    it("keeps ordinary region capture from hiding the Otter overlay or flashing a visible composition overlay", () => {
         expect(selectionSource).not.toContain("await api.hideToTray()");
         expect(selectionSource).not.toContain("await api.showOverlayHost(true)");
         expect(selectionSource).not.toContain("CAPTURE_OVERLAY_HIDE_SETTLE_MS");
@@ -49,7 +49,7 @@ describe("capture focus preservation contract", () => {
         expect(unitViewSource).not.toContain("e.currentTarget.focus();");
     });
 
-    it("hands foreground focus to Hook only after a capture was successfully added and selected", () => {
+    it("hands foreground focus to Otter only after a capture was successfully added and selected", () => {
         const addCaptureStart = captureUnitSource.indexOf("const addCaptureUnit = async");
         const addCaptureEnd = captureUnitSource.length;
 

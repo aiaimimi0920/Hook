@@ -1,4 +1,4 @@
-/** Production bindings for the per-Unit edit engine; all rasterization stays in Hook. */
+/** Production bindings for the per-Unit edit engine; all rasterization stays in Otter. */
 import { createStore } from "solid-js/store";
 import { graphStore } from "../store/graphStore";
 import { createProjectionEditing, type ProjectionEditStatus } from "./projectionEditEngine";

@@ -73,7 +73,7 @@ describe("extension shortcut event target boundary", () => {
 
     it.each(["span", "svg"])("preserves ignored subtree exclusion for %s", (tag) => {
         const parent = document.createElement("div");
-        parent.dataset.hookGlobalShortcuts = "ignore";
+        parent.dataset.otterGlobalShortcuts = "ignore";
         const child = tag === "svg" ? document.createElementNS("http://www.w3.org/2000/svg", "svg")
             : document.createElement(tag);
         parent.append(child);

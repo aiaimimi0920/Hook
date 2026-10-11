@@ -1,9 +1,9 @@
 // Owns the Tea ticket command contract; the native bridge owns daemon and HTTP resources.
 import { safeInvoke } from "./apiTransport";
-import type { TeaHookIntakeRequest, TeaTicketSummary } from "./apiTypes";
+import type { TeaOtterIntakeRequest, TeaTicketSummary } from "./apiTypes";
 
 export const teaApi = {
-    createTeaTicket: (request: TeaHookIntakeRequest): Promise<TeaTicketSummary> =>
+    createTeaTicket: (request: TeaOtterIntakeRequest): Promise<TeaTicketSummary> =>
         safeInvoke(
             "create_tea_ticket",
             { request },

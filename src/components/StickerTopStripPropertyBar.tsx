@@ -47,11 +47,11 @@ interface StickerTopStripPropertyBarProps {
 }
 
 const iconShellClass =
-    "hook-compact-control flex h-6 shrink-0 items-center justify-center transition-colors";
+    "otter-compact-control flex h-6 shrink-0 items-center justify-center transition-colors";
 const groupedShellClass =
-    "hook-compact-control flex h-6 shrink-0 items-center gap-0.5 px-0.5";
+    "otter-compact-control flex h-6 shrink-0 items-center gap-0.5 px-0.5";
 const compactInputClass =
-    "hook-compact-input h-4 w-[28px] text-center text-[10px] outline-none";
+    "otter-compact-input h-4 w-[28px] text-center text-[10px] outline-none";
 
 const dashOptions: Array<{ key: "solid" | "dash-1" | "dash-2"; label: string; title: string }> = [
     { key: "solid", label: "━", title: "实线" },
@@ -347,7 +347,7 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
     return (
         <>
             <div
-                class="hook-property-strip pointer-events-auto flex h-[40px] items-center gap-1.5 overflow-hidden border-b px-1.5"
+                class="otter-property-strip pointer-events-auto flex h-[40px] items-center gap-1.5 overflow-hidden border-b px-1.5"
                 onPointerDown={(event) => {
                     event.stopPropagation();
                     void api.focusOverlayWindow();

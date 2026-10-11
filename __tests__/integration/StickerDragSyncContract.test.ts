@@ -13,7 +13,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 };
 
 describe("sticker drag sync contract", () => {
-    it("clears transient drag UI state before scheduling backend sync work, so drag release is not blocked by Hook/Loom sync latency", () => {
+    it("clears transient drag UI state before scheduling backend sync work, so drag release is not blocked by Otter/Loom sync latency", () => {
         const handleDragEndBlock = sourceBetween(
             dragSource,
             "const handleDragEnd = async () => {",

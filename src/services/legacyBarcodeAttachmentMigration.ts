@@ -1,4 +1,4 @@
-// Owns the lossless, idempotent import of the former Hook-native barcode result.
+// Owns the lossless, idempotent import of the former Otter-native barcode result.
 import type { BarcodeScanResult } from "../types/unit";
 import type { UnitAttachment, UnitExtensionState } from "../types/unitExtension";
 import { buildLegacyBarcodeAttachmentPayload } from "./legacyBarcodeAttachmentScene";

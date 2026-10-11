@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const clipboardSource = readFileSync(resolve(process.cwd(), "src/hooks/useClipboard.ts"), "utf8");
 const imageResourceApiSource = readFileSync(resolve(process.cwd(), "src/services/apiImageResource.ts"), "utf8");
-const rustSource = readHookLibRustSources();
+const rustSource = readOtterLibRustSources();
 
-describe("Hook smart sticker clipboard contract", () => {
+describe("Otter smart sticker clipboard contract", () => {
     it("copies a sticker to one smart system clipboard command so Explorer gets a file and browsers get image data", () => {
         expect(clipboardSource).toContain("api.copyStickerImageToSmartClipboard(");
         expect(clipboardSource).toContain("buildUnitFileNamingContext(unit)");

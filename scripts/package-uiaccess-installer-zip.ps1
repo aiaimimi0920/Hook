@@ -19,13 +19,13 @@ $ErrorActionPreference = "Stop"
 $resolvedExePath = [System.IO.Path]::GetFullPath($ExePath)
 $resolvedOutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
-$installHelperPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "install-hook-uiaccess.ps1"))
+$installHelperPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "install-otter-uiaccess.ps1"))
 $projectLicensePath = Join-Path $repoRoot "LICENSE"
 $thirdPartyNoticesPath = Join-Path $repoRoot "THIRD_PARTY_NOTICES.md"
 $capLicensePath = Join-Path $repoRoot "src-tauri\crates\LICENSE_CAP_SCAP_MIT"
 $dragApacheLicensePath = Join-Path $repoRoot "src-tauri\crates\drag\LICENSE_APACHE-2.0"
 $dragMitLicensePath = Join-Path $repoRoot "src-tauri\crates\drag\LICENSE_MIT"
-$assetName = "hook-windows-uiaccess-installer-$Tag.zip"
+$assetName = "otter-windows-uiaccess-installer-$Tag.zip"
 $zipPath = Join-Path $resolvedOutputDir $assetName
 
 if ($DryRun) {
@@ -40,7 +40,7 @@ if ($DryRun) {
 }
 
 if (-not (Test-Path -LiteralPath $resolvedExePath -PathType Leaf)) {
-    throw "Missing signed Hook executable for installer packaging: $resolvedExePath"
+    throw "Missing signed Otter executable for installer packaging: $resolvedExePath"
 }
 
 if (-not (Test-Path -LiteralPath $installHelperPath -PathType Leaf)) {
@@ -61,7 +61,7 @@ foreach ($requiredPath in @(
 
 $signature = Get-AuthenticodeSignature -LiteralPath $resolvedExePath
 if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
-    throw "UIAccess installer packaging requires a digitally signed hook.exe because the installed binary must be trusted before it can run from Program Files."
+    throw "UIAccess installer packaging requires a digitally signed otter.exe because the installed binary must be trusted before it can run from Program Files."
 }
 
 if (-not (Test-Path -LiteralPath $resolvedOutputDir)) {
@@ -76,9 +76,9 @@ if (Test-Path -LiteralPath $zipPath -PathType Leaf) {
     Remove-Item -LiteralPath $zipPath -Force
 }
 
-$stagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("hook-uiaccess-installer-" + [System.Guid]::NewGuid().ToString("N"))
-$stagingExePath = Join-Path $stagingRoot "hook.exe"
-$stagingInstallHelperPath = Join-Path $stagingRoot "install-hook-uiaccess.ps1"
+$stagingRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("otter-uiaccess-installer-" + [System.Guid]::NewGuid().ToString("N"))
+$stagingExePath = Join-Path $stagingRoot "otter.exe"
+$stagingInstallHelperPath = Join-Path $stagingRoot "install-otter-uiaccess.ps1"
 $stagingWrapperPath = Join-Path $stagingRoot "install-hook.ps1"
 $stagingReadmePath = Join-Path $stagingRoot "README.txt"
 $stagingThirdPartyRoot = Join-Path $stagingRoot "third-party-licenses"
@@ -86,29 +86,29 @@ $stagingThirdPartyRoot = Join-Path $stagingRoot "third-party-licenses"
 $wrapperScript = @'
 [CmdletBinding()]
 param(
-    [string]$InstallDir = (Join-Path ${env:ProgramFiles} "yamiyu\Hook")
+    [string]$InstallDir = (Join-Path ${env:ProgramFiles} "yamiyu\Otter")
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $bundleRoot = Split-Path -Parent $PSCommandPath
-$sourceExe = Join-Path $bundleRoot "hook.exe"
-$installHelper = Join-Path $bundleRoot "install-hook-uiaccess.ps1"
+$sourceExe = Join-Path $bundleRoot "otter.exe"
+$installHelper = Join-Path $bundleRoot "install-otter-uiaccess.ps1"
 
 & powershell -NoProfile -ExecutionPolicy Bypass -File $installHelper -SourceExe $sourceExe -InstallDir $InstallDir
 '@
 
 $readme = @'
-Hook UIAccess installer package
+Otter UIAccess installer package
 
 Contents:
-- hook.exe
+- otter.exe
 - install-hook.ps1
-- install-hook-uiaccess.ps1
+- install-otter-uiaccess.ps1
 
 Why this package exists:
-- Hook's UIAccess path is only honored by Windows when the signed binary is
+- Otter's UIAccess path is only honored by Windows when the signed binary is
   installed into a trusted location such as Program Files.
 - This package is the recommended option for users who need the best chance of
   staying interactive when special Windows foreground windows such as Task Manager
@@ -117,7 +117,7 @@ Why this package exists:
 How to install:
 1. Extract this zip.
 2. Run install-hook.ps1 from an elevated PowerShell session.
-3. Launch Hook from the installed Program Files location after setup completes.
+3. Launch Otter from the installed Program Files location after setup completes.
 
 Portable note:
 - The normal portable zip is still useful for quick testing, but it may hit
@@ -144,5 +144,5 @@ finally {
     }
 }
 
-Write-Host "[hook-uiaccess-installer-package] Created:"
+Write-Host "[otter-uiaccess-installer-package] Created:"
 Write-Host "  $zipPath"

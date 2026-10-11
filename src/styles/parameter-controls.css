@@ -1,79 +1,79 @@
 /* Parameter field, stepper, link-port, and slider visual states. */
-.hook-param-label {
+.otter-param-label {
   color: var(--theme-text-secondary);
 }
 
-.hook-param-value {
+.otter-param-value {
   color: var(--theme-text-secondary);
 }
 
-.hook-param-control {
+.otter-param-control {
   border-color: var(--theme-border);
   background: color-mix(in srgb, var(--theme-text) 5%, transparent);
   color: var(--theme-text);
 }
 
-.hook-param-control:hover,
-.hook-param-control:focus {
+.otter-param-control:hover,
+.otter-param-control:focus {
   border-color: var(--theme-border-strong);
   background: var(--theme-hover);
 }
 
-.hook-param-control::placeholder {
+.otter-param-control::placeholder {
   color: var(--theme-text-muted);
 }
 
-.hook-param-check {
+.otter-param-check {
   color: var(--theme-on-signal);
 }
 
-.hook-param-link-port {
+.otter-param-link-port {
   border-color: color-mix(in srgb, var(--theme-info) 40%, var(--theme-border));
   background: color-mix(in srgb, var(--theme-info) 58%, var(--theme-control));
 }
 
-.hook-param-link-port--linked {
+.otter-param-link-port--linked {
   border-color: color-mix(in srgb, var(--theme-signal) 80%, var(--theme-border));
   background: var(--theme-signal);
 }
 
-.hook-param-stepper {
+.otter-param-stepper {
   border-color: var(--theme-border);
   background: color-mix(in srgb, var(--theme-text) 5%, transparent);
   color: var(--theme-text);
 }
 
-.hook-param-stepper__button {
+.otter-param-stepper__button {
   color: var(--theme-text-secondary);
 }
 
-.hook-param-stepper__button:hover:not(:disabled) {
+.otter-param-stepper__button:hover:not(:disabled) {
   background: var(--theme-hover);
   color: var(--theme-text);
 }
 
-.hook-param-stepper__input {
+.otter-param-stepper__input {
   border-color: var(--theme-border);
   color: var(--theme-text);
 }
 
-.hook-param-stepper__input::placeholder {
+.otter-param-stepper__input::placeholder {
   color: var(--theme-text-muted);
 }
 
-.hook-param-stepper__input:focus {
+.otter-param-stepper__input:focus {
   background: var(--theme-hover);
 }
 
-.hook-param-slider__track {
+.otter-param-slider__track {
   background: color-mix(in srgb, var(--theme-text) 12%, transparent);
 }
 
-.hook-param-slider__fill,
-.hook-param-slider__thumb {
+.otter-param-slider__fill,
+.otter-param-slider__thumb {
   background: var(--theme-signal);
 }
 
-.hook-param-slider__thumb {
+.otter-param-slider__thumb {
   filter: drop-shadow(0 1px 2px var(--theme-panel));
 }

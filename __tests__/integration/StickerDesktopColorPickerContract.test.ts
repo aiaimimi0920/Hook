@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -15,9 +15,9 @@ const colorPickerSource = readFileSync(resolve(process.cwd(), "src/components/Co
 const uiStoreSource = readFileSync(resolve(process.cwd(), "src/store/uiStore.ts"), "utf8");
 const imageResourceApiSource = readFileSync(resolve(process.cwd(), "src/services/apiImageResource.ts"), "utf8");
 const overlayWindowApiSource = readFileSync(resolve(process.cwd(), "src/services/apiOverlayWindow.ts"), "utf8");
-const rustSource = readHookLibRustSources();
+const rustSource = readOtterLibRustSources();
 
-describe("Hook desktop color picker contract", () => {
+describe("Otter desktop color picker contract", () => {
     it("uses desktop color picking only as a color-slot action, not as a standalone tool entry", () => {
         const topStripContractSource = `${topStripSource}\n${propertyBarSource}`;
         expect(topStripContractSource).not.toContain('{ mode: "color-picker", label: "取色" }');

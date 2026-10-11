@@ -123,7 +123,7 @@ fn validates_talk_manifest_rejects_incomplete_metadata_and_duplicate_capabilitie
 #[test]
 fn validates_manifest_shape_written_by_talk_serve() {
     let manifest = validate_talk_manifest(&manifest_with_numeric_started_at())
-        .expect("Hook accepts Talk serve's numeric startedAt manifest");
+        .expect("Otter accepts Talk serve's numeric startedAt manifest");
 
     assert_eq!(manifest.app_id, "talk");
     assert_eq!(manifest.started_at, Some(json!(1780861361_u64)));

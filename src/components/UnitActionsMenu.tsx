@@ -12,7 +12,7 @@ interface UnitActionsMenuProps {
 export const UnitActionsMenu: Component<UnitActionsMenuProps> = (props) => {
   return (
     <div
-        class="hook-actions-shell h-[50px] min-h-[50px] w-full z-10 relative flex overflow-hidden"
+        class="otter-actions-shell h-[50px] min-h-[50px] w-full z-10 relative flex overflow-hidden"
         style={{
             "flex-shrink": 0
         }}
@@ -23,11 +23,11 @@ export const UnitActionsMenu: Component<UnitActionsMenuProps> = (props) => {
             style={{ flex: 3 }}
         >
                 {/* Border Separator (Absolute Right) */}
-                <div class="hook-actions-separator absolute right-0 top-3 bottom-3 w-[1px]" />
+                <div class="otter-actions-separator absolute right-0 top-3 bottom-3 w-[1px]" />
 
                 {/* Content with Margin */}
-            <div class="hook-actions-shell__title ml-3 max-w-[calc(100%-24px)]">
-                <span class="hook-actions-shell__dot" />
+            <div class="otter-actions-shell__title ml-3 max-w-[calc(100%-24px)]">
+                <span class="otter-actions-shell__dot" />
                 <span
                     class="font-bold text-[10px] uppercase tracking-widest text-shadow-sm whitespace-nowrap truncate"
                     style={{ color: "inherit" }}
@@ -43,7 +43,7 @@ export const UnitActionsMenu: Component<UnitActionsMenuProps> = (props) => {
             style={{ flex: 2 }}
         >
             <button
-                class="hook-terminal-btn hook-terminal-btn--success group relative h-full w-full cursor-pointer overflow-hidden flex items-center justify-center gap-1.5 transition-all"
+                class="otter-terminal-btn otter-terminal-btn--success group relative h-full w-full cursor-pointer overflow-hidden flex items-center justify-center gap-1.5 transition-all"
                 onClick={(e) => {
                     e.stopPropagation();
                     props.onManualTrigger();
@@ -61,11 +61,11 @@ export const UnitActionsMenu: Component<UnitActionsMenuProps> = (props) => {
 
         {/* Part 3: Expand Button (Flex 1) - Filled Rectangle - Dark Glass */ }
         <div
-            class="hook-actions-border min-w-0 flex h-full border-l"
+            class="otter-actions-border min-w-0 flex h-full border-l"
             style={{ flex: 1 }}
         >
             <button
-                class="hook-terminal-btn group relative h-full w-full cursor-pointer flex items-center justify-center transition-all"
+                class="otter-terminal-btn group relative h-full w-full cursor-pointer flex items-center justify-center transition-all"
                 onClick={(e) => {
                     e.stopPropagation();
                     props.onToggleExpand();

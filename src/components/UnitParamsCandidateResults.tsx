@@ -133,7 +133,7 @@ export const UnitParamsCandidateResults: Component<UnitParamsCandidateResultsPro
     return (
         <Show when={resultCandidates().length > 1}>
             <div class="flex-shrink-0 px-4 pb-3">
-                <div class="hook-panel-caption flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.12em]">
+                <div class="otter-panel-caption flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.12em]">
                     <span>候选</span>
                     <span>
                         当前{" "}#{(selectedResultIndex() ?? 0) + 1}
@@ -159,7 +159,7 @@ export const UnitParamsCandidateResults: Component<UnitParamsCandidateResultsPro
                                     type="button"
                                     data-art-candidate-index={candidate.index}
                                     data-image-search-candidate-index={candidate.index}
-                                    class="hook-candidate-card flex flex-col gap-1 p-1.5 text-left transition-colors"
+                                    class="otter-candidate-card flex flex-col gap-1 p-1.5 text-left transition-colors"
                                     style={{
                                         border: selected()
                                             ? "1px solid color-mix(in srgb, var(--theme-signal) 90%, transparent)"
@@ -174,7 +174,7 @@ export const UnitParamsCandidateResults: Component<UnitParamsCandidateResultsPro
                                     }}
                                 >
                                     <span
-                                        class="hook-candidate-preview overflow-hidden"
+                                        class="otter-candidate-preview overflow-hidden"
                                         style={{ width: "100%", height: "54px" }}
                                     >
                                         <img
@@ -192,10 +192,10 @@ export const UnitParamsCandidateResults: Component<UnitParamsCandidateResultsPro
                                             }}
                                         />
                                     </span>
-                                    <span class="hook-candidate-title truncate text-[10px] font-semibold">
+                                    <span class="otter-candidate-title truncate text-[10px] font-semibold">
                                         {candidate.title || `候选 ${candidate.index + 1}`}
                                     </span>
-                                    <span class="hook-candidate-index text-[9px]">
+                                    <span class="otter-candidate-index text-[9px]">
                                         #{candidate.index + 1}
                                     </span>
                                 </button>
@@ -203,7 +203,7 @@ export const UnitParamsCandidateResults: Component<UnitParamsCandidateResultsPro
                         }}
                     </For>
                 </div>
-                <div class="hook-separator mt-2 h-px" />
+                <div class="otter-separator mt-2 h-px" />
             </div>
         </Show>
     );

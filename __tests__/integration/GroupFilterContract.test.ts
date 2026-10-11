@@ -7,7 +7,7 @@ const appSource = readFileSync(resolve(process.cwd(), "src/app.tsx"), "utf8");
 const selectionSource = readFileSync(resolve(process.cwd(), "src/components/CanvasSelection.tsx"), "utf8");
 const groupBarSource = readFileSync(resolve(process.cwd(), "src/components/StickerGroupBar.tsx"), "utf8");
 
-describe("Hook group and long-capture presentation contract", () => {
+describe("Otter group and long-capture presentation contract", () => {
     it("shows a group bar, filters units by the active group, and labels long-capture mode in the selection overlay", () => {
         expect(appSource).toContain("StickerGroupBar");
         expect(groupBarSource).toContain("重命名组");

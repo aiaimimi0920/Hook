@@ -1,4 +1,4 @@
-function Get-HookVersionIdentity {
+function Get-OtterVersionIdentity {
     param(
         [Parameter(Mandatory = $true)][string]$RepoRoot,
         [switch]$PublicRelease
@@ -23,7 +23,7 @@ function Get-HookVersionIdentity {
     }
 }
 
-function Assert-HookPublicBuildIdentity {
+function Assert-OtterPublicBuildIdentity {
     param([Parameter(Mandatory = $true)]$Provenance, [Parameter(Mandatory = $true)][string]$ProductVersion)
     if ([string]$Provenance.channel -cne "public" -or
         [string]$Provenance.buildVersion -cne "v$ProductVersion" -or

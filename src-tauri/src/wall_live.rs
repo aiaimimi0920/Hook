@@ -107,7 +107,7 @@ pub(crate) async fn wall_live_open(
     }
     let worker_id = id.clone();
     let worker = std::thread::Builder::new()
-        .name("hook-wall-live".into())
+        .name("otter-wall-live".into())
         .spawn(move || {
             // Closing/cancelling does not release admission until the worker has actually stopped.
             let _permit = permit;

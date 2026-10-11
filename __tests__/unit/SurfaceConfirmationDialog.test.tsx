@@ -16,7 +16,7 @@ const request = (): SurfaceConfirmationRequest => ({
     instanceId: "instance:one",
     attachmentId: "attachment:one",
     deviceId: "device-000-local",
-    hookNodeId: "hook-node:one",
+    hookNodeId: "otter-node:one",
     eventId: "event:one",
     requestId: "request:one",
     actionId: "submit_order",

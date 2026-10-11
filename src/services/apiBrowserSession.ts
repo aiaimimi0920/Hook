@@ -11,7 +11,7 @@ import {
     isValidBrowserPreviewSessionRecord,
 } from "./apiBrowserSessionValidation";
 
-const BROWSER_SESSION_STORAGE_KEY = "hook_browser_preview_session";
+const BROWSER_SESSION_STORAGE_KEY = "otter_browser_preview_session";
 const BROWSER_SESSION_DATA_URL_THRESHOLD = 8 * 1024;
 
 interface BrowserPreviewSessionData {
@@ -165,7 +165,7 @@ export const saveBrowserPreviewSession = (
         && expectedDocumentRevision !== current.documentRevision
     ) {
         throw new Error(
-            `SESSION_REVISION_CONFLICT expected ${expectedDocumentRevision}, current ${current.documentRevision}; refresh the Hook session before retrying`,
+            `SESSION_REVISION_CONFLICT expected ${expectedDocumentRevision}, current ${current.documentRevision}; refresh the Otter session before retrying`,
         );
     }
     const documentRevision = current.documentRevision + 1;

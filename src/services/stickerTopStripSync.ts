@@ -2,7 +2,7 @@ import { syncService } from "./syncService";
 
 const reportBackgroundFailure = (operation: string, promise: Promise<unknown>) => {
     void promise.catch((error) => {
-        console.error(`[Hook] ${operation}`, error);
+        console.error(`[Otter] ${operation}`, error);
     });
 };
 

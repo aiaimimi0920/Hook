@@ -71,10 +71,10 @@ export const ProjectionTargetPopover = (props: {
     const focus = (event: MouseEvent | PointerEvent) => { event.stopPropagation(); void api.focusOverlayWindow(); };
     return <Portal><div ref={(el) => { panel = el; }} role="dialog" aria-label={props.label} tabIndex={-1}
         data-top-strip-menu="true" data-top-strip-property-popup="true"
-        class={`hook-toolbar-menu pointer-events-auto fixed z-[1305] overscroll-contain text-xs ${props.list ? "flex flex-col overflow-hidden py-1" : "overflow-y-auto"} ${props.compact ? "py-1" : props.list ? "" : "p-2"}`}
+        class={`otter-toolbar-menu pointer-events-auto fixed z-[1305] overscroll-contain text-xs ${props.list ? "flex flex-col overflow-hidden py-1" : "overflow-y-auto"} ${props.compact ? "py-1" : props.list ? "" : "p-2"}`}
         onPointerDown={focus} onMouseDown={focus} onPointerMove={(event) => event.stopPropagation()}
         onWheel={(event) => event.stopPropagation()}>
-        {!props.compact && !props.list && <button type="button" class="hook-terminal-btn float-right h-6 w-6" aria-label="关闭投射下拉菜单" onClick={close}>×</button>}
+        {!props.compact && !props.list && <button type="button" class="otter-terminal-btn float-right h-6 w-6" aria-label="关闭投射下拉菜单" onClick={close}>×</button>}
         {props.children}
     </div></Portal>;
 };

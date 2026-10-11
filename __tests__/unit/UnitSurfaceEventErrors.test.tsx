@@ -5,7 +5,7 @@ import type { SurfaceViewState } from "../../src/store/surfaceStore";
 import type { Unit } from "../../src/types/unit";
 
 const mocks = vi.hoisted(() => ({ dispatch: vi.fn(), update: vi.fn(), units: [] as Unit[] }));
-vi.mock("../../src/services/client", () => ({ loomHook: { dispatchSurfaceEvent: mocks.dispatch } }));
+vi.mock("../../src/services/client", () => ({ loomOtter: { dispatchSurfaceEvent: mocks.dispatch } }));
 vi.mock("../../src/store/graphStore", () => ({ graphStore: {
     units: mocks.units, actions: { updateUnitData: mocks.update },
 } }));

@@ -31,7 +31,7 @@ JPEG 继续直接交给 `image/jpeg` Blob。屏幕墙等仍需要连续 BMP 字�
 - [sender-video-track.ts](https://github.com/TNTcraftHIM/Piik/blob/1b9f5bd2a27eb32d35e81e8f2c5d8d6e952bbd0a/src/client/media/sender-video-track.ts)：有界媒体输入和明确取消/停止所有权。
 
 这些是边界设计参考，不是直接可移植的 Tauri IPC 实现。本改动独立编写，没有复制
-Piik 实质源码或引入其依赖；不将其 GPU/H.264/WebRTC 性能外推到 Hook。
+Piik 实质源码或引入其依赖；不将其 GPU/H.264/WebRTC 性能外推到 Otter。
 
 ## 验证及审查
 

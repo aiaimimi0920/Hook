@@ -1909,53 +1909,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
-name = "hook"
-version = "0.2.33"
-dependencies = [
- "anyhow",
- "arboard",
- "async-trait",
- "base64 0.22.1",
- "clipboard-win",
- "cpal",
- "dirs 5.0.1",
- "drag",
- "ed25519-dalek",
- "filetime",
- "fs2",
- "futures-util",
- "half",
- "hound",
- "image 0.25.10",
- "png 0.18.1",
- "qrcode",
- "rand_core 0.6.4",
- "rcgen",
- "rdev",
- "reqwest 0.12.28",
- "rustls",
- "scap-direct3d",
- "scap-targets",
- "serde",
- "serde_json",
- "serde_yaml",
- "sha2",
- "shared_memory",
- "tauri",
- "tauri-build",
- "tauri-plugin-global-shortcut",
- "thiserror 1.0.69",
- "tokio",
- "toml 0.8.2",
- "tungstenite",
- "uiautomation",
- "uuid",
- "webpki-roots 1.0.9",
- "windows 0.60.0",
- "windows-sys 0.61.2",
-]
-
-[[package]]
 name = "hound"
 version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3251,6 +3204,53 @@ name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
+
+[[package]]
+name = "otter"
+version = "0.2.33"
+dependencies = [
+ "anyhow",
+ "arboard",
+ "async-trait",
+ "base64 0.22.1",
+ "clipboard-win",
+ "cpal",
+ "dirs 5.0.1",
+ "drag",
+ "ed25519-dalek",
+ "filetime",
+ "fs2",
+ "futures-util",
+ "half",
+ "hound",
+ "image 0.25.10",
+ "png 0.18.1",
+ "qrcode",
+ "rand_core 0.6.4",
+ "rcgen",
+ "rdev",
+ "reqwest 0.12.28",
+ "rustls",
+ "scap-direct3d",
+ "scap-targets",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2",
+ "shared_memory",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-global-shortcut",
+ "thiserror 1.0.69",
+ "tokio",
+ "toml 0.8.2",
+ "tungstenite",
+ "uiautomation",
+ "uuid",
+ "webpki-roots 1.0.9",
+ "windows 0.60.0",
+ "windows-sys 0.61.2",
+]
 
 [[package]]
 name = "pango"

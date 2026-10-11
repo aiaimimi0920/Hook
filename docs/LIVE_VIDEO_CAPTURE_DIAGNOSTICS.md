@@ -9,7 +9,7 @@
 ## 受控视频探针
 
 入口：`scripts/tests/live-browser-video-probe.ts`。使用 Node 22、已安装的
-Playwright、Chrome 或 Edge、ffmpeg 和 Rust 工具链。在 Hook 根目录运行：
+Playwright、Chrome 或 Edge、ffmpeg 和 Rust 工具链。在 Otter 根目录运行：
 
 ```powershell
 node --experimental-strip-types scripts/tests/live-browser-video-probe.ts
@@ -65,17 +65,17 @@ GPU 提交数不是显示 FPS；调度预算通过不代表整个电脑的 CPU/G
 
 ## 验证边界与后续定位
 
-- 探针没有完整复制 Hook 的 WebView、输入遮罩、全屏宿主和用户会话状态。
+- 探针没有完整复制 Otter 的 WebView、输入遮罩、全屏宿主和用户会话状态。
   独立原生宿主使用 `WS_EX_NOREDIRECTIONBITMAP`，避免测试用 STATIC 窗口
-  自己的白色背景覆盖合成视觉。这个测试宿主修正没有应用到生产 Hook 窗口。
+  自己的白色背景覆盖合成视觉。这个测试宿主修正没有应用到生产 Otter 窗口。
 - 纯白也能通过“非黑”判断，因此必须检查测试图颜色与实际截图后端，
-  不能只用非黑像素证明桌面呈现成功。独立宿主验收不代替生产 Hook UI 验收。
+  不能只用非黑像素证明桌面呈现成功。独立宿主验收不代替生产 Otter UI 验收。
 - 桌面采样先检查区域完全位于单一可见显示器内，再按实际 DPI 转换到普通
   截图的逻辑坐标。它仍受遮挡及驱动行为影响，不能把环境失败当作产品黑屏。
 - 本探针不覆盖 DRM、HDR、独立播放器的专用视频平面，也不是全面卡顿门禁。
 - 需要实际出问题的程序名称、视频页面或本地文件类型，才可继续缩小黑块边界。
   不需要提供登录凭据、Cookie 或包含隐私的完整浏览器日志。
 
-可在退出旧 Hook 后，仅对新进程设置 `HOOK_LIVE_GPU_PREVIEW=0`，比较同一
+可在退出旧 Otter 后，仅对新进程设置 `HOOK_LIVE_GPU_PREVIEW=0`，比较同一
 视频在 JPEG 与 GPU 模式下是否均黑。这只是区分采集和呈现故障的诊断方法，
 不是已验证的黑屏修复，也不建议关闭系统或浏览器的硬件加速作为永久方案。

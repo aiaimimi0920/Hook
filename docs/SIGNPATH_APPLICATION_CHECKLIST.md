@@ -1,9 +1,9 @@
-# Hook SignPath Application Checklist
+# Otter SignPath Application Checklist
 
 This document is the maintainer-facing working checklist for a future SignPath
 Foundation application.
 
-It is intentionally half pre-filled and half confirm-before-submit so the Hook
+It is intentionally half pre-filled and half confirm-before-submit so the Otter
 repository can stay public and reviewable without hardcoding private operator
 details.
 
@@ -20,14 +20,14 @@ details.
 
 ## Repository facts already prepared
 
-- Project name: **Hook**
-- Repository: `https://github.com/aiaimimi0920/Hook`
+- Project name: **Otter**
+- Repository: `https://github.com/aiaimimi0920/Otter`
 - Repository visibility: **public**
 - Maintainer label used in public docs: **yamiyu**
 - License: **MIT**
-- Issue tracker: `https://github.com/aiaimimi0920/Hook/issues`
+- Issue tracker: `https://github.com/aiaimimi0920/Otter/issues`
 - README: `README.md`
-- Release page: `https://github.com/aiaimimi0920/Hook/releases`
+- Release page: `https://github.com/aiaimimi0920/Otter/releases`
 - Code signing policy: `docs/CODE_SIGNING_POLICY.md`
 - Privacy policy: `docs/PRIVACY_POLICY.md`
 - Security policy: `SECURITY.md`
@@ -41,14 +41,14 @@ details.
 
 ### Current package model
 
-Hook currently distinguishes between two Windows release lanes:
+Otter currently distinguishes between two Windows release lanes:
 
 - **portable**
-  - asset shape: `hook-windows-x64-Vx.x.x.zip`
+  - asset shape: `otter-windows-x64-Vx.x.x.zip`
   - current public release package
   - for quick trial and ordinary daily screenshot use
 - **installer / UIAccess-oriented**
-  - asset shape: `hook-windows-uiaccess-installer-Vx.x.x.zip`
+  - asset shape: `otter-windows-uiaccess-installer-Vx.x.x.zip`
   - future signed public release package
   - for the signed trusted-location Windows path
 
@@ -70,7 +70,7 @@ These items must be confirmed by the maintainer at the time of application.
 - [ ] the intended signing approver still has access to the repository and
       signing provider
 - [ ] the current repository release page shows real tagged releases
-- [ ] the current application text still matches Hook's real public behavior
+- [ ] the current application text still matches Otter's real public behavior
 - [ ] the intended signing route is known for this submission:
       - SignPath Foundation
       - commercial provider
@@ -99,23 +99,23 @@ SignPath provisions the project.
 
 Use or adapt these short English descriptions in an application form.
 
-### What Hook is
+### What Otter is
 
-> Hook is an open-source Windows desktop screenshot and sticker-editing tool
+> Otter is an open-source Windows desktop screenshot and sticker-editing tool
 > built with Tauri. It focuses on local capture, pinning, annotation, and
 > visual desktop workflow organization.
 
-### Why Hook has a signed installer lane
+### Why Otter has a signed installer lane
 
-> Hook also supports a Windows UIAccess-oriented installer path because some
+> Otter also supports a Windows UIAccess-oriented installer path because some
 > overlay interaction scenarios require a digitally signed executable installed
 > in a trusted location such as Program Files. The repository therefore
 > distinguishes between a normal portable package and a signed installer
 > package.
 
-### How Hook releases are produced
+### How Otter releases are produced
 
-> Hook releases are built from the public GitHub repository by GitHub Actions
+> Otter releases are built from the public GitHub repository by GitHub Actions
 > using version tags in the form Vx.x.x. The public release page publishes a
 > portable package for ordinary use and, when signing material is available, a
 > separate signed installer/UIAccess package.
@@ -129,7 +129,7 @@ Use or adapt these short English descriptions in an application form.
 
 ### Why the portable and installer packages are not described as equivalent
 
-> Hook does not describe the portable package as equivalent to the signed
+> Otter does not describe the portable package as equivalent to the signed
 > installer/UIAccess package because the Windows trusted-location and signing
 > requirements are different for those two paths.
 
@@ -137,7 +137,7 @@ Use or adapt these short English descriptions in an application form.
 
 ### Single-maintainer period
 
-Hook may operate in a single-maintainer period. In that situation:
+Otter may operate in a single-maintainer period. In that situation:
 
 - the repository administrator may act as committer, reviewer, and approver;
 - the public `docs/CODE_SIGNING_POLICY.md` still records those roles separately;
@@ -167,7 +167,7 @@ Before submission, make sure the public repository still clearly shows:
 ### Publisher-name expectation
 
 If SignPath Foundation is the chosen route, remember that the eventual Windows
-publisher display may reflect the signing provider rather than only the Hook
+publisher display may reflect the signing provider rather than only the Otter
 brand name.
 
 ## Final pre-submit check

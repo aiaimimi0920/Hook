@@ -1,12 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { readLoomHookRustSources } from "../helpers/loomHookRustSources";
+import { readLoomOtterRustSources } from "../helpers/loomOtterRustSources";
 
 const root = path.resolve(__dirname, "../..");
 const appSource = fs.readFileSync(path.join(root, "src/app.tsx"), "utf8");
 const protocolSource = fs.readFileSync(path.join(root, "src/services/protocol.ts"), "utf8");
-const rustClientSource = readLoomHookRustSources();
+const rustClientSource = readLoomOtterRustSources();
 const surfaceControllerSource = fs.readFileSync(path.join(root, "src/components/unitSurfaceController.ts"), "utf8");
 const parameterSource = fs.readFileSync(path.join(root, "src/hooks/useNodeParameters.ts"), "utf8");
 const surfaceListenerSource = fs.readFileSync(

@@ -1,4 +1,4 @@
-use hook_lib::loom_connector::{
+use otter_lib::loom_connector::{
     build_brain_plan_envelope, invoke_brain_plan, invoke_brain_plan_with_manifest,
     validate_loom_manifest, LoomBrainPlanRequest,
 };

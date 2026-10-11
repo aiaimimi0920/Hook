@@ -1,4 +1,4 @@
-# Hook SignPath Application Draft
+# Otter SignPath Application Draft
 
 This file is a copy-ready English answer pack for a future SignPath Foundation
 application.
@@ -18,30 +18,30 @@ application fields and then lightly adjusted if the form wording changes.
 
 ## Project description
 
-> Hook is an open-source Windows desktop screenshot and sticker-editing tool
+> Otter is an open-source Windows desktop screenshot and sticker-editing tool
 > built with Tauri and SolidJS. It focuses on local capture, pinning,
 > annotation, and visual desktop workflow organization rather than cloud-first
 > image hosting.
 
-## Why Hook needs code signing
+## Why Otter needs code signing
 
-> Hook also maintains a Windows UIAccess-oriented installer path. Some of
-> Hook's overlay interaction scenarios require a digitally signed executable
+> Otter also maintains a Windows UIAccess-oriented installer path. Some of
+> Otter's overlay interaction scenarios require a digitally signed executable
 > installed in a trusted location such as Program Files, so code signing is not
 > just cosmetic for this package lane.
 
-## How Hook releases are produced
+## How Otter releases are produced
 
-GitHub Actions is the public hosted build path for Hook releases.
+GitHub Actions is the public hosted build path for Otter releases.
 
-> Hook releases are built from the public GitHub repository using GitHub
+> Otter releases are built from the public GitHub repository using GitHub
 > Actions. Release versions are tagged in the form Vx.x.x, and the public
 > release assets are generated from that tagged source rather than from a
 > private manual rebuild.
 
 ## Why portable and installer packages are different
 
-> Hook publishes a portable package for ordinary daily screenshot use and a
+> Otter publishes a portable package for ordinary daily screenshot use and a
 > separate installer/UIAccess-oriented package for the trusted signed Windows
 > path. The current public release phase is portable-first, and the repository
 > does not describe those two packages as equivalent, because the installer path
@@ -52,7 +52,7 @@ GitHub Actions is the public hosted build path for Hook releases.
 
 > The public repository documents install and uninstall behavior in
 > UIACCESS_DISTRIBUTION.md. The UIAccess-oriented installer path is designed for
-> installation into Program Files\yamiyu\Hook, while the portable package is
+> installation into Program Files\yamiyu\Otter, while the portable package is
 > documented as an extract-and-run package that can be removed by deleting the
 > extracted folder after the app is closed.
 
@@ -65,7 +65,7 @@ GitHub Actions is the public hosted build path for Hook releases.
 
 ## Single-maintainer review explanation
 
-> Hook may currently operate in a single-maintainer period. In that situation,
+> Otter may currently operate in a single-maintainer period. In that situation,
 > the same repository administrator can act as committer, reviewer, and release
 > approver, but the public code signing policy still records those roles
 > separately and the release checklist still requires explicit review before a
@@ -73,7 +73,7 @@ GitHub Actions is the public hosted build path for Hook releases.
 
 ## Why SignPath is being requested
 
-> Hook is an active open-source Windows desktop application with public source
+> Otter is an active open-source Windows desktop application with public source
 > code, public releases, public issue tracking, and a documented release
 > process. A signing solution is being requested so the Windows installer path
 > can be distributed in a way that matches the platform's trust requirements for

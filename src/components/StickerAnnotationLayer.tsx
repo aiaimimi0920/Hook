@@ -365,28 +365,28 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             }}
             onPointerDown={(event) =>
                 void onPointerDown(event).catch((error) =>
-                    console.error("[Hook] Sticker pointer-down handler failed", error),
+                    console.error("[Otter] Sticker pointer-down handler failed", error),
                 )
             }
             onPointerMove={onPointerMove}
             onPointerUp={() =>
                 void onPointerUp().catch((error) =>
-                    console.error("[Hook] Sticker pointer-up handler failed", error),
+                    console.error("[Otter] Sticker pointer-up handler failed", error),
                 )
             }
             onPointerCancel={() =>
                 void onPointerUp().catch((error) =>
-                    console.error("[Hook] Sticker pointer-cancel handler failed", error),
+                    console.error("[Otter] Sticker pointer-cancel handler failed", error),
                 )
             }
             onWheel={(event) =>
                 void onWheel(event).catch((error) =>
-                    console.error("[Hook] Sticker wheel handler failed", error),
+                    console.error("[Otter] Sticker wheel handler failed", error),
                 )
             }
             onDblClick={(event) =>
                 void onDoubleClick(event).catch((error) =>
-                    console.error("[Hook] Sticker double-click handler failed", error),
+                    console.error("[Otter] Sticker double-click handler failed", error),
                 )
             }
         >

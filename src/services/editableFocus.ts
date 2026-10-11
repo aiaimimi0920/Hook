@@ -1,8 +1,8 @@
 let editableFocusGeneration = 0;
 let nativeAppFocused = true;
 
-export const EDITABLE_FOCUS_RELEASE_EVENT = "hook:editable-focus-release";
-export const NATIVE_APP_FOCUS_EVENT = "hook:native-app-focus";
+export const EDITABLE_FOCUS_RELEASE_EVENT = "otter:editable-focus-release";
+export const NATIVE_APP_FOCUS_EVENT = "otter:native-app-focus";
 
 export interface EditableFocusReleaseDetail {
   preserveUnitId?: string;

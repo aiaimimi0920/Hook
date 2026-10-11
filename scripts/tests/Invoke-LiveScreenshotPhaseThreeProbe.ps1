@@ -55,7 +55,7 @@ function Invoke-PhaseThreeFixture {
     param([string]$Kind)
     $sampleRoot = Join-Path $resolvedOutput $Kind.ToLowerInvariant()
     $fixtureDir = Join-Path $sampleRoot "fixture"
-    $fixtureExe = Join-Path $fixtureDir ("HookLiveScreenshotPhaseThree{0}Fixture.exe" -f $Kind)
+    $fixtureExe = Join-Path $fixtureDir ("OtterLiveScreenshotPhaseThree{0}Fixture.exe" -f $Kind)
     $readyPath = Join-Path $sampleRoot "fixture-ready.json"
     $probePath = Join-Path $sampleRoot "probe.json"
     $stdoutPath = Join-Path $sampleRoot "cargo-test.stdout.log"

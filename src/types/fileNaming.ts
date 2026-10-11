@@ -21,9 +21,9 @@ export interface FileNamingContext {
 }
 
 export const DEFAULT_FILE_NAMING_SETTINGS: FileNamingSettings = {
-    stickerSavePattern: "Hook_{date}_{time}_{width}x{height}",
+    stickerSavePattern: "Otter_{date}_{time}_{width}x{height}",
     dragExportPattern: "{label}_{shortId}_{date}_{time}",
-    clipboardFilePattern: "Hook_{kind}_{date}_{time}",
+    clipboardFilePattern: "Otter_{kind}_{date}_{time}",
     titleMaxLength: 80,
     collisionPolicy: "increment",
 };

@@ -20,7 +20,7 @@ describe("StringControl text-field interactivity contract", () => {
         expect(overlayWindowApiSource).toContain("focusOverlayWindow");
         expect(panelSource).toContain("void api.focusOverlayWindow();");
         expect(panelSource).toContain(
-            '<textarea class="hook-terminal-input hook-scrollbar w-full h-[150px]',
+            '<textarea class="otter-terminal-input otter-scrollbar w-full h-[150px]',
         );
         expect(cssSource).toContain("user-select: text;");
         expect(cssSource).toContain("-webkit-user-select: text;");

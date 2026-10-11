@@ -14,10 +14,10 @@ pub(crate) const HOOK_SINGLE_INSTANCE_NAME: &str = "Local\\ArtNexus.Hook.SingleI
 
 /// Build the app-wide single-instance mutex name.
 ///
-/// Hook installs a global low-level mouse hook and registers global hotkeys, so
+/// Otter installs a global low-level mouse hook and registers global hotkeys, so
 /// running multiple test builds side-by-side is unsafe: they race on the same
 /// pointer stream and can swallow each other's events. Keep the mutex global so
-/// only one Hook process can own those system-wide hooks at a time.
+/// only one Otter process can own those system-wide hooks at a time.
 #[cfg(target_os = "windows")]
 pub(crate) fn single_instance_name() -> String {
     HOOK_SINGLE_INSTANCE_NAME.to_string()
@@ -87,7 +87,7 @@ mod tests {
         assert_eq!(first, second, "name must be stable within one app");
         assert_eq!(
             first, HOOK_SINGLE_INSTANCE_NAME,
-            "Hook must use one app-wide mutex name so different release folders cannot run concurrent global hooks"
+            "Otter must use one app-wide mutex name so different release folders cannot run concurrent global hooks"
         );
     }
 
@@ -101,7 +101,7 @@ mod tests {
             try_acquire_single_instance(&test_name).expect("second acquire should return cleanly");
         assert!(
             second.is_none(),
-            "second acquire should detect an existing Hook instance"
+            "second acquire should detect an existing Otter instance"
         );
 
         drop(first);

@@ -32,19 +32,19 @@ fn default_voice_config() -> voice::core::VoiceConfig {
 }
 
 async fn effective_voice_config() -> voice::core::VoiceConfig {
-    let Some(base_url) = std::env::var("HOOK_LOOM_BASE_URL")
+    let Some(base_url) = crate::brand_env::var("HOOK_LOOM_BASE_URL")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
     else {
         return default_voice_config();
     };
-    let token = std::env::var("HOOK_LOOM_AUTH_TOKEN").ok();
-    match loom_config::read_hook_voice_config(&base_url, token.as_deref()).await {
+    let token = crate::brand_env::var("HOOK_LOOM_AUTH_TOKEN").ok();
+    match loom_config::read_otter_voice_config(&base_url, token.as_deref()).await {
         Ok(Some(config)) => config,
         Ok(None) => default_voice_config(),
         Err(error) => {
-            append_runtime_log_line(&format!("loom_hook_voice_config_read_failed :: {error}"));
+            append_runtime_log_line(&format!("loom_otter_voice_config_read_failed :: {error}"));
             default_voice_config()
         }
     }
@@ -230,7 +230,7 @@ fn configure_webview2_video_safe_composition() {
         "--disable-features=UseSkiaRenderer,CanvasOopRasterization",
     ];
 
-    let existing_args = std::env::var(ENV_NAME).unwrap_or_default();
+    let existing_args = crate::brand_env::var(ENV_NAME).unwrap_or_default();
     let mut combined_args = existing_args.clone();
     for arg in VIDEO_SAFE_ARGS {
         if existing_args.contains(arg) || combined_args.contains(arg) {

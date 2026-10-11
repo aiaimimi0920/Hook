@@ -53,7 +53,7 @@ fn hook_process_has_foreground_window() -> bool {
 }
 
 #[tauri::command]
-fn hook_has_foreground_window() -> bool {
+fn otter_has_foreground_window() -> bool {
     #[cfg(target_os = "windows")]
     {
         return hook_process_has_foreground_window();
@@ -70,13 +70,13 @@ fn should_passthrough_foreign_alt_input(
     capture_active: bool,
     drag_active: bool,
     native_drag_preflight_active: bool,
-    hook_has_foreground_window: bool,
+    otter_has_foreground_window: bool,
 ) -> bool {
     alt_pressed
         && !capture_active
         && !drag_active
         && !native_drag_preflight_active
-        && !hook_has_foreground_window
+        && !otter_has_foreground_window
 }
 
 #[cfg(target_os = "windows")]
@@ -85,7 +85,7 @@ fn should_passthrough_foreign_alt_mouse_input(
     capture_active: bool,
     drag_active: bool,
     native_drag_preflight_active: bool,
-    hook_has_foreground_window: bool,
+    otter_has_foreground_window: bool,
     is_wheel_message: bool,
     should_route_overlay_mouse: bool,
 ) -> bool {
@@ -95,7 +95,7 @@ fn should_passthrough_foreign_alt_mouse_input(
         capture_active,
         drag_active,
         native_drag_preflight_active,
-        hook_has_foreground_window,
+        otter_has_foreground_window,
     ) && !routed_overlay_wheel
 }
 
@@ -112,7 +112,7 @@ struct ForwardedShortcut {
 
 #[cfg(target_os = "windows")]
 fn overlay_keyboard_should_consume_forwarded_shortcut(shortcut: &ForwardedShortcut) -> bool {
-    // Alt combinations must remain visible to the foreground application. Hook
+    // Alt combinations must remain visible to the foreground application. Otter
     // can mirror Alt+4/Alt+3 into its unfocused WebView without suppressing the
     // original system key event.
     !shortcut.alt

@@ -6,7 +6,7 @@ const actionsSource = readFileSync(resolve(process.cwd(), "src/hooks/useUnitActi
 const graphStoreSource = readFileSync(resolve(process.cwd(), "src/store/graphStore.ts"), "utf8");
 const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitView.tsx"), "utf8");
 
-describe("Hook sticker window-state contract", () => {
+describe("Otter sticker window-state contract", () => {
     it("updates minified sticker geometry and metadata through one store write so the shrunken sticker never renders an intermediate frame", () => {
         expect(graphStoreSource).toContain("const updateStickerWindowState = (");
         expect(graphStoreSource).toContain("setUnits(match, (previous) => ({");

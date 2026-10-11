@@ -13,7 +13,7 @@ const startupSource = readFileSync(
 );
 const workflowBoundarySources = `${appSource}\n${artControlSource}\n${startupSource}`;
 
-describe("Hook workflow payload boundary", () => {
+describe("Otter workflow payload boundary", () => {
     it("normalizes unknown IPC/browser workflow payloads before instantiating units", () => {
         expect(artControlSource).toContain("normalizeWorkflowSnapshotPayload(event.payload)");
         expect(startupSource).toContain("normalizeWorkflowSnapshotPayload(payload)");

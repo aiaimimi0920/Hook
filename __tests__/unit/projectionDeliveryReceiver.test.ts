@@ -98,7 +98,7 @@ it("disabled receiver never polls", async () => {
     await vi.advanceTimersByTimeAsync(30_000); expect(deliveryInbox).not.toHaveBeenCalled();
 });
 
-it("Loom confirm overrides legacy Hook auto while Loom whitelist auto overrides local confirm", async () => {
+it("Loom confirm overrides legacy Otter auto while Loom whitelist auto overrides local confirm", async () => {
     saveDeliverySettings(deliverySettings().origin, "auto");
     vi.mocked(deliveryInbox).mockResolvedValue([{ ...invitation(), receivePolicy: "confirm" }]);
     receiver = createDeliveryReceiver(); await vi.advanceTimersByTimeAsync(0);

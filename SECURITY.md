@@ -12,9 +12,9 @@ sensitive material in a public issue.
 
 1. Prefer GitHub private vulnerability reporting when the repository exposes
    that option:
-   <https://github.com/aiaimimi0920/Hook/security/advisories/new>
+   <https://github.com/aiaimimi0920/Otter/security/advisories/new>
 2. If the private form is unavailable, open a minimal issue at
-   <https://github.com/aiaimimi0920/Hook/issues> asking the maintainer to
+   <https://github.com/aiaimimi0920/Otter/issues> asking the maintainer to
    establish a private contact channel. Do not include sensitive details in
    that issue.
 
@@ -24,7 +24,7 @@ coordinate disclosure after a fix is available.
 
 ## Product security boundary
 
-Hook is a screenshot, sticker-editing, and local visual-workflow application.
+Otter is a screenshot, sticker-editing, and local visual-workflow application.
 It is not intended to exploit vulnerabilities, bypass endpoint protection,
 hide malware, inject code into other processes, or create unauthorized
 persistence. Its UIAccess-oriented Windows package uses the documented Windows

@@ -30,7 +30,7 @@ try {
             if (await candidate.evaluate(() => Boolean((window as unknown as Tauri).__TAURI_INTERNALS__))) return candidate;
         }
     });
-    await waitFor(async () => (await readFile(join(output, "logs/hook-runtime.log"), "utf8")).includes("frontend-initialized") ? true : undefined);
+    await waitFor(async () => (await readFile(join(output, "logs/otter-runtime.log"), "utf8")).includes("frontend-initialized") ? true : undefined);
     const samples = await page.evaluate(async ({ windowId, targetFps }) => {
         const invoke = <T>(name: string, args: Record<string, unknown>): Promise<T> =>
             (window as unknown as Tauri).__TAURI_INTERNALS__.invoke<T>(name, args);

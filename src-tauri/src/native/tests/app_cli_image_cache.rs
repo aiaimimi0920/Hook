@@ -124,7 +124,7 @@
         let _env_guard = clipboard_cache_env_lock();
         let env_name = "HOOK_CLIPBOARD_CACHE_DIR";
         let cache_dir =
-            std::env::temp_dir().join(format!("hook-cache-dir-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("otter-cache-dir-test-{}", std::process::id()));
         std::env::set_var(env_name, &cache_dir);
 
         let resolved = clipboard_cache_dir();
@@ -136,7 +136,7 @@
     #[test]
     fn clipboard_cache_cleanup_removes_old_files_and_trims_total_size() {
         let root = std::env::temp_dir().join(format!(
-            "hook-cache-cleanup-test-{}-{}",
+            "otter-cache-cleanup-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
@@ -171,7 +171,7 @@
     #[test]
     fn clipboard_cache_cleanup_keeps_recent_files_when_capacity_is_unlimited() {
         let root = std::env::temp_dir().join(format!(
-            "hook-cache-unlimited-test-{}-{}",
+            "otter-cache-unlimited-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));

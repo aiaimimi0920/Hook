@@ -27,6 +27,6 @@ Issue #67 的 `.32` raw 试验观察到两次成功重连，但恢复后错误�
 IO 原始错误文本不泄漏、Close code 与 stop 独立，以及 WriteBufferFull 不输出 payload。
 相关正常策略 Close、终态设备关闭和 source worker 生命周期测试继续通过。
 
-已运行 Rust 格式检查、Hook 行数门禁及 `git diff --check`。这些是软件验证，
+已运行 Rust 格式检查、Otter 行数门禁及 `git diff --check`。这些是软件验证，
 尚未证明 `.33` 在 PC1/PC3 的实际故障中取得了原因，也没有完成新的 JPEG/raw 配对。
 发布候选须另记录构建 SHA 和 self-check；本迭代不是正式公共 release。

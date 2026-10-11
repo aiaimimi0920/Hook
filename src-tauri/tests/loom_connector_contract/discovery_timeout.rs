@@ -16,10 +16,10 @@ async fn loom_connector_discovers_loom_capability_manifest_dir() {
     let server = thread::spawn(move || {
         let (mut stream, _) = listener.accept().expect("accept Loom invoke");
         let raw_request = read_http_request(&mut stream);
-        assert!(raw_request.contains("\"requestId\":\"hook-loom-discovery\""));
+        assert!(raw_request.contains("\"requestId\":\"otter-loom-discovery\""));
 
         let body = json!({
-            "requestId": "hook-loom-discovery",
+            "requestId": "otter-loom-discovery",
             "status": "succeeded",
             "output": {
                 "runId": "run-discovery",
@@ -62,7 +62,7 @@ async fn loom_connector_discovers_loom_capability_manifest_dir() {
     std::env::set_var("APPDATA", &empty_appdata);
 
     let result = invoke_brain_plan(LoomBrainPlanRequest {
-        request_id: Some("hook-loom-discovery".to_string()),
+        request_id: Some("otter-loom-discovery".to_string()),
         goal: "Plan through LOOM_CAPABILITY_MANIFEST_DIR".to_string(),
         constraints: Vec::new(),
         context: None,
@@ -71,7 +71,7 @@ async fn loom_connector_discovers_loom_capability_manifest_dir() {
     .await
     .expect("invoke fake Loom through manifest discovery");
 
-    assert_eq!(result.request_id, "hook-loom-discovery");
+    assert_eq!(result.request_id, "otter-loom-discovery");
     assert_eq!(result.status, "succeeded");
     server.join().expect("fake server thread joins");
     let _ = std::fs::remove_dir_all(root);
@@ -92,7 +92,7 @@ async fn loom_connector_times_out_wedged_local_loom_server() {
     let error = invoke_brain_plan_with_manifest(
         manifest,
         LoomBrainPlanRequest {
-            request_id: Some("hook-loom-timeout".to_string()),
+            request_id: Some("otter-loom-timeout".to_string()),
             goal: "Timeout test".to_string(),
             constraints: Vec::new(),
             context: None,

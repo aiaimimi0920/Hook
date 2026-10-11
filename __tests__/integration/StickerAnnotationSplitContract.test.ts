@@ -15,7 +15,7 @@ const annotationLifecycleSource = readSource(
     "src/components/stickerAnnotationLifecycleController.ts",
 );
 
-describe("Hook sticker annotation layer split contract", () => {
+describe("Otter sticker annotation layer split contract", () => {
     it("keeps draft annotation model helpers outside the interactive layer component", () => {
         expect(annotationLayerSource).toContain('from "./stickerAnnotationModel"');
         expect(annotationModelSource).toContain("export type DraftShape");

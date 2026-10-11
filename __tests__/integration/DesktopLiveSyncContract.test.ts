@@ -22,7 +22,7 @@ describe("desktop live workflow synchronization contract", () => {
         expect(payloadHelperSource).toContain("rasterizedAnnotationLayerSrc");
     });
 
-    it("bakes Hook-only sticker edit state before handing the image payload to Loom-facing sync snapshots", () => {
+    it("bakes Otter-only sticker edit state before handing the image payload to Loom-facing sync snapshots", () => {
         expect(syncSource).toContain("renderStickerCompositeWithAnnotations");
         expect(syncSource).toContain("buildSyncedImageSignature");
         expect(syncSource).toContain("renderBakedPreviewSrc");
@@ -31,7 +31,7 @@ describe("desktop live workflow synchronization contract", () => {
         expect(payloadHelperSource).toContain("rasterizedAnnotationLayerSrc: null");
     });
 
-    it("resolves the same sticker base image that Hook is currently displaying before baking a Loom/session preview", () => {
+    it("resolves the same sticker base image that Otter is currently displaying before baking a Loom/session preview", () => {
         expect(syncSource).toContain("resolveStickerCompositeBaseImageSrc");
         expect(syncSource).toContain("baseImageSrcOverride");
     });

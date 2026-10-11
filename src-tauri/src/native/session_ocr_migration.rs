@@ -179,7 +179,7 @@ fn rollback_ocr_attachment_migration_file(
         &fs::read(&backup_path).map_err(|error| error.to_string())?,
     )?;
     backup.document_revision = current.document_revision.checked_add(1)
-        .ok_or_else(|| "SESSION_REVISION_EXHAUSTED Hook session revision overflow".to_string())?;
+        .ok_or_else(|| "SESSION_REVISION_EXHAUSTED Otter session revision overflow".to_string())?;
     write_session_document_atomically(&session_file, &backup)?;
     journal.target_revision = Some(backup.document_revision);
     journal.status = "rolledBack".to_string();

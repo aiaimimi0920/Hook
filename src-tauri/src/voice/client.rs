@@ -81,7 +81,7 @@ impl HttpTranscriber {
             reqwest::Client::builder().use_rustls_tls(),
             &endpoint,
         )
-        .expect("validated Hook proxy settings should build a voice client")
+        .expect("validated Otter proxy settings should build a voice client")
         .build()
         .expect("reqwest voice client builder should not fail");
         Self { endpoint, client }
@@ -145,7 +145,7 @@ impl HttpTextProcessor {
             reqwest::Client::builder().use_rustls_tls(),
             &endpoint,
         )
-        .expect("validated Hook proxy settings should build a text processor client")
+        .expect("validated Otter proxy settings should build a text processor client")
         .build()
         .expect("reqwest text processor client builder should not fail");
         Self { endpoint, client }

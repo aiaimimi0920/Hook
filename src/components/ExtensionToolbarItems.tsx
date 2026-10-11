@@ -42,7 +42,7 @@ export const ExtensionToolbarItems: Component<ExtensionToolbarItemsProps> = (pro
                 <Show when={slot.grouped} fallback={(
                     <button
                         type="button"
-                        class={`${toolbarButtonLeftBorderClass} hook-toolbar-idle w-[50px]`}
+                        class={`${toolbarButtonLeftBorderClass} otter-toolbar-idle w-[50px]`}
                         aria-label={slot.items[0].title}
                         title={slot.items[0].available()
                             ? slot.items[0].title
@@ -64,8 +64,8 @@ export const ExtensionToolbarItems: Component<ExtensionToolbarItemsProps> = (pro
                             type="button"
                             class={toolbarButtonLeftBorderClass}
                             classList={{
-                                "hook-toolbar-button--active": openSlotId() === slot.id,
-                                "hook-toolbar-idle": openSlotId() !== slot.id,
+                                "otter-toolbar-button--active": openSlotId() === slot.id,
+                                "otter-toolbar-idle": openSlotId() !== slot.id,
                             }}
                             aria-label={`${slot.title} 工具`}
                             aria-haspopup="menu"
@@ -108,7 +108,7 @@ export const ExtensionToolbarItems: Component<ExtensionToolbarItemsProps> = (pro
                                     {(item) => (
                                         <button
                                             type="button"
-                                            class={`${toolbarMenuItemClass} hook-toolbar-menu-item--idle disabled:cursor-not-allowed disabled:opacity-40`}
+                                            class={`${toolbarMenuItemClass} otter-toolbar-menu-item--idle disabled:cursor-not-allowed disabled:opacity-40`}
                                             disabled={!item.available()}
                                             role="menuitem"
                                             title={item.available() ? item.title : item.disabledTitle ?? `${item.title} 当前不可用`}

@@ -2,7 +2,7 @@ import { getCurrentAppSettings } from "./appSettings";
 import { currentExtensionTarget, currentExtensionUnit } from "./extensionContext";
 import type { ExtensionTarget } from "./extensionBridgeProtocol";
 import type { UnitAttachment } from "../types/unitExtension";
-import { DEFAULT_HOOK_GENERAL_SETTINGS } from "./hookGeneralSettings";
+import { DEFAULT_OTTER_GENERAL_SETTINGS } from "./otterGeneralSettings";
 
 const OCR_PLUGIN = "neuro.official/ocr";
 const OCR_TYPE = "neuro.official/ocr.result.v1";
@@ -79,7 +79,7 @@ export const prepareOcrTextCommandInput = async (
     const height = dimension(payload.sourceHeight);
     const sourceAttachment = { attachmentId: attachment.attachmentId, revision: attachment.revision,
         ...(attachment.payloadDigest ? { digest: attachment.payloadDigest } : {}) };
-    const displayLanguage = globalThis.document?.documentElement.lang || DEFAULT_HOOK_GENERAL_SETTINGS.language;
+    const displayLanguage = globalThis.document?.documentElement.lang || DEFAULT_OTTER_GENERAL_SETTINGS.language;
     const targetLanguage = getCurrentAppSettings().translationTargetLanguage
         || (displayLanguage.toLowerCase().startsWith("zh") ? "zh-CN" : "en");
     const providerMode = getCurrentAppSettings().translationProviderMode;

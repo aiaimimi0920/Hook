@@ -1,4 +1,4 @@
-// Defines the serialized Hook session document contract and revision metadata.
+// Defines the serialized Otter session document contract and revision metadata.
 
 // --- Persistence ---
 

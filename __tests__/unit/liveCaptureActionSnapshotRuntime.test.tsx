@@ -37,7 +37,7 @@ function openMenu() {
     menu.openForSticker(id, { x: 10, y: 20 });
 }
 function clickMenu(label: string) {
-    const button = [...document.querySelectorAll<HTMLButtonElement>(".hook-context-menu-item")]
+    const button = [...document.querySelectorAll<HTMLButtonElement>(".otter-context-menu-item")]
         .find((item) => item.textContent?.trim() === label);
     if (!button) throw new Error(`Missing context-menu action: ${label}`);
     button.click();

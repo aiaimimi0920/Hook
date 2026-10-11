@@ -1,4 +1,4 @@
-// Routes low-level Windows keyboard messages into Hook's overlay input policy.
+// Routes low-level Windows keyboard messages into Otter's overlay input policy.
 
 #[cfg(target_os = "windows")]
 unsafe extern "system" fn overlay_keyboard_hook_proc(

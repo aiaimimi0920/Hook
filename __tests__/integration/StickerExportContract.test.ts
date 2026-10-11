@@ -17,7 +17,7 @@ const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
 const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(propertyBarSectionsPath, "utf8") : "";
 const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
 
-describe("Hook sticker export contract", () => {
+describe("Otter sticker export contract", () => {
     it("routes copy/save of stickers through a composed export image instead of raw src bytes", () => {
         expect(exportFacadeSource).toContain("renderStickerComposite");
         expect(clipboardSource).toContain("await renderStickerComposite(unit)");

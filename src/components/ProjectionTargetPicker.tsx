@@ -11,7 +11,7 @@ export const ProjectionTargetOptions = (props: PickerProps & { kind: keyof Proje
     const toggle = (kind: keyof ProjectionSelection, id: string, checked: boolean) => props.change({
         ...props.selection, [kind]: checked ? [...new Set([...props.selection[kind], id])] : props.selection[kind].filter((value) => value !== id),
     });
-    const rowClass = "hook-toolbar-menu-item flex min-h-8 items-center justify-between gap-3 px-2 py-1";
+    const rowClass = "otter-toolbar-menu-item flex min-h-8 items-center justify-between gap-3 px-2 py-1";
     const checkClass = "h-3.5 w-3.5 shrink-0 accent-[var(--theme-signal)]";
     return <div class="flex flex-col py-1">
         <Show when={props.kind === "devices"} fallback={<>
@@ -48,6 +48,6 @@ export const ProjectionTargetPicker = (props: PickerProps) => <section aria-labe
             <ProjectionIcon kind="groups" /><span>{props.selection.groups.length} / {props.directory.groups?.length ?? 0}</span></summary>
             <div class="max-h-48 overflow-y-auto"><ProjectionTargetOptions {...props} kind="groups" /></div>
         </details>
-        <button type="button" class="hook-terminal-btn flex items-center gap-2" disabled aria-label="好友投射尚未开放" title="官方账号与好友服务尚未开放"><ProjectionIcon kind="friends" /><span>0</span></button>
+        <button type="button" class="otter-terminal-btn flex items-center gap-2" disabled aria-label="好友投射尚未开放" title="官方账号与好友服务尚未开放"><ProjectionIcon kind="friends" /><span>0</span></button>
         <Show when={props.directory.status !== "complete"}><p role="status">部分 Loom 目录暂不可用，当前仅显示已验证的设备。</p></Show>
     </section>;

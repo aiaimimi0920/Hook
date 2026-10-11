@@ -17,7 +17,7 @@ const annotationTextControllerSource = readFileSync(
     "utf8",
 );
 
-describe("Hook sticker annotation layer placement contract", () => {
+describe("Otter sticker annotation layer placement contract", () => {
     it("isolates live drafts from the committed SVG and leaves pointer capture on the host", () => {
         const source = readFileSync(resolve(process.cwd(), "src/components/StickerAnnotationLayer.tsx"), "utf8");
         const committed = source.indexOf("<StickerAnnotationElements");

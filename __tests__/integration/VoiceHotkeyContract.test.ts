@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const readSource = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), relativePath), "utf8");
 
-describe("Hook voice hotkey contract", () => {
+describe("Otter voice hotkey contract", () => {
   it("keeps the voice toggle state machine in Rust and emits a frontend status payload", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const hotkeySource = readSource("src-tauri/src/voice/hotkey.rs");
     const sessionSource = readSource("src-tauri/src/voice/session.rs");
 
@@ -35,7 +35,7 @@ describe("Hook voice hotkey contract", () => {
   });
 
   it("keeps voice status and settings wired without rendering a desktop overlay", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const apiTypesSource = readSource("src/services/apiTypes.ts");
     const voiceApiSource = readSource("src/services/apiVoice.ts");
     const appSource = readSource("src/app.tsx");

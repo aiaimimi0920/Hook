@@ -106,7 +106,7 @@ describe("generic extension contributions", () => {
         const registry = new ExtensionShortcutRegistry();
         registry.applySnapshot(contributionSnapshot());
         const viewport = document.createElement("div");
-        viewport.dataset.hookGlobalShortcuts = "ignore";
+        viewport.dataset.otterGlobalShortcuts = "ignore";
         const child = document.createElement("span");
         viewport.append(child);
         viewport.addEventListener("keydown", registry.handleKeyDown);

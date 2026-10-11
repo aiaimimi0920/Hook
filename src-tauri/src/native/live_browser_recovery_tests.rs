@@ -14,7 +14,7 @@ fn crop_outside_surface_recovers_after_more_than_three_build_failures() {
     let _lock = WATCHDOG_TEST_LOCK.lock().unwrap();
     let _watchdog = crate::emergency_watchdog::tests::start_interactive_test_watchdog();
     let ready: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(std::env::var("HOOK_BROWSER_INPUT_FIXTURE").unwrap()).unwrap(),
+        &std::fs::read(crate::brand_env::var("HOOK_BROWSER_INPUT_FIXTURE").unwrap()).unwrap(),
     )
     .unwrap();
     let hwnd = owned_window(

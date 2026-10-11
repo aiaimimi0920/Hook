@@ -1,7 +1,7 @@
-/* Hook terminal theme primitives */
-.hook-terminal-shell,
-.hook-context-menu-shell,
-.hook-toolbar-menu {
+/* Otter terminal theme primitives */
+.otter-terminal-shell,
+.otter-context-menu-shell,
+.otter-toolbar-menu {
   background: var(--theme-panel);
   border: 1px solid var(--theme-border);
   color: var(--theme-text);
@@ -11,27 +11,27 @@
   border-radius: var(--radius-lg);
 }
 
-.hook-terminal-shell--strong,
-.hook-context-menu-shell,
-.hook-toolbar-menu {
+.otter-terminal-shell--strong,
+.otter-context-menu-shell,
+.otter-toolbar-menu {
   background: var(--theme-panel);
 }
 
-.hook-terminal-shell--strong {
+.otter-terminal-shell--strong {
   border-color: var(--theme-border-strong);
 }
 
-.hook-terminal-shell--soft {
+.otter-terminal-shell--soft {
   background: var(--theme-panel-soft);
 }
 
-.hook-terminal-btn,
-.hook-context-menu-item,
-.hook-terminal-list-item,
-.hook-toolbar-button,
-.hook-toolbar-menu-item,
-.hook-mini-switch,
-.hook-mini-toggle {
+.otter-terminal-btn,
+.otter-context-menu-item,
+.otter-terminal-list-item,
+.otter-toolbar-button,
+.otter-toolbar-menu-item,
+.otter-mini-switch,
+.otter-mini-toggle {
   border-radius: var(--radius-md);
   transition:
     background-color var(--transition-fast),
@@ -40,52 +40,52 @@
     opacity var(--transition-fast);
 }
 
-.hook-terminal-btn {
+.otter-terminal-btn {
   border: 1px solid var(--theme-border);
   background: color-mix(in srgb, var(--theme-text) 4%, transparent);
   color: var(--theme-text-secondary);
 }
 
-.hook-terminal-btn:hover {
+.otter-terminal-btn:hover {
   border-color: color-mix(in srgb, var(--theme-text) 22%, transparent);
   background: var(--theme-hover);
   color: var(--theme-text);
 }
 
-.hook-terminal-btn--active {
+.otter-terminal-btn--active {
   border-color: var(--theme-border-strong);
   background: var(--theme-hover-strong);
   color: var(--theme-signal-text);
 }
 
-.hook-terminal-btn--success {
+.otter-terminal-btn--success {
   border-color: var(--theme-border-success);
   background: var(--theme-success-soft);
   color: var(--theme-success-text);
 }
 
 :where(
-  .hook-terminal-btn,
-  .hook-context-menu-item,
-  .hook-terminal-list-item,
-  .hook-toolbar-button,
-  .hook-toolbar-menu-item,
-  .hook-mini-switch,
-  .hook-mini-toggle,
-  .hook-terminal-input
+  .otter-terminal-btn,
+  .otter-context-menu-item,
+  .otter-terminal-list-item,
+  .otter-toolbar-button,
+  .otter-toolbar-menu-item,
+  .otter-mini-switch,
+  .otter-mini-toggle,
+  .otter-terminal-input
 ):focus-visible {
   outline: 2px solid var(--theme-signal-text);
   outline-offset: 2px;
 }
 
 :where(
-  .hook-terminal-btn,
-  .hook-context-menu-item,
-  .hook-terminal-list-item,
-  .hook-toolbar-button,
-  .hook-toolbar-menu-item,
-  .hook-mini-switch,
-  .hook-mini-toggle
+  .otter-terminal-btn,
+  .otter-context-menu-item,
+  .otter-terminal-list-item,
+  .otter-toolbar-button,
+  .otter-toolbar-menu-item,
+  .otter-mini-switch,
+  .otter-mini-toggle
 ):disabled {
   border-color: var(--theme-border);
   background: var(--theme-control);
@@ -95,72 +95,72 @@
   cursor: not-allowed;
 }
 
-.hook-terminal-btn--success:hover {
+.otter-terminal-btn--success:hover {
   border-color: color-mix(in srgb, var(--theme-success) 48%, transparent);
   background: color-mix(in srgb, var(--theme-success) 24%, transparent);
 }
 
-.hook-terminal-btn--danger {
+.otter-terminal-btn--danger {
   border-color: var(--theme-border-danger);
   background: var(--theme-danger-soft);
   color: var(--theme-danger-text);
 }
 
-.hook-terminal-btn--danger:hover {
+.otter-terminal-btn--danger:hover {
   border-color: color-mix(in srgb, var(--theme-danger) 50%, transparent);
   background: color-mix(in srgb, var(--theme-danger) 24%, transparent);
 }
 
-.hook-context-menu-item {
+.otter-context-menu-item {
   min-height: 36px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--theme-text-secondary);
 }
 
-.hook-context-menu-item:hover {
+.otter-context-menu-item:hover {
   border-color: var(--theme-line);
   background: var(--theme-hover);
   color: var(--theme-text);
 }
 
-.hook-context-menu-item--danger:hover {
+.otter-context-menu-item--danger:hover {
   border-color: color-mix(in srgb, var(--theme-danger) 30%, transparent);
   background: var(--theme-danger-soft);
   color: var(--theme-danger-text);
 }
 
-.hook-terminal-list-item {
+.otter-terminal-list-item {
   border: 1px solid var(--theme-border);
   background: color-mix(in srgb, var(--theme-text) 4%, transparent);
   color: var(--theme-text-secondary);
 }
 
-.hook-terminal-list-item:hover {
+.otter-terminal-list-item:hover {
   border-color: var(--theme-border-strong);
   background: var(--theme-hover-strong);
   color: var(--theme-text);
 }
 
-.hook-terminal-icon-tile {
+.otter-terminal-icon-tile {
   background: color-mix(in srgb, var(--theme-text) 4%, transparent);
   border: 1px solid var(--theme-line);
   color: var(--theme-signal-text);
 }
 
-.hook-terminal-caption {
+.otter-terminal-caption {
   color: var(--theme-text-muted);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
-.hook-actions-shell {
+.otter-actions-shell {
   background: var(--theme-panel);
   border-bottom: 1px solid var(--theme-line);
   color: var(--theme-text);
 }
 
-.hook-actions-shell__title {
+.otter-actions-shell__title {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -170,7 +170,7 @@
   color: var(--theme-signal-text);
 }
 
-.hook-actions-shell__dot {
+.otter-actions-shell__dot {
   width: 6px;
   height: 6px;
   background: var(--theme-signal);
@@ -178,71 +178,71 @@
   flex-shrink: 0;
 }
 
-.hook-toolbar-button {
+.otter-toolbar-button {
   background: transparent;
   color: var(--theme-text-secondary);
 }
 
-.hook-toolbar-button:hover {
+.otter-toolbar-button:hover {
   background: var(--theme-hover);
   color: var(--theme-text);
 }
 
-.hook-toolbar-button--active {
+.otter-toolbar-button--active {
   background: var(--theme-hover-strong);
   color: var(--theme-signal-text);
 }
 
-.hook-toolbar-corner-toggle {
+.otter-toolbar-corner-toggle {
   background: var(--theme-panel-raised);
   color: var(--theme-text-muted);
 }
 
-.hook-toolbar-corner-toggle:hover {
+.otter-toolbar-corner-toggle:hover {
   background: var(--theme-hover);
   color: var(--theme-signal-text);
 }
 
-.hook-toolbar-menu-item {
+.otter-toolbar-menu-item {
   border-left: 2px solid transparent;
   background: transparent;
   color: var(--theme-text-secondary);
 }
 
-.hook-toolbar-menu-item:hover {
+.otter-toolbar-menu-item:hover {
   background: var(--theme-hover);
   color: var(--theme-text);
 }
 
-.hook-toolbar-menu-item--active {
+.otter-toolbar-menu-item--active {
   border-left-color: var(--theme-signal);
   background: var(--theme-hover-strong);
   color: var(--theme-signal-text);
 }
 
-.hook-mini-toggle--active {
+.otter-mini-toggle--active {
   border-color: var(--theme-border-strong) !important;
   background: var(--theme-hover-strong) !important;
   color: var(--theme-signal-text) !important;
 }
 
-.hook-mini-switch--active {
+.otter-mini-switch--active {
   border-color: var(--theme-border-strong) !important;
   background: var(--theme-hover-strong) !important;
   color: var(--theme-signal-text) !important;
 }
 
-.hook-mini-switch__thumb {
+.otter-mini-switch__thumb {
   border: 1px solid color-mix(in srgb, var(--theme-text) 35%, transparent);
   background: color-mix(in srgb, var(--theme-text) 20%, transparent);
 }
 
-.hook-mini-switch--active .hook-mini-switch__thumb {
+.otter-mini-switch--active .otter-mini-switch__thumb {
   border-color: var(--theme-signal);
   background: var(--theme-signal);
 }
 
-.hook-terminal-input {
+.otter-terminal-input {
   border: 1px solid var(--theme-border);
   background: var(--theme-control);
   color: var(--theme-text);
@@ -253,7 +253,7 @@
   -webkit-user-select: text;
 }
 
-.hook-terminal-input:focus {
+.otter-terminal-input:focus {
   border-color: var(--theme-border-strong);
 }
 

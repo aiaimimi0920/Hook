@@ -1,4 +1,4 @@
-use hook_lib::talk_connector::{
+use otter_lib::talk_connector::{
     build_voice_capture_once_envelope, capture_voice_once_with_manifest, validate_talk_manifest,
     TalkVoiceCaptureRequest,
 };

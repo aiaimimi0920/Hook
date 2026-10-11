@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "hook",
+  "productName": "Otter",
   "version": "0.2.33",
   "identifier": "com.yamiyu.hook",
   "build": {

@@ -5,8 +5,8 @@ export interface BootProfile {
   startupMode: StartupMode;
   initialUiMode: InitialUiMode;
   autoStartCapture: boolean;
-  loomHookEnabled: boolean;
-  loomHookWsUrl: string;
+  loomOtterEnabled: boolean;
+  loomOtterWsUrl: string;
   nativeAcceptance: boolean;
 }
 
@@ -14,8 +14,8 @@ export const defaultBootProfile: BootProfile = {
   startupMode: "silent",
   initialUiMode: "overlay",
   autoStartCapture: false,
-  loomHookEnabled: false,
-  loomHookWsUrl: "ws://127.0.0.1:19820",
+  loomOtterEnabled: false,
+  loomOtterWsUrl: "ws://127.0.0.1:19820",
   nativeAcceptance: false,
 };
 
@@ -27,10 +27,10 @@ const normalizeInitialUiMode = (value: unknown): InitialUiMode =>
     ? value
     : "overlay";
 
-const normalizeLoomHookWsUrl = (value: unknown): string =>
+const normalizeLoomOtterWsUrl = (value: unknown): string =>
   typeof value === "string" && value.trim().length > 0
     ? value.trim()
-    : defaultBootProfile.loomHookWsUrl;
+    : defaultBootProfile.loomOtterWsUrl;
 
 export const normalizeBootProfile = (
   value: Partial<BootProfile> | null | undefined,
@@ -41,11 +41,11 @@ export const normalizeBootProfile = (
     typeof value?.autoStartCapture === "boolean"
       ? value.autoStartCapture
       : defaultBootProfile.autoStartCapture,
-  loomHookEnabled:
-    typeof value?.loomHookEnabled === "boolean"
-      ? value.loomHookEnabled
-      : defaultBootProfile.loomHookEnabled,
-  loomHookWsUrl: normalizeLoomHookWsUrl(value?.loomHookWsUrl),
+  loomOtterEnabled:
+    typeof value?.loomOtterEnabled === "boolean"
+      ? value.loomOtterEnabled
+      : defaultBootProfile.loomOtterEnabled,
+  loomOtterWsUrl: normalizeLoomOtterWsUrl(value?.loomOtterWsUrl),
   nativeAcceptance:
     typeof value?.nativeAcceptance === "boolean"
       ? value.nativeAcceptance

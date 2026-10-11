@@ -368,7 +368,7 @@ mod tests {
 
     fn test_dir(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
-            "hook-app-settings-{name}-{}",
+            "otter-app-settings-{name}-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
@@ -442,7 +442,7 @@ mod tests {
     fn save_rejects_unknown_placeholders() {
         let root = test_dir("invalid-pattern");
         let mut settings = AppSettings::default();
-        settings.file_naming.sticker_save_pattern = "Hook_{missing}".to_string();
+        settings.file_naming.sticker_save_pattern = "Otter_{missing}".to_string();
         assert!(save_app_settings(&root, settings).is_err());
         assert!(!root.join(APP_SETTINGS_FILE_NAME).exists());
         let _ = std::fs::remove_dir_all(root);

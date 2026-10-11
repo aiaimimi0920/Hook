@@ -167,7 +167,7 @@ pub(crate) async fn authorize_surface_request(
 fn disabled_remote_surface_error(base_url: &str) -> String {
     format!(
         "cross-device Loom Surface support is disabled in this build: `{base_url}` is not a \
-         loopback transport (rebuild with Hook's default features or `--features remote-surface`)"
+         loopback transport (rebuild with Otter's default features or `--features remote-surface`)"
     )
 }
 
@@ -204,7 +204,7 @@ async fn remote_surface_authorization(
     let device_id = identity
         .device_id
         .as_deref()
-        .ok_or_else(|| "Hook device pairing did not return a device id".to_owned())?;
+        .ok_or_else(|| "Otter device pairing did not return a device id".to_owned())?;
     let cache_key = format!("{}\n{}", base_url.trim_end_matches('/'), device_id);
     let now = unix_time_millis();
     if let Some(authorization) = cache::get(&cache_key, now)? {
@@ -239,7 +239,7 @@ pub(crate) async fn renew_existing_device_session(
         let identity =
             identity::load_existing_device_identity_at(&crate::effective_app_data_dir(app)?)?;
         if identity.device_id.as_deref() != Some(expected_device_id) {
-            return Err("Hook viewer renewal device identity changed".to_owned());
+            return Err("Otter viewer renewal device identity changed".to_owned());
         }
         let session =
             session_attempt::create_existing_device_session_once(base_url, &identity).await?;

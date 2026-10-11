@@ -19,7 +19,7 @@ async function verify(mutate: Mutate = (rows) => rows) {
     const root = await mkdtemp(path.join(os.tmpdir(), 'tile-soak-gate-'));
     try {
         const samples = Array.from({ length: 131 }, (_, seconds) => {
-            const processes = ['loom-daemon', 'hook', 'hook_lib-abcd', 'msedgewebview2', 'msedgewebview2', 'msedgewebview2']
+            const processes = ['loom-daemon', 'hook', 'otter_lib-abcd', 'msedgewebview2', 'msedgewebview2', 'msedgewebview2']
                 .map((name, index) => ({ pid: index + 1, name, path: executable(`${name}.exe`),
                     startedUtc: new Date(origin - 1000).toISOString(), privateBytes: 32 * 1024 * 1024,
                     handles: 80, cpuMs: seconds * 10 }));
@@ -28,8 +28,8 @@ async function verify(mutate: Mutate = (rows) => rows) {
         const write = (name: string, value: unknown) => writeFile(path.join(root, name), JSON.stringify(value), 'utf8');
         await write('resource-samples.json', { logicalProcessors: 8, samples });
         await write('runtime.json', { daemonPid: 1, daemonExe: executable('loom-daemon.exe'),
-            outputPid: 2, hookExe: executable('hook.exe') });
-        await write('input-source-ready.json', { pid: 3, executable: executable('hook_lib-abcd.exe') });
+            outputPid: 2, otterExe: executable('otter.exe') });
+        await write('input-source-ready.json', { pid: 3, executable: executable('otter_lib-abcd.exe') });
         const result = spawnSync(process.execPath, ['--experimental-strip-types',
             fileURLToPath(new URL('./verifySoakResources.ts', import.meta.url)), root], { encoding: 'utf8', timeout: 10000 });
         assert.equal(result.error, undefined); assert.equal(result.signal, null);
@@ -53,7 +53,7 @@ test('WebView observations cannot substitute for any required product root', asy
 
 test('wrong executable and reused source PID cannot satisfy root coverage', async () => {
     const wrongPath = await verify((rows) => rows.map((row) => row.pid === 2
-        ? { ...row, path: executable('unrelated-hook.exe') } : row));
+        ? { ...row, path: executable('unrelated-otter.exe') } : row));
     assert.notEqual(wrongPath.status, 0);
     const reused = await verify((rows, seconds) => rows.map((row) => row.pid === 3 && seconds >= 100
         ? { ...row, startedUtc: new Date(origin + 100000).toISOString() } : row));

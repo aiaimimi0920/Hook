@@ -1,9 +1,9 @@
 import { api } from "./api";
 import {
     DEFAULT_APP_SETTINGS,
-    DEFAULT_HOOK_CACHE_SETTINGS,
+    DEFAULT_OTTER_CACHE_SETTINGS,
     type AppSettings,
-    type HookCacheSettings,
+    type OtterCacheSettings,
 } from "../types/appSettings";
 import { normalizeFileNamingSettings } from "./fileNaming";
 
@@ -25,16 +25,16 @@ const normalizeTranslationProviderMode = (
 ): AppSettings["translationProviderMode"] =>
     value === "local" || value === "gateway" ? value : "auto";
 
-export const normalizeHookCacheSettings = (
-    value: Partial<HookCacheSettings> | null | undefined,
-): HookCacheSettings => {
-    const recycleBinMaxEntries = Math.round(value?.recycleBinMaxEntries ?? DEFAULT_HOOK_CACHE_SETTINGS.recycleBinMaxEntries);
-    const tempCacheMaxBytes = Math.round(value?.tempCacheMaxBytes ?? DEFAULT_HOOK_CACHE_SETTINGS.tempCacheMaxBytes);
+export const normalizeOtterCacheSettings = (
+    value: Partial<OtterCacheSettings> | null | undefined,
+): OtterCacheSettings => {
+    const recycleBinMaxEntries = Math.round(value?.recycleBinMaxEntries ?? DEFAULT_OTTER_CACHE_SETTINGS.recycleBinMaxEntries);
+    const tempCacheMaxBytes = Math.round(value?.tempCacheMaxBytes ?? DEFAULT_OTTER_CACHE_SETTINGS.tempCacheMaxBytes);
     return {
     recycleBinMaxEntries: recycleBinMaxEntries === 0 ? 0 : Math.min(500, Math.max(1, recycleBinMaxEntries)),
-    recycleBinRetentionDays: Math.min(3650, Math.max(0, Math.round(value?.recycleBinRetentionDays ?? DEFAULT_HOOK_CACHE_SETTINGS.recycleBinRetentionDays))),
+    recycleBinRetentionDays: Math.min(3650, Math.max(0, Math.round(value?.recycleBinRetentionDays ?? DEFAULT_OTTER_CACHE_SETTINGS.recycleBinRetentionDays))),
     tempCacheMaxBytes: tempCacheMaxBytes === 0 ? 0 : Math.min(16 * 1024 * 1024 * 1024, Math.max(32 * 1024 * 1024, tempCacheMaxBytes)),
-    tempCacheRetentionDays: Math.min(3650, Math.max(0, Math.round(value?.tempCacheRetentionDays ?? DEFAULT_HOOK_CACHE_SETTINGS.tempCacheRetentionDays))),
+    tempCacheRetentionDays: Math.min(3650, Math.max(0, Math.round(value?.tempCacheRetentionDays ?? DEFAULT_OTTER_CACHE_SETTINGS.tempCacheRetentionDays))),
     };
 };
 
@@ -43,7 +43,7 @@ export const normalizeAppSettings = (
 ): AppSettings => ({
     schemaVersion: 2,
     fileNaming: normalizeFileNamingSettings(value?.fileNaming),
-    cache: normalizeHookCacheSettings(value?.cache),
+    cache: normalizeOtterCacheSettings(value?.cache),
     translationTargetLanguage: normalizeTranslationTargetLanguage(value?.translationTargetLanguage),
     translationProviderMode: normalizeTranslationProviderMode(value?.translationProviderMode),
 });

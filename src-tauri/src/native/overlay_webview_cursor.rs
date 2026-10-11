@@ -129,7 +129,7 @@ fn post_recovery_move(root: HWND, mut point: POINT, keys: WPARAM) -> bool {
     let coordinates = LPARAM(((y as u16 as u32) << 16 | x as u16 as u32) as isize);
     // DOM-dispatched mouse events do not clear Chromium's native hidden cursor.
     // Notify only our embedded renderer, without clicks or focus changes.
-    // SetCursor on Hook's own HWND cannot clear this WebView state.
+    // SetCursor on Otter's own HWND cannot clear this WebView state.
     unsafe { PostMessageW(Some(target), WM_MOUSEMOVE, keys, coordinates) }.is_ok()
 }
 

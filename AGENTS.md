@@ -1,8 +1,8 @@
-# Hook Repository Instructions
+# Otter Repository Instructions
 
-Scope: this independent Hook repository and all of its subdirectories.
+Scope: this independent Otter repository and all of its subdirectories.
 
-Hook owns the visual desktop, capture, overlay/canvas, editing, and local
+Otter owns the visual desktop, capture, overlay/canvas, editing, and local
 integration surfaces. Preserve the repository boundary: integrate with Loom,
 Talk, Tea, Gateway, and Platform through their contracts rather than copying
 their internal implementations here.
@@ -10,7 +10,7 @@ their internal implementations here.
 Before development, read `CONTRIBUTING.md`, the README, and the owning design,
 test, security, and release documents. When mounted inside Neuro,
 `../docs/DEVELOPMENT_STANDARD.md` is the expanded common standard. This file is
-self-contained so a standalone Hook checkout inherits the same mandatory rules.
+self-contained so a standalone Otter checkout inherits the same mandatory rules.
 
 ## Mandatory incremental code-size standard
 
@@ -60,7 +60,7 @@ renames, extensions, or dumping grounds named `common`, `utils`, or `helpers`.
 5. Run focused tests, directly dependent compile/typecheck/static checks, the
    official formatter, and any repository line checker.
 6. Run `git diff --check` and inspect this independent repository's scoped diff.
-7. For runtime or release work, run Hook's documented package/runtime gates;
+7. For runtime or release work, run Otter's documented package/runtime gates;
    documentation-only governance changes do not require a fake release build.
 
 Release and dependency changes must also follow `docs/release-provenance.md` and
@@ -77,7 +77,7 @@ Any stricter repository-local checker or CI gate overrides this common floor.
   public package, Cargo, or Tauri version for internal work.
 - Advance the public three-part version only for an explicitly requested public
   release, align all package metadata, and reset `internalRevision` to zero.
-- Cargo/npm/Tauri retain three-part SemVer; the fourth part is a Hook build
+- Cargo/npm/Tauri retain three-part SemVer; the fourth part is a Otter build
   identity in provenance, not a dependency version. Never publish an internal
   candidate or a four-part tag through the public release pipeline.
 - Follow `docs/VERSIONING.md` for commands, compatibility, and release gates.

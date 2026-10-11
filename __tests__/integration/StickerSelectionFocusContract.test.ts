@@ -23,7 +23,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 };
 
 describe("sticker selection focus contract", () => {
-  it("focuses Hook after drag-out, capture-mode, and locked-group guards accept the sticker interaction", () => {
+  it("focuses Otter after drag-out, capture-mode, and locked-group guards accept the sticker interaction", () => {
     const block = sourceBetween(
       canvasInteractionSource,
       "const onStartDragUnit =",
@@ -41,7 +41,7 @@ describe("sticker selection focus contract", () => {
     expect(appSource).toContain("createAppCanvasInteractions");
   });
 
-  it("focuses Hook for annotation interactions that consume the sticker pointer event", () => {
+  it("focuses Otter for annotation interactions that consume the sticker pointer event", () => {
     const block = sourceBetween(
       annotationSource,
       "const handleExistingPointerDown = async",

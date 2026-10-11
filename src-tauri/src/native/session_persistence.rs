@@ -8,19 +8,19 @@ impl SessionFileLease {
     fn acquire(session_file: &Path) -> Result<Self, String> {
         let parent = session_file
             .parent()
-            .ok_or_else(|| "Hook session path has no parent directory".to_string())?;
+            .ok_or_else(|| "Otter session path has no parent directory".to_string())?;
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
         let file_name = session_file
             .file_name()
             .and_then(|name| name.to_str())
-            .ok_or_else(|| "Hook session path has no UTF-8 file name".to_string())?;
+            .ok_or_else(|| "Otter session path has no UTF-8 file name".to_string())?;
         let lock_path = parent.join(format!("{file_name}.lock"));
         let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .open(&lock_path)
-            .map_err(|error| format!("Failed to open Hook session lock: {error}"))?;
+            .map_err(|error| format!("Failed to open Otter session lock: {error}"))?;
         let started_at = Instant::now();
         loop {
             match file.try_lock_exclusive() {
@@ -39,7 +39,7 @@ impl SessionFileLease {
                     ));
                 }
                 Err(error) => {
-                    return Err(format!("Failed to lock Hook session: {error}"));
+                    return Err(format!("Failed to lock Otter session: {error}"));
                 }
             }
         }
@@ -82,7 +82,7 @@ fn ensure_expected_session_revision(
     if let Some(expected_revision) = expected_revision {
         if expected_revision != current_revision {
             return Err(format!(
-                "SESSION_REVISION_CONFLICT expected {expected_revision}, current {current_revision}; refresh the Hook session before retrying"
+                "SESSION_REVISION_CONFLICT expected {expected_revision}, current {current_revision}; refresh the Otter session before retrying"
             ));
         }
     }
@@ -91,10 +91,10 @@ fn ensure_expected_session_revision(
 
 fn deserialize_session_document(bytes: &[u8]) -> Result<SessionData, String> {
     let root: serde_json::Value = serde_json::from_slice(bytes)
-        .map_err(|error| format!("Failed to parse Hook session JSON: {error}"))?;
+        .map_err(|error| format!("Failed to parse Otter session JSON: {error}"))?;
     let revision = session_document_revision(&root)?;
     let mut session: SessionData = serde_json::from_value(root)
-        .map_err(|error| format!("Failed to read Hook session: {error}"))?;
+        .map_err(|error| format!("Failed to read Otter session: {error}"))?;
     session.document_schema_version = SESSION_DOCUMENT_SCHEMA_VERSION;
     session.document_revision = revision;
     Ok(session)
@@ -133,14 +133,14 @@ fn replace_session_file(temp_path: &Path, session_file: &Path) -> Result<(), Str
             }
         }
         Err(format!(
-            "Failed to atomically replace Hook session: {}",
+            "Failed to atomically replace Otter session: {}",
             std::io::Error::last_os_error()
         ))
     }
     #[cfg(not(target_os = "windows"))]
     {
         fs::rename(temp_path, session_file)
-            .map_err(|error| format!("Failed to atomically replace Hook session: {error}"))
+            .map_err(|error| format!("Failed to atomically replace Otter session: {error}"))
     }
 }
 
@@ -165,13 +165,13 @@ fn write_session_document_atomically_with_fault(
 ) -> Result<(), String> {
     let parent = session_file
         .parent()
-        .ok_or_else(|| "Hook session path has no parent directory".to_string())?;
+        .ok_or_else(|| "Otter session path has no parent directory".to_string())?;
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     let json = serde_json::to_vec_pretty(session).map_err(|error| error.to_string())?;
     let file_name = session_file
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| "Hook session path has no UTF-8 file name".to_string())?;
+        .ok_or_else(|| "Otter session path has no UTF-8 file name".to_string())?;
     let mut temporary = None;
     for attempt in 0..100u32 {
         let path = parent.join(format!(
@@ -188,11 +188,11 @@ fn write_session_document_atomically_with_fault(
                 break;
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(format!("Failed to create Hook session temporary: {error}")),
+            Err(error) => return Err(format!("Failed to create Otter session temporary: {error}")),
         }
     }
     let (temp_path, mut file) =
-        temporary.ok_or_else(|| "Failed to allocate a Hook session temporary file".to_string())?;
+        temporary.ok_or_else(|| "Failed to allocate a Otter session temporary file".to_string())?;
     let write_result = (|| {
         if fault == Some(AtomicSessionWriteFault::DiskFull) {
             return Err("Injected disk-full failure before session write".to_string());
@@ -243,12 +243,12 @@ fn clear_persisted_session_library_file(session_file: &Path, action: &str) -> Re
     match action {
         "clearRecycleBin" => session.recycle_bin.clear(),
         "clearReferenceLibrary" => session.reference_library.clear(),
-        _ => return Err("Unsupported Hook session library clear action".to_string()),
+        _ => return Err("Unsupported Otter session library clear action".to_string()),
     }
     session.document_revision = session
         .document_revision
         .checked_add(1)
-        .ok_or_else(|| "SESSION_REVISION_EXHAUSTED Hook session revision overflow".to_string())?;
+        .ok_or_else(|| "SESSION_REVISION_EXHAUSTED Otter session revision overflow".to_string())?;
     write_session_document_atomically(session_file, &session)?;
     Ok(())
 }

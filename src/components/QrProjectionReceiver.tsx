@@ -75,7 +75,7 @@ export const QrProjectionReceiver = (props: { initialText: string; importKind?: 
         <Show when={!props.importKind}><ProjectionReceiveSettings /></Show>
         <Show when={combined()}>
             <div class="flex flex-wrap gap-2" role="group" aria-label="投射导入方式">
-                <For each={["qr", "link"] as const}>{(kind) => <button type="button" class="hook-terminal-btn"
+                <For each={["qr", "link"] as const}>{(kind) => <button type="button" class="otter-terminal-btn"
                     aria-pressed={method() === kind} disabled={busy() || acceptanceStarted()}
                     onClick={() => {
                         if (method() === kind) return;
@@ -100,10 +100,10 @@ export const QrProjectionReceiver = (props: { initialText: string; importKind?: 
                 }} />
         </label>
         </Show>
-        <Show when={!combined() && !acceptanceStarted()}><button type="button" class="hook-terminal-btn" disabled={busy() || !text().trim()} onClick={() => parse()}>读取邀请</button></Show>
+        <Show when={!combined() && !acceptanceStarted()}><button type="button" class="otter-terminal-btn" disabled={busy() || !text().trim()} onClick={() => parse()}>读取邀请</button></Show>
         <Show when={!combined() && !envelope() && inputKind() !== "link"}>
             <For each={recognizedProjectionInvitations(graphStore.units)}>{(invitation, index) =>
-                <button type="button" class="hook-terminal-btn" disabled={busy()} onClick={() => { setText(invitation); parse(invitation); }}>
+                <button type="button" class="otter-terminal-btn" disabled={busy()} onClick={() => { setText(invitation); parse(invitation); }}>
                     使用已识别的投射二维码 {index() + 1}</button>}
             </For>
             <p>可先截取二维码并运行二维码识别，再从这里选择识别结果。</p>
@@ -114,9 +114,9 @@ export const QrProjectionReceiver = (props: { initialText: string; importKind?: 
             </Show>
             <Show when={invitation().protocol === "neuro.qr-projection.v1" && isProjectionLoopback(invitation().serverOrigin)}><p class="qr-projection-warning">这是本机地址，不能连接另一台电脑。请让发送端使用双方可达的 HTTPS 地址。</p></Show>
             <Show when={!combined()}><p>{invitation().protocol === "neuro.qr-projection.v2"
-                ? "请先在本机 Loom 登录与发送端相同的账号。确认后由本机 Loom 校验邀请并读取图像，无需在 Hook 再次登录。"
-                : "确认地址后，Hook 将使用本机设备身份连接。首次连接需要在该 Loom 的设备管理中批准本机。"}</p></Show>
-            <Show when={!combined()}><button type="button" class="hook-terminal-btn" disabled={busy()} onClick={() => void inspect()}>
+                ? "请先在本机 Loom 登录与发送端相同的账号。确认后由本机 Loom 校验邀请并读取图像，无需在 Otter 再次登录。"
+                : "确认地址后，Otter 将使用本机设备身份连接。首次连接需要在该 Loom 的设备管理中批准本机。"}</p></Show>
+            <Show when={!combined()}><button type="button" class="otter-terminal-btn" disabled={busy()} onClick={() => void inspect()}>
                 {busy() ? "正在连接…" : preview() ? "重新查看最新内容" : "确认地址并查看内容"}</button></Show>
         </>}</Show>
         <Show when={!combined() && preview()}>{(inspected) => <>
@@ -126,10 +126,10 @@ export const QrProjectionReceiver = (props: { initialText: string; importKind?: 
                 <div><dt>图像版本</dt><dd>{inspected().revision}</dd></div>
             </dl>
             <Show when={inspected().snapshot}>{(snapshot) => <img class="qr-projection-preview" src={`data:image/png;base64,${snapshot().imageBase64}`} alt="即将接收的投射图像" />}</Show>
-            <button type="button" class="hook-terminal-btn hook-terminal-btn--active" disabled={busy()} onClick={() => void accept()}>
+            <button type="button" class="otter-terminal-btn otter-terminal-btn--active" disabled={busy()} onClick={() => void accept()}>
                 {busy() ? "正在创建关联贴图…" : "接收为关联贴图"}</button>
         </>}</Show>
-        <Show when={combined()}><button type="button" class="hook-terminal-btn hook-terminal-btn--active"
+        <Show when={combined()}><button type="button" class="otter-terminal-btn otter-terminal-btn--active"
             disabled={busy() || !envelope()} onClick={() => void importContent()}>{busy() ? "正在导入…" : "导入"}</button></Show>
         <Show when={error()}><p role="alert" class="qr-projection-warning">{error()}</p></Show>
     </>;

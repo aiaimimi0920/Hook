@@ -15,7 +15,7 @@ import { sessionHistoryApi } from "./apiSessionHistory";
 import { teaApi } from "./apiTea";
 import { voiceApi } from "./apiVoice";
 
-export { listenBrowserLoomHookMethod } from "./apiBrowserLoomTransport";
+export { listenBrowserLoomOtterMethod } from "./apiBrowserLoomTransport";
 export { isTauriRuntimeAvailable } from "./apiTransport";
 export type {
     CaptureRegionOptions,
@@ -31,9 +31,9 @@ export type {
     TalkInvokeErrorPayload,
     TalkVoiceCaptureRequest,
     TalkVoiceCaptureResult,
-    TeaHookAttachment,
-    TeaHookContext,
-    TeaHookIntakeRequest,
+    TeaOtterAttachment,
+    TeaOtterContext,
+    TeaOtterIntakeRequest,
     TeaTicketSummary,
     ToolSettingsData,
     VoiceSettingsSummary,

@@ -10,14 +10,14 @@ export const StickerGroupBar: Component = () => {
     return (
         <Show when={groups().length > 0}>
             <div
-                class="hook-terminal-shell hook-terminal-shell--strong absolute left-4 top-4 z-[1150] flex items-center gap-2 px-3 py-2 text-[11px]"
+                class="otter-terminal-shell otter-terminal-shell--strong absolute left-4 top-4 z-[1150] flex items-center gap-2 px-3 py-2 text-[11px]"
                 onMouseDown={(event) => event.stopPropagation()}
             >
-                <span class="hook-inline-muted">分组</span>
+                <span class="otter-inline-muted">分组</span>
                 <button
-                    class="hook-terminal-btn px-2 py-1"
+                    class="otter-terminal-btn px-2 py-1"
                     classList={{
-                        "hook-terminal-btn--active": !activeStickerGroupId(),
+                        "otter-terminal-btn--active": !activeStickerGroupId(),
                     }}
                     onClick={() => uiActions.setActiveStickerGroup(null)}
                 >
@@ -27,9 +27,9 @@ export const StickerGroupBar: Component = () => {
                 <For each={groups()}>
                     {(group) => (
                         <button
-                            class="hook-terminal-btn px-2 py-1"
+                            class="otter-terminal-btn px-2 py-1"
                             classList={{
-                                "hook-terminal-btn--active": activeStickerGroupId() === group.id,
+                                "otter-terminal-btn--active": activeStickerGroupId() === group.id,
                                 "opacity-50": !!group.hidden,
                             }}
                             onClick={() => uiActions.setActiveStickerGroup(group.id)}
@@ -42,7 +42,7 @@ export const StickerGroupBar: Component = () => {
 
                 <Show when={activeStickerGroupId()}>
                     <button
-                        class="hook-terminal-btn px-2 py-1"
+                        class="otter-terminal-btn px-2 py-1"
                         onClick={() => {
                             const current = groups().find((group) => group.id === activeStickerGroupId());
                             if (!current) return;
@@ -59,7 +59,7 @@ export const StickerGroupBar: Component = () => {
                     </button>
 
                     <button
-                        class="hook-terminal-btn hook-terminal-btn--danger px-2 py-1"
+                        class="otter-terminal-btn otter-terminal-btn--danger px-2 py-1"
                         onClick={() => {
                             const groupId = activeStickerGroupId();
                             if (!groupId) return;
@@ -76,7 +76,7 @@ export const StickerGroupBar: Component = () => {
                     </button>
 
                     <button
-                        class="hook-terminal-btn px-2 py-1"
+                        class="otter-terminal-btn px-2 py-1"
                         onClick={() => {
                             const groupId = activeStickerGroupId();
                             if (!groupId) return;

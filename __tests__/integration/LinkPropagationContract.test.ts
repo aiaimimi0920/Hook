@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-describe("Hook link propagation contract", () => {
+describe("Otter link propagation contract", () => {
   it("re-propagates from the source unit after a new link is dropped", () => {
     const appSource = readFileSync(resolve(process.cwd(), "src", "app.tsx"), "utf8");
     const linkingSource = readFileSync(resolve(process.cwd(), "src", "hooks", "useLinking.ts"), "utf8");

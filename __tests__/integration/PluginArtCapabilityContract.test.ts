@@ -1,12 +1,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { readLoomHookRustSources } from "../helpers/loomHookRustSources";
+import { readLoomOtterRustSources } from "../helpers/loomOtterRustSources";
 
 const source = (relativePath: string) => readFileSync(resolve(process.cwd(), relativePath), "utf8");
 
 describe("plugin Art capability boundary", () => {
-  it("keeps sample Art ids out of Hook production source", () => {
+  it("keeps sample Art ids out of Otter production source", () => {
     const sampleIds = [
       "custom-1770146354922",
       "custom-remove-bg-cloud",
@@ -60,7 +60,7 @@ describe("plugin Art capability boundary", () => {
   });
 
   it("delegates every enabled package Art to Loom instead of maintaining an execution whitelist", () => {
-    const backend = readLoomHookRustSources();
+    const backend = readLoomOtterRustSources();
     const tauriEntry = source("src-tauri/src/lib.rs");
 
     expect(backend).toContain('"method": "loom.hook.art.execute"');
@@ -75,7 +75,7 @@ describe("plugin Art capability boundary", () => {
   });
 
   it("uses a bounded response timeout longer than Loom's framework process budget", () => {
-    const backend = readLoomHookRustSources();
+    const backend = readLoomOtterRustSources();
 
     expect(backend).toContain("Duration::from_secs(150)");
     expect(backend).not.toContain("ARTLOOM_WS_RESPONSE_GRACE_SECS");

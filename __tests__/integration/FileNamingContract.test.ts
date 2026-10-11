@@ -2,17 +2,17 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 
 const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
 const rustNaming = readSource("src-tauri/src/file_naming.rs");
-const rustEntry = readHookLibRustSources();
+const rustEntry = readOtterLibRustSources();
 const dragService = readSource("src/services/unitDragExport.ts");
 const unitNativeDrag = readSource("src/components/unitNativeStickerDragController.ts");
 const clipboard = readSource("src/hooks/useClipboard.ts");
 
-describe("Hook unified file naming contract", () => {
+describe("Otter unified file naming contract", () => {
     it("uses Rust as the final filename authority with atomic collision allocation", () => {
         expect(rustNaming).toContain("OpenOptions::new().write(true).create_new(true)");
         expect(rustNaming).toContain('format!("_{index}")');

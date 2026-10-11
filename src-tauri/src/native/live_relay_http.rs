@@ -337,7 +337,7 @@ fn close_live_session_blocking(session: &LiveRelaySession) -> Result<(), String>
             "payload": {
                 "reason": "closed",
                 "endedByDeviceId": session.authorization.device_id,
-                "detail": "Hook publisher stopped",
+                "detail": "Otter publisher stopped",
             }
         }
     });

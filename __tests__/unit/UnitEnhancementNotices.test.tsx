@@ -72,13 +72,13 @@ describe("UnitEnhancementNotices", () => {
             message: "已复制文本：example",
         });
 
-        const layer = noticesLayer.querySelector<HTMLElement>("[data-hook-unit-notice-layer='true']");
+        const layer = noticesLayer.querySelector<HTMLElement>("[data-otter-unit-notice-layer='true']");
         const anchor = layer?.parentElement;
         expect(enhancementNotices[UNIT_ID]).toHaveLength(1);
         expect(layer).not.toBeNull();
         expect(noticesLayer.contains(anchor ?? null)).toBe(true);
         expect(anchor?.closest("[data-testid='canvas-notices']")).toBe(noticesLayer);
-        expect(anchor?.dataset.hookUnitNoticeAnchor).toBe(UNIT_ID);
+        expect(anchor?.dataset.otterUnitNoticeAnchor).toBe(UNIT_ID);
         expect(anchor?.style.left).toBe("100px");
         expect(anchor?.style.top).toBe("50px");
         expect(anchor?.style.width).toBe("300px");
@@ -118,7 +118,7 @@ describe("UnitEnhancementNotices", () => {
 
         const canvasLayer = host.querySelector("#unit-notices-layer");
         expect(layers().notices).toBe(canvasLayer);
-        expect(canvasLayer?.querySelector("[data-hook-unit-notice-layer='true']")?.textContent)
+        expect(canvasLayer?.querySelector("[data-otter-unit-notice-layer='true']")?.textContent)
             .toContain("reactive-ref");
     });
 
@@ -131,13 +131,13 @@ describe("UnitEnhancementNotices", () => {
             message: "已复制文本：example",
         });
 
-        noticesLayer.querySelector<HTMLElement>(".hook-enhancement-notice")?.dispatchEvent(
+        noticesLayer.querySelector<HTMLElement>(".otter-enhancement-notice")?.dispatchEvent(
             new MouseEvent("click", { bubbles: true }),
         );
 
         expect(shellClick).not.toHaveBeenCalled();
         expect(enhancementNotices[UNIT_ID]).toBeUndefined();
-        expect(noticesLayer.querySelector("[data-hook-unit-notice-layer='true']")).toBeNull();
+        expect(noticesLayer.querySelector("[data-otter-unit-notice-layer='true']")).toBeNull();
         expect(getDragFollowerElements([UNIT_ID])).toEqual([]);
     });
 
@@ -147,12 +147,12 @@ describe("UnitEnhancementNotices", () => {
         uiActions.showEnhancementNotice(UNIT_ID, {
             feature: "Loom",
             title: "连接失败",
-            message: "无法连接 Loom Hook",
+            message: "无法连接 Loom Otter",
         });
 
-        expect(noticesLayer.querySelector("[data-hook-unit-notice-layer='true']")).not.toBeNull();
+        expect(noticesLayer.querySelector("[data-otter-unit-notice-layer='true']")).not.toBeNull();
         vi.advanceTimersByTime(ENHANCEMENT_NOTICE_TIMEOUT_MS);
         expect(enhancementNotices[UNIT_ID]).toBeUndefined();
-        expect(noticesLayer.querySelector("[data-hook-unit-notice-layer='true']")).toBeNull();
+        expect(noticesLayer.querySelector("[data-otter-unit-notice-layer='true']")).toBeNull();
     });
 });

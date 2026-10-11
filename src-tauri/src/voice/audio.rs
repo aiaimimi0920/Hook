@@ -102,7 +102,7 @@ pub fn capture_audio(request: &AudioCaptureRequest) -> Result<AudioArtifact, Voi
             Ok(artifact)
         }
         AudioBackendMode::NativeWindows => {
-            if std::env::var_os("HOOK_DISABLE_NATIVE_AUDIO").is_some() {
+            if crate::brand_env::var_os("HOOK_DISABLE_NATIVE_AUDIO").is_some() {
                 return Err(VoiceError::Audio(
                     "native_windows audio backend disabled by HOOK_DISABLE_NATIVE_AUDIO"
                         .to_string(),

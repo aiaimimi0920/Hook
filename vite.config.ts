@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => ({
     manifest: "_build/.vite/manifest.json",
     rollupOptions: {
       output: {
-        // Framework code changes less often than Hook features and is safe to
+        // Framework code changes less often than Otter features and is safe to
         // cache independently from the application entry graph.
         manualChunks(id) {
           return id.includes("/node_modules/") ? "vendor" : undefined;

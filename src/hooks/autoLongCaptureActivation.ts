@@ -58,7 +58,7 @@ export const activateAutoLongCaptureSession = async (
             frameCount: 0,
             duplicateCount: 0,
             status: "capturing",
-            lastMessage: "请滚动目标页面，Hook 会高频采集非重复画面并在结束时统一拼接",
+            lastMessage: "请滚动目标页面，Otter 会高频采集非重复画面并在结束时统一拼接",
         });
         const { x, y, w, h } = dependencies.rect;
         void api.debugLogEvent("auto-long-capture-start", `x=${x} y=${y} w=${w} h=${h}`);

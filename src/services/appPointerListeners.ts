@@ -126,7 +126,7 @@ export async function registerAppPointerListeners({
         "overlay/global_mouse_down",
         (event) => {
             if (event.payload?.nativeDragPreflight) {
-                window.dispatchEvent(new CustomEvent("hook:overlay-native-drag-preflight-down", {
+                window.dispatchEvent(new CustomEvent("otter:overlay-native-drag-preflight-down", {
                     detail: event.payload,
                 }));
             } else {
@@ -139,7 +139,7 @@ export async function registerAppPointerListeners({
         "overlay/global_mouse_move",
         (event) => {
             if (event.payload?.nativeDragPreflight) {
-                window.dispatchEvent(new CustomEvent("hook:overlay-native-drag-preflight-move", {
+                window.dispatchEvent(new CustomEvent("otter:overlay-native-drag-preflight-move", {
                     detail: event.payload,
                 }));
             } else if (draggingStickerId()) {
@@ -163,7 +163,7 @@ export async function registerAppPointerListeners({
         "overlay/global_mouse_up",
         (event) => {
             if (event.payload?.nativeDragPreflight) {
-                window.dispatchEvent(new CustomEvent("hook:overlay-native-drag-preflight-up", {
+                window.dispatchEvent(new CustomEvent("otter:overlay-native-drag-preflight-up", {
                     detail: event.payload,
                 }));
             } else {

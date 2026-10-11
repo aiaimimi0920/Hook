@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -44,9 +44,9 @@ const mutationSource = readFileSync(resolve(process.cwd(), "src/services/sticker
 const bootSettingsApiSource = readFileSync(resolve(process.cwd(), "src/services/apiBootSettings.ts"), "utf8");
 const uiStoreSource = readFileSync(resolve(process.cwd(), "src/store/uiStore.ts"), "utf8");
 const fontCatalogSource = readFileSync(resolve(process.cwd(), "src/services/fontCatalog.ts"), "utf8");
-const rustSource = readHookLibRustSources();
+const rustSource = readOtterLibRustSources();
 
-describe("Hook sticker text sizing contract", () => {
+describe("Otter sticker text sizing contract", () => {
     it("stores font size on text annotations and exposes direct text size controls", () => {
         expect(typeSource).toContain("fontSize?: number");
         expect(toolbarContractSource).toContain('| "textSize"');

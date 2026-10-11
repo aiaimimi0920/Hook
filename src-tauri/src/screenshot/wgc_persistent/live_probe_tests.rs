@@ -63,7 +63,7 @@ struct PhaseZeroProbe {
 }
 
 fn required_env(name: &str) -> Result<String, String> {
-    std::env::var(name)
+    crate::brand_env::var(name)
         .ok()
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| format!("{name} is required"))

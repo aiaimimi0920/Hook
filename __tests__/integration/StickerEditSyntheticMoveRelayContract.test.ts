@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -19,7 +19,7 @@ describe("sticker edit synthetic move relay contract", () => {
     const appSource = readSource("src/app.tsx");
     const pointerListenerSource = readSource("src/services/appPointerListeners.ts");
     const canvasInteractionSource = readSource("src/services/appCanvasInteractions.ts");
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const dispatchSource = readSource("src/services/overlaySyntheticDispatch.ts");
     const stateSource = readSource("src/services/overlaySyntheticState.ts");
     const globalMoveBlock = sourceBetween(

@@ -1,16 +1,16 @@
 {
-  "name": "hook",
+  "name": "otter",
   "version": "0.2.33",
   "description": "Windows-first Tauri desktop capture, sticker editing, and visual workflow workspace.",
   "type": "module",
   "author": "yamiyu",
-  "homepage": "https://github.com/aiaimimi0920/Hook#readme",
+  "homepage": "https://github.com/aiaimimi0920/Otter#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/aiaimimi0920/Hook.git"
+    "url": "https://github.com/aiaimimi0920/Otter.git"
   },
   "bugs": {
-    "url": "https://github.com/aiaimimi0920/Hook/issues"
+    "url": "https://github.com/aiaimimi0920/Otter/issues"
   },
   "keywords": [
     "tauri",
@@ -56,7 +56,7 @@
     "probe:live-screenshot:phase9": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\tests\\Invoke-LiveScreenshotPhaseNineProbe.ps1",
     "audit:dependencies": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\Invoke-DependencySecurityScan.ps1",
     "audit:licenses": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\audit-open-source-dependencies.ps1",
-    "verify:local": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call npm run verify:version && call npm run test:dependency-security && call npm run test:homepage-fixture && call npm run audit:dependencies && call npm run audit:licenses && call npm run test:effective-lines && call npm run check:effective-lines && call npm run lint && call npm run typecheck && call npm run typecheck:test && call npm test && call npm run test:surface-browser && call cargo fmt --check --manifest-path src-tauri\\Cargo.toml && call cargo test --manifest-path src-tauri\\Cargo.toml && call npm run build && call build-hook-release.bat\""
+    "verify:local": "cmd /d /s /c \"pushd %npm_config_local_prefix% && call npm run verify:version && call npm run test:dependency-security && call npm run test:homepage-fixture && call npm run audit:dependencies && call npm run audit:licenses && call npm run test:effective-lines && call npm run check:effective-lines && call npm run lint && call npm run typecheck && call npm run typecheck:test && call npm test && call npm run test:surface-browser && call cargo fmt --check --manifest-path src-tauri\\Cargo.toml && call cargo test --manifest-path src-tauri\\Cargo.toml && call npm run build && call build-otter-release.bat\""
   },
   "license": "MIT",
   "dependencies": {

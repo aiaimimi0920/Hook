@@ -56,8 +56,8 @@ export const StickerTopStripEditActions: Component<StickerTopStripEditActionsPro
                         type="button"
                         class={toolbarButtonLeftBorderClass}
                         classList={{
-                            "hook-toolbar-button--active": props.isEraserSelected,
-                            "hook-toolbar-idle": !props.isEraserSelected,
+                            "otter-toolbar-button--active": props.isEraserSelected,
+                            "otter-toolbar-idle": !props.isEraserSelected,
                         }}
                         aria-label="橡皮擦工具"
                         title="橡皮擦"
@@ -75,8 +75,8 @@ export const StickerTopStripEditActions: Component<StickerTopStripEditActionsPro
                         type="button"
                         class={toolbarButtonLeftBorderClass}
                         classList={{
-                            "hook-toolbar-button--active": props.isCropSelected,
-                            "hook-toolbar-idle": !props.isCropSelected,
+                            "otter-toolbar-button--active": props.isCropSelected,
+                            "otter-toolbar-idle": !props.isCropSelected,
                         }}
                         aria-label="裁剪工具"
                         title="裁剪"
@@ -93,8 +93,8 @@ export const StickerTopStripEditActions: Component<StickerTopStripEditActionsPro
                     type="button"
                     class={toolbarButtonLeftBorderClass}
                     classList={{
-                        "hook-toolbar-idle": props.isHistoryEnabled,
-                        "hook-toolbar-disabled": !props.isHistoryEnabled,
+                        "otter-toolbar-idle": props.isHistoryEnabled,
+                        "otter-toolbar-disabled": !props.isHistoryEnabled,
                     }}
                     aria-label={currentHistoryOption().label}
                     title={currentHistoryOption().label}
@@ -138,10 +138,10 @@ export const StickerTopStripEditActions: Component<StickerTopStripEditActionsPro
                                         type="button"
                                         class={toolbarMenuItemClass}
                                         classList={{
-                                            "hook-toolbar-menu-item--active": props.currentHistoryAction === item.mode,
-                                            "hook-toolbar-menu-item--idle":
+                                            "otter-toolbar-menu-item--active": props.currentHistoryAction === item.mode,
+                                            "otter-toolbar-menu-item--idle":
                                                 props.currentHistoryAction !== item.mode && enabled,
-                                            "hook-toolbar-disabled": !enabled,
+                                            "otter-toolbar-disabled": !enabled,
                                         }}
                                         onClick={() => props.onSelectHistoryAction(item.mode)}
                                     >
@@ -161,8 +161,8 @@ export const StickerTopStripEditActions: Component<StickerTopStripEditActionsPro
                         type="button"
                         class={toolbarButtonLeftBorderClass}
                         classList={{
-                            "hook-toolbar-idle": props.isRasterizeEnabled,
-                            "hook-toolbar-disabled": !props.isRasterizeEnabled,
+                            "otter-toolbar-idle": props.isRasterizeEnabled,
+                            "otter-toolbar-disabled": !props.isRasterizeEnabled,
                         }}
                         aria-label={currentRasterizeOption().label}
                         title={currentRasterizeOption().label}
@@ -207,11 +207,11 @@ export const StickerTopStripEditActions: Component<StickerTopStripEditActionsPro
                                             type="button"
                                             class={toolbarMenuItemClass}
                                             classList={{
-                                                "hook-toolbar-menu-item--active":
+                                                "otter-toolbar-menu-item--active":
                                                     props.currentRasterizeScope === item.mode,
-                                                "hook-toolbar-menu-item--idle":
+                                                "otter-toolbar-menu-item--idle":
                                                     props.currentRasterizeScope !== item.mode && enabled,
-                                                "hook-toolbar-disabled": !enabled,
+                                                "otter-toolbar-disabled": !enabled,
                                             }}
                                             onClick={() => props.onSelectRasterizeScope(item.mode)}
                                         >

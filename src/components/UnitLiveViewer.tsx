@@ -61,19 +61,19 @@ export const UnitLiveViewer: Component<{ unitId: string }> = (props) => {
         if (!disposed && !stillCurrent()) setError('Surface 绑定已变化，请重新加入');
     }
 
-    return <section class="hook-unit-live-viewer" aria-label="实时投射观看" aria-busy={pending()}>
-        <header><strong>实时投射</strong><div class="hook-unit-live-viewer-actions">
-            <button type="button" class="hook-terminal-btn" disabled={pending() || !liveRelayOwner()}
+    return <section class="otter-unit-live-viewer" aria-label="实时投射观看" aria-busy={pending()}>
+        <header><strong>实时投射</strong><div class="otter-unit-live-viewer-actions">
+            <button type="button" class="otter-terminal-btn" disabled={pending() || !liveRelayOwner()}
                 onClick={() => void run(requestPairing)}>重新配对</button>
-            <button type="button" class="hook-terminal-btn" disabled={pending() || !liveRelayOwner()}
+            <button type="button" class="otter-terminal-btn" disabled={pending() || !liveRelayOwner()}
                 onClick={() => void run(refresh)}>{pending() ? '处理中…' : '刷新列表'}</button>
         </div></header>
-        <span class="hook-inline-muted">通过当前 Loom 与 Surface 加入观看；控制权需另行申请。</span>
+        <span class="otter-inline-muted">通过当前 Loom 与 Surface 加入观看；控制权需另行申请。</span>
         <Show when={!available()}><span role="status">等待当前 Art 的 Surface 挂载。</span></Show>
         <Show when={pairingNotice()}>{(message) => <span role="status">{message()}</span>}</Show>
-        <Show when={loaded()} fallback={<span class="hook-inline-muted">刷新以查找可用会话。</span>}>
+        <Show when={loaded()} fallback={<span class="otter-inline-muted">刷新以查找可用会话。</span>}>
             <Show when={sessions().length} fallback={<span role="status">暂无可观看的实时投射。</span>}>
-                <select class="hook-terminal-input" aria-label="选择实时投射" value={selectedId()}
+                <select class="otter-terminal-input" aria-label="选择实时投射" value={selectedId()}
                     disabled={pending()} onChange={(event) => setSelectedId(event.currentTarget.value)}>
                     <option value="">请选择会话</option>
                     <For each={sessions()}>{(entry) => <option value={entry.session.sessionId}>
@@ -84,11 +84,11 @@ export const UnitLiveViewer: Component<{ unitId: string }> = (props) => {
                     <code title={entry().session.sessionId}>{entry().session.sessionId}</code>
                     <span role="status">{joined() ? '观看窗口已打开' : entry().sourceConnected ? '源已连接' : '源尚未连接'}</span>
                 </>}</Show>
-                <button type="button" class="hook-terminal-btn hook-terminal-btn--active"
+                <button type="button" class="otter-terminal-btn otter-terminal-btn--active"
                     disabled={pending() || !available() || !liveRelayOwner() || !selected()?.sourceConnected || joined()}
                     onClick={() => void run(join)}>加入观看</button>
             </Show>
         </Show>
-        <Show when={error()}>{(message) => <span class="hook-inline-danger" role="alert">{message()}</span>}</Show>
+        <Show when={error()}>{(message) => <span class="otter-inline-danger" role="alert">{message()}</span>}</Show>
     </section>;
 };

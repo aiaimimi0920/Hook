@@ -37,7 +37,7 @@ export function createAppTeaTicketController(
                 || "",
         });
 
-    const createTeaTicketFromCurrentHookState = async (trigger = "panel") => {
+    const createTeaTicketFromCurrentOtterState = async (trigger = "panel") => {
         const selectedSummary = summarizeSelectedUnits();
         const voiceOutput =
             dependencies.lastVoiceSession()?.outputText
@@ -47,7 +47,7 @@ export function createAppTeaTicketController(
 
         try {
             const ticket = await api.createTeaTicket({
-                source: "hook-desktop",
+                source: "otter-desktop",
                 text: buildTicketText(trigger),
                 context: {
                     active_window: null,
@@ -68,5 +68,5 @@ export function createAppTeaTicketController(
         }
     };
 
-    return { createTeaTicketFromCurrentHookState };
+    return { createTeaTicketFromCurrentOtterState };
 }

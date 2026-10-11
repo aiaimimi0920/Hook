@@ -61,7 +61,7 @@ fn registry(status: &str, body: String) -> (String, thread::JoinHandle<String>) 
 }
 
 fn old_identity() -> (PathBuf, DeviceIdentityDocument) {
-    let root = std::env::temp_dir().join(format!("hook-repair-test-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("otter-repair-test-{}", uuid::Uuid::new_v4()));
     let mut identity = load_or_create_device_identity_at(&root).unwrap();
     identity.device_id = Some("device-old".to_owned());
     persist_device_identity(&root.join("device-identity.json"), &identity).unwrap();
@@ -169,7 +169,7 @@ async fn failed_or_unmatched_registration_does_not_overwrite_identity_or_invalid
 
 #[tokio::test]
 async fn invalid_origin_is_rejected_before_creating_or_replacing_identity() {
-    let root = std::env::temp_dir().join(format!("hook-repair-rejected-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("otter-repair-rejected-{}", uuid::Uuid::new_v4()));
     assert!(request_pairing_at("http://192.168.15.136:49874", &root)
         .await
         .is_err());

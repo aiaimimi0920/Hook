@@ -36,7 +36,7 @@ unsafe fn move_save_dialog_to_target(dialog_hwnd: HWND, placement: SaveDialogPla
 }
 
 #[cfg(target_os = "windows")]
-unsafe extern "system" fn save_dialog_hook(
+unsafe extern "system" fn save_dialog_otter(
     dialog_hwnd: HWND,
     message: u32,
     _wparam: WPARAM,
@@ -128,7 +128,7 @@ fn select_sticker_save_path(
         OFN_EXPLORER | OFN_ENABLEHOOK | OFN_NOCHANGEDIR | OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
     dialog.lpstrDefExt = PCWSTR(default_extension_wide.as_ptr());
     dialog.lCustData = LPARAM((&placement as *const SaveDialogPlacement) as isize);
-    dialog.lpfnHook = Some(save_dialog_hook);
+    dialog.lpfnHook = Some(save_dialog_otter);
 
     run_with_native_file_dialog_input_passthrough(window.as_ref(), || {
         let accepted = unsafe { GetSaveFileNameW(&mut dialog).as_bool() };

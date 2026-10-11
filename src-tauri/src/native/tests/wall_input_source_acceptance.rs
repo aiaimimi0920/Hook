@@ -108,7 +108,7 @@ fn wall_probe_capture_config(hwnd: HWND) -> LiveCaptureWorkerConfig {
 #[test]
 #[ignore = "started by the isolated tile wall native input probe"]
 fn wall_input_native_source_endpoint() {
-    let root = PathBuf::from(std::env::var_os("HOOK_WALL_INPUT_PROBE_ROOT").expect("probe root"));
+    let root = PathBuf::from(crate::brand_env::var_os("HOOK_WALL_INPUT_PROBE_ROOT").expect("probe root"));
     let ready: WallInputSourceReady = read_phase_four_json(&root.join("source-private.json"));
     assert!((30..=900).contains(&ready.duration_seconds));
     assert!(ready.base_url.starts_with("http://127.0.0.1:"));
@@ -158,7 +158,7 @@ fn wall_input_native_source_endpoint() {
         capture_session_id: capture_status.session_id.clone(),
         surface_instance_id: Some(ready.surface_instance_id.clone()),
         source_attachment_id: Some(ready.source_attachment_id.clone()),
-        source_hook_id: "hook-node:wall-input-source".into(),
+        source_hook_id: "otter-node:wall-input-source".into(),
         live_session_id: Some(session_id.clone()),
     };
     let body = build_live_session_create_body(

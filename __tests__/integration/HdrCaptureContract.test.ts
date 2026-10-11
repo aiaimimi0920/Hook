@@ -32,7 +32,7 @@ describe("HDR capture contract", () => {
     expect(wgcTransientSource).toContain("try_hdr_capture_transient");
     expect(wgcTransientSource).toContain("PixelFormat::R16G16B16A16Float");
     expect(hdrAnalysisSource).toContain(
-      'std::env::var("HOOK_CAPTURE_DYNAMIC_RANGE")',
+      'crate::brand_env::var("HOOK_CAPTURE_DYNAMIC_RANGE")',
     );
     const hdrTransientStart = wgcTransientSource.indexOf("fn try_hdr_capture_transient(");
     const hdrTransientEnd = wgcTransientSource.length;

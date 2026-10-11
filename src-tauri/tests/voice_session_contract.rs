@@ -1,10 +1,10 @@
-use hook_lib::voice::audio::read_wav_info;
-use hook_lib::voice::core::{
+use otter_lib::voice::audio::read_wav_info;
+use otter_lib::voice::core::{
     AudioBackendMode, ClipboardBackendMode, OutputMode, ProviderKind, SessionStatus, TriggerMode,
     VoiceConfig, VoiceError,
 };
-use hook_lib::voice::insert::{InsertMethod, InsertOutcome};
-use hook_lib::voice::session::{run_voice_once, VoiceRunOptions};
+use otter_lib::voice::insert::{InsertMethod, InsertOutcome};
+use otter_lib::voice::session::{run_voice_once, VoiceRunOptions};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -13,7 +13,7 @@ fn unique_runtime_dir(name: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system time")
         .as_nanos();
-    std::env::temp_dir().join(format!("hook-{name}-{}-{nonce}", std::process::id()))
+    std::env::temp_dir().join(format!("otter-{name}-{}-{nonce}", std::process::id()))
 }
 
 fn voice_config(audio_dir: &PathBuf, log_dir: &PathBuf, output_mode: &str) -> VoiceConfig {
@@ -170,7 +170,7 @@ async fn native_clipboard_session_honors_disable_guard_before_insertion_work() {
 }
 
 #[test]
-fn voice_config_for_orchestration_keeps_safe_hook_defaults() {
+fn voice_config_for_orchestration_keeps_safe_otter_defaults() {
     let runtime_dir = unique_runtime_dir("voice-config-contract");
     let config = voice_config(
         &runtime_dir.join("audio"),

@@ -28,8 +28,8 @@ const zip = await readFile(path.resolve(repo, '../Loom/target/surface-smoke-arts
 await request('POST', '/v1/frameworks/process/install', {});
 await request('POST', '/v1/arts/install', { zipBase64: zip.toString('base64') });
 const attached = await request<{ instance: { descriptor: { instanceId: string }; attachments: Record<string, Attachment> } }>(
-    'POST', '/v1/surfaces/attach', { artId: 'surface-stock-card', hookNodeId: 'hook-node:wall-input-source', deviceId: source.id });
-const attachment = Object.values(attached.instance.attachments).find((value) => value.descriptor.hookNodeId === 'hook-node:wall-input-source');
+    'POST', '/v1/surfaces/attach', { artId: 'surface-stock-card', hookNodeId: 'otter-node:wall-input-source', deviceId: source.id });
+const attachment = Object.values(attached.instance.attachments).find((value) => value.descriptor.hookNodeId === 'otter-node:wall-input-source');
 if (!attachment) throw new Error('Native source Surface attachment is missing');
 const fixture = await readJson<{ hwnd: string }>(path.join(root, 'fixture-ready.json'));
 await writeJson(path.join(root, 'source-private.json'), {

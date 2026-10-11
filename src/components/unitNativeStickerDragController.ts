@@ -108,8 +108,8 @@ export const createUnitNativeStickerDragController = (
         window.removeEventListener("pointerup", handlePendingNativeDragEnd, true);
         window.removeEventListener("mouseup", handlePendingNativeDragEnd, true);
         window.removeEventListener("pointercancel", handlePendingNativeDragEnd, true);
-        window.removeEventListener("hook:overlay-native-drag-preflight-move", handlePendingNativeDragOverlayMove as EventListener, true);
-        window.removeEventListener("hook:overlay-native-drag-preflight-up", handlePendingNativeDragOverlayEnd as EventListener, true);
+        window.removeEventListener("otter:overlay-native-drag-preflight-move", handlePendingNativeDragOverlayMove as EventListener, true);
+        window.removeEventListener("otter:overlay-native-drag-preflight-up", handlePendingNativeDragOverlayEnd as EventListener, true);
     };
 
     const clearPendingNativeStickerDrag = () => {
@@ -139,11 +139,11 @@ export const createUnitNativeStickerDragController = (
         window.addEventListener("pointerup", handlePendingNativeDragEnd, true);
         window.addEventListener("mouseup", handlePendingNativeDragEnd, true);
         window.addEventListener("pointercancel", handlePendingNativeDragEnd, true);
-        window.addEventListener("hook:overlay-native-drag-preflight-move", handlePendingNativeDragOverlayMove as EventListener, true);
-        window.addEventListener("hook:overlay-native-drag-preflight-up", handlePendingNativeDragOverlayEnd as EventListener, true);
+        window.addEventListener("otter:overlay-native-drag-preflight-move", handlePendingNativeDragOverlayMove as EventListener, true);
+        window.addEventListener("otter:overlay-native-drag-preflight-up", handlePendingNativeDragOverlayEnd as EventListener, true);
     };
 
-    const beginPendingHookStickerExportDrag = (x: number, y: number, pointerId?: number) => {
+    const beginPendingOtterStickerExportDrag = (x: number, y: number, pointerId?: number) => {
         const exportPlan = resolveCurrentUnitDragExportPlan();
         if (disposed || !exportPlan || nativeStickerDragInFlight) return;
         void api.debugLogEvent(
@@ -156,7 +156,7 @@ export const createUnitNativeStickerDragController = (
         attachPendingNativeDragListeners();
     };
 
-    const beginHookStickerExportDrag = async (globalX: number, globalY: number) => {
+    const beginOtterStickerExportDrag = async (globalX: number, globalY: number) => {
         if (disposed || nativeStickerDragInFlight) return;
         nativeStickerDragInFlight = true;
         const requestGeneration = ++exportRequestGeneration;
@@ -221,7 +221,7 @@ export const createUnitNativeStickerDragController = (
             }
             void api.debugLogEvent("sticker-export-drag-saved", `unit=${unit.id} path=${path}`);
         } catch (error) {
-            console.error("Hook sticker export drag failed", error);
+            console.error("Otter sticker export drag failed", error);
             void api.debugLogEvent(
                 "sticker-export-drag-failed",
                 `unit=${options.unit().id} error=${error instanceof Error ? error.message : String(error)}`,
@@ -231,7 +231,7 @@ export const createUnitNativeStickerDragController = (
         }
     };
 
-    const updateHookStickerExportDragPreview = (x: number, y: number) => {
+    const updateOtterStickerExportDragPreview = (x: number, y: number) => {
         const start = nativeStickerDragStart;
         if (!start || nativeStickerDragInFlight) return;
         if (!start.started && Math.hypot(x - start.x, y - start.y) < 6) return;
@@ -257,7 +257,7 @@ export const createUnitNativeStickerDragController = (
         if ("pointerId" in event && start.pointerId !== undefined && event.pointerId !== start.pointerId) return;
         event.preventDefault();
         event.stopPropagation();
-        updateHookStickerExportDragPreview(event.clientX, event.clientY);
+        updateOtterStickerExportDragPreview(event.clientX, event.clientY);
     };
 
     const handlePendingNativeDragOverlayMove = (event: Event) => {
@@ -265,7 +265,7 @@ export const createUnitNativeStickerDragController = (
         if (!start || nativeStickerDragInFlight) return;
         const detail = (event as CustomEvent<NativeDragPreflightOverlayPayload>).detail;
         const point = resolveNativeDragPreviewPointFromOverlay(detail);
-        if (point) updateHookStickerExportDragPreview(point.x, point.y);
+        if (point) updateOtterStickerExportDragPreview(point.x, point.y);
     };
 
     const handlePendingNativeDragEnd = (event?: PointerEvent | MouseEvent) => {
@@ -281,7 +281,7 @@ export const createUnitNativeStickerDragController = (
             : null;
         const shouldExport = !!nativeStickerDragStart?.started && !!point;
         clearPendingNativeStickerDrag();
-        if (shouldExport && point) void beginHookStickerExportDrag(point.x, point.y);
+        if (shouldExport && point) void beginOtterStickerExportDrag(point.x, point.y);
     };
 
     const handlePendingNativeDragOverlayDown = (event: Event) => {
@@ -291,7 +291,7 @@ export const createUnitNativeStickerDragController = (
         const point = resolveNativeDragPreviewPointFromOverlay(detail);
         if (!point || !pointTargetsThisUnit(point.x, point.y)) return;
         if (!resolveCurrentUnitDragExportPlan()) return;
-        beginPendingHookStickerExportDrag(point.x, point.y);
+        beginPendingOtterStickerExportDrag(point.x, point.y);
     };
 
     const handlePendingNativeDragOverlayEnd = (event?: Event) => {
@@ -299,7 +299,7 @@ export const createUnitNativeStickerDragController = (
         const point = resolveNativeDragDropPhysicalPointFromOverlay(detail);
         const shouldExport = !!nativeStickerDragStart?.started && !!point;
         clearPendingNativeStickerDrag();
-        if (shouldExport && point) void beginHookStickerExportDrag(point.x, point.y);
+        if (shouldExport && point) void beginOtterStickerExportDrag(point.x, point.y);
     };
 
     const handleNativeStickerPointerDownCapture = (event: PointerEvent) => {
@@ -307,7 +307,7 @@ export const createUnitNativeStickerDragController = (
         if (!resolveCurrentUnitDragExportPlan()) return;
         event.preventDefault();
         event.stopPropagation();
-        beginPendingHookStickerExportDrag(event.clientX, event.clientY, event.pointerId);
+        beginPendingOtterStickerExportDrag(event.clientX, event.clientY, event.pointerId);
     };
 
     const handleBrowserImageDragStart = (e: DragEvent) => {
@@ -386,10 +386,10 @@ export const createUnitNativeStickerDragController = (
         if (typeof window === "undefined") return;
         const unitElement = options.element();
         unitElement?.addEventListener("pointerdown", handleNativeStickerPointerDownCapture, true);
-        window.addEventListener("hook:overlay-native-drag-preflight-down", handlePendingNativeDragOverlayDown as EventListener, true);
+        window.addEventListener("otter:overlay-native-drag-preflight-down", handlePendingNativeDragOverlayDown as EventListener, true);
         onCleanup(() => {
             unitElement?.removeEventListener("pointerdown", handleNativeStickerPointerDownCapture, true);
-            window.removeEventListener("hook:overlay-native-drag-preflight-down", handlePendingNativeDragOverlayDown as EventListener, true);
+            window.removeEventListener("otter:overlay-native-drag-preflight-down", handlePendingNativeDragOverlayDown as EventListener, true);
             clearPendingNativeStickerDrag();
         });
     });

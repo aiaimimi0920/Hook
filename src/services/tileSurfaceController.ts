@@ -1,4 +1,4 @@
-/** Tile-owned Art state and ordered host actions; ordinary Hook workspace state is never initialized. */
+/** Tile-owned Art state and ordered host actions; ordinary Otter workspace state is never initialized. */
 import { wallSurfaceApi, type WallSurfaceAnchor } from './apiWallSurfaces';
 import { createTileSurfaceCache, type TileSurfaceState } from './tileSurfaceCache';
 import { createTileSurfaceImages } from './tileSurfaceImages';

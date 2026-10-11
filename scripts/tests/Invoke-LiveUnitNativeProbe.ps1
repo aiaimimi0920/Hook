@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$HookExe, [string]$OutputRoot = "",
-    [string]$LoomManifestPath = "", [string]$LoomHookWsUrl = "", [switch]$MultiLive,
+    [Parameter(Mandatory = $true)][string]$OtterExe, [string]$OutputRoot = "",
+    [string]$LoomManifestPath = "", [string]$LoomOtterWsUrl = "", [switch]$MultiLive,
     [switch]$VideoCadence, [ValidateRange(1, 60)][int]$TargetFps = 60, [switch]$GpuPreview,
     [ValidateRange(0, 60)][int]$FailureHoldSeconds = 0,
     [ValidateRange(30, 600)][int]$RunnerTimeoutSeconds = 300,
@@ -16,12 +16,12 @@ $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "../.."))
 $artifacts = Join-Path $repo "artifacts"
 if (-not $OutputRoot) { $OutputRoot = Join-Path $artifacts ("live-unit-native/" + (Get-Date -Format "yyyyMMdd-HHmmss")) }
 $output = [IO.Path]::GetFullPath($OutputRoot)
-if (-not $output.StartsWith($artifacts + "\", [StringComparison]::OrdinalIgnoreCase)) { throw "Output must stay in Hook artifacts" }
+if (-not $output.StartsWith($artifacts + "\", [StringComparison]::OrdinalIgnoreCase)) { throw "Output must stay in Otter artifacts" }
 if ((Test-Path -LiteralPath $output) -and (Get-ChildItem -LiteralPath $output -Force | Select-Object -First 1)) {
     throw "Output already contains evidence"
 }
-if (Get-Process -Name hook -ErrorAction SilentlyContinue) { throw "Close the existing Hook explicitly before the isolated probe" }
-$exe = (Resolve-Path -LiteralPath $HookExe).Path
+if (Get-Process -Name hook,otter -ErrorAction SilentlyContinue) { throw "Close the existing Otter explicitly before the isolated probe" }
+$exe = (Resolve-Path -LiteralPath $OtterExe).Path
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 $fixtureExe = Join-Path $output "LiveUnitFixture.exe"
@@ -56,7 +56,7 @@ if ($VideoCadence) {
 if ($LoomManifestPath) {
     $variables.HOOK_ENABLE_LOOM_HOOK = "1"
     $variables.LOOM_MANIFEST_PATH = (Resolve-Path -LiteralPath $LoomManifestPath).Path
-    $variables.LOOM_HOOK_WS_URL = $LoomHookWsUrl
+    $variables.LOOM_HOOK_WS_URL = $LoomOtterWsUrl
 }
 try {
     foreach ($key in $variables.Keys) { $old[$key] = [Environment]::GetEnvironmentVariable($key, "Process"); [Environment]::SetEnvironmentVariable($key, $variables[$key], "Process") }
@@ -65,7 +65,7 @@ try {
         $secondFixture = Start-Process -FilePath $fixtureExe -ArgumentList @((Join-Path $output "second-ready.json"), "0", (Join-Path $output "second-state.json")) -WindowStyle Hidden -PassThru
     }
     $hook = Start-Process -FilePath $exe -WorkingDirectory (Split-Path -Parent $exe) -WindowStyle Hidden -PassThru
-    $ownership = @{ hookPid = $hook.Id; hookExe = $exe; hookStartedAt = $hook.StartTime.ToUniversalTime().ToString("o"); fixturePid = $fixture.Id }
+    $ownership = @{ otterPid = $hook.Id; otterExe = $exe; otterStartedAt = $hook.StartTime.ToUniversalTime().ToString("o"); fixturePid = $fixture.Id }
     [IO.File]::WriteAllText((Join-Path $output "owned-processes.json"), ($ownership | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
     $probe = Join-Path $PSScriptRoot "live-unit-native-probe.mjs"
     if ($MultiLive -or $VideoCadence -or $FrontendBenchmarkCount) {

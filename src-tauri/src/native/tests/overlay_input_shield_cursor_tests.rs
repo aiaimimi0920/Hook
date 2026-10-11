@@ -17,7 +17,7 @@ impl ShieldFixture {
             CreateWindowExW(
                 WS_EX_NOACTIVATE,
                 w!("STATIC"),
-                w!("Hook cursor regression fixture"),
+                w!("Otter cursor regression fixture"),
                 WS_POPUP,
                 0,
                 0,

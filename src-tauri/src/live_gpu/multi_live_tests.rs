@@ -108,14 +108,15 @@ fn run_phase(captures: &[Capture], target: usize, gpu: bool, seconds: u64) -> se
 #[test]
 #[ignore = "requires HOOK_BROWSER_VIDEO_MULTI=1 with the owned browser-video launcher"]
 fn multi_live_video_workers_budget_fallback_visibility_and_cleanup() {
-    let count: u32 = std::env::var("HOOK_BROWSER_VIDEO_COUNT")
+    let count: u32 = crate::brand_env::var("HOOK_BROWSER_VIDEO_COUNT")
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(4);
     assert!(matches!(count, 4 | 6));
-    let title = std::env::var("HOOK_BROWSER_VIDEO_TITLE").unwrap();
-    assert!(title.starts_with("HookLiveVideoProbe-"));
-    let output = std::path::PathBuf::from(std::env::var("HOOK_BROWSER_VIDEO_OUTPUT").unwrap());
+    let title = crate::brand_env::var("HOOK_BROWSER_VIDEO_TITLE").unwrap();
+    assert!(title.starts_with("OtterLiveVideoProbe-"));
+    let output =
+        std::path::PathBuf::from(crate::brand_env::var("HOOK_BROWSER_VIDEO_OUTPUT").unwrap());
     unsafe { RoInitialize(RO_INIT_MULTITHREADED) }.unwrap();
     let dpi = unsafe { SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) };
     let source = source_window(&title);
@@ -136,7 +137,7 @@ fn multi_live_video_workers_budget_fallback_visibility_and_cleanup() {
             CreateWindowExW(
                 WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP,
                 w!("STATIC"),
-                w!("Hook owned multi-Live output"),
+                w!("Otter owned multi-Live output"),
                 WS_POPUP | WS_VISIBLE,
                 bounds.right + 20,
                 bounds.top,

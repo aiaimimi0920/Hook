@@ -34,7 +34,7 @@ export const ProjectionToolbar = (props: {
 }) => <div class="relative h-[50px] w-[50px] shrink-0" onPointerDown={(event) => event.stopPropagation()}>
     <button type="button" class={toolbarButtonLeftBorderClass} aria-label={props.mode === "send" ? "投射贴图" : "被投射贴图"}
         title={props.mode === "send" ? "投射" : "被投射"} aria-pressed={props.active}
-        classList={{ "hook-toolbar-button--active": props.active, "hook-toolbar-idle": !props.active }} onClick={() => props.activate()}>
+        classList={{ "otter-toolbar-button--active": props.active, "otter-toolbar-idle": !props.active }} onClick={() => props.activate()}>
         <ProjectionIcon kind={props.mode} class="h-7 w-7" />
     </button>
     <button type="button" class={toolbarCornerToggleClass} aria-label="切换投射方向" title="投射 / 被投射"

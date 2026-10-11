@@ -32,7 +32,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
     return source.slice(startIndex, endIndex);
 };
 
-describe("Hook sticker crop interaction contract", () => {
+describe("Otter sticker crop interaction contract", () => {
     const cropCommitStart = pointerCommitSource.indexOf('if (shape.mode === "crop")');
     const cropCommitEnd = pointerCommitSource.indexOf('if (line.mode === "mosaic" || line.mode === "blur")');
     const cropCommitSource = pointerCommitSource.slice(cropCommitStart, cropCommitEnd);

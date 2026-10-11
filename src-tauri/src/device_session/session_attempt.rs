@@ -52,7 +52,7 @@ pub(super) async fn wait_for_approved_device_session(
             Err(DeviceSessionAttemptError::PendingApproval(error)) => {
                 if tokio::time::Instant::now() >= deadline {
                     return Err(format!(
-                        "Loom did not approve this Hook device within {} seconds: {error}",
+                        "Loom did not approve this Otter device within {} seconds: {error}",
                         DEVICE_PAIRING_APPROVAL_TIMEOUT.as_secs()
                     ));
                 }
@@ -97,7 +97,7 @@ async fn create_device_session_attempt(
 ) -> Result<DeviceSessionResponse, DeviceSessionAttemptError> {
     let base = base_url.trim_end_matches('/');
     let device_id = identity.device_id.as_deref().ok_or_else(|| {
-        DeviceSessionAttemptError::Fatal("Hook device identity is not paired".to_owned())
+        DeviceSessionAttemptError::Fatal("Otter device identity is not paired".to_owned())
     })?;
     let client = surface_client(base).map_err(DeviceSessionAttemptError::Fatal)?;
     let challenge_response = client
@@ -114,7 +114,7 @@ async fn create_device_session_attempt(
         .map_err(DeviceSessionAttemptError::Fatal)?;
     if !challenge_status.is_success() {
         let error = format!(
-            "Loom has not approved this Hook device or cannot issue a session ({challenge_status}): {challenge_body}"
+            "Loom has not approved this Otter device or cannot issue a session ({challenge_status}): {challenge_body}"
         );
         return if is_pending_device_approval(challenge_status.as_u16(), &challenge_body) {
             Err(DeviceSessionAttemptError::PendingApproval(error))
@@ -190,7 +190,7 @@ pub(super) fn surface_client(base_url: &str) -> Result<reqwest::Client, String> 
         "device-session",
         |builder| builder.redirect(reqwest::redirect::Policy::none()),
     )
-    .map_err(|error| format!("build Hook device session client: {error}"))
+    .map_err(|error| format!("build Otter device session client: {error}"))
 }
 
 pub(super) async fn read_surface_response_body(

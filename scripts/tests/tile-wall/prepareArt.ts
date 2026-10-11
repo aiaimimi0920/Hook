@@ -21,7 +21,7 @@ for (const [name, artId] of [['form', 'surface-project-form'], ['dashboard', 'su
     const zip = await readFile(path.join(packages, `surface-prototype-${name}.zip`));
     await request('POST', '/v1/arts/install', { zipBase64: zip.toString('base64') });
     const attached = await request<{ instance: ArtRecord }>('POST', '/v1/surfaces/attach', {
-        artId, hookNodeId: `hook-node:wall-art-${name}`, deviceId: 'device-000-local',
+        artId, hookNodeId: `otter-node:wall-art-${name}`, deviceId: 'device-000-local',
         capabilities: {
             apiVersion: '1.0', runtimes: ['declarative'],
             nodes: ['view', 'row', 'column', 'stack', 'scroll', 'text', 'image', 'icon', 'button', 'input', 'textarea',

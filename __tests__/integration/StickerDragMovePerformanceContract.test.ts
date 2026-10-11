@@ -64,9 +64,9 @@ describe("sticker drag move performance contract", () => {
     expect(dragSource).toContain("prepareDragVisualFastPath();");
     expect(dragSource).toContain("follower.element.style.transform = `translate3d(");
     expect(dragSource).toContain('follower.element.style.willChange = "transform";');
-    expect(unitViewSource).toContain("data-hook-drag-follow-unit-id={props.unit.id}");
-    expect(portsSource).toContain("data-hook-drag-follow-unit-id={props.unit.id}");
-    expect(topStripSource).toContain("data-hook-drag-follow-unit-id={props.unitId}");
+    expect(unitViewSource).toContain("data-otter-drag-follow-unit-id={props.unit.id}");
+    expect(portsSource).toContain("data-otter-drag-follow-unit-id={props.unit.id}");
+    expect(topStripSource).toContain("data-otter-drag-follow-unit-id={props.unitId}");
     expect(unitViewSource).toContain("registerDragFollowerElement(unitId, element);");
     expect(portsSource).toContain("registerDragFollowerElement(unitId, element);");
     expect(topStripSource).toContain("registerDragFollowerElement(unitId, element);");

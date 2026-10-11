@@ -1,4 +1,4 @@
-//! Opt-in, owned-window GPU proof; never starts Hook or touches existing app windows.
+//! Opt-in, owned-window GPU proof; never starts Otter or touches existing app windows.
 
 use std::time::{Duration, Instant};
 use windows::core::w;
@@ -103,8 +103,8 @@ fn create_windows() -> OwnedWindows {
     let dpi = unsafe { SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) };
     let mut owned = OwnedWindows(Vec::new(), dpi);
     for (x, width, title) in [
-        (40, 160, w!("Hook GPU source probe")),
-        (260, 280, w!("Hook GPU output probe")),
+        (40, 160, w!("Otter GPU source probe")),
+        (260, 280, w!("Otter GPU output probe")),
     ] {
         let hwnd = unsafe {
             CreateWindowExW(

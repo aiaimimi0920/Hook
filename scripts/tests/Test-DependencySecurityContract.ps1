@@ -65,7 +65,7 @@ Assert-True (-not $workflow.Contains("continue-on-error:")) "Scanner operational
 Assert-True ($policy.scanner.containerImage -match '^ghcr\.io/google/osv-scanner-action@sha256:[a-f0-9]{64}$') "Scanner container must be immutable."
 $advisory = Read-RepoText ([string]$policy.advisoryConfig)
 Assert-True (-not ($advisory -match '(?m)^\s*\[')) "Development advisory scans must not suppress findings."
-$release = Read-RepoText ".github\workflows\release-hook-tag.yml"
+$release = Read-RepoText ".github\workflows\release-otter-tag.yml"
 Assert-True $release.Contains("uses: ./.github/workflows/dependency-security.yml") "Tag release does not call dependency security."
 Assert-True $release.Contains("needs: [scan-context, dependency-security]") "Tag release is not blocked on dependency security."
 
@@ -78,4 +78,4 @@ foreach ($scriptAndTerms in @(
         Assert-True $source.Contains($term) "Dependency script lost required control: $term"
     }
 }
-Write-Output "Hook dependency security contract passed: locks=4 exceptions=$($blocks.Count) max-days=$($policy.maximumExceptionDays)"
+Write-Output "Otter dependency security contract passed: locks=4 exceptions=$($blocks.Count) max-days=$($policy.maximumExceptionDays)"

@@ -134,11 +134,11 @@ fn begin_sticker_native_file_drag_from_path(
     if !metadata.is_file() {
         return Err("Drag source path is not a regular file".to_string());
     }
-    // Restrict direct path drag-out to files Hook itself staged in the clipboard
+    // Restrict direct path drag-out to files Otter itself staged in the clipboard
     // cache. The frontend falls back to a freshly rendered cache drag for any
     // external file path instead of widening this command to arbitrary disk files.
     if !path_is_within(&file_path, &clipboard_cache_dir()) {
-        return Err("Drag source must be inside Hook's clipboard cache".to_string());
+        return Err("Drag source must be inside Otter's clipboard cache".to_string());
     }
     let (width, height) = image::image_dimensions(&file_path)
         .map_err(|e| format!("Failed to read native drag image dimensions: {}", e))?;

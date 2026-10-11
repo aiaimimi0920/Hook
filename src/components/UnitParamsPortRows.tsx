@@ -169,10 +169,10 @@ export const UnitParamsPortRows: Component<UnitParamsPortRowsProps> = (props) =>
                             return (
                                 <div class="flex items-center gap-3 w-full h-6 relative group" style={isDisabled() ? { opacity: 0.5 } : {}}>
                                     <Show when={isDisabled()}>
-                                        <div class="hook-port-disabled-line absolute top-1/2 left-0 right-0 h-[2px] z-[60] pointer-events-none" />
+                                        <div class="otter-port-disabled-line absolute top-1/2 left-0 right-0 h-[2px] z-[60] pointer-events-none" />
                                     </Show>
                                     <div
-                                        class="hook-panel-port absolute w-6 h-6 rounded-full cursor-pointer hover:scale-110 transition-transform z-[50]"
+                                        class="otter-panel-port absolute w-6 h-6 rounded-full cursor-pointer hover:scale-110 transition-transform z-[50]"
                                         style={{ left: "-27px" }}
                                         data-port-type="input"
                                         data-port-name={input.name}
@@ -205,7 +205,7 @@ export const UnitParamsPortRows: Component<UnitParamsPortRowsProps> = (props) =>
                                         {input.label || input.name}
                                     </span>
                                     <button
-                                        class={`hook-port-visibility w-4 h-4 flex items-center justify-center transition-colors ${isPortVisible(input.name) ? "" : "hook-port-visibility--hidden"}`}
+                                        class={`otter-port-visibility w-4 h-4 flex items-center justify-center transition-colors ${isPortVisible(input.name) ? "" : "otter-port-visibility--hidden"}`}
                                         onClick={(event) => {
                                             event.stopPropagation();
                                             togglePortVisibility(input.name);
@@ -218,7 +218,7 @@ export const UnitParamsPortRows: Component<UnitParamsPortRowsProps> = (props) =>
                                     <Show when={!isArt() && input.name === "image"}>
                                         <div class="flex-1 flex justify-start min-w-0 ml-2">
                                             <label
-                                                class={`hook-inline-upload flex items-center justify-start gap-1.5 h-5 px-2 transition-all cursor-pointer relative group ${props.params.image_path ? "hook-inline-upload--loaded" : ""}`}
+                                                class={`otter-inline-upload flex items-center justify-start gap-1.5 h-5 px-2 transition-all cursor-pointer relative group ${props.params.image_path ? "otter-inline-upload--loaded" : ""}`}
                                                 onContextMenu={(event) => {
                                                     event.preventDefault();
                                                     event.stopPropagation();
@@ -248,7 +248,7 @@ export const UnitParamsPortRows: Component<UnitParamsPortRowsProps> = (props) =>
                             );
                         }}
                     </For>
-                    <div class="hook-separator h-px my-1" />
+                    <div class="otter-separator h-px my-1" />
                 </div>
             </Show>
 
@@ -260,10 +260,10 @@ export const UnitParamsPortRows: Component<UnitParamsPortRowsProps> = (props) =>
                             return (
                                 <div class="flex items-center justify-end gap-3 w-full h-6 relative group" style={isDisabled() ? { opacity: 0.5 } : {}}>
                                     <Show when={isDisabled()}>
-                                        <div class="hook-port-disabled-line absolute top-1/2 left-0 right-0 h-[2px] z-[60] pointer-events-none" />
+                                        <div class="otter-port-disabled-line absolute top-1/2 left-0 right-0 h-[2px] z-[60] pointer-events-none" />
                                     </Show>
                                     <div
-                                        class="hook-panel-port absolute w-6 h-6 rounded-full cursor-cell hover:scale-110 transition-transform z-[50]"
+                                        class="otter-panel-port absolute w-6 h-6 rounded-full cursor-cell hover:scale-110 transition-transform z-[50]"
                                         style={{ right: "-27px" }}
                                         data-port-type="output"
                                         data-port-name={output.name}
@@ -281,7 +281,7 @@ export const UnitParamsPortRows: Component<UnitParamsPortRowsProps> = (props) =>
                                         }}
                                     />
                                     <button
-                                        class={`hook-port-visibility w-4 h-4 flex items-center justify-center transition-colors mr-1 ${isPortVisible(output.name) ? "" : "hook-port-visibility--hidden"}`}
+                                        class={`otter-port-visibility w-4 h-4 flex items-center justify-center transition-colors mr-1 ${isPortVisible(output.name) ? "" : "otter-port-visibility--hidden"}`}
                                         onClick={(event) => {
                                             event.stopPropagation();
                                             togglePortVisibility(output.name);
@@ -306,7 +306,7 @@ export const UnitParamsPortRows: Component<UnitParamsPortRowsProps> = (props) =>
                             );
                         }}
                     </For>
-                    <div class="hook-separator h-px my-1" />
+                    <div class="otter-separator h-px my-1" />
                 </div>
             </Show>
         </>

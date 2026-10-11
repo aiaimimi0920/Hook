@@ -26,7 +26,7 @@ function Invoke-NativeProbe {
     }
 
     try {
-        $env:HOOK_ACCEPTANCE_HOOK_ROOT = $hookRoot
+        $env:HOOK_ACCEPTANCE_HOOK_ROOT = $otterRoot
         $env:HOOK_ACCEPTANCE_CDP_URL = "http://127.0.0.1:$DebugPort"
         $env:HOOK_ACCEPTANCE_RESULT_PATH = $resultPath
         $env:HOOK_ACCEPTANCE_MARKER = $Marker
@@ -114,10 +114,10 @@ function Invoke-CleanCandidateExit {
     $cleanupCountBefore = Get-RuntimeLogMatchCount -Needle $cleanupNeedle
     $exitProbe = Invoke-NativeProbe -DebugPort $DebugPort -Name "$Name-exit-probe" -Marker $marker -RequestExit
     if (-not $Process.WaitForExit($StartupTimeoutSeconds * 1000)) {
-        throw "Hook did not exit after request_native_acceptance_exit"
+        throw "Otter did not exit after request_native_acceptance_exit"
     }
     if ($Process.ExitCode -ne 0) {
-        throw "Hook native acceptance exit code was $($Process.ExitCode), expected 0"
+        throw "Otter native acceptance exit code was $($Process.ExitCode), expected 0"
     }
     if (-not (Wait-ForRuntimeLogText -Needle "native_acceptance_exit_requested :: marker=$marker" -TimeoutSeconds 5)) {
         throw "runtime log did not record native_acceptance_exit_requested"
@@ -127,7 +127,7 @@ function Invoke-CleanCandidateExit {
         throw "runtime log did not record the normal Tauri exit cleanup"
     }
     if (-not (Wait-ForNoPortListener -Port $DebugPort -TimeoutSeconds 15)) {
-        throw "WebView2 CDP listener remained after Hook exited"
+        throw "WebView2 CDP listener remained after Otter exited"
     }
 
     $deadline = (Get-Date).AddSeconds(15)
@@ -139,7 +139,7 @@ function Invoke-CleanCandidateExit {
         Start-Sleep -Milliseconds 250
     } while ((Get-Date) -lt $deadline)
     if ($hookProcesses.Count -ne 0) {
-        throw "Hook or its emergency watchdog remained after clean exit"
+        throw "Otter or its emergency watchdog remained after clean exit"
     }
 
     return [pscustomobject][ordered]@{
@@ -160,7 +160,7 @@ function Get-TreeSample {
 
     $Process.Refresh()
     if ($Process.HasExited) {
-        throw "Hook exited during native candidate soak with code $($Process.ExitCode)"
+        throw "Otter exited during native candidate soak with code $($Process.ExitCode)"
     }
     $treeIds = @(Get-ProcessTreeIds -RootProcessId $Process.Id)
     $privateBytes = [int64]0

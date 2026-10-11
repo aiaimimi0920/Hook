@@ -16,7 +16,7 @@ describe("Tauri dist cleanup contract", () => {
     });
 
     it("removes only inert generated compression/icon files and keeps frontend manifests", async () => {
-        const root = mkdtempSync(join(tmpdir(), "hook-tauri-dist-"));
+        const root = mkdtempSync(join(tmpdir(), "otter-tauri-dist-"));
         try {
             const publicDir = join(root, ".output", "public");
             mkdirSync(join(publicDir, "_build", ".vite"), { recursive: true });

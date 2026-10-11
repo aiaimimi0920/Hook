@@ -22,7 +22,7 @@ const MAX_EFFECT_FAILURE_DETAIL_LENGTH = 256;
 
 export const gestureToken = (): string => {
     const suffix = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    return `hook-gesture:${suffix}`;
+    return `otter-gesture:${suffix}`;
 };
 
 const effectRecord = (effect: ExtensionEffect): Record<string, unknown> => {
@@ -65,7 +65,7 @@ export const applyExtensionEffect = async (
         await removeUnitAttachment(scopeId, unitId, expectedTargetRevision, payload);
         return;
     }
-    throw new Error(`extension effect ${effect.type} is not implemented by this Hook host`);
+    throw new Error(`extension effect ${effect.type} is not implemented by this Otter host`);
 };
 
 const commandContribution = (commandId: string) => extensionRegistry
@@ -169,7 +169,7 @@ const reportExtensionEffectFailures = (
     const omitted = failures.length - Math.min(failures.length, MAX_EFFECT_FAILURE_DETAILS);
     const diagnostic = `${details}${omitted > 0 ? `; ${omitted} more failure(s)` : ""}`;
     const message = `${failures.length} 个扩展操作未完成，其他结果已保留。请查看日志了解详情。`;
-    console.error("[Hook extensions] command effects partially failed", diagnostic);
+    console.error("[Otter extensions] command effects partially failed", diagnostic);
     try {
         extensionNoticeRegistry.show(scopeId, unitId, {
             title: "扩展操作部分未完成",
@@ -178,7 +178,7 @@ const reportExtensionEffectFailures = (
     } catch {
         // Reporting must not turn an already-successful runtime command into a
         // rejected command or recursively produce another extension effect.
-        console.error("[Hook extensions] failed to display the partial-failure notice");
+        console.error("[Otter extensions] failed to display the partial-failure notice");
     }
 };
 

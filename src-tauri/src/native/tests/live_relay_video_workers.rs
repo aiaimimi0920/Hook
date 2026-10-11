@@ -1,4 +1,4 @@
-// Product connection owners, without launching or touching the daily Hook instance.
+// Product connection owners, without launching or touching the daily Otter instance.
 fn video_test_wire(id: u64, keyframe: bool, payload: &[u8]) -> Vec<u8> {
     encode_live_relay_binary_frame(
         &LiveRelayBinaryMetadata {
@@ -121,7 +121,7 @@ fn video_gap_requests_once_and_sticky_fallback_never_reenters_decoder() {
 #[test]
 #[ignore = "requires owned WGC HOOK_C1_DECODER_INPUT; native MF connection owner"]
 fn native_video_viewer_decodes_before_cache_and_warms_reconnect_without_rollback() {
-    let input = std::path::PathBuf::from(std::env::var_os("HOOK_C1_DECODER_INPUT").unwrap());
+    let input = std::path::PathBuf::from(crate::brand_env::var_os("HOOK_C1_DECODER_INPUT").unwrap());
     let bytes = std::fs::read(input.join("synthetic.h264")).unwrap();
     let report: serde_json::Value =
         serde_json::from_slice(&std::fs::read(input.join("summary.json")).unwrap()).unwrap();
