@@ -65,7 +65,7 @@ fn boot_profile_from_env() -> BootProfile {
         startup_mode,
         initial_ui_mode,
         auto_start_capture: read_env_bool("HOOK_AUTOSTART_CAPTURE", false),
-        loom_hook_enabled: read_env_bool("HOOK_ENABLE_LOOM_HOOK", false),
+        loom_hook_enabled: crate::loom_bridge_client::enabled(),
         loom_hook_ws_url,
         native_acceptance: native_acceptance_enabled(),
     }

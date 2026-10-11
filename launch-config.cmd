@@ -2,8 +2,7 @@
 
 if not defined HOOK_STARTUP_MODE set "HOOK_STARTUP_MODE=silent"
 if not defined HOOK_INITIAL_UI_MODE set "HOOK_INITIAL_UI_MODE=overlay"
-if not defined HOOK_ENABLE_LOOM_HOOK set "HOOK_ENABLE_LOOM_HOOK=0"
-if not defined LOOM_HOOK_WS_URL set "LOOM_HOOK_WS_URL=ws://127.0.0.1:19820"
+if not defined HOOK_ENABLE_LOOM_HOOK set "HOOK_ENABLE_LOOM_HOOK=1"
 
 if exist "%~dp0hook.exe" (
     set "HOOK_PORTABLE_DIR=%~dp0"

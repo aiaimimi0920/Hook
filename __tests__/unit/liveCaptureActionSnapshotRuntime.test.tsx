@@ -123,32 +123,35 @@ describe("Live snapshot action boundaries", () => {
         expect(await action).toBeUndefined();
         expect(graphStore.links).toHaveLength(0);
     });
-    it("freezes current pixels into the recycle bin before disposing and deleting", async () => {
-        const resolve = pendingSnapshot();
-        const action = editing().deleteSelectedUnitOrAnnotation();
-        expect(mocks.dispose).not.toHaveBeenCalled();
-        expect(graphStore.units).toHaveLength(1);
-        resolve();
-        await action;
-        expect(graphStore.recycleBin[0].snapshot.src).toBe(png);
+    it("recycles the retained frame without waiting for GPU readback", () => {
+        pendingSnapshot();
+        editing().deleteSelectedUnitOrAnnotation();
+        expect(mocks.snapshot).not.toHaveBeenCalled();
+        expect(graphStore.recycleBin[0].snapshot.src).toBe("data:image/jpeg;base64,AQID");
         expect(graphStore.units).toHaveLength(0);
-        expect(mocks.dispose).toHaveBeenCalledOnce();
+        expect(mocks.dispose).toHaveBeenCalledExactlyOnceWith(id, "disposed");
     });
-    it("cancels a delayed deletion when the selection changes", async () => {
+    it("does not resurrect a closed sticker when an earlier readback completes", async () => {
         const resolve = pendingSnapshot();
-        const action = editing().deleteSelectedUnitOrAnnotation();
-        selectionActions.clear();
+        const controller = editing();
+        const action = controller.toggleStickerToolbarVisibility();
+        controller.deleteSelectedUnitOrAnnotation();
         resolve();
         await action;
-        expect(graphStore.units).toHaveLength(1);
-        expect(graphStore.recycleBin).toHaveLength(0);
+        expect(graphStore.units).toHaveLength(0);
+        expect(graphStore.recycleBin).toHaveLength(1);
+        expect(activeStickerEditTargetId()).toBeNull();
     });
-    it("fails closed with a notice instead of deleting stale pixels", async () => {
+    it("still closes and clears the notice after a readback failure", async () => {
         mocks.snapshot.mockRejectedValue(new Error("readback failed"));
-        await editing().deleteSelectedUnitOrAnnotation();
-        expect(graphStore.units).toHaveLength(1);
-        expect(graphStore.recycleBin).toHaveLength(0);
+        await editing().toggleStickerToolbarVisibility();
         expect(enhancementNotices[id]?.[0].source?.id).toBe("live-snapshot");
+        editing().deleteSelectedUnitOrAnnotation();
+        expect(graphStore.units).toHaveLength(0);
+        expect(graphStore.recycleBin).toHaveLength(1);
+        expect(mocks.snapshot).toHaveBeenCalledOnce();
+        expect(mocks.dispose).toHaveBeenCalledExactlyOnceWith(id, "disposed");
+        expect(enhancementNotices[id]).toBeUndefined();
     });
     it("does not mislabel a downstream action exception as readback failure", async () => {
         await expect(runWithLiveCaptureSnapshots([id], () => { throw new Error("action failed"); }))

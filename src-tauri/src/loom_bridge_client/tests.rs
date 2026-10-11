@@ -29,23 +29,39 @@ pub(super) fn fixture() -> (TcpListener, BridgeIdentity, Arc<ServerConfig>) {
 }
 
 #[test]
-fn disabled_connector_rejects_before_discovery_or_network() {
+fn connector_defaults_on_and_respects_explicit_disable() {
     if std::env::var_os("HOOK_BRIDGE_DISABLED_TEST_CHILD").is_some() {
-        assert!(!enabled());
-        assert!(
-            matches!(connect(Duration::from_millis(1)), Err(error) if error == "Loom integration is disabled")
-        );
+        let expected = std::env::var("HOOK_BRIDGE_EXPECT_ENABLED").unwrap() == "1";
+        assert_eq!(enabled(), expected);
+        assert_eq!(crate::boot_profile_from_env().loom_hook_enabled, expected);
+        if expected {
+            assert!(require_enabled().is_ok());
+        } else {
+            assert!(
+                matches!(connect(Duration::from_millis(1)), Err(error) if error == "Loom integration is disabled")
+            );
+        }
         return;
     }
-    for value in [None, Some("0"), Some("false")] {
+    for (value, expected) in [
+        (None, true),
+        (Some("1"), true),
+        (Some("true"), true),
+        (Some("0"), false),
+        (Some("false"), false),
+    ] {
         let mut command = std::process::Command::new(std::env::current_exe().unwrap());
         command
             .args([
                 "--exact",
-                "loom_bridge_client::tests::disabled_connector_rejects_before_discovery_or_network",
+                "loom_bridge_client::tests::connector_defaults_on_and_respects_explicit_disable",
                 "--test-threads=1",
             ])
             .env("HOOK_BRIDGE_DISABLED_TEST_CHILD", "1")
+            .env(
+                "HOOK_BRIDGE_EXPECT_ENABLED",
+                if expected { "1" } else { "0" },
+            )
             .env_remove("HOOK_ENABLE_LOOM_HOOK")
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
@@ -119,6 +135,17 @@ fn pinned_client_proves_discovery_authority_before_application_messages() {
         .unwrap();
     assert_eq!(socket.read().unwrap().to_text().unwrap(), "authenticated");
     worker.join().unwrap();
+}
+
+#[test]
+#[ignore = "requires a running same-user local Loom with authenticated discovery"]
+fn default_native_policy_connects_to_running_local_loom() {
+    assert!(std::env::var_os("HOOK_ENABLE_LOOM_HOOK").is_none());
+    assert!(std::env::var_os("LOOM_HOOK_WS_URL").is_none());
+    assert!(crate::boot_profile_from_env().loom_hook_enabled);
+    let mut socket =
+        connect(Duration::from_secs(2)).expect("default authenticated local discovery");
+    socket.close(None).expect("close local bridge probe");
 }
 
 #[test]

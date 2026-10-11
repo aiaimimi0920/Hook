@@ -326,11 +326,8 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
         return buildLineMeasurementBadge(draft.points, { w: stickerWidth(), h: stickerHeight() });
     });
 
-    // Effect (mosaic/blur) brush draft. The MODE memo only changes when a stroke
-    // starts/ends, so the <Show> keyed on it mounts the overlay (and its expensive
-    // <defs> pattern/filter) exactly once per stroke. The path-data accessor reads
-    // the live points so only the <path d> attribute updates per pointer move —
-    // the same cheap per-frame work as the plain brush.
+    // Keep effect resources mounted for the stroke; pointer moves change only
+    // the draft path in its independent composited SVG, not the committed layer.
     const draftEffectMode = createMemo<"mosaic" | "blur" | null>(() => {
         const mode = draftLine()?.mode;
         return mode === "mosaic" || mode === "blur" ? mode : null;
@@ -446,6 +443,14 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                     beginDirectTransform={beginDirectTransform}
                 />
 
+            </svg>
+            {/* Do not invalidate the entire committed SVG on each brush move. */}
+            <Show when={!!draftLine() || !!draftShape()}>
+                <svg
+                    data-sticker-draft-layer="true"
+                    class="absolute inset-0 h-full w-full"
+                    style={{ overflow: cropClipped() ? "hidden" : "visible", "pointer-events": "none", transform: "translateZ(0)" }}
+                >
                 <StickerAnnotationDraftOverlays
                     draftEffectMode={draftEffectMode()}
                     draftEffectPathData={draftEffectPathData}
@@ -459,7 +464,8 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                     stickerWidth={stickerWidth()}
                     stickerHeight={stickerHeight()}
                 />
-            </svg>
+                </svg>
+            </Show>
             <Show when={pendingTextInput()}>
                 {(draft) => (
                     <input

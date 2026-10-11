@@ -1,7 +1,8 @@
-import { Match, Show, Switch, createMemo, type Component } from "solid-js";
+import { Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, type Component } from "solid-js";
 
 import { BLUR_EFFECT_OVERLAY_FILL, buildMosaicTextureDataUrl } from "../services/stickerEffects";
 import type { StickerPoint } from "../types/stickerEditing";
+import { acquireStickerBlurTexture } from "../services/stickerBlurTexture";
 
 type StickerEffectOverlayParams = {
     // Bounding box of the brush stroke (already expanded by half the brush
@@ -73,9 +74,9 @@ const MosaicGridDefs: Component<{
     </defs>
 );
 
-// Blur <pattern> defs holding a pre-blurred copy of the whole sticker image. The
-// Gaussian filter runs once on a static image (cached by the browser); created
-// once and never rebuilt during a stroke.
+// An SVG filter inside a pattern is repainted with the stroke, even when its DOM
+// is stable. Replace it with a shared raster, retaining SVG only while loading or
+// when the bounded raster cache / image origin cannot provide a texture.
 const BlurPatternDefs: Component<{
     filterId: string;
     patternId: string;
@@ -83,11 +84,20 @@ const BlurPatternDefs: Component<{
     imageSrc: string;
     imageW: number;
     imageH: number;
-}> = (props) => (
+}> = (props) => {
+    const [texture, setTexture] = createSignal<string | null>(null);
+    createEffect(() => {
+        setTexture(null);
+        const lease = acquireStickerBlurTexture(props.imageSrc, props.imageW, props.imageH, props.blurRadius);
+        let active = true;
+        void lease.ready.then((url) => { if (active) setTexture(url); });
+        onCleanup(() => { active = false; lease.release(); });
+    });
+    return (
     <defs>
-        <filter id={props.filterId} x="-20%" y="-20%" width="140%" height="140%">
+        <Show when={!texture()}><filter id={props.filterId} x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation={props.blurRadius} />
-        </filter>
+        </filter></Show>
         <pattern
             id={props.patternId}
             patternUnits="userSpaceOnUse"
@@ -97,23 +107,22 @@ const BlurPatternDefs: Component<{
             height={props.imageH}
         >
             <image
-                href={props.imageSrc}
+                href={texture() || props.imageSrc}
                 x={0}
                 y={0}
                 width={props.imageW}
                 height={props.imageH}
-                preserveAspectRatio="xMidYMid meet"
-                filter={`url(#${props.filterId})`}
+                preserveAspectRatio={texture() ? "none" : "xMidYMid meet"}
+                filter={texture() ? undefined : `url(#${props.filterId})`}
             />
         </pattern>
     </defs>
-);
+    );
+};
 
 // Shared brush-stroke renderer. `pathData` is an accessor so the live draft can
-// update only the <path d> attribute every pointer move, leaving the expensive
-// <defs> (mosaic pattern / blurred-image pattern) mounted and cached. This is
-// what makes the effect brush track the cursor as cheaply as a plain brush: the
-// per-frame work is one path attribute update, not a full filter/pattern rebuild.
+// update only the <path d> attribute every pointer move. Defs stay mounted and
+// their raster textures are independent of both points and brush width.
 const EffectStrokeBrush: Component<{
     effectType: "mosaic" | "blur";
     pathData: () => string;
@@ -134,7 +143,7 @@ const EffectStrokeBrush: Component<{
     // mosaic-grid texture once for this stroke; it never samples the image, so
     // there is zero risk of leaking content.
     const mosaicTextureSrc = createMemo(() =>
-        buildMosaicTextureDataUrl(props.imageW, props.imageH, Math.max(2, Math.round(props.strength || 12))),
+        isMosaic() ? buildMosaicTextureDataUrl(props.imageW, props.imageH, Math.max(2, Math.round(props.strength || 12))) : null,
     );
     const blurRadius = createMemo(() => Math.max(0.1, props.strength || 8));
 

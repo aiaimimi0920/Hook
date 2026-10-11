@@ -32,7 +32,6 @@ use handoff::FrameMailbox;
 
 const LIVE_CAPTURE_FRAME_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 const LIVE_CAPTURE_RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(400);
-const LIVE_CAPTURE_MAX_BUILD_FAILURES: u8 = 3;
 
 struct ActiveLiveCapturer {
     producer: ActiveProducer,
@@ -131,9 +130,15 @@ fn run_live_capture_worker(
     ));
 
     'owner: loop {
-        if stop_rx.try_recv().is_ok() {
+        if !matches!(
+            stop_rx.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Empty)
+        ) {
             break;
         }
+        // Source lifecycle must keep running even while no capturer exists. Otherwise
+        // minimizing during rebuild leaves an iconic surface that can never recover.
+        inspect_live_source_window(&config, &state)?;
         item_closed.store(false, Ordering::Release);
         mailbox.reset();
         crate::live_gpu::invalidate(&config.session_id);
@@ -156,11 +161,20 @@ fn run_live_capture_worker(
                 }
                 Err(LiveCaptureBuildError::Retry(detail)) => {
                     build_failures = build_failures.saturating_add(1);
-                    if build_failures >= LIVE_CAPTURE_MAX_BUILD_FAILURES {
-                        return Err(("capture_unavailable", "无法建立持续捕获", detail));
+                    if build_failures == 1 {
+                        append_runtime_log_line(&format!(
+                            "live_capture_build_retry :: session={} detail={detail}",
+                            config.session_id
+                        ));
                     }
                     mark_recovering(&state, epoch, "capture_start_retry", "正在重新建立持续捕获");
-                    if stop_rx.recv_timeout(LIVE_CAPTURE_RETRY_DELAY).is_ok() {
+                    // A temporarily invalid crop/size is not a dead source. Retry at a
+                    // bounded rate until recovery, explicit stop, or identity loss.
+                    let delay = LIVE_CAPTURE_RETRY_DELAY * u32::from(build_failures.min(5));
+                    if !matches!(
+                        stop_rx.recv_timeout(delay),
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+                    ) {
                         break;
                     }
                     continue;

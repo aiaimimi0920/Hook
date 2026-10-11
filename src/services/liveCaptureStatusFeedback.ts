@@ -1,5 +1,5 @@
 import type { LiveCaptureStatus } from "./liveCapture";
-import { uiActions } from "../store/uiStore";
+import { enhancementNotices, uiActions } from "../store/uiStore";
 
 const messages: Readonly<Record<string, string>> = {
     source_closed: "源窗口已关闭或身份已变化，请重新截图。",
@@ -20,6 +20,13 @@ export function createLiveCaptureStatusFeedback() {
         observe(status: LiveCaptureStatus): void {
             if (status.captureState !== "failed" && status.captureState !== "recovering") {
                 reported.delete(status.sessionId);
+                if (status.captureState === "streaming") {
+                    for (const notice of enhancementNotices[status.sessionId] ?? []) {
+                        if (notice.source?.namespace === "core" && notice.source.id?.startsWith("live-capture:")) {
+                            uiActions.dismissEnhancementNotice(status.sessionId, notice.id);
+                        }
+                    }
+                }
                 return;
             }
             const code = status.errorCode && Object.hasOwn(messages, status.errorCode)

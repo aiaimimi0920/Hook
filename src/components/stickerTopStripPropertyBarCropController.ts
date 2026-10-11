@@ -1,13 +1,13 @@
-import { createSignal, onCleanup, type Accessor } from "solid-js";
+import { batch, createSignal, onCleanup, type Accessor } from "solid-js";
 
 import { graphStore } from "../store/graphStore";
 import { flipRasterizedAnnotationLayer } from "../services/stickerBitmapLayers";
 import {
-    computeRestoredCropFrame,
     scaleStickerFrame,
     toggleStickerBorder,
 } from "../services/stickerEditing";
 import { flipStickerEditDataForFrame } from "../services/stickerEditTransforms";
+import { buildStickerCropReset } from "../services/stickerCropEdits";
 import { captureStickerEditSnapshot } from "../services/stickerHistory";
 import {
     createStickerAsyncEditGuard,
@@ -90,16 +90,11 @@ export const createPropertyBarCropController = (options: CreatePropertyBarCropCo
         if (!currentUnit) return;
         if (!options.pushCurrentStickerHistory()) return;
 
-        const restored = computeRestoredCropFrame(
-            { x: currentUnit.x, y: currentUnit.y, w: currentUnit.w, h: currentUnit.h },
-            currentUnit.data.imageEditState,
-        );
-        graphStore.actions.updateUnit(options.unitId(), restored);
-        graphStore.actions.updateUnitData(options.unitId(), {
-            imageEditState: {
-                ...(currentUnit.data.imageEditState || { contentEraseStrokes: [] }),
-                cropRect: undefined,
-            },
+        const restored = buildStickerCropReset(currentUnit);
+        batch(() => {
+            graphStore.actions.updateUnit(options.unitId(), restored.frame);
+            graphStore.actions.updateStickerEditData(options.unitId(), restored.data);
+            graphStore.actions.propagateStickerEditsFrom(options.unitId());
         });
         syncStickerEditAfterLocalCommit();
     };

@@ -59,6 +59,13 @@ impl LiveSourceWindowLifecycle {
         }
         let hwnd = self.validate_identity()?;
         live_source_input_preflight(self.process_id)?;
+        // Ambiguous delivery must still consume the sequence, preventing duplicate edges.
+        self.last_input_sequence = request.sequence;
+        // The capture worker restores native minimization asynchronously. No coordinates
+        // or input targets are valid at the iconic (-32000, -32000) placement.
+        if unsafe { windows::Win32::UI::WindowsAndMessaging::IsIconic(hwnd) }.as_bool() {
+            return Err("source_window_transition".to_string());
+        }
         match request.kind.as_str() {
             "mouse_move" | "mouse_button_down" | "mouse_button_up" | "mouse_wheel" => {
                 self.send_mouse_input(hwnd, request)?;
@@ -66,7 +73,6 @@ impl LiveSourceWindowLifecycle {
             "key_down" | "key_up" => self.send_key_input(hwnd, request)?,
             _ => return Err("input_kind_unsupported".to_string()),
         }
-        self.last_input_sequence = request.sequence;
         Ok(())
     }
 

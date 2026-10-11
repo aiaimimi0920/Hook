@@ -46,13 +46,36 @@ fn deliver_live_capture_input(
         .lock()
         .map_err(|_| "live source window lock poisoned".to_string())?;
     let was_enabled = source.interaction_enabled;
-    if let Err(error) = source.send_input(request) {
-        let _ = source.set_interaction_enabled(false);
+    if let Err(error) = send_live_input_with_recovery(&mut source, request) {
         update_live_source_status(session, &source)?;
-        if was_enabled {
+        if was_enabled && !source.interaction_enabled {
             append_runtime_log_line(&format!(
                 "live_capture_input_disabled :: session={session_id}"
             ));
+        }
+        return Err(error);
+    }
+    Ok(())
+}
+
+fn send_live_input_with_recovery(
+    source: &mut LiveSourceWindowLifecycle,
+    request: &LiveCaptureInputRequest,
+) -> Result<(), String> {
+    if let Err(error) = source.send_input(request) {
+        let was_enabled = source.interaction_enabled;
+        // A timeout may have delivered the edge: release it, never replay it.
+        let _ = source.set_interaction_enabled(false);
+        if was_enabled
+            && matches!(
+                error.as_str(),
+                "input_delivery_timeout"
+                    | "source_window_transition"
+                    | "source_coordinate_transform_failed"
+            )
+        {
+            // Revalidate identity and permissions before accepting the next user action.
+            let _ = source.set_interaction_enabled(true);
         }
         return Err(error);
     }

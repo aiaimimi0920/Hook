@@ -1,5 +1,6 @@
 import { graphStore } from "../store/graphStore";
 import { runWithLiveCaptureSnapshots } from "./liveCaptureSnapshotAction";
+import { commitLiveCaptureUnitFrame, isLiveCaptureUnit } from "./liveCaptureUnit";
 import {
     activeStickerEditTargetId,
     selectedStickerAnnotationId,
@@ -140,43 +141,35 @@ export function createAppStickerEditingController(
 
         if (plan.kind !== "units") return;
         const ids = plan.unitIds;
-        return runWithLiveCaptureSnapshots(ids, () => {
-            // A delayed readback must not delete a new selection or an annotation.
-            const currentPlan = resolveDeletionPlan({
-                selectedAnnotationId: selectedStickerAnnotationId(),
-                selectedAnnotationIds: [...selectedStickerAnnotationIds],
-                selectedStickerId: selectedStickerId(),
-                selectedUnitIds: [...selectedUnitIds],
-                units: graphStore.units,
-            });
-            if (currentPlan.kind !== "units" || currentPlan.unitIds.length !== ids.length
-                || currentPlan.unitIds.some((id) => !ids.includes(id))) return;
-            ids.forEach((id) => void dependencies.disposeSurface(id, "disposed"));
-            const recycleEntries = ids
-                .map((id) => graphStore.units.find((unit) => unit.id === id))
-                .filter((unit): unit is Unit => !!unit && unit.type === "sticker")
-                .map((unit) => captureFrozenStickerSnapshot(unit));
-            if (recycleEntries.length > 0) {
-                graphStore.setRecycleBin(
-                    recycleEntries.reduce(
-                        (entries, entry) => addRecycleBinEntry(entries, entry),
-                        [...graphStore.recycleBin],
-                    ),
-                );
-            }
+        // Closing must work even when GPU readback fails or never completes.
+        // Recycle the latest retained frame instead of requiring a fresh snapshot.
+        ids.forEach(commitLiveCaptureUnitFrame);
+        ids.forEach((id) => void dependencies.disposeSurface(id, "disposed"));
+        const recycleEntries = ids
+            .map((id) => graphStore.units.find((unit) => unit.id === id))
+            .filter((unit): unit is Unit => !!unit && unit.type === "sticker"
+                && (!!unit.data.src || !isLiveCaptureUnit(unit.id)))
+            .map((unit) => captureFrozenStickerSnapshot(unit));
+        if (recycleEntries.length > 0) {
+            graphStore.setRecycleBin(
+                recycleEntries.reduce(
+                    (entries, entry) => addRecycleBinEntry(entries, entry),
+                    [...graphStore.recycleBin],
+                ),
+            );
+        }
 
-            ids.forEach((id) => graphStore.actions.removeUnit(id));
-            ids.forEach((id) => {
-                artExecutionRequests.invalidate(id);
-                uiActions.clearStickerHistory(id);
-                uiActions.clearUnitUiState(id);
-                uiActions.dismissEnhancementNotice(id);
-            });
-            selectionActions.clear();
-            uiActions.hideStickerToolbar();
-            void syncService.updateBackendRects();
-            void syncService.performWorkflowSync();
+        ids.forEach((id) => graphStore.actions.removeUnit(id));
+        ids.forEach((id) => {
+            artExecutionRequests.invalidate(id);
+            uiActions.clearStickerHistory(id);
+            uiActions.clearUnitUiState(id);
+            uiActions.dismissEnhancementNotice(id);
         });
+        selectionActions.clear();
+        uiActions.hideStickerToolbar();
+        void syncService.updateBackendRects();
+        void syncService.performWorkflowSync();
     };
 
     const openImageForEdit = async () => {

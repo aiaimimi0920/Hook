@@ -87,8 +87,17 @@ unsafe extern "system" fn capture_mouse_hook_proc(
         }
     }
 
+    // Only button edges inspect shell ownership; never add this work to mouse-move.
+    if message == WM_LBUTTONDOWN && mouse.flags & 1 == 0 {
+        live_source_shell_mouse_down(mouse.pt.x, mouse.pt.y);
+    }
     let modifiers = current_modifier_snapshot();
     let should_route_overlay_mouse = should_route_overlay_mouse_events(x, y);
+    // Cancel at the physical event boundary, not when a queued IPC move arrives:
+    // old forwarded input must not consume a newer, explicit taskbar gesture.
+    if should_route_overlay_mouse && mouse.flags & 1 == 0 {
+        live_source_cancel_reclaim_intent();
+    }
     let overlay_hover_active = OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.load(Ordering::SeqCst);
     let overlay_drag_active = OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)
         || OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.load(Ordering::SeqCst);

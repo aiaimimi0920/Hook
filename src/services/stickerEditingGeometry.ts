@@ -134,6 +134,10 @@ export const computeNextCropFrame = (
         w: unitRect.w,
         h: unitRect.h,
     };
+    // cropRect is expressed in the retained source frame, while the pointer
+    // selection is in the current (possibly resized) visible frame.
+    const scaleX = baseCrop.w / unitRect.w;
+    const scaleY = baseCrop.h / unitRect.h;
 
     return {
         unitRect: {
@@ -143,10 +147,10 @@ export const computeNextCropFrame = (
             h: cropRect.h,
         },
         cropRect: {
-            x: baseCrop.x + cropRect.x,
-            y: baseCrop.y + cropRect.y,
-            w: cropRect.w,
-            h: cropRect.h,
+            x: baseCrop.x + cropRect.x * scaleX,
+            y: baseCrop.y + cropRect.y * scaleY,
+            w: cropRect.w * scaleX,
+            h: cropRect.h * scaleY,
         },
         sourceSize,
     };
@@ -162,10 +166,12 @@ export const computeRestoredCropFrame = (
         return unitRect;
     }
 
+    const scaleX = unitRect.w / cropRect.w;
+    const scaleY = unitRect.h / cropRect.h;
     return {
-        x: unitRect.x - cropRect.x,
-        y: unitRect.y - cropRect.y,
-        w: sourceSize.w,
-        h: sourceSize.h,
+        x: unitRect.x - cropRect.x * scaleX,
+        y: unitRect.y - cropRect.y * scaleY,
+        w: sourceSize.w * scaleX,
+        h: sourceSize.h * scaleY,
     };
 };

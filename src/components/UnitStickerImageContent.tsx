@@ -74,7 +74,7 @@ const imageStyle = (
             "max-width": "none",
             "max-height": "none",
             "pointer-events": "auto",
-            "object-fit": "fill",
+            "object-fit": "contain",
             transform,
         };
     }

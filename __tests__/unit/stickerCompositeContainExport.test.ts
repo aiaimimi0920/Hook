@@ -51,6 +51,9 @@ describe("sticker composite export base-image placement", () => {
                         closePath: () => drawCalls.push(["closePath"]),
                         roundRect: () => drawCalls.push(["roundRect"]),
                         clip: () => drawCalls.push(["clip"]),
+                        rect: (...args: unknown[]) => drawCalls.push(["rect", ...args]),
+                        translate: (...args: unknown[]) => drawCalls.push(["translate", ...args]),
+                        scale: (...args: unknown[]) => drawCalls.push(["scale", ...args]),
                         drawImage: (...args: unknown[]) => drawCalls.push(["drawImage", ...args]),
                         fillRect: (...args: unknown[]) => drawCalls.push(["fillRect", ...args]),
                         strokeRect: (...args: unknown[]) => drawCalls.push(["strokeRect", ...args]),
@@ -207,6 +210,9 @@ describe("sticker composite export base-image placement", () => {
                         closePath: () => drawCalls.push(["closePath"]),
                         roundRect: () => drawCalls.push(["roundRect"]),
                         clip: () => drawCalls.push(["clip"]),
+                        rect: (...args: unknown[]) => drawCalls.push(["rect", ...args]),
+                        translate: (...args: unknown[]) => drawCalls.push(["translate", ...args]),
+                        scale: (...args: unknown[]) => drawCalls.push(["scale", ...args]),
                         drawImage: (...args: unknown[]) => drawCalls.push(["drawImage", ...args]),
                         fillRect: (...args: unknown[]) => drawCalls.push(["fillRect", ...args]),
                         strokeRect: (...args: unknown[]) => drawCalls.push(["strokeRect", ...args]),
@@ -253,8 +259,10 @@ describe("sticker composite export base-image placement", () => {
             baseImageSrcOverride: "data:image/png;base64,UPSTREAM_SQUARE",
         });
 
-        const baseImageDraw = drawCalls.find((call) => call[0] === "drawImage" && call.length === 10);
-        expect(baseImageDraw?.slice(2)).toEqual([25, 0, 50, 100, 75, 0, 50, 100]);
+        const baseImageDraw = drawCalls.find((call) => call[0] === "drawImage" && call.length === 6);
+        expect(drawCalls).toContainEqual(["rect", 75, 0, 50, 100]);
+        expect(drawCalls).toContainEqual(["translate", 100, 50]);
+        expect(baseImageDraw?.slice(2)).toEqual([-50, -50, 100, 100]);
     });
 
     it("passes an untouched sticker's connected Art formal output through byte-for-byte", async () => {
