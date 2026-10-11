@@ -14,6 +14,15 @@ const architectureSource = readFileSync(
 );
 
 describe("Otter public identity contract", () => {
+    it("does not rename third-party dependency identities with the product", () => {
+        const lock = JSON.parse(readFileSync(resolve(process.cwd(), "package-lock.json"), "utf8"));
+        expect(lock.name).toBe("otter");
+        expect(lock.packages[""].name).toBe("otter");
+        expect(lock.packages["node_modules/hookified"].resolved).toContain("/hookified/-/hookified-");
+        expect(lock.packages["node_modules/qified/node_modules/hookified"].resolved).toContain("/hookified/-/hookified-");
+        expect(JSON.stringify(lock)).not.toContain("otterified");
+    });
+
     it("uses Otter in brand assets, internal styles, and private DOM event names", () => {
         const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
         expect(read("docs/assets/github-home-hero.svg")).toContain(">Otter</text>");
