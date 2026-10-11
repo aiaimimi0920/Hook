@@ -5,7 +5,7 @@ import { prepareLiveCaptureUnitSnapshot } from "./liveCaptureUnit";
 export type LiveSnapshotActionResult<T> = T | Promise<T | undefined>;
 
 // Ordinary actions remain synchronous. Live consumers run only after all of
-// their snapshots succeed; a failed readback must not delete or process old pixels.
+// their snapshots succeed; a failed readback must not process old pixels.
 export function runWithLiveCaptureSnapshots<T>(
     unitIds: readonly string[],
     action: () => T,

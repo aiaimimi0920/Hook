@@ -6,7 +6,11 @@ struct LiveSourceVisibility {
     logically_hidden: bool,
     logical_hide_reason: Option<String>,
     sessions: usize,
+    activation: LiveSourceActivation,
 }
+
+#[cfg(target_os = "windows")]
+include!("live_source_activation.rs");
 
 #[cfg(target_os = "windows")]
 fn acquire_live_source_visibility(
@@ -17,13 +21,20 @@ fn acquire_live_source_visibility(
     type Identity = (isize, u32, u32);
     type Registry = Mutex<HashMap<Identity, std::sync::Weak<Mutex<LiveSourceVisibility>>>>;
     static REGISTRY: std::sync::OnceLock<Registry> = std::sync::OnceLock::new();
-    let mut registry = REGISTRY.get_or_init(Mutex::default).lock()
+    let mut registry = REGISTRY
+        .get_or_init(Mutex::default)
+        .lock()
         .map_err(|_| "live source visibility registry poisoned".to_string())?;
     registry.retain(|_, source| source.strong_count() > 0);
     let key = (hwnd, process_id, thread_id);
-    let visibility = registry.get(&key).and_then(std::sync::Weak::upgrade)
+    let visibility = registry
+        .get(&key)
+        .and_then(std::sync::Weak::upgrade)
         .unwrap_or_else(|| Arc::new(Mutex::new(LiveSourceVisibility::default())));
-    visibility.lock().map_err(|_| "live source visibility poisoned".to_string())?.sessions += 1;
+    visibility
+        .lock()
+        .map_err(|_| "live source visibility poisoned".to_string())?
+        .sessions += 1;
     registry.insert(key, Arc::downgrade(&visibility));
     Ok(visibility)
 }

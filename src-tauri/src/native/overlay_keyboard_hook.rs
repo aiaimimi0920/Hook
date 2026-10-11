@@ -63,6 +63,11 @@ unsafe extern "system" fn overlay_keyboard_hook_proc(
     }
 
     let modifiers = current_modifier_snapshot();
+    let reclaim_key = (modifiers.alt_pressed && matches!(vk_code, 0x09 | 0x1B))
+        || (modifiers.meta_pressed && matches!(vk_code, 0x09 | 0x30..=0x39));
+    if key_pressed && keyboard.flags.0 & 0x10 == 0 && reclaim_key {
+        live_source_record_reclaim_intent();
+    }
     if modifiers.alt_pressed
         && should_passthrough_foreign_alt_input(
             true,
@@ -77,6 +82,9 @@ unsafe extern "system" fn overlay_keyboard_hook_proc(
 
     if !overlay_keyboard_capture_should_handle_current_cursor() {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+    }
+    if key_pressed && !reclaim_key && keyboard.flags.0 & 0x10 == 0 {
+        live_source_cancel_reclaim_intent();
     }
 
     let webview_has_focus = overlay_webview_has_foreground_focus();

@@ -28,6 +28,14 @@ Local Loom Art/extension integration requires the native desktop runtime and
 explicit `HOOK_ENABLE_LOOM_HOOK=1` opt-in. Browser preview stays local: it does
 not connect anonymously to Loom or execute real Arts. See [security boundaries](docs/SECURITY_BOUNDARIES.md#authenticated-native-local-bridge).
 
+Local test packages include `hook-with-loom.cmd`: start Loom, exit any running
+Hook, then use this launcher for OCR/translation and other installed extensions.
+It enables integration only for its child Hook process, without changing user or
+machine environment variables. Directly opening `hook.exe` remains standalone.
+Select an image sticker: `Ctrl+4` reruns OCR, `Alt+4` toggles OCR, `Ctrl+5` reruns
+translation, and `Alt+5` toggles translation (missing results are created first).
+The corresponding Loom capabilities must be installed, enabled, and authorized.
+
 Hook combines a transparent desktop capture surface with a persistent sticker
 workspace. Captures can remain on the desktop, be edited and annotated, or be
 connected to local Art/Loom workflows without leaving the application.

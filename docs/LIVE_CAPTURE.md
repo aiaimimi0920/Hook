@@ -106,10 +106,54 @@ results. No new native acceptance result is implied by documentation cleanup.
 
 The historical controlled runtime baseline covers Windows 11, one active SDR
 display, and same-integrity classic Win32/WinForms sources. Logical hiding keeps
-the source in composition as a non-activating window with alpha 1, with exact
-placement/style restoration. It does not establish native minimize or `SW_HIDE`
-support. WinForms window-message drag may reproduce mouse edges without every
-custom control's hardware-input semantics.
+the source in composition with alpha 1, preserving its original taskbar/Alt-Tab
+eligibility. Activating the source restores its placement/style without closing
+the capture or other regions sharing that source. Native minimize is intercepted
+to keep rendering; this does not establish capture of genuinely minimized or
+`SW_HIDE` windows. WinForms window-message drag may reproduce mouse edges without
+every custom control's hardware-input semantics.
+
+A transient input delivery timeout cancels held inputs without replaying the
+ambiguous action. Identity and permission checks must pass again before the next
+user action is accepted; other input failures still disable control. Owned HWND
+regressions cover this recovery and shared visibility/style restoration, not
+arbitrary browser-control compatibility.
+
+Native minimization and transient coordinate conversion failures also cancel the
+current input without permanently disabling control. Input mapping is deferred
+while the source is iconic, since its minimized placement cannot map the captured
+region. Passive hover failures during this transition are quiet; action failures
+remain visible and are not replayed. The opt-in `live-browser-input-probe.mjs`
+checks a cropped Chromium video control through native Hook input, with a DOM
+playback/click oracle in visible, logically hidden and restored states, for both
+normal and maximized windows. It uses an isolated browser, not the user's profile.
+
+Closing a Live sticker (including Escape/delete) never requires a fresh GPU
+snapshot. The recycle bin retains the latest cached frame when one exists; a
+source that failed before its first frame can still be closed. Export/edit
+actions continue to require their normal snapshot boundary.
+
+Source foreground ownership alone does not reclaim a logically hidden window:
+browsers can activate themselves while handling forwarded input. Shared source
+visibility requires a fresh taskbar/switcher click or task-switch key token before
+accepting a foreground transition or taskbar minimize toggle. Ordinary mouse
+motion cannot authorize restoration, even between forwarded input and delayed
+browser activation. Tokens expire and are invalidated by new physical overlay
+input, not by delayed IPC input that predates the shell gesture. An iconic source
+also has to match the foreground owner recorded at the shell gesture. The low-level
+mouse hook only checks shell ownership on button-down, not
+on the high-frequency move path; it never changes window styles or waits there.
+The browser probe polls source visibility after input and checks alpha remains 1,
+in addition to checking that the video control actually changes playback state.
+
+Temporary capture rebuild failures (including a crop temporarily outside a resized
+source) remain recovering rather than permanently exiting after three attempts.
+The owner retries with a cancellable 400 ms to 2 s backoff, still checking source
+identity and native minimization before rebuilding. Source closure/identity loss
+remains terminal. The isolated browser probe holds an invalid crop for 8 seconds,
+then verifies streaming with a newly captured frame and prompt stop during retry.
+Successful capture/input clears only its own old error notices, not unrelated
+notices on the sticker. Esc/delete remains independent of recovery/readback.
 
 Current input policy permits the same user's equal-or-lower-integrity source on
 the active default desktop/session and rejects upward, cross-user/session and

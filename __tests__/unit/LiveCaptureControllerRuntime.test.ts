@@ -8,7 +8,11 @@ import { updateLiveCaptureUnitFrame } from "../../src/services/liveCaptureUnit";
 import type { LiveGpuSnapshot } from "../../src/services/liveGpuSnapshot";
 import { setLiveGpuPresenting } from "../../src/services/liveCapturePollCadence";
 
-const mocks = vi.hoisted(() => ({ input: vi.fn(), stop: vi.fn(), start: vi.fn(), enable: vi.fn(), log: vi.fn(), poll: vi.fn(), snapshot: vi.fn() }));
+const mocks = vi.hoisted(() => ({ input: vi.fn(), stop: vi.fn(), start: vi.fn(), enable: vi.fn(), log: vi.fn(), poll: vi.fn(), snapshot: vi.fn(), read: vi.fn(), decode: vi.fn() }));
+vi.mock("../../src/services/liveCapturePresentation", async (importOriginal) => ({
+    ...await importOriginal<typeof import("../../src/services/liveCapturePresentation")>(),
+    decodeLiveFrame: mocks.decode,
+}));
 vi.mock("../../src/services/liveGpuSnapshot", () => ({ readLiveGpuSnapshot: mocks.snapshot }));
 vi.mock("../../src/services/api", () => ({ isTauriRuntimeAvailable: () => true, api: {
     startLiveCapture: mocks.start,
@@ -17,6 +21,7 @@ vi.mock("../../src/services/api", () => ({ isTauriRuntimeAvailable: () => true, 
     sendLiveCaptureInput: mocks.input,
     stopLiveCapture: mocks.stop,
     pollLiveCaptureFrame: mocks.poll,
+    readLiveCaptureFrame: mocks.read,
 } }));
 
 const controllers: ReturnType<typeof createLiveCaptureController>[] = [];
@@ -28,6 +33,8 @@ beforeEach(() => {
     mocks.enable.mockReset().mockResolvedValue(liveUnitStatus());
     mocks.log.mockResolvedValue(undefined);
     mocks.poll.mockReset();
+    mocks.read.mockReset().mockResolvedValue(new Uint8Array([1, 2, 3]));
+    mocks.decode.mockReset().mockResolvedValue("blob:recovered-frame");
     mocks.snapshot.mockReset().mockResolvedValue(undefined);
 });
 afterEach(() => {
@@ -45,6 +52,39 @@ const start = async () => {
 };
 
 describe("Live controller Unit ownership", () => {
+    it.each(["capture_start_retry", "readback_failed"])("publishes a newer frame and clears only capture failure after %s", async (failure) => {
+        const status = liveUnitStatus();
+        const frame = { sessionId: status.sessionId, epoch: 2, frameId: 8, captureTimestampMs: 100,
+            encodeTimestampMs: 101, width: 200, height: 100, mime: "image/jpeg", byteLength: 3, droppedFrames: 0 };
+        mocks.poll.mockResolvedValue({ status: { ...status, epoch: 2, frameId: 8 }, frame });
+        if (failure === "readback_failed") mocks.read.mockRejectedValueOnce(new Error("readback failed"));
+        else mocks.poll.mockResolvedValueOnce({ status: { ...status, captureState: "recovering", errorCode: failure }, frame: null });
+        await start();
+        await vi.advanceTimersByTimeAsync(1);
+        expect(enhancementNotices[status.sessionId]?.some(n => n.source?.id?.startsWith("live-capture:"))).toBe(true);
+        uiActions.showEnhancementNotice(status.sessionId, { feature: "Interaction", title: "unrelated", message: "keep", source: { namespace: "core", id: "unrelated" } });
+        await vi.advanceTimersByTimeAsync(600);
+        expect(liveCaptureViews[0]).toMatchObject({ renderedFrameId: 8, imageUrl: "blob:recovered-frame", status: { captureState: "streaming", epoch: 2 } });
+        expect(enhancementNotices[status.sessionId]?.map(n => n.source?.id)).toEqual(["unrelated"]);
+        expect(mocks.read).toHaveBeenCalledWith(status.sessionId, 8);
+    });
+    it.each(["source_window_transition", "source_coordinate_transform_failed"])(
+        "keeps the next click after a transient hover failure without an unusable notice: %s", async (code) => {
+            const controller = await start();
+            mocks.input.mockRejectedValueOnce(new Error(code));
+            await controller.sendInput("live-runtime-test", { kind: "mouse_move", normalizedX: 0.5, normalizedY: 0.5 });
+            await controller.sendInput("live-runtime-test", { kind: "mouse_button_down", button: "left", normalizedX: 0.5, normalizedY: 0.5 });
+            expect(mocks.input).toHaveBeenCalledTimes(2);
+            expect(enhancementNotices["live-runtime-test"] ?? []).toHaveLength(0);
+            mocks.input.mockRejectedValueOnce(new Error(code));
+            await expect(controller.sendInput("live-runtime-test", { kind: "mouse_button_up", button: "left", normalizedX: 0.5, normalizedY: 0.5 })).rejects.toThrow(code);
+            expect(enhancementNotices["live-runtime-test"]?.[0]).toMatchObject({
+                title: "源窗口正在恢复", source: { id: `live-control:${code}` },
+            });
+            await controller.sendInput("live-runtime-test", { kind: "mouse_button_down", button: "left", normalizedX: 0.5, normalizedY: 0.5 });
+            expect(enhancementNotices["live-runtime-test"] ?? []).toHaveLength(0);
+        },
+    );
     it("does not overlap an in-flight poll when the GPU mirror is disabled", async () => {
         let release!: (value: { status: ReturnType<typeof liveUnitStatus>; frame: null }) => void;
         mocks.poll.mockResolvedValue({ status: liveUnitStatus(), frame: null });

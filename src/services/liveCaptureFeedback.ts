@@ -8,10 +8,20 @@ const messages: Readonly<Record<string, string>> = {
     unsupported_region: "此贴图只绑定了屏幕区域，不能操作程序。请在同一程序窗口内部重新框选。",
     source_closed: "源窗口已关闭，请重新截图。",
     source_identity_changed: "源窗口已重建，请重新截图以绑定新窗口。",
-    input_delivery_timeout: "源程序没有及时响应，交互已停止。请确认程序未卡住后重新截图。",
+    input_delivery_timeout: "源程序暂时没有及时响应，本次操作未重试。请稍后继续操作，无需重新截图。",
+    source_window_transition: "源窗口正在最小化或恢复，本次操作未执行。请稍后重试，无需重新截图。",
+    source_coordinate_transform_failed: "源窗口的位置正在变化，本次操作未执行。请稍后重试，无需重新截图。",
     interaction_not_enabled: "此实时贴图尚未启用交互，请重新截图。",
     live_control_failed: "实时贴图交互不可用，请检查源程序状态后重新截图。",
 };
+
+export function clearLiveCaptureControlError(unitId: string): void {
+    for (const notice of enhancementNotices[unitId] ?? []) {
+        if (notice.source?.namespace === "core" && notice.source.id?.startsWith("live-control:")) {
+            uiActions.dismissEnhancementNotice(unitId, notice.id);
+        }
+    }
+}
 
 /** Reuses the bounded Unit notice stack; never log source titles or input payloads. */
 export function showLiveCaptureControlError(unitId: string, reason: string): void {
@@ -21,7 +31,8 @@ export function showLiveCaptureControlError(unitId: string, reason: string): voi
     if (enhancementNotices[unitId]?.some((notice) => notice.source?.id === sourceId)) return;
     uiActions.showEnhancementNotice(unitId, {
         feature: "Interaction",
-        title: "实时贴图无法交互",
+        title: code === "source_window_transition" || code === "source_coordinate_transform_failed"
+            ? "源窗口正在恢复" : "实时贴图无法交互",
         message: messages[code],
         source: { namespace: "core", id: sourceId },
     });

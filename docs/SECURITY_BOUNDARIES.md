@@ -113,6 +113,11 @@ Startup capability refresh and extension registrations obey the same gate as
 direct native connection attempts. Local capture and standalone session restore
 do not need to connect to Loom.
 
+Local test packages provide `hook-with-loom.cmd` as an explicit integration
+entry point. It sets `HOOK_ENABLE_LOOM_HOOK=1` for the launched child only;
+it neither persists environment settings nor disables discovery authentication
+or capability grants. Close the existing Hook instance before using it.
+
 Native code accepts only the descriptor's canonical loopback WSS endpoint,
 authenticates its pinned leaf certificate with Rustls/WebPKI, then proves the
 private discovery token using a TLS 1.3 exporter bound to that connection.

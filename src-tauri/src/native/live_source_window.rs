@@ -1,5 +1,8 @@
 // Owns the reversible, same-session source-window lifecycle used by live capture.
 
+#[cfg(all(test, target_os = "windows"))]
+mod live_source_visibility_tests;
+
 #[cfg(target_os = "windows")]
 #[derive(Clone, Copy, Debug)]
 struct LiveSourceWindowSnapshot {
@@ -119,9 +122,56 @@ impl LiveSourceWindowLifecycle {
 
     fn intercept_native_minimize(&mut self) -> Result<bool, String> {
         let hwnd = self.validate_identity()?;
-        if self.source_window_state() == "logically_hidden"
-            || !unsafe { windows::Win32::UI::WindowsAndMessaging::IsIconic(hwnd) }.as_bool()
+        let foreground = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+        let iconic = unsafe { windows::Win32::UI::WindowsAndMessaging::IsIconic(hwnd) }.as_bool();
+        let (reclaim_token, reclaim_origin) = live_source_reclaim_snapshot();
         {
+            let mut visibility = self
+                .visibility
+                .lock()
+                .map_err(|_| "live source visibility poisoned".to_string())?;
+            if visibility.logically_hidden
+                && !visibility.activation.observe(
+                    foreground.0 as isize,
+                    hwnd.0 as isize,
+                    iconic,
+                    reclaim_token,
+                    reclaim_origin,
+                    unsafe { windows::Win32::System::SystemInformation::GetTickCount64() },
+                )
+            {
+                return Ok(false);
+            }
+        }
+        // A taskbar click on an already foreground-but-transparent source may minimize
+        // it rather than activate it. Both are explicit shell reclaim transitions.
+        self.sync_native_visibility(
+            if iconic && self.source_window_state() == "logically_hidden" {
+                hwnd
+            } else {
+                foreground
+            },
+        )
+    }
+
+    fn sync_native_visibility(
+        &mut self,
+        foreground: windows::Win32::Foundation::HWND,
+    ) -> Result<bool, String> {
+        let hwnd = self.validate_identity()?;
+        if self.source_window_state() == "logically_hidden" {
+            if foreground != hwnd {
+                return Ok(false);
+            }
+            // Taskbar/Alt-Tab activation reclaims the source without ending any capture lease.
+            let mut visibility = self
+                .visibility
+                .lock()
+                .map_err(|_| "live source visibility poisoned".to_string())?;
+            self.restore_visibility(&mut visibility)?;
+            return Ok(true);
+        }
+        if !unsafe { windows::Win32::UI::WindowsAndMessaging::IsIconic(hwnd) }.as_bool() {
             return Ok(false);
         }
         self.hide("native_minimize")?;
@@ -187,6 +237,10 @@ impl LiveSourceWindowLifecycle {
         }
         visibility.logically_hidden = true;
         visibility.logical_hide_reason = Some(reason.to_string());
+        visibility.activation = LiveSourceActivation::new(
+            live_source_reclaim_token(),
+            unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() }.0 as isize,
+        );
         Ok(())
     }
 
@@ -341,12 +395,10 @@ fn apply_live_source_transparency(
     hwnd: windows::Win32::Foundation::HWND,
     ex_style: isize,
 ) -> windows::core::Result<()> {
-    let hidden_style = (ex_style
+    // Preserve the original shell entry; activation provenance decides when to reclaim.
+    let hidden_style = ex_style
         | windows::Win32::UI::WindowsAndMessaging::WS_EX_LAYERED.0 as isize
-        | windows::Win32::UI::WindowsAndMessaging::WS_EX_TRANSPARENT.0 as isize
-        | windows::Win32::UI::WindowsAndMessaging::WS_EX_TOOLWINDOW.0 as isize
-        | windows::Win32::UI::WindowsAndMessaging::WS_EX_NOACTIVATE.0 as isize)
-        & !(windows::Win32::UI::WindowsAndMessaging::WS_EX_APPWINDOW.0 as isize);
+        | windows::Win32::UI::WindowsAndMessaging::WS_EX_TRANSPARENT.0 as isize;
     unsafe {
         windows::Win32::UI::WindowsAndMessaging::SetWindowLongPtrW(
             hwnd,

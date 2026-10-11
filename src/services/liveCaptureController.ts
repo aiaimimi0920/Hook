@@ -10,7 +10,7 @@ import {
     type LiveCaptureStatus,
 } from "./liveCapture";
 import { liveCaptureActions, liveCaptureViews } from "../store/liveCaptureStore";
-import { showLiveCaptureControlError } from "./liveCaptureFeedback";
+import { clearLiveCaptureControlError, showLiveCaptureControlError } from "./liveCaptureFeedback";
 import { createLiveCaptureStatusFeedback } from "./liveCaptureStatusFeedback";
 import { createLiveCapturePollCadence } from "./liveCapturePollCadence";
 import { decodeLiveFrame, liveFrameDelay, LIVE_CAPTURE_TARGET_FPS } from "./liveCapturePresentation";
@@ -41,9 +41,11 @@ export function createLiveCaptureController(api: LiveCaptureBackend = nativeApi)
     const stopping = new Map<string, Promise<void>>();
     let disposed = false;
 
-    const reportControlError = (sessionId: string, error: unknown) => {
+    const reportControlError = (sessionId: string, error: unknown, passiveMove = false) => {
         const message = error instanceof Error ? error.message : String(error);
         const code = message.split(":", 1)[0] || "live_control_failed";
+        // Hover during an OS minimize/restore animation is not a failed user action.
+        if (passiveMove && (code === "source_window_transition" || code === "source_coordinate_transform_failed")) return;
         liveCaptureActions.setControlError(sessionId, code, message);
         showLiveCaptureControlError(sessionId, code);
     };
@@ -156,8 +158,10 @@ export function createLiveCaptureController(api: LiveCaptureBackend = nativeApi)
         const operation = queue.tail.then(() => api.sendLiveCaptureInput(sessionId, {
             ...payload,
             sequence,
-        }));
-        queue.tail = operation.catch((error) => reportControlError(sessionId, error));
+        })).then(() => {
+            if (!disposed && generations.has(sessionId)) clearLiveCaptureControlError(sessionId);
+        });
+        queue.tail = operation.catch((error) => reportControlError(sessionId, error, payload.kind === "mouse_move"));
         return operation;
     };
 

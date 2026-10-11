@@ -23,6 +23,7 @@ $versionPreflightScript = Join-Path $hookRoot "scripts\assert-release-version.ps
 $fileHashScript = Join-Path $hookRoot "scripts\file-hash.ps1"
 . $fileHashScript
 . (Join-Path $PSScriptRoot "version-identity.ps1")
+. (Join-Path $PSScriptRoot "Write-HookLoomLauncher.ps1")
 $versionIdentity = Get-HookVersionIdentity -RepoRoot $hookRoot -PublicRelease:$PublicRelease.IsPresent
 
 function Get-HookGitText {
@@ -209,10 +210,13 @@ catch {
 }
 
 $provenancePath = Write-HookBuildProvenance -PublishedExe $publishedExe -GitDirty $sourceGitDirty
+$loomLauncher = Write-HookLoomLauncher -HookExe $publishedExe
 Write-Host "[hook-local-build] Built exe:"
 Write-Host "  $publishedExe"
 Write-Host "[hook-local-build] Provenance:"
 Write-Host "  $provenancePath"
+Write-Host "[hook-local-build] Explicit Loom integration launcher:"
+Write-Host "  $loomLauncher"
 if ($UiAccess) {
     Write-Warning "This build embeds a uiAccess manifest, but Windows only honors uiAccess when the binary is digitally signed and installed in a trusted location such as Program Files."
 }
