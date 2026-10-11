@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 . (Join-Path $PSScriptRoot "version-identity.ps1")
-$null = Get-HookVersionIdentity -RepoRoot $repoRoot
+$null = Get-OtterVersionIdentity -RepoRoot $repoRoot
 $packageJson = Get-Content -LiteralPath (Join-Path $repoRoot "package.json") -Raw | ConvertFrom-Json
 $packageLockRaw = Get-Content -LiteralPath (Join-Path $repoRoot "package-lock.json") -Raw
 $tauriConfig = Get-Content -LiteralPath (Join-Path $repoRoot "src-tauri\tauri.conf.json") -Raw | ConvertFrom-Json
@@ -19,12 +19,12 @@ $cargoLock = Get-Content -LiteralPath (Join-Path $repoRoot "src-tauri\Cargo.lock
 
 $cargoTomlMatch = [regex]::Match($cargoToml, '(?m)^version\s*=\s*"([^"]+)"')
 if (-not $cargoTomlMatch.Success) {
-    throw "Could not read the Hook package version from src-tauri/Cargo.toml."
+    throw "Could not read the Otter package version from src-tauri/Cargo.toml."
 }
 
-$cargoLockMatch = [regex]::Match($cargoLock, '(?ms)\[\[package\]\]\s+name\s*=\s*"hook"\s+version\s*=\s*"([^"]+)"')
+$cargoLockMatch = [regex]::Match($cargoLock, '(?ms)\[\[package\]\]\s+name\s*=\s*"otter"\s+version\s*=\s*"([^"]+)"')
 if (-not $cargoLockMatch.Success) {
-    throw "Could not read the Hook package version from src-tauri/Cargo.lock."
+    throw "Could not read the Otter package version from src-tauri/Cargo.lock."
 }
 
 $packageLockVersionMatch = [regex]::Match(
@@ -54,7 +54,7 @@ $versions = [ordered]@{
 
 $metadataVersion = [string]$packageJson.version
 if ($metadataVersion -notmatch '^\d+\.\d+\.\d+$') {
-    throw "Hook product version must use strict SemVer X.Y.Z. Received: $metadataVersion"
+    throw "Otter product version must use strict SemVer X.Y.Z. Received: $metadataVersion"
 }
 
 $expectedVersion = $metadataVersion
@@ -116,4 +116,4 @@ if (-not [string]::IsNullOrWhiteSpace($Tag)) {
 }
 
 $scope = if ([string]::IsNullOrWhiteSpace($Tag)) { "metadata" } else { $Tag }
-Write-Host "[hook-release-version] $scope matches all product version fields ($expectedVersion)."
+Write-Host "[otter-release-version] $scope matches all product version fields ($expectedVersion)."

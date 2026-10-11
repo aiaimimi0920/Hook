@@ -10,7 +10,7 @@ import { openProbe, readJson, sampleJson, until, writeJson } from './probeSessio
 
 const root = path.resolve(process.argv[2]);
 const { runtime, request } = await openProbe(root);
-assert(runtime.sourceCdpPort && runtime.sourceHookPid && runtime.pointerExe);
+assert(runtime.sourceCdpPort && runtime.sourceOtterPid && runtime.pointerExe);
 const binding = await readJson<{ sourceDeviceId: string }>(path.join(root, 'source-private.json'));
 assert.equal(binding.sourceDeviceId, runtime.deviceId);
 const screenshots = path.resolve(root, '../../output/playwright', path.basename(root));
@@ -18,7 +18,7 @@ await mkdir(screenshots, { recursive: true });
 const browser = await connectOutput(runtime.sourceCdpPort);
 const page = await until(async () => browser.contexts().flatMap((context) => context.pages())
     .find((candidate) => hasTauriOrigin(candidate.url()) && !candidate.url().includes('#tile')),
-Boolean, 'ordinary packaged Hook page');
+Boolean, 'ordinary packaged Otter page');
 assert(page);
 let relay: LiveRelaySnapshot | undefined, capture: LiveCaptureStatus | undefined;
 const result: Record<string, unknown> = { passed: false, nativeSelection: true,
@@ -43,8 +43,8 @@ try {
     await page.screenshot({ path: path.join(screenshots, 'ordinary-gui-published.png') });
     await writeJson(path.join(root, 'input-source-ready.json'), {
         sessionId: relay.liveSessionId, captureSessionId, sourceDeviceId: runtime.deviceId,
-        sourceKind: 'ordinary packaged Hook GUI with native Ctrl+2 and Unit publication button',
-        executable: runtime.hookExe, pid: runtime.sourceHookPid, targets: selected.sourceTargets,
+        sourceKind: 'ordinary packaged Otter GUI with native Ctrl+2 and Unit publication button',
+        executable: runtime.otterExe, pid: runtime.sourceOtterPid, targets: selected.sourceTargets,
     });
     const observe = async () => {
         const [current, status, input] = await Promise.all([readRelay(),

@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 
-describe("Hook startup experience contract", () => {
+describe("Otter startup experience contract", () => {
   it("does not shell out to PowerShell during installed font startup loading", () => {
-    const libSource = readHookLibRustSources();
+    const libSource = readOtterLibRustSources();
     const fontStart = libSource.indexOf('unsafe extern "system" fn collect_installed_font_family_callback');
     const fontEnd = libSource.indexOf("fn set_overlay_no_activate_flag", fontStart);
 

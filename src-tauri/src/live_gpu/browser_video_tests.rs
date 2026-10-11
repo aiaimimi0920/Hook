@@ -112,9 +112,10 @@ fn latest_image(phase: &str, frames: &Mutex<crate::LiveCaptureFrameBuffer>) -> i
 #[test]
 #[ignore = "requires scripts/tests/live-browser-video-probe.ts owned non-DRM browser video"]
 fn browser_video_source_and_native_presentation() {
-    let title = std::env::var("HOOK_BROWSER_VIDEO_TITLE").unwrap();
-    assert!(title.starts_with("HookLiveVideoProbe-"));
-    let output = std::path::PathBuf::from(std::env::var("HOOK_BROWSER_VIDEO_OUTPUT").unwrap());
+    let title = crate::brand_env::var("HOOK_BROWSER_VIDEO_TITLE").unwrap();
+    assert!(title.starts_with("OtterLiveVideoProbe-"));
+    let output =
+        std::path::PathBuf::from(crate::brand_env::var("HOOK_BROWSER_VIDEO_OUTPUT").unwrap());
     unsafe { RoInitialize(RO_INIT_MULTITHREADED) }.unwrap();
     let dpi = unsafe { SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) };
     let hwnd = source_window(&title);
@@ -135,7 +136,7 @@ fn browser_video_source_and_native_presentation() {
             CreateWindowExW(
                 WS_EX_NOACTIVATE | WS_EX_TOPMOST | WS_EX_NOREDIRECTIONBITMAP,
                 w!("STATIC"),
-                w!("Hook owned video GPU output"),
+                w!("Otter owned video GPU output"),
                 WS_POPUP | WS_VISIBLE,
                 bounds.right + 20,
                 bounds.top,

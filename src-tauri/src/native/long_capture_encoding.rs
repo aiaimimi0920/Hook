@@ -84,7 +84,7 @@ pub(crate) fn encode_rgb_image_as_file_capture_response_with_metadata(
     let height = rgb_image.height();
     let cache_dir = ensure_clipboard_cache_dir()?;
     let (file, file_path) =
-        create_internal_capture_file(&cache_dir, "Hook_long_capture", &file_timestamp_component())?;
+        create_internal_capture_file(&cache_dir, "Otter_long_capture", &file_timestamp_component())?;
 
     let file_write_started_at = Instant::now();
     let write_result = (|| -> Result<(), String> {
@@ -202,7 +202,7 @@ pub(crate) fn encode_hdr_image_as_file_capture_response(
     let started_at = Instant::now();
     let cache_dir = ensure_clipboard_cache_dir()?;
     let (file, file_path) =
-        create_internal_capture_file(&cache_dir, "Hook_hdr_capture", &file_timestamp_component())?;
+        create_internal_capture_file(&cache_dir, "Otter_hdr_capture", &file_timestamp_component())?;
     let write_result = (|| -> Result<(), String> {
         let mut writer = BufWriter::new(file);
         write_hdr_png(&mut writer, &hdr_image)?;

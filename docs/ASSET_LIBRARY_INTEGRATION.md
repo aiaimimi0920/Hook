@@ -1,13 +1,13 @@
 # AssetLibrary integration contract
 
-This document defines how Hook is expected to browse AssetLibrary and request
+This document defines how Otter is expected to browse AssetLibrary and request
 installation of Art and Capability packages. It is an integration contract for
-the next implementation task, not a claim that Hook already contains an
+the next implementation task, not a claim that Otter already contains an
 AssetLibrary client or store UI.
 
 The authoritative service contract is AssetLibrary OpenAPI `0.2.0` with response
 schema version `1.0`. Before implementation, pin the reviewed AssetLibrary commit
-or release tag in Hook's integration tests; do not silently follow a changing
+or release tag in Otter's integration tests; do not silently follow a changing
 `main` branch.
 
 Authoritative references:
@@ -23,9 +23,9 @@ Authoritative references:
 | --- | --- |
 | AssetLibrary public API | Implemented in the independent AssetLibrary repository. |
 | AssetLibrary reusable installer | Implemented in AssetLibrary as `crates/loom-client`. |
-| Hook store page/client | Not implemented. |
+| Otter store page/client | Not implemented. |
 | Loom-to-AssetLibrary production adapter | Not implemented. |
-| Hook-owned Art execution | Intentionally not applicable; Loom owns execution. |
+| Otter-owned Art execution | Intentionally not applicable; Loom owns execution. |
 | App Update through AssetLibrary | Disabled and outside this integration. |
 
 Do not call an unimplemented route, show an install as successful before Loom
@@ -34,12 +34,12 @@ service.
 
 ## Ownership boundary
 
-Hook is the presentation and interaction surface. Loom remains the package,
+Otter is the presentation and interaction surface. Loom remains the package,
 execution, trust, and installation authority.
 
 ```text
-Hook SolidJS/WebView
-  -> Hook native Loom connector
+Otter SolidJS/WebView
+  -> Otter native Loom connector
     -> authenticated local Loom daemon
       -> AssetLibrary metadata API
       -> independent Account Service
@@ -51,27 +51,27 @@ Hook SolidJS/WebView
 
 The consequences are deliberate:
 
-1. Hook may present catalog, search, release, permission, progress, and error
+1. Otter may present catalog, search, release, permission, progress, and error
    information.
-2. Hook must not download a Capability ZIP into the WebView, hold an Account
+2. Otter must not download a Capability ZIP into the WebView, hold an Account
    bearer, receive an Edge ticket, verify a signing key, or activate package
    files.
-3. Hook must not install or execute Art packages itself. Existing package Arts
+3. Otter must not install or execute Art packages itself. Existing package Arts
    are forwarded to Loom through `loom.hook.v1`.
 4. Loom owns staging, digest/signature verification, permission approval,
    dependency checks, activation, rollback, receipt synchronization, and the
    installed-package registry.
-5. A Hook-triggered install still uses AssetLibrary `client_type: "loom"` while
+5. A Otter-triggered install still uses AssetLibrary `client_type: "loom"` while
    Loom owns the install target. Use `client_type: "hook"` only if a future,
-   separately reviewed design gives Hook its own package cache and activation
+   separately reviewed design gives Otter its own package cache and activation
    transaction.
 
 This keeps one installed version and one trust decision for Loom Desktop and
-Hook instead of creating two divergent local stores.
+Otter instead of creating two divergent local stores.
 
 ## Connection configuration
 
-Hook should not introduce an AssetLibrary production URL of its own. It connects
+Otter should not introduce an AssetLibrary production URL of its own. It connects
 to the already authenticated local Loom daemon using the existing secure Loom
 connector. Loom owns the AssetLibrary API URL, Edge-origin allowlist, timeouts,
 and Account Service session.
@@ -82,7 +82,7 @@ For development diagnostics only, the current shared workstation snapshot is:
 | --- | --- | --- |
 | AssetLibrary Web | `http://127.0.0.1:3000` | Listening; useful for manual browsing. |
 | AssetLibrary API | `http://127.0.0.1:18080` | `/healthz`, `/readyz`, and public catalog healthy. |
-| AssetLibrary metrics | `http://127.0.0.1:19090` | Operator-only; not a Hook dependency. |
+| AssetLibrary metrics | `http://127.0.0.1:19090` | Operator-only; not a Otter dependency. |
 | Local Edge worker | `http://127.0.0.1:8787` | Not a permanently running service in this snapshot. |
 
 These addresses are not product defaults. Production must use HTTPS and a
@@ -99,12 +99,12 @@ Invoke-RestMethod "$base/v1/public/packages?kind=art&limit=5"
 Invoke-RestMethod "$base/v1/public/packages?kind=capability&limit=5"
 ```
 
-Hook product code must not hard-code these values or execute these calls from the
+Otter product code must not hard-code these values or execute these calls from the
 renderer. They are operator/developer probes only.
 
 ## Browsing store data
 
-Hook's future store surface should request the following public data through a
+Otter's future store surface should request the following public data through a
 Loom-owned adapter. Public browsing does not require an Account bearer.
 
 | Purpose | AssetLibrary operation | Important behavior |
@@ -136,13 +136,13 @@ than guessing from package summary data. Each release supplies:
 - one or more artifacts with `artifact_id`, `release_id`, lowercase SHA-256
   `digest`, `size_bytes`, safe `file_name`, `media_type`, and `signing_key_id`.
 
-Hook should show compatibility and permissions before enabling the install
+Otter should show compatibility and permissions before enabling the install
 confirmation. The Loom daemon makes the authoritative compatibility and policy
 decision again at install time.
 
 ## Installation request and result
 
-The Hook UI should work against a small local interface owned by the Hook-to-Loom
+The Otter UI should work against a small local interface owned by the Otter-to-Loom
 connector, not against AssetLibrary HTTP directly. The interface must support:
 
 - list/search/detail/release reads;
@@ -155,7 +155,7 @@ connector, not against AssetLibrary HTTP directly. The interface must support:
 
 The exact local route/message names belong in the Loom protocol change that
 implements this adapter. Until those names exist in Loom code and protocol tests,
-Hook may build UI types and mock fixtures but must not bypass the boundary with a
+Otter may build UI types and mock fixtures but must not bypass the boundary with a
 temporary renderer-side downloader.
 
 For a managed install, Loom performs this sequence:
@@ -176,7 +176,7 @@ For a managed install, Loom performs this sequence:
 7. Submit the signed InstallReceipt. A temporary receipt-sync failure becomes
    a durable `receipt_pending` state; it does not undo an already finalized local
    install.
-8. Publish the new Art definition or Capability contribution snapshot to Hook.
+8. Publish the new Art definition or Capability contribution snapshot to Otter.
 
 Even a public Art should use this managed flow when the user chooses **Install**,
 because the challenge supplies the current trust and compatibility snapshot and
@@ -184,30 +184,30 @@ the receipt records the installed release. The anonymous public Art download
 route is suitable for browser/manual downloads, not a shortcut around managed
 installation. Capability downloads are always restricted.
 
-## Host compatibility data contributed by Hook
+## Host compatibility data contributed by Otter
 
 The install challenge contains a strict host profile. Loom assembles the final
-profile, while Hook must expose its current facts without guessing:
+profile, while Otter must expose its current facts without guessing:
 
-- Hook product version;
+- Otter product version;
 - `hook_extension_api` version and feature list;
 - `surface_api` version and feature list;
 - supported Surface node identifiers.
 
-API versions use `major.minor`. The current Hook extension protocol is
+API versions use `major.minor`. The current Otter extension protocol is
 `loom.extension.v1`; its parser accepts extension API major version `1` and the
 current exported constant is `1.0`. Unsupported major versions must fail closed.
 Do not claim a feature or Surface node merely to make a package appear
 installable.
 
-## Activation into Hook
+## Activation into Otter
 
-Hook does not discover package files. It learns installed behavior from Loom's
+Otter does not discover package files. It learns installed behavior from Loom's
 existing protocols:
 
 ### Art packages
 
-Loom publishes `ArtCapability` definitions over `loom.hook.v1`. Hook renders the
+Loom publishes `ArtCapability` definitions over `loom.hook.v1`. Otter renders the
 declared parameters, ports, previews, and Surface metadata, then sends execution
 back to Loom. UI behavior must come from package metadata such as
 `metadata.capabilities`; it must never be inferred from an Art ID or framework
@@ -216,7 +216,7 @@ implementation detail.
 ### Capability packages
 
 Loom publishes a `loom.extension.v1` contribution snapshot. Every plugin binding
-must include and pass Hook's current parser validation for:
+must include and pass Otter's current parser validation for:
 
 - `id` and `version`;
 - lowercase SHA-256 `packageDigest`;
@@ -227,12 +227,12 @@ must include and pass Hook's current parser validation for:
 Contributions are accepted only when the plugin/scope binding matches, IDs are
 unique, list and total-count limits are respected, the snapshot is at most 2 MiB,
 and any `when` expression compiles. Store installation must not add per-plugin or
-OCR-specific branches to Hook.
+OCR-specific branches to Otter.
 
 An install is user-visible as complete only after:
 
 1. Loom reports local activation success; and
-2. Hook observes the corresponding trusted package digest in the current
+2. Otter observes the corresponding trusted package digest in the current
    capability/extension snapshot.
 
 This avoids showing an installed badge for a package that was downloaded but did
@@ -241,7 +241,7 @@ not become active.
 ## Secret and download rules
 
 The following values must never cross into SolidJS state, WebView storage,
-console output, analytics, crash reports, URLs, or persisted Hook sessions:
+console output, analytics, crash reports, URLs, or persisted Otter sessions:
 
 - Account Service bearer;
 - Edge download ticket;
@@ -262,12 +262,12 @@ The native downloader owned by Loom must additionally enforce:
   final promotion, and no symlink/reparse traversal;
 - verification again at the final cache path before installation.
 
-Hook should display resumable progress but must not persist the sensitive session
+Otter should display resumable progress but must not persist the sensitive session
 or ticket needed to produce it.
 
 ## Offline and failure behavior
 
-| Condition | Hook behavior |
+| Condition | Otter behavior |
 | --- | --- |
 | Public search returns `503` | Show “search temporarily unavailable”; do not show a valid empty result. |
 | Account Service unavailable before challenge | Installation is blocked; browsing remains available. |
@@ -298,17 +298,17 @@ Set-Location <asset-library-repo-root>
 ```
 
 The gate owns its process-local test identity and Edge lifecycle. Do not copy its
-test bearer into Hook configuration, source, fixtures, screenshots, or logs. A
-passing AssetLibrary P7 gate does not prove the future Hook/Loom adapter; that
+test bearer into Otter configuration, source, fixtures, screenshots, or logs. A
+passing AssetLibrary P7 gate does not prove the future Otter/Loom adapter; that
 adapter still needs its own cross-repository runtime test.
 
 ## Implementation acceptance checklist
 
-Before Hook can claim AssetLibrary support:
+Before Otter can claim AssetLibrary support:
 
 1. Loom exposes a versioned, authenticated local catalog/install/progress
    contract and tests it against pinned AssetLibrary schemas.
-2. Hook introduces a typed connector interface; the renderer receives no secret
+2. Otter introduces a typed connector interface; the renderer receives no secret
    or raw archive path.
 3. Store UI follows the Neuro design system and has loading, empty, unavailable,
    incompatible, permission-review, progress, cancel, receipt-pending, and
@@ -320,7 +320,7 @@ Before Hook can claim AssetLibrary support:
 6. Tests prove that bearers, tickets, private keys, and URLs are absent from
    renderer events, logs, persistence, and diagnostics.
 7. A real local cross-process test proves browse -> authorize -> resume/download
-   -> verify -> activate -> Hook snapshot -> receipt behavior, including cancel,
+   -> verify -> activate -> Otter snapshot -> receipt behavior, including cancel,
    corruption, expiry, and rollback.
 8. App Update remains disabled until its separate TUF, root-key, host rollback,
    and signed-release gate is delivered.

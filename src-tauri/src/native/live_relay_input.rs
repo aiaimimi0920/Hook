@@ -1,4 +1,4 @@
-// Polls reliable Loom control events and bridges authorized input to Hook's source window.
+// Polls reliable Loom control events and bridges authorized input to Otter's source window.
 const LIVE_RELAY_CONTROL_POLL_MS: u64 = 750;
 
 #[derive(Debug, Deserialize)]

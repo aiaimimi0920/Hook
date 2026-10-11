@@ -11,8 +11,8 @@ export const ProjectionPropertyBar = (props: { unitId: string; mode: ProjectionD
     const link = () => unit()?.data.qrProjection;
     const source = () => link()?.sourceName || link()?.envelope.source.deviceId;
     const focus = (event: PointerEvent | MouseEvent) => { event.stopPropagation(); void api.focusOverlayWindow(); };
-    const buttonClass = "hook-terminal-btn flex h-8 shrink-0 items-center justify-center gap-1 px-2";
-    return <div class="hook-property-strip pointer-events-auto flex h-[40px] items-center gap-1.5 overflow-x-auto border-b px-1.5"
+    const buttonClass = "otter-terminal-btn flex h-8 shrink-0 items-center justify-center gap-1 px-2";
+    return <div class="otter-property-strip pointer-events-auto flex h-[40px] items-center gap-1.5 overflow-x-auto border-b px-1.5"
         role="group" aria-label={props.mode === "send" ? "投射二级设置" : "被投射二级设置"}
         onPointerDown={focus} onMouseDown={focus}>
         <ProjectionEditControls unitId={props.unitId} direction={props.mode} />

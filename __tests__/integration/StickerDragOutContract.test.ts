@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 
 const unitViewSource = readFileSync(
   resolve(process.cwd(), "src/components/UnitView.tsx"),
@@ -47,7 +47,7 @@ const useFileDropSource = readFileSync(
   resolve(process.cwd(), "src/hooks/useFileDrop.ts"),
   "utf8",
 );
-const rustSource = readHookLibRustSources();
+const rustSource = readOtterLibRustSources();
 const vendoredDragWindowsSourcePath = resolve(
   process.cwd(),
   "src-tauri/crates/drag/src/platform_impl/windows/mod.rs",
@@ -65,7 +65,7 @@ const tauriConfig = JSON.parse(
   };
 };
 
-describe("Hook sticker drag-out contract", () => {
+describe("Otter sticker drag-out contract", () => {
   const extractRustSection = (startMarker: string, endMarker: string) => {
     const start = rustSource.indexOf(startMarker);
     const end = rustSource.indexOf(endMarker, start + startMarker.length);
@@ -119,10 +119,10 @@ describe("Hook sticker drag-out contract", () => {
     expect(useFileDropSource).not.toContain('listen("tauri://drag-drop"');
   });
 
-  it("uses a Hook-owned Shift drag-export flow instead of starting OLE DoDragDrop from overlay preflight events", () => {
-    expect(appPointerListenerSource).toContain('hook:overlay-native-drag-preflight-down');
-    expect(unitNativeDragSource).toContain('window.addEventListener("hook:overlay-native-drag-preflight-down", handlePendingNativeDragOverlayDown as EventListener, true)');
-    expect(unitNativeDragSource).toContain("beginHookStickerExportDrag");
+  it("uses a Otter-owned Shift drag-export flow instead of starting OLE DoDragDrop from overlay preflight events", () => {
+    expect(appPointerListenerSource).toContain('otter:overlay-native-drag-preflight-down');
+    expect(unitNativeDragSource).toContain('window.addEventListener("otter:overlay-native-drag-preflight-down", handlePendingNativeDragOverlayDown as EventListener, true)');
+    expect(unitNativeDragSource).toContain("beginOtterStickerExportDrag");
     expect(unitNativeDragSource).toContain("api.saveStickerDragExportFromPath(");
     expect(unitNativeDragSource).toContain("api.saveStickerDragExport(");
     expect(unitNativeDragSource).not.toContain("void beginNativeStickerDrag();");
@@ -141,7 +141,7 @@ describe("Hook sticker drag-out contract", () => {
     expect(rustSource).toContain("resolve_drag_export_target_dir(global_x, global_y)");
   });
 
-  it("keeps the legacy native Windows file drag command available, but routes Shift preflight through Hook-owned export", () => {
+  it("keeps the legacy native Windows file drag command available, but routes Shift preflight through Otter-owned export", () => {
     expect(imageResourceApiSource).toContain("beginStickerNativeFileDrag");
     expect(imageResourceApiSource).toContain("begin_sticker_native_file_drag");
     expect(imageResourceApiSource).toContain("beginStickerNativeFileDragFromPath");
@@ -156,13 +156,13 @@ describe("Hook sticker drag-out contract", () => {
     expect(unitNativeDragSource).toContain("resolveUnitDragExportPlan");
     expect(unitNativeDragSource).toContain("dragOutFilePath");
     expect(unitNativeDragSource).toContain("renderStickerComposite(");
-    expect(appPointerListenerSource).toContain('hook:overlay-native-drag-preflight-down');
-    expect(appPointerListenerSource).toContain('hook:overlay-native-drag-preflight-move');
-    expect(appPointerListenerSource).toContain('hook:overlay-native-drag-preflight-up');
+    expect(appPointerListenerSource).toContain('otter:overlay-native-drag-preflight-down');
+    expect(appPointerListenerSource).toContain('otter:overlay-native-drag-preflight-move');
+    expect(appPointerListenerSource).toContain('otter:overlay-native-drag-preflight-up');
     expect(unitNativeDragSource).toContain('unitElement?.addEventListener("pointerdown", handleNativeStickerPointerDownCapture, true)');
-    expect(unitNativeDragSource).toContain('window.addEventListener("hook:overlay-native-drag-preflight-down", handlePendingNativeDragOverlayDown as EventListener, true)');
-    expect(unitNativeDragSource).toContain('window.addEventListener("hook:overlay-native-drag-preflight-move", handlePendingNativeDragOverlayMove as EventListener, true)');
-    expect(unitNativeDragSource).toContain('window.addEventListener("hook:overlay-native-drag-preflight-up", handlePendingNativeDragOverlayEnd as EventListener, true)');
+    expect(unitNativeDragSource).toContain('window.addEventListener("otter:overlay-native-drag-preflight-down", handlePendingNativeDragOverlayDown as EventListener, true)');
+    expect(unitNativeDragSource).toContain('window.addEventListener("otter:overlay-native-drag-preflight-move", handlePendingNativeDragOverlayMove as EventListener, true)');
+    expect(unitNativeDragSource).toContain('window.addEventListener("otter:overlay-native-drag-preflight-up", handlePendingNativeDragOverlayEnd as EventListener, true)');
     expect(unitNativeDragSource).toContain('window.addEventListener("pointermove", handlePendingNativeDragPointerMove, true)');
     expect(unitNativeDragSource).toContain('window.addEventListener("mousemove", handlePendingNativeDragPointerMove, true)');
     expect(unitNativeDragSource).toContain('window.addEventListener("pointerup", handlePendingNativeDragEnd, true)');
@@ -186,7 +186,7 @@ describe("Hook sticker drag-out contract", () => {
     expect(pointerDownCaptureSection).not.toContain("void beginNativeStickerDrag();");
     expect(pointerDownCaptureSection).not.toContain("if (resolveExistingNativeDragFilePath())");
     expect(pendingPointerMoveSection).not.toContain("if (!event.shiftKey)");
-    expect(pendingOverlayMoveSection).toContain("updateHookStickerExportDragPreview(point.x, point.y);");
+    expect(pendingOverlayMoveSection).toContain("updateOtterStickerExportDragPreview(point.x, point.y);");
 
     expect(rustSource).toContain("fn begin_sticker_native_file_drag(");
     expect(rustSource).toContain("fn begin_sticker_native_file_drag_from_path(");
@@ -225,7 +225,7 @@ describe("Hook sticker drag-out contract", () => {
     expect(hookProcSection).toContain("return unsafe { CallNextHookEx(None, code, wparam, lparam) };");
   });
 
-  it("dispatches Windows native drag work back onto the main UI thread when the IPC command originates off-thread, so DoDragDrop does not strand Hook in a half-drag state", () => {
+  it("dispatches Windows native drag work back onto the main UI thread when the IPC command originates off-thread, so DoDragDrop does not strand Otter in a half-drag state", () => {
     const nativeDragHelper = extractRustSection(
       "fn start_native_file_drag(",
       "#[cfg(target_os = \"windows\")]\n#[tauri::command]\nfn begin_sticker_native_file_drag(",
@@ -247,7 +247,7 @@ describe("Hook sticker drag-out contract", () => {
     expect(nativeDragOnUiThreadHelper).toContain("hide_overlay_input_shield_window();");
   });
 
-  it("vendors the Windows drag source so Hook can keep native drag alive from async overlay IPC by checking the physical left-button state directly", () => {
+  it("vendors the Windows drag source so Otter can keep native drag alive from async overlay IPC by checking the physical left-button state directly", () => {
     expect(readFileSync(resolve(process.cwd(), "src-tauri/Cargo.toml"), "utf8")).toContain(
       'drag = { path = "crates/drag" }',
     );
@@ -333,10 +333,10 @@ describe("Hook sticker drag-out contract", () => {
     expect(overlayTargetsSource).toContain("data-sticker-interaction-root");
     expect(overlayTypesSource).toContain("nativeDragPreflight?: boolean;");
     expect(appPointerListenerSource).toContain("if (event.payload?.nativeDragPreflight) {");
-    expect(appPointerListenerSource).toContain('new CustomEvent("hook:overlay-native-drag-preflight-down"');
+    expect(appPointerListenerSource).toContain('new CustomEvent("otter:overlay-native-drag-preflight-down"');
   });
 
-  it("waits for an actual drag threshold before showing Hook's export preview and keeps native preflight global until mouse-up", () => {
+  it("waits for an actual drag threshold before showing Otter's export preview and keeps native preflight global until mouse-up", () => {
     const pointerDownCaptureSection = extractTsSection(
       unitNativeDragSource,
       "const handleNativeStickerPointerDownCapture = (event: PointerEvent) => {",
@@ -357,9 +357,9 @@ describe("Hook sticker drag-out contract", () => {
       "_ => {}",
     );
 
-    expect(pointerDownCaptureSection).not.toContain("void beginHookStickerExportDrag(");
-    expect(pendingPointerMoveSection).toContain("updateHookStickerExportDragPreview(event.clientX, event.clientY);");
-    expect(pendingOverlayMoveSection).toContain("updateHookStickerExportDragPreview(point.x, point.y);");
+    expect(pointerDownCaptureSection).not.toContain("void beginOtterStickerExportDrag(");
+    expect(pendingPointerMoveSection).toContain("updateOtterStickerExportDragPreview(event.clientX, event.clientY);");
+    expect(pendingOverlayMoveSection).toContain("updateOtterStickerExportDragPreview(point.x, point.y);");
     expect(unitNativeDragSource).toContain("Math.hypot(x - start.x, y - start.y) < 6");
     expect(rustSource).toContain("&& !native_drag_preflight_active");
     expect(rustSource).toContain("|| overlay_drag_active");
@@ -406,7 +406,7 @@ describe("Hook sticker drag-out contract", () => {
     expect(beginNativeDragFromPathSection).toContain("start_native_file_drag(window, staged_drag_file.clone(), hit_map.inner())");
     expect(beginNativeDragFromPathSection).toContain("cleanup_staged_drag_file(&staged_drag_file)");
     expect(beginNativeDragFromPathSection).toContain("Ok(path)");
-    expect(beginNativeDragFromPathSection).toContain("Drag source must be inside Hook's clipboard cache");
+    expect(beginNativeDragFromPathSection).toContain("Drag source must be inside Otter's clipboard cache");
     const nativeDragHelper = extractRustSection(
       "fn start_native_file_drag_on_ui_thread(",
       "#[cfg(target_os = \"windows\")]\n#[tauri::command]\nfn begin_sticker_native_file_drag(",
@@ -425,7 +425,7 @@ describe("Hook sticker drag-out contract", () => {
     expect(rustSource).toContain("notify_shell_path_changed(&target_path);");
   });
 
-  it("keeps the vendored Windows drag crate capable of copy-or-move effects even though Hook currently exports stickers as copy-only drags", () => {
+  it("keeps the vendored Windows drag crate capable of copy-or-move effects even though Otter currently exports stickers as copy-only drags", () => {
     expect(vendoredDragWindowsSource).toContain("DragMode::CopyOrMove => DROPEFFECT_COPY | DROPEFFECT_MOVE");
     expect(vendoredDragWindowsSource).toContain("performed_effect: Some(out_dropeffect.0)");
     expect(vendoredDragWindowsSource).toContain("platform_status: Some(drop_result.0)");

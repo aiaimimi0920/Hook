@@ -62,12 +62,12 @@ pub(super) async fn register_device_identity(
 ) -> Result<String, String> {
     let base = base_url.trim_end_matches('/');
     let client = surface_client(base)?;
-    let computer_name = std::env::var("COMPUTERNAME")
-        .or_else(|_| std::env::var("HOSTNAME"))
+    let computer_name = crate::brand_env::var("COMPUTERNAME")
+        .or_else(|_| crate::brand_env::var("HOSTNAME"))
         .ok()
         .map(|name| name.trim().to_owned())
         .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "Hook 设备".to_owned());
+        .unwrap_or_else(|| "Otter 设备".to_owned());
     let response = client
         .post(format!("{base}/v1/devices/requests"))
         .json(&serde_json::json!({
@@ -78,22 +78,22 @@ pub(super) async fn register_device_identity(
         }))
         .send()
         .await
-        .map_err(|error| format!("submit Hook device pairing request: {error}"))?;
+        .map_err(|error| format!("submit Otter device pairing request: {error}"))?;
     let status = response.status();
     let body = read_surface_response_body(response).await?;
     if !status.is_success() {
         return Err(format!(
-            "Hook device pairing request returned {status}: {body}"
+            "Otter device pairing request returned {status}: {body}"
         ));
     }
     let registry = serde_json::from_str::<DeviceRegistryResponse>(&body)
-        .map_err(|error| format!("parse Hook device pairing response: {error}"))?;
+        .map_err(|error| format!("parse Otter device pairing response: {error}"))?;
     let device = registry
         .pending
         .into_iter()
         .chain(registry.devices)
         .find(|device| device.public_key.as_deref() == Some(identity.public_key.as_str()))
-        .ok_or_else(|| "Loom did not return the paired Hook device".to_owned())?;
+        .ok_or_else(|| "Loom did not return the paired Otter device".to_owned())?;
 
     Ok(device.id)
 }

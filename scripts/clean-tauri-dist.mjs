@@ -47,6 +47,6 @@ if (isCli) {
   const publicDir = process.argv[2] ? resolve(process.argv[2]) : resolve(".output", "public");
   const result = cleanTauriDist(publicDir);
   console.log(
-    `[Hook build] Cleaned Tauri frontendDist: ${result.removedFiles.length} files, ${result.removedDirectories.length} directories removed.`,
+    `[Otter build] Cleaned Tauri frontendDist: ${result.removedFiles.length} files, ${result.removedDirectories.length} directories removed.`,
   );
 }

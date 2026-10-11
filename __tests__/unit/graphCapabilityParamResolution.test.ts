@@ -93,7 +93,7 @@ describe("graph image resolution: capability parameters", () => {
         })).toEqual({ query: "red panda" });
     });
 
-    it("does not include Hook control fields in Art execution params", () => {
+    it("does not include Otter control fields in Art execution params", () => {
         const generator: Unit = {
             id: "image-search",
             type: "art",

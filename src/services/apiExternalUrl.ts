@@ -1,4 +1,4 @@
-// Keeps external navigation behind Hook's native, fail-closed HTTPS broker.
+// Keeps external navigation behind Otter's native, fail-closed HTTPS broker.
 import { safeInvoke } from "./apiTransport";
 
 export const externalUrlApi = {

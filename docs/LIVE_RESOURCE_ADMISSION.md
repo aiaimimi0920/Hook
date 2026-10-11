@@ -19,7 +19,7 @@ allocating an unbudgeted larger pool.
 
 - Sample at most once per second during source work/admission/status queries.
   No polling process, service, or additional sampler thread is created.
-- RAM: physical total/available memory and Hook-process private bytes. Keep at
+- RAM: physical total/available memory and Otter-process private bytes. Keep at
   least 10% of physical RAM or 512 MiB available, whichever is greater. Estimated
   Live memory is additionally bounded by one eighth of physical RAM or 2 GiB.
 - GPU: use the capture device's DXGI adapter local-segment **process budget and
@@ -62,7 +62,7 @@ There is deliberately no universal "remaining sticker count": the next full 4K
 source and the next small crop have different costs.
 
 Resource refusals use bounded fixed codes. After capture input has been cleaned
-up, Hook explains a refusal through the Unit notice stack. An unbound refusal uses
+up, Otter explains a refusal through the Unit notice stack. An unbound refusal uses
 the last remaining ordinary sticker when one exists; without a suitable host no
 global dialog is created. See [failure notice routing](LIVE_CAPTURE.md#failure-notices).
 
@@ -71,7 +71,7 @@ global dialog is created. See [failure notice routing](LIVE_CAPTURE.md#failure-n
 - Same-window regions now share WGC pools; see `LIVE_SHARED_SOURCE_CAPTURE.md`.
   Reservations intentionally still charge full-source costs per Unit. They remain
   conservative during join/resize/recovery and are not measured resident memory.
-- Incremental growth is a conservative heuristic, not causal profiling. Hook
+- Incremental growth is a conservative heuristic, not causal profiling. Otter
   private-memory/process-CPU counters exclude WebView child processes; system
   CPU/RAM reflect competing applications. Other work can cause overestimation.
 - GPU counters are one adapter's local-segment process view. They do not measure

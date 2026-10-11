@@ -4,7 +4,7 @@ import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW = (ROOT / ".github/workflows/build-hook-exe.yml").read_text(encoding="utf-8")
+WORKFLOW = (ROOT / ".github/workflows/build-otter-exe.yml").read_text(encoding="utf-8")
 
 
 def job(name):
@@ -34,13 +34,13 @@ class BuildGateTests(unittest.TestCase):
             self.assertIn(variable + ": ${{ needs." + dependency + ".result }}", aggregate)
             self.assertIn(f'test "${variable}" = success', aggregate)
         self.assertLess(aggregate.index('test "$PARALLEL"'), aggregate.index("Download same-run"))
-        self.assertIn("name: hook-build-candidate", aggregate)
-        self.assertIn("name: hook-portable-windows-x64", aggregate)
+        self.assertIn("name: otter-build-candidate", aggregate)
+        self.assertIn("name: otter-portable-windows-x64", aggregate)
         self.assertEqual(aggregate.count("if:"), 1)
         self.assertIn("shell: bash", aggregate)
         for override in ("run-id:", "repository:", "github-token:"):
             self.assertNotIn(override, aggregate)
-        self.assertNotIn("hook-portable-windows-x64", job("build-windows-candidate"))
+        self.assertNotIn("otter-portable-windows-x64", job("build-windows-candidate"))
         self.assertNotIn("continue-on-error", WORKFLOW)
 
     def test_cache_never_skips_browser_or_rust_gates(self):
@@ -57,7 +57,7 @@ class BuildGateTests(unittest.TestCase):
         candidate = job("build-windows-candidate")
         self.assertIn("run-rust-tests-ci.ps1", candidate)
         self.assertIn("assert-release-version.ps1", candidate)
-        self.assertIn("build-local-hook-exe.ps1", candidate)
+        self.assertIn("build-local-otter-exe.ps1", candidate)
 
 
 if __name__ == "__main__":

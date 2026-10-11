@@ -11,7 +11,7 @@ interface Fixture {
     projections: { tileId: string; sourceCrop: WallRect; outputQuad: WallPoint[] }[];
 }
 
-// Mirrored public protocol fixture; the Hook checkout must also test standalone.
+// Mirrored public protocol fixture; the Otter checkout must also test standalone.
 const fixture = (): Fixture => JSON.parse(fixtureText) as Fixture;
 
 function geometry(data: Fixture, tileId: string) {

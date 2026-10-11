@@ -35,7 +35,7 @@ export const createStickerAnnotationLifecycleController = (
     createEffect(() => {
         stickerEditCancelToken();
         void options.finishActiveLiveErase().catch((error) => {
-            console.warn("[Hook] Failed to finish live erase while cancelling sticker edit", error);
+            console.warn("[Otter] Failed to finish live erase while cancelling sticker edit", error);
         });
         options.setDraftShape(null);
         options.setDraftLine(null);

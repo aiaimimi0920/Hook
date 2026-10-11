@@ -249,7 +249,7 @@ fn insert_output(config: &VoiceConfig, output: &str) -> Result<InsertOutcome, Vo
         OutputMode::ClipboardPaste => match config.output.clipboard_backend {
             ClipboardBackendMode::Fallback => ClipboardFallbackInserter.insert_text(output),
             ClipboardBackendMode::NativeWindows => {
-                if std::env::var_os("HOOK_DISABLE_NATIVE_CLIPBOARD").is_some() {
+                if crate::brand_env::var_os("HOOK_DISABLE_NATIVE_CLIPBOARD").is_some() {
                     return Err(VoiceError::Insert(
                         "native_windows clipboard backend disabled by HOOK_DISABLE_NATIVE_CLIPBOARD"
                             .to_string(),

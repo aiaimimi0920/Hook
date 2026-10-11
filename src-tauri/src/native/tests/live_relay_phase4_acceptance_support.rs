@@ -326,7 +326,7 @@ fn phase_four_daemon_ready() -> PhaseFourDaemonReady {
 
 fn phase_four_hwnd() -> HWND {
     let raw = u64::from_str_radix(
-        &std::env::var("HOOK_LIVE_PHASE4_HWND")
+        &crate::brand_env::var("HOOK_LIVE_PHASE4_HWND")
             .expect("HOOK_LIVE_PHASE4_HWND is required")
             .trim_start_matches("0x"),
         16,
@@ -337,7 +337,7 @@ fn phase_four_hwnd() -> HWND {
 
 fn phase_four_duration() -> Duration {
     Duration::from_secs(
-        std::env::var("HOOK_LIVE_PHASE4_DURATION_SECONDS")
+        crate::brand_env::var("HOOK_LIVE_PHASE4_DURATION_SECONDS")
             .expect("HOOK_LIVE_PHASE4_DURATION_SECONDS is required")
             .parse::<u64>()
             .expect("Phase 4 duration must be an integer")
@@ -346,7 +346,7 @@ fn phase_four_duration() -> Duration {
 }
 
 fn required_phase_four_path(name: &str) -> PathBuf {
-    PathBuf::from(std::env::var(name).unwrap_or_else(|_| panic!("{name} is required")))
+    PathBuf::from(crate::brand_env::var(name).unwrap_or_else(|_| panic!("{name} is required")))
 }
 
 fn wait_for_path(path: &Path, timeout: Duration) {
@@ -375,11 +375,11 @@ fn write_phase_four_marker(path: &Path) {
 }
 
 fn phase_five_enabled() -> bool {
-    std::env::var("HOOK_LIVE_PHASE5").is_ok_and(|value| value == "1")
+    crate::brand_env::var("HOOK_LIVE_PHASE5").is_ok_and(|value| value == "1")
 }
 
 fn phase_five_fixture_state() -> PhaseFiveFixtureState {
-    let path = match std::env::var("HOOK_LIVE_PHASE5_FIXTURE_STATE") {
+    let path = match crate::brand_env::var("HOOK_LIVE_PHASE5_FIXTURE_STATE") {
         Ok(path) => PathBuf::from(path),
         Err(_) => return PhaseFiveFixtureState::default(),
     };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -9,7 +9,7 @@ const readSource = (relativePath: string) =>
 describe("capture window target contract", () => {
   it("enumerates only visible external desktop windows in native Z order", () => {
     const rustSource = readSource("src-tauri/src/capture_windows.rs");
-    const libSource = readHookLibRustSources();
+    const libSource = readOtterLibRustSources();
 
     expect(rustSource).toContain("EnumWindows");
     expect(rustSource).toContain("GetCurrentProcessId");

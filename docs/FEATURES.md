@@ -1,4 +1,4 @@
-# Hook Features and Manual Regression Matrix
+# Otter Features and Manual Regression Matrix
 
 Local Loom Art/extension integration is native-only and enabled by default;
 `HOOK_ENABLE_LOOM_HOOK=0` disables it. In browser preview, verify that local UI/session work
@@ -29,7 +29,7 @@ Self-hosted HTTPS Loom with a private CA supports [origin-scoped process trust](
 Check async/blocking HTTP and LiveRelay/wall WSS together: the selected origin
 accepts its valid certificate, while a wrong hostname, expired/untrusted
 certificate, malformed configuration or redirect fails closed. Other origins
-retain WebPKI trust. Restart Hook after a CA change; device pairing remains
+retain WebPKI trust. Restart Otter after a CA change; device pairing remains
 mandatory. These TLS checks do not replace native two-machine projection proof.
 
 ## 1. Native global shortcuts
@@ -45,7 +45,7 @@ another application has focus.
 | `Ctrl+E` | Toggle sticker editing, including projection invitations, device/group multiselect and opt-in two-way v1 annotation editing. Enabled Capability Plugins may contribute namespaced menus and actions. | Select overlapping targets, retry partial sends, switch source-only direction, merge separate objects and explicitly resolve same-object conflicts. Check durable restart, Escape focus and native popup clicks. Shared Loom needs no official login; account mode keeps its login requirement and does not support two-way editing. |
 | `Ctrl+Alt+Space` | Toggle the configured Talk voice session between start and stop. | Verify both edges and confirm dictated text is inserted only after a completed session. |
 | Three `Esc+Delete` chords, with less than 400 ms between chords | Emergency exit. Both keys must overlap, then both must be released before the next chord counts. The main process and independent watchdog share this rule. | Verify three full press/release cycles exit; repeated Esc alone, Delete alone, autorepeat, and releasing only one key must not exit. |
-| `Ctrl+Alt+Shift+F12` | Backup emergency-exit chord handled by the watchdog. | Verify it terminates Hook and restores cursor/input state. |
+| `Ctrl+Alt+Shift+F12` | Backup emergency-exit chord handled by the watchdog. | Verify it terminates Otter and restores cursor/input state. |
 
 The tray currently exposes **Capture**, **Live capture**, **Long capture**,
 **Open existing image**, and **Quit**. Live capture enters the same window-aware
@@ -94,7 +94,7 @@ cancel/delete semantics.
 | `Shift+1` (`Shift+!`) | selected unit | Toggle the compact Art actions menu. |
 | `Tab` | selected unit | Toggle the parameter panel. |
 | `Ctrl+E` | canvas/overlay | Toggle the selected unit's sticker editing toolbar. Generic plugin menus are rendered only from active contributions. |
-| `Ctrl+4` | selected unit | Not registered by Hook core. The official OCR Capability Plugin contributes re-recognition and complete-result copying while enabled. |
+| `Ctrl+4` | selected unit | Not registered by Otter core. The official OCR Capability Plugin contributes re-recognition and complete-result copying while enabled. |
 | `Alt+4` | selected unit | The enabled official OCR plugin contributes this shortcut. Toggle cached OCR overlays; recognize and show them if no result exists. |
 | `Ctrl+5` | selected image unit | The enabled translation plugin translates from cached OCR, recognizing first when needed. Repeated use refreshes translation while preserving OCR content. |
 | `Alt+5` | selected image unit | Toggle cached translation without a model request; produce OCR and translation on first use. |
@@ -106,7 +106,7 @@ are separate mechanisms. Either key may complete a chord; simultaneous means
 overlapping down states, not identical event timestamps. Every cycle must release
 both keys, and adjacent chord presses must be less than 400 ms apart. Holding one
 key and repeatedly pressing the other does not advance the counter. Three Esc
-presses alone no longer close Hook. Do not lengthen the emergency window to
+presses alone no longer close Otter. Do not lengthen the emergency window to
 compensate for missed input; fix the input path instead.
 
 OCR text overlays preserve native substring selection. A plain block click copies
@@ -132,7 +132,7 @@ manual code-recognition item. The package writes a generic
 `neuro.official/ocr.codes.v1` attachment. `Alt+4`
 toggles the text and code overlays together. Each green frame has a center
 action circle that opens a package-declared panel for copying, closing, or
-opening credential-free HTTPS results. Hook core does not register a decoder,
+opening credential-free HTTPS results. Otter core does not register a decoder,
 QR-specific component, or QR-specific graph port; it only provides the generic
 permission-checked external URL broker.
 
@@ -141,7 +141,7 @@ permission-checked external URL broker.
 | Input | Current behavior | Manual check |
 | --- | --- | --- |
 | Left drag | Move a sticker/unit while preserving the initial cursor offset. | Move slowly and rapidly across monitors; the sticker must not detach or chase alternating pointer streams. |
-| `Alt` + drag | Align/snap against nearby units. | Confirm Alt still reaches other applications when Hook is not handling the interaction. |
+| `Alt` + drag | Align/snap against nearby units. | Confirm Alt still reaches other applications when Otter is not handling the interaction. |
 | `Ctrl` + drag | Cascade/stack placement. | Confirm final order and positions are committed once at release. |
 | `Shift` + drag | Native file drag-out to Explorer or the desktop. | Confirm the exported PNG uses the shared visible filename rules. |
 | `Ctrl` + wheel | Resize the hovered sticker around its intended anchor. | Check image, annotations, links, and crop geometry together. |
@@ -170,7 +170,7 @@ and an animated-source CPU sample; submission counts are not monitor FPS.
 
 - Region capture follows the physical cursor without losing button edges during
   fast movement.
-- Window targeting excludes Hook's hidden/overlay host, desktop surfaces, taskbar,
+- Window targeting excludes Otter's hidden/overlay host, desktop surfaces, taskbar,
   hidden windows, and unsuitable tool windows.
 - Final window capture revalidates the target instead of trusting a stale hover
   rectangle.
@@ -224,11 +224,11 @@ and an animated-source CPU sample; submission counts are not monitor FPS.
   Every displayed pixel maps to the captured source; the yellow corner hit area
   is clipped to its L-shaped strokes so nearby source controls remain reachable.
 - Live input requires the same user and session on the active default desktop;
-  the source's integrity must not exceed Hook's. An elevated Hook can therefore
+  the source's integrity must not exceed Otter's. An elevated Otter can therefore
   control an ordinary same-user source without weakening upward-input refusal.
   Refused input remains owned by the Live content and shows a deduplicated Unit
   notice instead of falling through to ordinary sticker dragging.
-- Shared Hook shortcuts take precedence over source input, including Ctrl+E,
+- Shared Otter shortcuts take precedence over source input, including Ctrl+E,
   Tab, and Shift+1. Window blur, pointer cancellation, ending
   control, reclaim, close, and native session teardown all release tracked input.
 - Same-window sessions share one visibility snapshot, keyed by HWND/process/thread
@@ -259,7 +259,7 @@ and an animated-source CPU sample; submission counts are not monitor FPS.
 
 ## 6. Workflow and persistence regression matrix
 
-- Art capabilities come from the current `loom.hook.v1` contract; Hook must not add
+- Art capabilities come from the current `loom.hook.v1` contract; Otter must not add
   per-Art executors or legacy compatibility branches without an active protocol
   requirement.
 - Shader-backed Art parameters should update the preview immediately through the
@@ -274,10 +274,10 @@ and an animated-source CPU sample; submission counts are not monitor FPS.
 
 - A sticker intercepts pointer input only when its overlay is actually visible and
   not occluded by an exclusive/fullscreen foreground surface.
-- Ordinary Alt key use in another application is not cancelled by Hook.
+- Ordinary Alt key use in another application is not cancelled by Otter.
 - Normal quit, emergency quit, and watchdog termination restore system cursor and
   transient input state.
-- Starting Hook after a force-killed instance restores the configured system cursor
+- Starting Otter after a force-killed instance restores the configured system cursor
   before capture mode can begin.
 - Native minimize, higher-integrity targets, other Windows sessions, and secure
   desktop input remain fail-closed rather than reporting successful control.

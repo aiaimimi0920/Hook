@@ -152,7 +152,7 @@ export const UnitParamsExpandedSettings: Component<UnitParamsExpandedSettingsPro
         <Show when={props.expanded}>
             <div
                 ref={(el) => { settingsPanelRef = el; }}
-                class="hook-terminal-shell hook-terminal-shell--strong absolute z-[101] pointer-events-auto animate-in fade-in slide-in-from-left-2 duration-200"
+                class="otter-terminal-shell otter-terminal-shell--strong absolute z-[101] pointer-events-auto animate-in fade-in slide-in-from-left-2 duration-200"
                 style={{
                     position: "absolute",
                     left: "calc(50% + 125px + 8px)",
@@ -203,7 +203,7 @@ export const UnitParamsExpandedSettings: Component<UnitParamsExpandedSettingsPro
                 </div>
 
                 <Show when={props.unit.type === "sticker"}>
-                    <div class="hook-separator h-px w-full my-2" />
+                    <div class="otter-separator h-px w-full my-2" />
                     <label class="flex items-center justify-between gap-2 cursor-pointer select-none group">
                         <span class="text-[11px] leading-4" style={{ color: "var(--text-secondary)", opacity: "0.9" }}>
                             接受上级贴图编辑传导
@@ -220,13 +220,13 @@ export const UnitParamsExpandedSettings: Component<UnitParamsExpandedSettingsPro
                         />
                     </label>
                     <Show when={props.unit.data.stickerEditPropagation?.locallyEdited}>
-                        <div class="hook-locally-edited mt-1 text-[10px]">已本地编辑</div>
+                        <div class="otter-locally-edited mt-1 text-[10px]">已本地编辑</div>
                     </Show>
                 </Show>
 
-                <div class="hook-separator h-px w-full my-2" />
+                <div class="otter-separator h-px w-full my-2" />
                 <button
-                    class={`hook-terminal-btn w-full flex items-center justify-center gap-2 h-7 text-[11px] font-medium transition-all ${props.displaySrc ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}
+                    class={`otter-terminal-btn w-full flex items-center justify-center gap-2 h-7 text-[11px] font-medium transition-all ${props.displaySrc ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}
                     onMouseDown={(event) => event.stopPropagation()}
                     onClick={(event) => {
                         event.stopPropagation();

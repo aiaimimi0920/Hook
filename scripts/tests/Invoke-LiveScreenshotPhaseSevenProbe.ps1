@@ -108,16 +108,16 @@ $commands.loomHighRiskConfirmation = Invoke-LoggedCommand -Name "loom-high-risk-
     -Arguments @("test", "-p", "loom-daemon", "confirmed_action_never_executes_before_device_bound_host_approval")
 $commands.loomCancellation = Invoke-LoggedCommand -Name "loom-cancellation" -WorkingDirectory $loomRoot `
     -FilePath $cargo -Arguments @("test", "-p", "loom-daemon", "explicit_cancel_is_device_bound_and_stops_a_cancelable_action")
-$commands.hookTriggerTypes = Invoke-LoggedCommand -Name "hook-trigger-types" -WorkingDirectory $repoRoot `
+$commands.otterTriggerTypes = Invoke-LoggedCommand -Name "otter-trigger-types" -WorkingDirectory $repoRoot `
     -FilePath $cargo -Arguments @("test", "--manifest-path", "src-tauri\Cargo.toml", "live_trigger_type_tests")
-$commands.hookStableHeartbeat = Invoke-LoggedCommand -Name "hook-stable-heartbeat" `
+$commands.otterStableHeartbeat = Invoke-LoggedCommand -Name "otter-stable-heartbeat" `
     -WorkingDirectory $repoRoot -FilePath $cargo `
     -Arguments @("test", "--manifest-path", "src-tauri\Cargo.toml", "stable_requires_two_identical_trusted_samples")
-$commands.hookProtocol = Invoke-LoggedCommand -Name "hook-protocol" -WorkingDirectory $repoRoot `
+$commands.otterProtocol = Invoke-LoggedCommand -Name "otter-protocol" -WorkingDirectory $repoRoot `
     -FilePath $npm -Arguments @("test", "--", "__tests__\unit\liveRelay.test.ts")
-$commands.hookTypecheck = Invoke-LoggedCommand -Name "hook-typecheck" -WorkingDirectory $repoRoot `
+$commands.otterTypecheck = Invoke-LoggedCommand -Name "otter-typecheck" -WorkingDirectory $repoRoot `
     -FilePath $npm -Arguments @("run", "typecheck")
-$commands.hookTestTypecheck = Invoke-LoggedCommand -Name "hook-test-typecheck" -WorkingDirectory $repoRoot `
+$commands.otterTestTypecheck = Invoke-LoggedCommand -Name "otter-test-typecheck" -WorkingDirectory $repoRoot `
     -FilePath $npm -Arguments @("run", "typecheck:test")
 
 $checks = [ordered]@{
@@ -128,11 +128,11 @@ $checks = [ordered]@{
     reservationAuditAndAtomicClose = $commands.loomTriggers.exitCode -eq 0
     highRiskDeviceBoundConfirmation = $commands.loomHighRiskConfirmation.exitCode -eq 0
     deviceBoundCancellation = $commands.loomCancellation.exitCode -eq 0
-    hookAuditIdempotencyAndNoRegression = $commands.hookTriggerTypes.exitCode -eq 0
-    hookStableUiaHeartbeat = $commands.hookStableHeartbeat.exitCode -eq 0
-    hookProtocolContract = $commands.hookProtocol.exitCode -eq 0
-    hookProductionTypecheck = $commands.hookTypecheck.exitCode -eq 0
-    hookTestTypecheck = $commands.hookTestTypecheck.exitCode -eq 0
+    otterAuditIdempotencyAndNoRegression = $commands.otterTriggerTypes.exitCode -eq 0
+    otterStableUiaHeartbeat = $commands.otterStableHeartbeat.exitCode -eq 0
+    otterProtocolContract = $commands.otterProtocol.exitCode -eq 0
+    otterProductionTypecheck = $commands.otterTypecheck.exitCode -eq 0
+    otterTestTypecheck = $commands.otterTestTypecheck.exitCode -eq 0
     phaseSixUpstreamEvidence = $phaseSixValid
     phaseSixUiaNotCountedAsPhaseSevenInput = $true
 }

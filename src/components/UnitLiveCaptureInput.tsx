@@ -145,7 +145,7 @@ export const UnitLiveCaptureInput: Component<{
                     void send({ kind: "mouse_wheel", ...liveWheelPayload(event), ...point });
                 }}
                 onKeyDown={(event) => {
-                    // Shared Hook shortcuts run first in the global capture phase.
+                    // Shared Otter shortcuts run first in the global capture phase.
                     if (!controlsSource() || event.defaultPrevented || event.repeat) return;
                     const virtualKey = liveVirtualKey(event);
                     if (!virtualKey) return;

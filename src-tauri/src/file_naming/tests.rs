@@ -57,7 +57,7 @@ mod tests {
     #[test]
     fn renders_all_supported_placeholders() {
         let context = FileNamingContext {
-            app: "Hook".to_string(),
+            app: "Otter".to_string(),
             kind: "sticker".to_string(),
             label: "像素化".to_string(),
             title: "窗口标题".to_string(),
@@ -74,7 +74,7 @@ mod tests {
         );
         assert_eq!(
             rendered,
-            "Hook_sticker_像素化_窗口标题_demo.exe_unit-1234_1234_640x480_20260802_14301542_1785652215420"
+            "Otter_sticker_像素化_窗口标题_demo.exe_unit-1234_1234_640x480_20260802_14301542_1785652215420"
         );
     }
 
@@ -109,10 +109,10 @@ mod tests {
 
     #[test]
     fn validates_placeholder_syntax() {
-        assert!(validate_pattern("Hook_{date}_{time}").is_ok());
-        assert!(validate_pattern("Hook_{unknown}").is_err());
-        assert!(validate_pattern("Hook_{date").is_err());
-        assert!(validate_pattern("Hook_date}").is_err());
+        assert!(validate_pattern("Otter_{date}_{time}").is_ok());
+        assert!(validate_pattern("Otter_{unknown}").is_err());
+        assert!(validate_pattern("Otter_{date").is_err());
+        assert!(validate_pattern("Otter_date}").is_err());
         assert!(validate_pattern("   ").is_err());
     }
 
@@ -127,7 +127,7 @@ mod tests {
             sanitize_windows_filename_stem("com9.report"),
             "_com9.report"
         );
-        assert_eq!(sanitize_windows_filename_stem(".."), "Hook");
+        assert_eq!(sanitize_windows_filename_stem(".."), "Otter");
         assert!(!sanitize_windows_filename_stem("a\\..\\b").contains(['/', '\\']));
     }
 
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn atomically_allocates_incrementing_collisions() {
         let root = std::env::temp_dir().join(format!(
-            "hook-file-naming-test-{}",
+            "otter-file-naming-test-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
@@ -164,7 +164,7 @@ mod tests {
     #[test]
     fn collision_suffix_keeps_final_stem_within_limit() {
         let root = std::env::temp_dir().join(format!(
-            "hook-file-naming-long-collision-test-{}",
+            "otter-file-naming-long-collision-test-{}",
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()

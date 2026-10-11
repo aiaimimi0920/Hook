@@ -90,27 +90,27 @@ $commands.loomObservationContract = Invoke-LoggedCommand -Name "loom-observation
 $commands.loomHighRiskTrust = Invoke-LoggedCommand -Name "loom-high-risk-trust" `
     -WorkingDirectory $loomRoot -FilePath $cargo `
     -Arguments @("test", "-p", "loom-daemon", "phase_eight_visual_observations_cannot_dispatch_high_risk_actions")
-$commands.hookExtensionContract = Invoke-LoggedCommand -Name "hook-extension-contract" `
+$commands.otterExtensionContract = Invoke-LoggedCommand -Name "otter-extension-contract" `
     -WorkingDirectory $repoRoot -FilePath $cargo `
     -Arguments @("test", "--manifest-path", "src-tauri\Cargo.toml", "live_extension_capability_tests")
-$commands.hookVisualTrust = Invoke-LoggedCommand -Name "hook-visual-trust" `
+$commands.otterVisualTrust = Invoke-LoggedCommand -Name "otter-visual-trust" `
     -WorkingDirectory $repoRoot -FilePath $cargo `
     -Arguments @("test", "--manifest-path", "src-tauri\Cargo.toml", "visual_observations_cannot_claim_exact_confidence")
-$commands.hookProtocol = Invoke-LoggedCommand -Name "hook-protocol" -WorkingDirectory $repoRoot `
+$commands.otterProtocol = Invoke-LoggedCommand -Name "otter-protocol" -WorkingDirectory $repoRoot `
     -FilePath $npm -Arguments @("test", "--", "__tests__\unit\liveExtensions.test.ts")
-$commands.hookTypecheck = Invoke-LoggedCommand -Name "hook-typecheck" -WorkingDirectory $repoRoot `
+$commands.otterTypecheck = Invoke-LoggedCommand -Name "otter-typecheck" -WorkingDirectory $repoRoot `
     -FilePath $npm -Arguments @("run", "typecheck")
-$commands.hookTestTypecheck = Invoke-LoggedCommand -Name "hook-test-typecheck" -WorkingDirectory $repoRoot `
+$commands.otterTestTypecheck = Invoke-LoggedCommand -Name "otter-test-typecheck" -WorkingDirectory $repoRoot `
     -FilePath $npm -Arguments @("run", "typecheck:test")
 
 $checks = [ordered]@{
-    observationSourceAndConfidenceRequired = $commands.loomObservationContract.exitCode -eq 0 -and $commands.hookVisualTrust.exitCode -eq 0
-    visualExactConfidenceRejected = $commands.loomObservationContract.exitCode -eq 0 -and $commands.hookProtocol.exitCode -eq 0
+    observationSourceAndConfidenceRequired = $commands.loomObservationContract.exitCode -eq 0 -and $commands.otterVisualTrust.exitCode -eq 0
+    visualExactConfidenceRejected = $commands.loomObservationContract.exitCode -eq 0 -and $commands.otterProtocol.exitCode -eq 0
     visualHighRiskActionRejected = $commands.loomHighRiskTrust.exitCode -eq 0
-    adapterPackageTrustBoundary = $commands.hookExtensionContract.exitCode -eq 0 -and $commands.hookProtocol.exitCode -eq 0
-    unavailableExtensionsReportedHonestly = $commands.hookExtensionContract.exitCode -eq 0 -and $commands.hookProtocol.exitCode -eq 0
-    hookProductionTypecheck = $commands.hookTypecheck.exitCode -eq 0
-    hookTestTypecheck = $commands.hookTestTypecheck.exitCode -eq 0
+    adapterPackageTrustBoundary = $commands.otterExtensionContract.exitCode -eq 0 -and $commands.otterProtocol.exitCode -eq 0
+    unavailableExtensionsReportedHonestly = $commands.otterExtensionContract.exitCode -eq 0 -and $commands.otterProtocol.exitCode -eq 0
+    otterProductionTypecheck = $commands.otterTypecheck.exitCode -eq 0
+    otterTestTypecheck = $commands.otterTestTypecheck.exitCode -eq 0
     phaseSevenUpstreamEvidence = $phaseSevenValid
 }
 $passed = @($checks.Values | Where-Object { -not $_ }).Count -eq 0

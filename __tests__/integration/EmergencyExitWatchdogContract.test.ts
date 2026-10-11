@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 
 const root = process.cwd();
 const watchdog = readFileSync(
@@ -9,13 +9,13 @@ const watchdog = readFileSync(
     "utf8",
 );
 const main = readFileSync(resolve(root, "src-tauri/src/main.rs"), "utf8");
-const lib = readHookLibRustSources();
+const lib = readOtterLibRustSources();
 
-describe("Hook emergency exit watchdog contract", () => {
+describe("Otter emergency exit watchdog contract", () => {
     it("runs outside the Tauri event loop and uses the shared triple Esc+Delete tracker", () => {
         expect(main).toContain("emergency_watchdog::parse_parent_pid");
         expect(main.indexOf("emergency_watchdog::parse_parent_pid")).toBeLessThan(
-            main.indexOf("hook_lib::run()"),
+            main.indexOf("otter_lib::run()"),
         );
         expect(lib).toContain("emergency_watchdog::spawn_for_current_process()");
         expect(watchdog).toContain("GetAsyncKeyState");

@@ -23,7 +23,7 @@ export const ProjectionQrFileInput = (props: { disabled: boolean; imported: (tex
         finally { if (!request.signal.aborted) setBusy(false); }
     };
     return <>
-        <Show when={props.compact}><button type="button" class="hook-terminal-btn min-w-0 truncate" title={filename() || "选择 PNG 图片"}
+        <Show when={props.compact}><button type="button" class="otter-terminal-btn min-w-0 truncate" title={filename() || "选择 PNG 图片"}
             disabled={props.disabled || busy()} onClick={() => input.click()}>{busy() ? "识别中…" : filename() || "选择图片"}</button></Show>
         <label class={props.compact ? "hidden" : "qr-projection-field"}><Show when={!props.compact}>导入二维码图片（PNG）</Show>
             <input ref={(el) => { input = el; }} type="file" accept="image/png,.png" disabled={props.disabled || busy()} aria-label="导入二维码图片"

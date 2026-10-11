@@ -19,7 +19,7 @@ import type {
     SurfaceResourceLease,
     SurfaceSnapshot,
 } from "./surfaceProtocol";
-import { hookSurfaceHostCapabilities } from "./surfaceHostCapabilities";
+import { otterSurfaceHostCapabilities } from "./surfaceHostCapabilities";
 
 export interface SurfaceSnapshotDelivery {
     hookNodeId: string;
@@ -77,13 +77,13 @@ export interface SurfaceResourceDelivery {
     expiresAtMs: number;
 }
 
-export class LoomHookClient {
+export class LoomOtterClient {
     private sessionId: string | null = null;
     private negotiatedTransport: TransportMode | null = null;
     private capabilities: ArtCapability[] = [];
 
     async connect(): Promise<HandshakeResponse> {
-        logger.debug("[LoomHookClient] Connecting...");
+        logger.debug("[LoomOtterClient] Connecting...");
         const req: HandshakeRequest = {
             protocolVersion: "loom.hook.v1",
             supportedProtocolVersions: ["loom.hook.v1"],
@@ -91,7 +91,7 @@ export class LoomHookClient {
             clientVersion: "0.1.7",
             platform: "windows-x64",
             transports: ["shared_memory", "cloudflare_relay"],
-            surface: hookSurfaceHostCapabilities(),
+            surface: otterSurfaceHostCapabilities(),
         };
 
         try {
@@ -107,13 +107,13 @@ export class LoomHookClient {
                 },
             };
 
-            logger.debug("[LoomHookClient] Handshake Success:", res);
+            logger.debug("[LoomOtterClient] Handshake Success:", res);
             this.sessionId = res.sessionId;
             this.negotiatedTransport = res.transport;
             this.capabilities = res.capabilities.artDefinitions;
             return res;
         } catch (e) {
-            console.error("[LoomHookClient] Handshake Failed:", e);
+            console.error("[LoomOtterClient] Handshake Failed:", e);
             throw e;
         }
     }
@@ -124,7 +124,7 @@ export class LoomHookClient {
             action: actionName,
             payload: payload
         };
-        logger.debug(`[LoomHookClient] Dispatching ${actionName}:`, actionEnum);
+        logger.debug(`[LoomOtterClient] Dispatching ${actionName}:`, actionEnum);
         // Pass to the 'action' argument of the Rust command
         await api.dispatchAction(actionEnum);
 
@@ -135,7 +135,7 @@ export class LoomHookClient {
             workflow_id: workflowId,
             snapshot: snapshot
         };
-        logger.debug(`[LoomHookClient] Syncing Workflow ${workflowId}`);
+        logger.debug(`[LoomOtterClient] Syncing Workflow ${workflowId}`);
         await this.dispatchAction("sync_workflow", payload);
     }
 
@@ -163,7 +163,7 @@ export class LoomHookClient {
         await this.dispatchAction("surface_attach", {
             art_id: artId,
             hook_node_id: hookNodeId,
-            capabilities: hookSurfaceHostCapabilities(),
+            capabilities: otterSurfaceHostCapabilities(),
         });
     }
 
@@ -189,11 +189,11 @@ export class LoomHookClient {
             const handler = (event: Event) => {
                 callback((event as CustomEvent<ArtDelivery>).detail);
             };
-            window.addEventListener("hook-browser-art-ready", handler);
-            return () => window.removeEventListener("hook-browser-art-ready", handler);
+            window.addEventListener("otter-browser-art-ready", handler);
+            return () => window.removeEventListener("otter-browser-art-ready", handler);
         }
         return await listen<ArtDelivery>("art/ready", (event) => {
-            logger.debug("[LoomHookClient] Delivery Received:", event.payload);
+            logger.debug("[LoomOtterClient] Delivery Received:", event.payload);
             callback(event.payload);
         });
     }
@@ -277,4 +277,4 @@ export class LoomHookClient {
     }
 }
 
-export const loomHook = new LoomHookClient();
+export const loomOtter = new LoomOtterClient();

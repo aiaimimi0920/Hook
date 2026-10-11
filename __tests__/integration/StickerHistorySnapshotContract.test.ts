@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 const historySource = readFileSync(resolve(process.cwd(), "src/services/stickerHistory.ts"), "utf8");
 
-describe("Hook sticker history snapshot contract", () => {
+describe("Otter sticker history snapshot contract", () => {
     it("unwraps Solid store proxies before structuredClone so repeated crop snapshots do not crash on proxied imageEditState", () => {
         expect(historySource).toContain('import { unwrap } from "solid-js/store";');
         expect(historySource).toContain("structuredClone(unwrap(snapshot))");

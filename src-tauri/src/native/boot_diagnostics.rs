@@ -5,8 +5,8 @@ struct BootProfile {
     startup_mode: String,
     initial_ui_mode: String,
     auto_start_capture: bool,
-    loom_hook_enabled: bool,
-    loom_hook_ws_url: String,
+    loom_otter_enabled: bool,
+    loom_otter_ws_url: String,
     native_acceptance: bool,
 }
 
@@ -20,7 +20,7 @@ fn native_acceptance_enabled_value(value: Option<&str>) -> bool {
 }
 
 fn native_acceptance_enabled() -> bool {
-    native_acceptance_enabled_value(std::env::var(NATIVE_ACCEPTANCE_ENV).ok().as_deref())
+    native_acceptance_enabled_value(crate::brand_env::var(NATIVE_ACCEPTANCE_ENV).ok().as_deref())
 }
 
 fn native_acceptance_marker_is_valid(marker: &str) -> bool {
@@ -32,7 +32,7 @@ fn native_acceptance_marker_is_valid(marker: &str) -> bool {
 }
 
 fn read_env_bool(key: &str, default: bool) -> bool {
-    std::env::var(key)
+    crate::brand_env::var(key)
         .ok()
         .map(|value| {
             let normalized = value.trim().to_ascii_lowercase();
@@ -42,12 +42,12 @@ fn read_env_bool(key: &str, default: bool) -> bool {
 }
 
 fn boot_profile_from_env() -> BootProfile {
-    let startup_mode = match std::env::var("HOOK_STARTUP_MODE") {
+    let startup_mode = match crate::brand_env::var("HOOK_STARTUP_MODE") {
         Ok(value) if value.trim().eq_ignore_ascii_case("visible") => "visible".to_string(),
         _ => "silent".to_string(),
     };
 
-    let initial_ui_mode = match std::env::var("HOOK_INITIAL_UI_MODE") {
+    let initial_ui_mode = match crate::brand_env::var("HOOK_INITIAL_UI_MODE") {
         Ok(value) if value.trim().eq_ignore_ascii_case("overlay") => "overlay".to_string(),
         Ok(value) if value.trim().eq_ignore_ascii_case("canvas") => "canvas".to_string(),
         Ok(value) if value.trim().eq_ignore_ascii_case("tray") => "tray".to_string(),
@@ -55,7 +55,7 @@ fn boot_profile_from_env() -> BootProfile {
         _ => "overlay".to_string(),
     };
 
-    let loom_hook_ws_url = std::env::var("LOOM_HOOK_WS_URL")
+    let loom_otter_ws_url = crate::brand_env::var("LOOM_HOOK_WS_URL")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
@@ -65,8 +65,8 @@ fn boot_profile_from_env() -> BootProfile {
         startup_mode,
         initial_ui_mode,
         auto_start_capture: read_env_bool("HOOK_AUTOSTART_CAPTURE", false),
-        loom_hook_enabled: crate::loom_bridge_client::enabled(),
-        loom_hook_ws_url,
+        loom_otter_enabled: crate::loom_bridge_client::enabled(),
+        loom_otter_ws_url,
         native_acceptance: native_acceptance_enabled(),
     }
 }
@@ -117,8 +117,8 @@ fn process_handle_count() -> Option<u32> {
 
 pub fn self_check_report() -> SelfCheckReport {
     SelfCheckReport {
-        app: "Hook",
-        binary: "hook.exe",
+        app: "Otter",
+        binary: "otter.exe",
         version: env!("CARGO_PKG_VERSION"),
         status: "ok",
         capabilities: SelfCheckCapabilities {
@@ -142,11 +142,11 @@ pub fn self_check_report_json() -> Result<String, serde_json::Error> {
 
 pub fn loom_brain_plan_smoke_request() -> loom_connector::LoomBrainPlanRequest {
     loom_connector::LoomBrainPlanRequest {
-        request_id: Some("hook-loom-smoke-1".to_string()),
-        goal: "Hook Loom release smoke".to_string(),
+        request_id: Some("otter-loom-smoke-1".to_string()),
+        goal: "Otter Loom release smoke".to_string(),
         constraints: vec!["no-ui".to_string()],
         context: Some(serde_json::json!({
-            "source": "hook-cli-smoke"
+            "source": "otter-cli-smoke"
         })),
         timeout_ms: Some(5_000),
     }
@@ -175,10 +175,10 @@ pub fn loom_brain_plan_smoke_report_json() -> Result<String, String> {
 
 pub fn talk_capture_smoke_request() -> talk_connector::TalkVoiceCaptureRequest {
     talk_connector::TalkVoiceCaptureRequest {
-        request_id: Some("hook-talk-smoke-1".to_string()),
+        request_id: Some("otter-talk-smoke-1".to_string()),
         mode: Some("dictation".to_string()),
         context: Some(serde_json::json!({
-            "source": "hook-cli-smoke"
+            "source": "otter-cli-smoke"
         })),
         timeout_ms: Some(5_000),
     }
@@ -205,9 +205,9 @@ pub fn talk_capture_smoke_report_json() -> Result<String, String> {
         .map_err(|error| format!("failed to serialize Talk smoke result: {error}"))
 }
 
-pub fn hook_help_text() -> &'static str {
+pub fn otter_help_text() -> &'static str {
     concat!(
-        "Usage: hook [OPTIONS]\n",
+        "Usage: otter [OPTIONS]\n",
         "\n",
         "Options:\n",
         "  --tile                    Open the independent tile terminal control window\n",
@@ -223,20 +223,20 @@ pub fn hook_help_text() -> &'static str {
         "  Press Esc three times within 400 ms, or press Ctrl+Alt+Shift+F12.\n",
         "\n",
         "Environment:\n",
-        "  HOOK_SELF_CHECK_OUTPUT          Optional file path for --self-check JSON output\n",
-        "  HOOK_LOOM_BRAIN_PLAN_OUTPUT    Optional file path for --loom-brain-plan-smoke JSON output\n",
-        "  HOOK_TALK_VOICE_CAPTURE_OUTPUT Optional file path for --talk-voice-capture-smoke JSON output\n",
-        "  HOOK_CLI_OUTPUT                 Optional file path for --help/--version text output\n",
-        "  HOOK_CAPTURE_DYNAMIC_RANGE      Region capture mode: auto (default), hdr, or sdr\n",
+        "  OTTER_SELF_CHECK_OUTPUT          Optional file path for --self-check JSON output\n",
+        "  OTTER_LOOM_BRAIN_PLAN_OUTPUT    Optional file path for --loom-brain-plan-smoke JSON output\n",
+        "  OTTER_TALK_VOICE_CAPTURE_OUTPUT Optional file path for --talk-voice-capture-smoke JSON output\n",
+        "  OTTER_CLI_OUTPUT                 Optional file path for --help/--version text output\n",
+        "  OTTER_CAPTURE_DYNAMIC_RANGE      Region capture mode: auto (default), hdr, or sdr\n",
     )
 }
 
-pub fn hook_version_text() -> String {
-    format!("hook {}", env!("CARGO_PKG_VERSION"))
+pub fn otter_version_text() -> String {
+    format!("otter {}", env!("CARGO_PKG_VERSION"))
 }
 
 pub fn write_optional_cli_output(env_name: &str, text: &str) -> std::io::Result<()> {
-    if let Ok(path) = std::env::var(env_name) {
+    if let Ok(path) = crate::brand_env::var(env_name) {
         if !path.trim().is_empty() {
             std::fs::write(path, text)?;
         }

@@ -87,7 +87,7 @@ export const SurfaceConfirmationDialog: Component<Props> = (props) => {
                         <header class="surface-confirmation-header">
                             <span class="surface-confirmation-signal" aria-hidden="true">!</span>
                             <div>
-                                <div class="surface-confirmation-kicker">HOOK / HOST CONFIRMATION</div>
+                                <div class="surface-confirmation-kicker">OTTER / HOST CONFIRMATION</div>
                                 <h2 id="surface-confirmation-title">操作确认</h2>
                             </div>
                             <span class="surface-confirmation-risk">{riskLabel(request().risk)}</span>
@@ -95,7 +95,7 @@ export const SurfaceConfirmationDialog: Component<Props> = (props) => {
 
                         <div class="surface-confirmation-content">
                             <p id="surface-confirmation-description">
-                                Art 请求执行 <strong>{request().actionId}</strong>。确认由 Hook 宿主显示，
+                                Art 请求执行 <strong>{request().actionId}</strong>。确认由 Otter 宿主显示，
                                 Art 无法替换或模拟此界面。
                             </p>
                             <dl class="surface-confirmation-meta">

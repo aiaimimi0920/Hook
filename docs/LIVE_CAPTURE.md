@@ -92,7 +92,7 @@ the message tied to the affected Unit rather than introducing a global Live pane
 - [Features](FEATURES.md): shortcuts and manual regression matrix.
 
 Frontend `liveProtocol.ts` contains trigger configuration types only. Native
-Hook and Loom own wire validation, framing and ordering. Frontend regressions
+Otter and Loom own wire validation, framing and ordering. Frontend regressions
 exercise the current relay, extension contracts, capture feedback and notices;
 the phase 7/8 runners retain those current tests.
 
@@ -124,7 +124,7 @@ current input without permanently disabling control. Input mapping is deferred
 while the source is iconic, since its minimized placement cannot map the captured
 region. Passive hover failures during this transition are quiet; action failures
 remain visible and are not replayed. The opt-in `live-browser-input-probe.mjs`
-checks a cropped Chromium video control through native Hook input, with a DOM
+checks a cropped Chromium video control through native Otter input, with a DOM
 playback/click oracle in visible, logically hidden and restored states, for both
 normal and maximized windows. It uses an isolated browser, not the user's profile.
 
@@ -169,7 +169,7 @@ input check, not acceptance of every editor control or logical-hide mode.
 | Multi-monitor, mixed DPI, negative origins | Coordinate contracts exist; single-display results do not establish runtime compatibility. |
 | HDR, Win10, RDP, sleep/wake, device loss, protected content | Require their own capture and recovery checks; screenshot HDR support alone does not establish Live support. |
 
-Run the existing interactive probes from the Hook repository root:
+Run the existing interactive probes from the Otter repository root:
 
 ```powershell
 npm run probe:live-screenshot:phase0

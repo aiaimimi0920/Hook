@@ -5,7 +5,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-namespace Hook.LiveScreenshot.PhaseZero
+namespace Otter.LiveScreenshot.PhaseZero
 {
     internal static class Program
     {
@@ -122,7 +122,7 @@ namespace Hook.LiveScreenshot.PhaseZero
         {
             this.readyPath = Path.GetFullPath(readyPath);
             this.statePath = string.IsNullOrWhiteSpace(statePath) ? null : Path.GetFullPath(statePath);
-            Text = "Hook Live Screenshot Phase 0 Fixture";
+            Text = "Otter Live Screenshot Phase 0 Fixture";
             Name = "liveScreenshotFixture";
             ClientSize = new Size(680, 430);
             FormBorderStyle = FormBorderStyle.FixedSingle;

@@ -319,7 +319,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
     >
         {/* Background */}
         <div
-            class="hook-terminal-shell hook-terminal-shell--strong absolute inset-0 z-[-5] pointer-events-none"
+            class="otter-terminal-shell otter-terminal-shell--strong absolute inset-0 z-[-5] pointer-events-none"
         />
 
         <UnitActionsMenu
@@ -348,7 +348,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
         <Show when={isArt() && supportsSurface(props.capability)}>
             <UnitLiveViewer unitId={props.unit.id} />
         </Show>
-        <button type="button" class="hook-terminal-btn" onClick={() => openProjection(props.unit.id)}>二维码投射</button>
+        <button type="button" class="otter-terminal-btn" onClick={() => openProjection(props.unit.id)}>二维码投射</button>
 
         <UnitParamsPortRows
             unit={props.unit}
@@ -379,7 +379,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
 
     <Show when={editingTextId()}>
              <div
-                 class="hook-terminal-shell hook-terminal-shell--strong absolute flex flex-col z-[110] animate-in slide-in-from-left-2 duration-200 pointer-events-auto"
+                 class="otter-terminal-shell otter-terminal-shell--strong absolute flex flex-col z-[110] animate-in slide-in-from-left-2 duration-200 pointer-events-auto"
                  style={{
                      position: "absolute",
                      left: "calc(100% + 274px)",
@@ -395,9 +395,9 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
              >
                  <div class="flex items-center justify-between mb-2">
                      <span class="text-xs font-bold uppercase tracking-wider">Edit Text</span>
-                      <button class="hook-toolbar-button" onClick={closeTextEditor}><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                      <button class="otter-toolbar-button" onClick={closeTextEditor}><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
                  </div>
-                 <textarea class="hook-terminal-input hook-scrollbar w-full h-[150px] p-3 text-[11px] leading-relaxed resize-y min-h-[100px] font-mono mb-3"
+                 <textarea class="otter-terminal-input otter-scrollbar w-full h-[150px] p-3 text-[11px] leading-relaxed resize-y min-h-[100px] font-mono mb-3"
                      value={tempText()}
                      onInput={(e) => { setTempText(e.currentTarget.value); setTextEditorError(null); }}
                      onPointerDown={focusOverlayFromPointerEvent}
@@ -407,11 +407,11 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                      autofocus
                  />
                  <Show when={textEditorError()}>
-                     {(message) => <div class="hook-inline-danger mb-2 text-[10px] leading-4">JSON 格式错误：{message()}</div>}
+                     {(message) => <div class="otter-inline-danger mb-2 text-[10px] leading-4">JSON 格式错误：{message()}</div>}
                  </Show>
                  <div class="flex justify-between items-center mt-auto">
-                     <span class="hook-inline-muted text-[10px] font-mono self-center">{tempText().length} chars</span>
-                     <button class="hook-terminal-btn hook-terminal-btn--success px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
+                     <span class="otter-inline-muted text-[10px] font-mono self-center">{tempText().length} chars</span>
+                     <button class="otter-terminal-btn otter-terminal-btn--success px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95"
                          onClick={(e) => { e.stopPropagation(); commitTextEditor(); }}>Save Text</button>
                  </div>
              </div>
@@ -419,7 +419,7 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
 
     <Show when={hoveringDataUrlPreview()}>
         {(previewSrc) => (
-            <div class="hook-terminal-shell hook-terminal-shell--strong absolute flex flex-col z-[110] animate-in slide-in-from-left-2 duration-200 pointer-events-auto"
+            <div class="otter-terminal-shell otter-terminal-shell--strong absolute flex flex-col z-[110] animate-in slide-in-from-left-2 duration-200 pointer-events-auto"
                 style={{
                     position: "absolute",
                     left: "calc(100% + 274px)",
@@ -427,9 +427,9 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
                     "padding": "8px", "color": "var(--text-primary)"
                 }} onMouseDown={(e) => e.stopPropagation()}
             >
-                 <div class="hook-preview-header mb-2 flex justify-between items-center text-[10px] font-mono pb-1"><span class="font-bold uppercase tracking-widest">Image Preview</span></div>
-                 <img src={previewSrc()} class="hook-image-preview-frame w-full h-auto object-contain" style={{"max-height": "300px"}} />
-                 <div class="hook-inline-muted mt-1 text-[9px] font-mono text-right truncate">{(previewSrc().length / 1024).toFixed(1)} KB</div>
+                 <div class="otter-preview-header mb-2 flex justify-between items-center text-[10px] font-mono pb-1"><span class="font-bold uppercase tracking-widest">Image Preview</span></div>
+                 <img src={previewSrc()} class="otter-image-preview-frame w-full h-auto object-contain" style={{"max-height": "300px"}} />
+                 <div class="otter-inline-muted mt-1 text-[9px] font-mono text-right truncate">{(previewSrc().length / 1024).toFixed(1)} KB</div>
             </div>
         )}
     </Show>

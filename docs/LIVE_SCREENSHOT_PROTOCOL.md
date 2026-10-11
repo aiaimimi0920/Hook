@@ -1,19 +1,19 @@
-# Hook Live Screenshot Protocol Boundary
+# Otter Live Screenshot Protocol Boundary
 
 Status: Phase 9 network-readiness candidate for the declared Win32/WinForms baseline. Public NAT relay remains unavailable.
 
-Hook implements the source and viewer sides of `loom.live.v1`. The matching Loom
+Otter implements the source and viewer sides of `loom.live.v1`. The matching Loom
 candidate and canonical schema live in `protocol/LIVE_SCREENSHOT_PROTOCOL.md`
 and `protocol/schemas/live-control.v1.schema.json` in the independent Loom
-repository. Hook keeps its Rust media codec/sequence checks and TypeScript
+repository. Otter keeps its Rust media codec/sequence checks and TypeScript
 presentation contract independent, with shared wire fixtures in both repositories.
 
-## Hook responsibilities
+## Otter responsibilities
 
 - publish source window identity, physical region, capture strategy, and measured
   interaction/observation capabilities;
 - render viewer frames and keep view position, scale, opacity, topmost, and
-  click-through state local to each Hook;
+  click-through state local to each Otter;
 - adapt capture, input, observation, and lifecycle messages without copying
   Loom's Art executor;
 - reject unknown versions, message types, fields, invalid sequence/epoch changes,
@@ -37,7 +37,7 @@ copy/save during editing uses that snapshot rather than a hidden newer frame.
 Closing the editor resumes the current Live image. This does not continuously
 republish every capture frame as a new formal downstream Art result.
 
-Shared Hook shortcuts take priority over source input. Yellow corners use the
+Shared Otter shortcuts take priority over source input. Yellow corners use the
 ordinary Unit drag lifecycle, while content forwards supported mouse/key/wheel
 events to the bound source. Button/key edges are ordered and never coalesced;
 pending moves are queued before their matching edges. Blur, cancellation, and
@@ -60,7 +60,7 @@ corresponding runtime owner starts and its capability probe passes.
 ### Device-token renewal within an existing session
 
 Renewal retains session, device and epoch identity. When a viewer is already
-a member, Hook reads the authenticated member snapshot's `requesterControl`
+a member, Otter reads the authenticated member snapshot's `requesterControl`
 before attaching, validates session/device/epoch and initializes both control
 and input cursors from it. The input cursor must leave room for a next JavaScript-safe
 sequence. The attachment advances control once and uses its
@@ -79,7 +79,7 @@ removed, replaced and revoked sources cannot be revived by that failure handler.
 A different epoch, changed source owner or closed session rejects recovery;
 newly created sessions start empty. Old input edges and controller authority
 are never restored. These software contracts do not substitute for native
-default-TTL acceptance of the matching Hook and Loom candidates.
+default-TTL acceptance of the matching Otter and Loom candidates.
 
 An existing Device-authenticated viewer retains its original credential. An actual
 HTTP 401 from its resume, event poll or member snapshot terminates that local
@@ -98,8 +98,8 @@ origin, and makes one signed session attempt without pairing, approval polling o
 reuse of the rejected token cache. Session/source/epoch and Surface attachment must
 remain valid. The attachment sends `requireExistingMembership: true`; Loom checks
 membership and absence of this device's controller lease atomically before consuming
-the sequence. Old Loom versions reject this field: Hook never falls back to a fresh
-join. Deploy the matching Loom support before enabling the new Hook candidate.
+the sequence. Old Loom versions reject this field: Otter never falls back to a fresh
+join. Deploy the matching Loom support before enabling the new Otter candidate.
 Stopping/removing/replacing the local owner prevents late worker publication; confirmed
 `live_media_device_revoked` never renews. Disabled or removed devices cannot mint the
 replacement session. Revoking only a token does not revoke an otherwise approved
@@ -194,7 +194,7 @@ viewer按序解码AU后才允许最新图片覆盖。控制、IDR、队列及取
 
 - 选择 JPEG 后，源端沿用已有采集 JPEG 的内容与质量，NLLV codec 字节为 `3`。
   不先解码为 BGRA、不重复 JPEG 编码。压缩帧超过 16 MiB 时仍可走原 raw 回退。
-- 旧 Loom 选择 v1 时，源端仍发送 raw BGRA。新 Hook 也接受新连接中的 raw 回退；
+- 旧 Loom 选择 v1 时，源端仍发送 raw BGRA。新 Otter 也接受新连接中的 raw 回退；
   未协商 JPEG 的连接收到 codec `3` 必须拒绝，不能尝试当作 BMP 像素。
 - 新观看端以 `image/jpeg` 直接构建 Blob，由同一有界 decoder 完成实际解码和
   尺寸复核。JPEG 不经过 BMP 包装；`imageBytes === payloadBytes`。raw 路径保持
@@ -221,17 +221,17 @@ relay 按自己的 frame ID 取新快照，不在采集锁内复制 JPEG。IPC �
 
 ## Security boundary
 
-Parsing is not authorization. Hook accepts remote input only after Loom device,
+Parsing is not authorization. Otter accepts remote input only after Loom device,
 attachment, controller, epoch, expiry, and revocation checks. Secure desktop,
 other users/sessions, protected targets, and targets with higher integrity than
-Hook fail closed. Same-user input to equal or lower integrity follows Windows
-UIPI; an elevated Hook does not require an ordinary source to be elevated.
+Otter fail closed. Same-user input to equal or lower integrity follows Windows
+UIPI; an elevated Otter does not require an ordinary source to be elevated.
 Source titles, pixels, UIA text, keyboard data, and OCR text are
 sensitive and must not be written to normal logs.
 
 An admitted Device media socket can receive WebSocket Close code `1008` (Policy)
 with the exact reason `live_media_device_revoked`. Only that pair on a Device-authenticated
-connection is a terminal authorization signal. Hook stops the local source/viewer relay,
+connection is a terminal authorization signal. Otter stops the local source/viewer relay,
 clears controller authority and native viewer frames, and retains that error through shutdown.
 An in-flight source recovery cannot replace that terminated relay; starting a new relay after
 reapproval is a separate user action. This does not declare the entire Loom session closed.
@@ -246,7 +246,7 @@ phases without claiming they are currently implemented.
 
 ## Phase 6 observation behavior
 
-Hook publishes UIA observations only from the paired source attachment. Each
+Otter publishes UIA observations only from the paired source attachment. Each
 observation has a positive sequence and timestamp, a bounded stable locator,
 source/confidence, and at most 64 KiB of serialized value data. A relay stores at
 most 256 current observations. `unknown`, `stale`, and `error` never carry a
@@ -271,13 +271,13 @@ path as recovering, and retries without advancing either sequence.
 
 ## Phase 7 trigger boundary
 
-Only a connected viewer can register a trigger. Hook validates the binding,
+Only a connected viewer can register a trigger. Otter validates the binding,
 condition, 4 KiB/16-level/512-node operand bound, numeric operand type, and
 Surface target before forwarding the viewer's next ordered control message to
 Loom. The supported selector form is exactly
 `{ "path": "/json/pointer", "value": expected }`.
 
-Hook never evaluates a condition and never executes Art. Loom owns trust,
+Otter never evaluates a condition and never executes Art. Loom owns trust,
 stability, edge/re-arm state, online authorization, deterministic idempotency,
 and the existing Surface/Art action executor. In particular, the viewer's
 offline state pauses remote trigger execution while source capture and
@@ -285,7 +285,7 @@ observation publication continue.
 
 Attached viewers store Loom's bounded trigger registration snapshot and audit
 stream. Reservation and final execution events use the same idempotency key, so
-Hook replaces the provisional audit instead of showing two executions. The UI
+Otter replaces the provisional audit instead of showing two executions. The UI
 shows registration count and recent `fired`, `skipped`, or `failed` reasons,
 including trace fields for observation ID/sequence/source device/source type,
 authorizer, and the Loom action request ID when one exists. Discovery responses
@@ -299,15 +299,15 @@ activation. Every item declares its ID, kind, availability, execution owner,
 trust boundary, optional observation source and confidence ceiling, plus a
 required reason when unavailable. Rust and TypeScript independently validate the
 same wire fields and reject duplicates, unknown fields, malformed IDs, visual
-`exact` confidence, or an adapter that claims the native Hook trust boundary.
+`exact` confidence, or an adapter that claims the native Otter trust boundary.
 
 Browser, Electron, special-rendering, and visual observation providers are owned
 by `loom_capability_plugin` and must cross
-`loom_verified_capability_package`. Hook recognition cannot bypass Loom package
+`loom_verified_capability_package`. Otter recognition cannot bypass Loom package
 signature/revocation checks, content identity, permission grants, process
-limits, or lifecycle state. OCR is an optional Loom Capability Plugin; Hook core
+limits, or lifecycle state. OCR is an optional Loom Capability Plugin; Otter core
 does not ship or silently invoke an OCR engine. App-specific code therefore
-stays in an independently installable package instead of the Hook capture, UIA,
+stays in an independently installable package instead of the Otter capture, UIA,
 or relay modules.
 
 This candidate reports the following entries as unavailable:
@@ -322,14 +322,14 @@ Unavailable means no live protocol input or provider output is emitted. The
 existing same-integrity window-message backend remains mouse/key/wheel only.
 Local clipboard and file-drag product commands are not treated as remotely
 authorized live input. This prevents an unimplemented capability from appearing
-usable merely because Hook has an unrelated local feature with a similar name.
+usable merely because Otter has an unrelated local feature with a similar name.
 
 All visual observations must identify `source=vision` and cannot claim more than
 `high` confidence. UI Automation exact observations require a stable element
 locator. Loom resolves the locked Surface action at dispatch time and rejects a
 non-exact observation for high-risk actions. Users can still reclaim the single
 controller immediately; optional semantic active actions continue through the
-permission-checked Loom Surface/Art executor rather than executing inside Hook.
+permission-checked Loom Surface/Art executor rather than executing inside Otter.
 
 ## Phase 9 network capability and latency
 
@@ -340,7 +340,7 @@ non-loopback security requirements, latency/input policies, and privacy posture.
 The report may expose the configured origin to the local user, but never device
 tokens, proxy credentials, pairing secrets, or URL query data.
 
-`websocket_binary` is available only when Hook has a valid loopback or private
+`websocket_binary` is available only when Otter has a valid loopback or private
 HTTPS Loom origin. Non-loopback origins require HTTPS, the remote-Surface build,
 and Loom device authentication. `cloud_relay` and `webrtc_turn` are explicitly
 unavailable with `relay_provider_not_configured` and
@@ -348,7 +348,7 @@ unavailable with `relay_provider_not_configured` and
 relay, TURN server, bandwidth adaptation, or cloud control plane exists.
 
 Viewer connections send bounded WebSocket Ping probes. Loom answers viewer Ping
-frames, and Hook exposes the measured round-trip time with `measuring`, `low`,
+frames, and Otter exposes the measured round-trip time with `measuring`, `low`,
 `elevated`, or `high` state. Mouse moves remain replaceable and are coalesced at
 16, 33, or 66 ms according to RTT. Mouse buttons, wheel, key edges, cancel,
 authority, and lifecycle messages are not delayed or dropped by that policy.

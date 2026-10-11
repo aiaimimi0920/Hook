@@ -22,7 +22,7 @@ import {
     upsertStickerGroup,
 } from "../../src/services/stickerGroups";
 
-describe("Hook sticker foundation helpers", () => {
+describe("Otter sticker foundation helpers", () => {
     it("creates decision-complete defaults for local sticker editing", () => {
         expect(createDefaultStickerColorState()).toMatchObject({
             activeColor: "#ef4444",

@@ -84,8 +84,8 @@ describe("CanvasSelection capture overlay", () => {
     );
     const source = fs.readFileSync(sourcePath, "utf8");
 
-    expect(source).toContain("hook-capture-chip");
-    expect(source).toContain("hook-capture-chip__tag");
+    expect(source).toContain("otter-capture-chip");
+    expect(source).toContain("otter-capture-chip__tag");
     expect(source).not.toContain('-top-7 left-0 bg-primary text-white');
   });
 });

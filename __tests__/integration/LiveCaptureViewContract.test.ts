@@ -14,7 +14,7 @@ describe("Live is a shared sticker Unit, not a parallel window implementation", 
         expect(read("src/services/liveCaptureUnit.ts")).toContain("graphStore.actions.addUnit");
         expect(read("src/components/UnitView.tsx")).toContain("<UnitLiveCaptureInput");
         const input = read("src/components/UnitLiveCaptureInput.tsx");
-        expect(input).not.toContain('data-hook-global-shortcuts="ignore"');
+        expect(input).not.toContain('data-otter-global-shortcuts="ignore"');
         expect(input).not.toContain("updateGeometry");
         expect(input).toContain("props.onMouseDown(event)");
     });

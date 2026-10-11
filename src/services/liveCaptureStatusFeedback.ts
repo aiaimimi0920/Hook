@@ -7,7 +7,7 @@ const messages: Readonly<Record<string, string>> = {
     capture_unavailable: "无法建立持续采集，请确认目标窗口允许截图后重试。",
     frame_timeout: "源画面长时间没有返回新帧，正在尝试恢复。",
     capture_start_retry: "持续采集暂时中断，正在重新连接源窗口。",
-    ipc_poll_failed: "读取实时画面失败，正在重试；请检查 Hook 和源程序是否仍正常运行。",
+    ipc_poll_failed: "读取实时画面失败，正在重试；请检查 Otter 和源程序是否仍正常运行。",
     frame_handoff_failed: "实时画面交接失败，请缩小选区或关闭部分贴图后重试。",
     frame_encode_failed: "实时画面编码失败，请重新截图。",
     logical_hide_unsupported: "此程序无法在当前隐藏方式下保持渲染，请恢复源窗口后重新截图。",

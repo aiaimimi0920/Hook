@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-describe("Hook core dependency slimming", () => {
+describe("Otter core dependency slimming", () => {
   it("does not keep unused desktop plugins and dead Rust dependencies in the Lite core", () => {
     const cargoTomlPath = path.resolve(process.cwd(), "src-tauri/Cargo.toml");
     const libRsPath = path.resolve(process.cwd(), "src-tauri/src/lib.rs");

@@ -22,7 +22,7 @@ export const StickerContextMenuPanel = (props: StickerContextMenuPanelProps) => 
 
     return (
         <div
-            class="hook-context-menu-shell flex min-w-[200px] flex-col p-2 text-sm"
+            class="otter-context-menu-shell flex min-w-[200px] flex-col p-2 text-sm"
             onMouseDown={(event) => event.stopPropagation()}
             onMouseUp={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
@@ -32,7 +32,7 @@ export const StickerContextMenuPanel = (props: StickerContextMenuPanelProps) => 
             }}
         >
             <button
-                class="hook-context-menu-item px-3 py-2 text-left"
+                class="otter-context-menu-item px-3 py-2 text-left"
                 type="button"
                 onMouseEnter={() => props.onOpenSubmenu("none")}
                 onClick={() => props.onCloseSticker()}
@@ -40,26 +40,26 @@ export const StickerContextMenuPanel = (props: StickerContextMenuPanelProps) => 
                 关闭
             </button>
             <button
-                class="hook-context-menu-item px-3 py-2 text-left"
+                class="otter-context-menu-item px-3 py-2 text-left"
                 type="button"
                 onMouseEnter={() => props.onOpenSubmenu("none")}
                 onClick={() => props.onSave()}
             >
                 保存
             </button>
-            <button class="hook-context-menu-item px-3 py-2 text-left" type="button"
+            <button class="otter-context-menu-item px-3 py-2 text-left" type="button"
                 onMouseEnter={() => props.onOpenSubmenu("none")} onClick={() => props.onProjection()}>
                 二维码投射
             </button>
             <button
-                class="hook-context-menu-item px-3 py-2 text-left"
+                class="otter-context-menu-item px-3 py-2 text-left"
                 type="button"
                 onMouseEnter={(event) => openSubmenuFromEvent("recycleBin", event)}
             >
                 回收站
             </button>
             <button
-                class="hook-context-menu-item hook-context-menu-item--danger px-3 py-2 text-left"
+                class="otter-context-menu-item otter-context-menu-item--danger px-3 py-2 text-left"
                 type="button"
                 onMouseEnter={() => props.onOpenSubmenu("none")}
                 onClick={() => props.onClearRecycleBin()}
@@ -67,7 +67,7 @@ export const StickerContextMenuPanel = (props: StickerContextMenuPanelProps) => 
                 清空回收站
             </button>
             <button
-                class="hook-context-menu-item px-3 py-2 text-left"
+                class="otter-context-menu-item px-3 py-2 text-left"
                 type="button"
                 onMouseEnter={() => props.onOpenSubmenu("none")}
                 onClick={() => props.onToggleReference()}
@@ -75,14 +75,14 @@ export const StickerContextMenuPanel = (props: StickerContextMenuPanelProps) => 
                 {props.referenceActionLabel}
             </button>
             <button
-                class="hook-context-menu-item px-3 py-2 text-left"
+                class="otter-context-menu-item px-3 py-2 text-left"
                 type="button"
                 onMouseEnter={(event) => openSubmenuFromEvent("referenceLibrary", event)}
             >
                 参考列表
             </button>
             <button
-                class="hook-context-menu-item hook-context-menu-item--danger px-3 py-2 text-left"
+                class="otter-context-menu-item otter-context-menu-item--danger px-3 py-2 text-left"
                 type="button"
                 onMouseEnter={() => props.onOpenSubmenu("none")}
                 onClick={() => props.onClearReferenceLibrary()}

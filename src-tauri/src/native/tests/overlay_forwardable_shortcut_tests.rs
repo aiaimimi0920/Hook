@@ -43,7 +43,7 @@ mod overlay_forwardable_shortcut_tests {
     }
 
     #[test]
-    fn still_consumes_non_alt_hook_shortcuts() {
+    fn still_consumes_non_alt_otter_shortcuts() {
         let tab = overlay_keyboard_forwardable_shortcut(VK_TAB.0 as u32, mods(false, false, false))
             .unwrap();
         assert!(overlay_keyboard_should_consume_forwarded_shortcut(&tab));

@@ -397,7 +397,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                         scheduleMenuRectSync();
                     }}
                     id={`actions-menu-${props.unit?.id ?? "global"}`}
-                    data-hook-drag-follow-unit-id={props.unit?.id}
+                    data-otter-drag-follow-unit-id={props.unit?.id}
                     class="absolute pointer-events-auto"
                     onPointerDown={(event) => {
                         event.stopPropagation();
@@ -418,8 +418,8 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                         height: "300px",
                     }}
                 >
-                    <div class="hook-terminal-shell hook-terminal-shell--strong flex h-full w-full flex-col overflow-hidden transition duration-200 ease-out animate-in fade-in zoom-in-95">
-                        <div class="hook-add-art-header flex flex-shrink-0 items-center gap-1.5 border-b p-2">
+                    <div class="otter-terminal-shell otter-terminal-shell--strong flex h-full w-full flex-col overflow-hidden transition duration-200 ease-out animate-in fade-in zoom-in-95">
+                        <div class="otter-add-art-header flex flex-shrink-0 items-center gap-1.5 border-b p-2">
                             <div class="relative min-w-0 flex-1">
                                 <input
                                     ref={(el) => { searchInputRef = el; }}
@@ -428,7 +428,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                                     value={searchQuery()}
                                     placeholder="搜索 Art"
                                     aria-label="搜索 Art"
-                                    class="hook-terminal-input h-8 w-full px-2.5 pr-8 text-xs"
+                                    class="otter-terminal-input h-8 w-full px-2.5 pr-8 text-xs"
                                     onInput={(event) => setSearchQuery(event.currentTarget.value)}
                                     onKeyDown={handleSearchKeyDown}
                                     onFocus={() => void api.focusOverlayWindow()}
@@ -445,7 +445,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                                         type="button"
                                         aria-label="清空搜索"
                                         title="清空搜索"
-                                        class="hook-toolbar-button absolute right-1 top-1 flex h-6 w-6 items-center justify-center text-sm"
+                                        class="otter-toolbar-button absolute right-1 top-1 flex h-6 w-6 items-center justify-center text-sm"
                                         onPointerDown={(event) => event.stopPropagation()}
                                         onMouseDown={(event) => event.stopPropagation()}
                                         onClick={clearSearch}
@@ -459,7 +459,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                                 type="button"
                                 aria-label="关闭 Art 菜单"
                                 title="关闭"
-                                class="hook-terminal-btn flex h-8 w-8 flex-none items-center justify-center text-base"
+                                class="otter-terminal-btn flex h-8 w-8 flex-none items-center justify-center text-base"
                                 onPointerDown={(event) => event.stopPropagation()}
                                 onMouseDown={(event) => event.stopPropagation()}
                                 onClick={closeMenu}
@@ -472,7 +472,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                             <div
                                 ref={(el) => { scrollContainerRef = el; }}
                                 data-add-art-scroll-container
-                                class="hook-add-art-scroll-container flex-1 overflow-y-auto overflow-x-hidden bg-transparent p-2 pr-4"
+                                class="otter-add-art-scroll-container flex-1 overflow-y-auto overflow-x-hidden bg-transparent p-2 pr-4"
                                 onScroll={syncScrollMetrics}
                                 onWheel={(event) => {
                                     event.preventDefault();
@@ -483,7 +483,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                             >
                                 <div class="flex flex-col gap-1.5">
                                     <Show when={filteredArts().length > 0} fallback={
-                                        <div class="hook-add-art-empty text-xs font-medium text-center py-8">
+                                        <div class="otter-add-art-empty text-xs font-medium text-center py-8">
                                             {(props.availableArts?.length ?? 0) > 0 ? "未找到 Art" : "No available arts"}
                                         </div>
                                     }>
@@ -492,12 +492,12 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                                                 <button
                                                     data-add-art-id={art.id}
                                                     type="button"
-                                                    class="hook-terminal-list-item group relative overflow-hidden flex items-center w-full px-2.5 py-2 text-sm transition-all cursor-pointer active:scale-[0.98]"
+                                                    class="otter-terminal-list-item group relative overflow-hidden flex items-center w-full px-2.5 py-2 text-sm transition-all cursor-pointer active:scale-[0.98]"
                                                     onMouseDown={(event) => beginArtActivation(event, art.id)}
                                                     onMouseUp={(event) => completeArtActivation(event, art.id)}
                                                     onClick={(event) => handleArtClick(event, art.id)}
                                                 >
-                                                    <div class="hook-terminal-icon-tile flex h-7 w-7 items-center justify-center mr-2.5 transition-colors">
+                                                    <div class="otter-terminal-icon-tile flex h-7 w-7 items-center justify-center mr-2.5 transition-colors">
                                                         <span class="text-sm">❖</span>
                                                     </div>
                                                     <span class="z-10 min-w-0 flex-1 truncate text-left font-medium">

@@ -60,7 +60,7 @@ export function useAppShortcutController(dependencies: AppShortcutControllerDepe
                 }
             })
             .catch((error: unknown) => {
-                console.warn("Unable to refresh Add Art capabilities from Loom Hook", error);
+                console.warn("Unable to refresh Add Art capabilities from Loom Otter", error);
                 void api.debugLogEvent(
                     "add-art-capability-refresh-failed",
                     `unit=${unitId} error_type=${error instanceof Error ? error.name : "NonErrorRejection"}`,
@@ -69,7 +69,7 @@ export function useAppShortcutController(dependencies: AppShortcutControllerDepe
                 uiActions.showEnhancementNotice(unitId, {
                     feature: "Loom",
                     title: "Add Art 暂不可用",
-                    message: "无法连接 Loom Hook。请启动 Loom 后重试。",
+                    message: "无法连接 Loom Otter。请启动 Loom 后重试。",
                 });
                 dependencies.scheduleOverlayHitTestRefresh();
             });
@@ -135,7 +135,7 @@ export function useAppShortcutController(dependencies: AppShortcutControllerDepe
                 const id = selectedStickerId();
                 if (!id) return;
                 commitLiveCaptureUnitFrame(id);
-                // Refresh each time because Loom can add tools after Hook starts.
+                // Refresh each time because Loom can add tools after Otter starts.
                 refreshActionsCapabilities(id);
                 uiActions.toggleActions(id);
                 dependencies.scheduleOverlayHitTestRefresh();

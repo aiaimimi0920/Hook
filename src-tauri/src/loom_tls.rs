@@ -12,7 +12,7 @@ const MAX_CA_CERTIFICATES: usize = 8;
 static TRUST: OnceLock<Result<Option<ScopedTrust>, TrustError>> = OnceLock::new();
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
-#[error("Hook Loom TLS configuration: {0}")]
+#[error("Otter Loom TLS configuration: {0}")]
 pub(crate) struct TrustError(&'static str);
 
 #[derive(Debug, thiserror::Error)]
@@ -174,8 +174,8 @@ pub(crate) fn for_endpoint(endpoint: &str) -> Result<Option<&'static ScopedTrust
     TRUST
         .get_or_init(|| {
             load_config(
-                std::env::var_os("HOOK_LOOM_TLS_ORIGIN"),
-                std::env::var_os("HOOK_LOOM_TLS_CA_FILE"),
+                crate::brand_env::var_os("HOOK_LOOM_TLS_ORIGIN"),
+                crate::brand_env::var_os("HOOK_LOOM_TLS_CA_FILE"),
             )
         })
         .as_ref()

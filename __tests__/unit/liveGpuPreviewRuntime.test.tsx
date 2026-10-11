@@ -161,7 +161,7 @@ describe("GPU mirror Unit lifecycle", () => {
         expect(image.style.visibility).toBe("");
     });
 
-    it.each(["data-sticker-annotation-id", "data-hook-unit-notice-layer"])("suspends for %s overlays", async (attribute) => {
+    it.each(["data-sticker-annotation-id", "data-otter-unit-notice-layer"])("suspends for %s overlays", async (attribute) => {
         mount(); await flush();
         const overlay = document.createElement("div"); overlay.setAttribute(attribute, "test");
         host.querySelector(".unit-container")!.append(overlay);

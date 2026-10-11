@@ -211,7 +211,7 @@ export const createStickerTopStripPropertyBarFields = (
 
     const MiniNumericField: MiniNumericFieldComponent = (fieldProps) => (
         <label class={options.groupedShellClass} title={fieldProps.title}>
-            <fieldProps.Icon class="hook-property-icon h-3.5 w-3.5 shrink-0" />
+            <fieldProps.Icon class="otter-property-icon h-3.5 w-3.5 shrink-0" />
             <input
                 class={`${options.compactInputClass} ${fieldProps.inputClass ?? ""}`.trim()}
                 type="text"
@@ -242,7 +242,7 @@ export const createStickerTopStripPropertyBarFields = (
 
     const MiniDeferredNumericField: MiniDeferredNumericFieldComponent = (fieldProps) => (
         <label class={options.groupedShellClass} title={fieldProps.title}>
-            <fieldProps.Icon class="hook-property-icon h-3.5 w-3.5 shrink-0" />
+            <fieldProps.Icon class="otter-property-icon h-3.5 w-3.5 shrink-0" />
             <input
                 class={`${options.compactInputClass} ${fieldProps.inputClass ?? ""}`.trim()}
                 type="text"
@@ -262,10 +262,10 @@ export const createStickerTopStripPropertyBarFields = (
     const MiniToggleField: MiniToggleFieldComponent = (fieldProps) => (
         <button
             type="button"
-            class={`hook-mini-toggle ${options.iconShellClass} w-6`}
+            class={`otter-mini-toggle ${options.iconShellClass} w-6`}
             classList={{
-                "hook-mini-toggle--active": fieldProps.enabled,
-                "hook-compact-control": !fieldProps.enabled,
+                "otter-mini-toggle--active": fieldProps.enabled,
+                "otter-compact-control": !fieldProps.enabled,
             }}
             title={fieldProps.title}
             onClick={() => fieldProps.onToggle()}
@@ -288,17 +288,17 @@ export const createStickerTopStripPropertyBarFields = (
     const MiniSwitchField: MiniSwitchFieldComponent = (fieldProps) => (
         <button
             type="button"
-            class="hook-mini-switch flex h-6 w-[42px] shrink-0 items-center justify-between border px-1.5 transition-colors"
+            class="otter-mini-switch flex h-6 w-[42px] shrink-0 items-center justify-between border px-1.5 transition-colors"
             classList={{
-                "hook-mini-switch--active": fieldProps.enabled,
-                "hook-compact-control": !fieldProps.enabled,
+                "otter-mini-switch--active": fieldProps.enabled,
+                "otter-compact-control": !fieldProps.enabled,
             }}
             title={fieldProps.title}
             onClick={() => fieldProps.onToggle()}
         >
             <fieldProps.Icon class="h-3.5 w-3.5 shrink-0" />
             <span
-                class="hook-mini-switch__thumb h-3.5 w-3.5 shrink-0 transition-all"
+                class="otter-mini-switch__thumb h-3.5 w-3.5 shrink-0 transition-all"
                 classList={{
                     "translate-x-0": fieldProps.enabled,
                     "-translate-x-0.5": !fieldProps.enabled,
@@ -346,7 +346,7 @@ export const createStickerTopStripPropertyBarFields = (
                     {fieldProps.Icon
                         ? (() => {
                               const Icon = fieldProps.Icon!;
-                              return <Icon class="hook-property-icon h-3.5 w-3.5 shrink-0" />;
+                              return <Icon class="otter-property-icon h-3.5 w-3.5 shrink-0" />;
                           })()
                         : null}
                     <span
@@ -357,7 +357,7 @@ export const createStickerTopStripPropertyBarFields = (
                         {selectedOption()?.label ?? fieldProps.value}
                     </span>
                 </span>
-                <span class={`hook-toolbar-shortcut shrink-0 text-[9px] transition-transform ${isOpen() ? "rotate-180" : ""}`}>
+                <span class={`otter-toolbar-shortcut shrink-0 text-[9px] transition-transform ${isOpen() ? "rotate-180" : ""}`}>
                     ▾
                 </span>
             </button>

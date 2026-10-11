@@ -1,4 +1,4 @@
-# Hook Technical Architecture
+# Otter Technical Architecture
 
 This document describes the current implementation. Historical plans and
 migration notes are intentionally not part of the active documentation set; Git
@@ -7,7 +7,7 @@ is necessary.
 
 ## 1. Product and runtime model
 
-Hook is a Windows-first Tauri 2 desktop application with a SolidJS/WebView2
+Otter is a Windows-first Tauri 2 desktop application with a SolidJS/WebView2
 frontend and a Rust native backend. The same main window is used in three
 operational modes:
 
@@ -18,9 +18,9 @@ operational modes:
 Startup configuration flows through:
 
 ```text
-start-hook.bat
+start-otter.bat
   -> launch-config.cmd
-  -> start-hook.vbs
+  -> start-otter.vbs
   -> Rust boot-profile parsing
 ```
 
@@ -65,7 +65,7 @@ connection callbacks cannot resurrect a stopped viewer.
 ## 2. Repository layout
 
 ```text
-Hook/
+Otter/
 ├── src/                        SolidJS frontend
 │   ├── app.tsx                 desktop event and application orchestration
 │   ├── components/             canvas, sticker, annotation, and panel UI
@@ -100,7 +100,7 @@ that engine to graph actions, native transport and the existing projection polle
 `projectionEditJournal.ts` owns bounded IndexedDB records with transaction-complete
 durability and revision compare-and-set; ordinary workflow saving does not replace
 this request journal. Geometry, validation and concurrent-view merging have separate
-modules. Hook owns original annotations and base-image rasterization; Loom owns
+modules. Otter owns original annotations and base-image rasterization; Loom owns
 authenticated bindings, shared revisions, mode authority and checkpoint fences.
 The native `qr_projection/edit.rs` boundary validates typed requests and documents
 before routing through the paired local or offline-peer projection endpoint.
@@ -226,7 +226,7 @@ only presentation grants, leaving the source and its formal output intact.
   `--self-check`, smoke helpers, and the emergency watchdog child process.
 - `tile_terminal.rs` handles `--tile` / `--tile-output`, owns one mutex per physical
   output and registers only terminal commands. It does not install capture hooks
-  or start the ordinary Hook workspace. `tile_outputs.rs` owns stable Windows
+  or start the ordinary Otter workspace. `tile_outputs.rs` owns stable Windows
   output identities and physical/DPI geometry; `wall_client.rs` and `wall_live.rs`
   keep device credentials and network media outside the frontend.
 - `src-tauri/src/lib.rs` registers Tauri commands, initializes the runtime,
@@ -406,7 +406,7 @@ rounding remain covered by deterministic tests that run without external apps.
 
 ### 4.3 Desktop lifecycle and input
 
-- `single_instance.rs` prevents two normal Hook instances from running;
+- `single_instance.rs` prevents two normal Otter instances from running;
 - `mouse_monitor.rs` supports overlay hit testing and click-through decisions;
 - `emergency_exit.rs` owns the shared Esc+Delete chord state machine: three
   overlapping press cycles, both keys released between cycles, and adjacent
@@ -425,7 +425,7 @@ transform.
 
 ### 4.4 Local capability bridges
 
-- `loom_hook.rs` maps the local Art/workflow surface;
+- `loom_otter.rs` maps the local Art/workflow surface;
 - `loom_bridge_client.rs` owns the pinned TLS/exporter authentication for the
   private `loom.local-bridge.v1` discovery descriptor. Its opt-in gate precedes
   discovery and networking, including one-shot Art and shader operations;
@@ -443,7 +443,7 @@ transform.
 - `voice/` contains audio capture, session, provider, hotkey, clipboard insertion,
   and client logic.
 
-Package Arts are forwarded to Loom through `loom.hook.v1`. Hook does not maintain
+Package Arts are forwarded to Loom through `loom.hook.v1`. Otter does not maintain
 per-Art command executors in the frontend or Rust host.
 
 The extension lifecycle uses `extensionNativeTransport.ts`, not a browser
@@ -469,7 +469,7 @@ suppresses its source without changing that source's preference, and source iden
 guards continue rejecting translation after a real OCR or image refresh.
 
 Loom OCR blocks may carry additive `rawText` correction evidence,
-`lineGeometry`, and CTC-timestep-aligned `characterSpans`/`wordSpans`. Hook
+`lineGeometry`, and CTC-timestep-aligned `characterSpans`/`wordSpans`. Otter
 accepts only the named geometry sources, bounds list sizes and coordinates,
 requires span text to match the displayed non-translated row, and retains valid
 span extents as recognition evidence without replacing the detector row used for
@@ -478,7 +478,7 @@ using their union as the presentation box can invent gaps or shrink a row.
 Estimated baselines are accepted only at a safe angle and only when the rotated
 text remains inside the screenshot frame. Missing, mismatched, or malformed
 geometry follows the axis-aligned line box path, preserving mixed-version
-Hook/Loom operation.
+Otter/Loom operation.
 
 ## 5. Capture and window targeting
 
@@ -502,7 +502,7 @@ be covered whenever capture or overlay input coordinates change.
 
 ### 6.1 Whole-sticker drag
 
-At drag start, Hook collects registered follower elements and prepares their GPU
+At drag start, Otter collects registered follower elements and prepares their GPU
 transform layer. During ordinary dragging:
 
 - the freshest native pointer sample writes `translate3d` directly;
@@ -528,7 +528,7 @@ on release.
 
 ## 7. Persistence and files
 
-Hook persists:
+Otter persists:
 
 - session units, links, groups, recycle bin, and reference library;
 - screenshot/color history;
@@ -563,16 +563,16 @@ the directory.
 
 ### 8.2 Portable executable
 
-`scripts/build-local-hook-exe.ps1` performs version validation, runs
-`tauri build --no-bundle`, and copies `src-tauri/target/release/hook.exe` to the
+`scripts/build-local-otter-exe.ps1` performs version validation, runs
+`tauri build --no-bundle`, and copies `src-tauri/target/release/otter.exe` to the
 requested output directory. `scripts/package-release-zip.ps1` creates the public
 portable archive with license and third-party notice files.
 
 ### 8.3 CI lanes
 
-- `build-hook-exe.yml` — main/manual verification and portable artifact build;
+- `build-otter-exe.yml` — main/manual verification and portable artifact build;
 - `runtime-performance.yml` — runtime/performance-oriented gate;
-- `release-hook-tag.yml` — `Vx.x.x` provenance validation, portable zip release,
+- `release-otter-tag.yml` — `Vx.x.x` provenance validation, portable zip release,
   and unsigned UIAccess signing-candidate metadata;
 - `signpath-signing.yml` — manual reviewed signing flow for the future installer
   phase.

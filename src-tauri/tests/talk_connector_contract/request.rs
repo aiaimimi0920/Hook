@@ -1,9 +1,9 @@
 // Verifies envelopes, proxy policy, authorization, and successful responses.
 
 #[test]
-fn talk_connector_builds_voice_capture_once_invoke_envelope_for_hook_caller() {
+fn talk_connector_builds_voice_capture_once_invoke_envelope_for_otter_caller() {
     let envelope = build_voice_capture_once_envelope(TalkVoiceCaptureRequest {
-        request_id: Some("hook-request-1".to_string()),
+        request_id: Some("otter-request-1".to_string()),
         mode: Some("dictation".to_string()),
         context: Some(json!({
             "source": "hook-panel",
@@ -13,7 +13,7 @@ fn talk_connector_builds_voice_capture_once_invoke_envelope_for_hook_caller() {
     });
     let value = serde_json::to_value(&envelope).expect("serialize envelope");
 
-    assert_eq!(value["requestId"], "hook-request-1");
+    assert_eq!(value["requestId"], "otter-request-1");
     assert_eq!(value["caller"], "hook");
     assert_eq!(value["capability"], "voice.capture.once");
     assert_eq!(value["input"]["mode"], "dictation");
@@ -28,7 +28,7 @@ fn talk_connector_disables_system_http_proxy_for_loopback_capability_calls() {
 
     assert!(
         connector_source.contains("network_proxy::shared_client"),
-        "Talk capability calls must use the shared Hook proxy policy"
+        "Talk capability calls must use the shared Otter proxy policy"
     );
     assert!(
         proxy_source.contains("apply_to_url(Client::builder().use_rustls_tls(), endpoint)"),
@@ -88,12 +88,12 @@ async fn talk_connector_posts_invoke_request_with_bearer_and_maps_debug_output()
         let raw_request = String::from_utf8_lossy(&buffer);
         assert!(raw_request.starts_with("POST /v1/invoke "));
         assert!(raw_request.contains("authorization: Bearer local-token"));
-        assert!(raw_request.contains("\"requestId\":\"hook-request-live\""));
+        assert!(raw_request.contains("\"requestId\":\"otter-request-live\""));
         assert!(raw_request.contains("\"caller\":\"hook\""));
         assert!(raw_request.contains("\"capability\":\"voice.capture.once\""));
 
         let body = json!({
-            "requestId": "hook-request-live",
+            "requestId": "otter-request-live",
             "status": "succeeded",
             "output": {
                 "text": "hello from fake Talk",
@@ -120,7 +120,7 @@ async fn talk_connector_posts_invoke_request_with_bearer_and_maps_debug_output()
     let result = capture_voice_once_with_manifest(
         manifest,
         TalkVoiceCaptureRequest {
-            request_id: Some("hook-request-live".to_string()),
+            request_id: Some("otter-request-live".to_string()),
             mode: Some("dictation".to_string()),
             context: Some(json!({ "source": "hook-panel" })),
             timeout_ms: None,
@@ -129,7 +129,7 @@ async fn talk_connector_posts_invoke_request_with_bearer_and_maps_debug_output()
     .await
     .expect("capture via fake Talk");
 
-    assert_eq!(result.request_id, "hook-request-live");
+    assert_eq!(result.request_id, "otter-request-live");
     assert_eq!(result.status, "succeeded");
     assert_eq!(result.text.as_deref(), Some("hello from fake Talk"));
     assert_eq!(result.session_id.as_deref(), Some("session-live"));
@@ -190,7 +190,7 @@ async fn talk_connector_does_not_send_stale_auth_token_when_manifest_auth_is_non
         );
 
         let body = json!({
-            "requestId": "hook-request-no-auth",
+            "requestId": "otter-request-no-auth",
             "status": "succeeded",
             "output": {
                 "text": "hello from no-auth Talk",
@@ -218,7 +218,7 @@ async fn talk_connector_does_not_send_stale_auth_token_when_manifest_auth_is_non
     let result = capture_voice_once_with_manifest(
         manifest,
         TalkVoiceCaptureRequest {
-            request_id: Some("hook-request-no-auth".to_string()),
+            request_id: Some("otter-request-no-auth".to_string()),
             mode: Some("dictation".to_string()),
             context: Some(json!({ "source": "hook-panel" })),
             timeout_ms: None,

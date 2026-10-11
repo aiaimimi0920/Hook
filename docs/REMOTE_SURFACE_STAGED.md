@@ -3,11 +3,11 @@
 Status: **enabled by default.** Activated 2026-08-23 after the staged safety gates passed.
 
 The filename is retained as the activation record referenced by older progress documents. The
-feature is no longer staged or compiled out in a normal Hook build.
+feature is no longer staged or compiled out in a normal Otter build.
 
 ## Runtime contract
 
-Hook's default Cargo feature set includes `remote-surface`. It provides:
+Otter's default Cargo feature set includes `remote-surface`. It provides:
 
 - a persistent Ed25519 device identity;
 - Loom device pairing and signed device-session tokens;
@@ -16,7 +16,7 @@ Hook's default Cargo feature set includes `remote-surface`. It provides:
 - strict Surface stream protocol and reset handling.
 
 Device-authorized Surface actions converge through that same device-filtered
-stream. Hook binds the acknowledgement to the submitted instance/event/request,
+stream. Otter binds the acknowledgement to the submitted instance/event/request,
 waits for terminal success, then recovers the current attachment snapshot. Old
 generations, other attachments and unrelated results cannot complete the action;
 failure, lost stream history and the 25-second deadline remain explicit errors.
@@ -26,7 +26,7 @@ hybrid Arts that declare formal execution keep the ordinary execution path.
 
 On Windows, the Ed25519 private key is encrypted at rest for the current user
 with DPAPI. A valid legacy schema-1 plaintext identity is migrated atomically to
-protected schema 2 on first read. Older Hook builds cannot read schema 2; a
+protected schema 2 on first read. Older Otter builds cannot read schema 2; a
 rollback to a pre-migration build can therefore require deleting the identity
 and pairing the device again. Non-Windows compatibility builds retain the
 schema-1 storage format and never claim DPAPI protection.
@@ -55,7 +55,7 @@ The Loom Surface stream reserves cursor `0` for an initial recovery request. Loo
 initial recovery to a non-message baseline cursor, so a snapshot-only response is not emitted again
 on every poll and the first future broadcast is not skipped.
 
-Hook requires `protocolVersion: "loom.surface-stream.v1"`, rejects cursor rewind, consumes the
+Otter requires `protocolVersion: "loom.surface-stream.v1"`, rejects cursor rewind, consumes the
 required `reset` flag, and emits `surface/reset` before messages from a reset batch. The frontend
 then clears mounted Surface state, confirmations, resource cache, attachment attempts, and remount
 attempts before applying recovery snapshots. An unchanged successful cursor is also given a minimum

@@ -2,18 +2,18 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 
 const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
 const rustSettings = readSource("src-tauri/src/app_settings.rs");
-const rustEntry = readHookLibRustSources();
+const rustEntry = readOtterLibRustSources();
 const bootSettingsApiSource = readSource("src/services/apiBootSettings.ts");
 const appSource = readSource("src/app.tsx");
 const commandSource = readSource("src/services/appCommandListeners.ts");
 const dialogSource = readSource("src/components/AppSettingsDialog.tsx");
 
-describe("Hook app settings contract", () => {
+describe("Otter app settings contract", () => {
     it("persists an independent schema-versioned app-settings.json atomically", () => {
         expect(rustSettings).toContain('const APP_SETTINGS_FILE_NAME: &str = "app-settings.json"');
         expect(rustSettings).toContain("pub schema_version: u32");

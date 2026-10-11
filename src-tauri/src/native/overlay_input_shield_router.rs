@@ -11,7 +11,7 @@ fn route_overlay_input_shield_mouse_message(message: u32, wparam: WPARAM) -> Opt
     let (x, y) = current_cursor_position_physical()?;
     let modifiers = current_modifier_snapshot();
     let should_route_overlay_mouse = should_route_overlay_mouse_events(x, y);
-    let hook_hover_active = OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.load(Ordering::SeqCst);
+    let otter_hover_active = OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.load(Ordering::SeqCst);
     let direct_drag_active = OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst);
     let native_drag_preflight_active =
         OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst);
@@ -60,7 +60,7 @@ fn route_overlay_input_shield_mouse_message(message: u32, wparam: WPARAM) -> Opt
                 return Some(LRESULT(1));
             }
 
-            if should_route_overlay_mouse && !hook_hover_active {
+            if should_route_overlay_mouse && !otter_hover_active {
                 queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayMove {
                     x,
                     y,
@@ -181,7 +181,7 @@ fn route_overlay_input_shield_mouse_message(message: u32, wparam: WPARAM) -> Opt
             }
         }
         WM_MOUSEWHEEL => {
-            if should_route_overlay_mouse && !hook_hover_active {
+            if should_route_overlay_mouse && !otter_hover_active {
                 let delta_y = (((wparam.0 >> 16) & 0xffff) as i16) as f64;
                 queue_capture_mouse_hook_event(CaptureMouseHookEvent::OverlayWheel {
                     x,

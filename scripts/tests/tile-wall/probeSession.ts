@@ -5,8 +5,8 @@ import path from 'node:path';
 export interface ProbeRuntime {
     daemonBaseUrl: string;
     daemonPid: number;
-    hookPid: number;
-    hookExe: string;
+    otterPid: number;
+    otterExe: string;
     daemonExe: string;
     cdpPort: number;
     outputCdpPort: number;
@@ -16,7 +16,7 @@ export interface ProbeRuntime {
     loomPid?: number;
     loomExe?: string;
     sourceCdpPort?: number;
-    sourceHookPid?: number;
+    sourceOtterPid?: number;
     pointerExe?: string;
     soakSeconds?: number;
 }

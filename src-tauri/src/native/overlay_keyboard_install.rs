@@ -10,7 +10,7 @@ fn install_overlay_keyboard_hook_thread(window: tauri::WebviewWindow) {
 
     let emit_window = window.clone();
     let _ = std::thread::Builder::new()
-        .name("hook-overlay-keyboard-events".to_string())
+        .name("otter-overlay-keyboard-events".to_string())
         .spawn(move || {
             while let Ok(event) = receiver.recv() {
                 match event {
@@ -55,7 +55,7 @@ fn install_overlay_keyboard_hook_thread(window: tauri::WebviewWindow) {
         });
 
     let _ = std::thread::Builder::new()
-        .name("hook-overlay-keyboard-hook".to_string())
+        .name("otter-overlay-keyboard-hook".to_string())
         .spawn(move || {
             let hook = unsafe {
                 SetWindowsHookExW(WH_KEYBOARD_LL, Some(overlay_keyboard_hook_proc), None, 0)

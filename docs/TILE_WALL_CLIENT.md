@@ -9,7 +9,7 @@ development slice, not the completed interactive-wall product.
 
 The public wire contracts are Loom's `protocol/WALL_PROTOCOL.md`,
 `protocol/WALL_CONTROL_API.md` and `protocol/schemas/wall.v1.schema.json`.
-Hook remains a standalone repository and does not import private Loom source.
+Otter remains a standalone repository and does not import private Loom source.
 The public geometry fixture is mirrored under
 `__tests__/fixtures/wall/wall-geometry.v1.json`; its bytes must match Loom's
 `protocol/fixtures/wall-geometry.v1.json` before joint release.
@@ -59,7 +59,7 @@ of already verified immutable pixels. Clearing or pruning closes owned bitmaps.
 
 Art state has a separate serial cache owner, bounded resource URL cache and
 ordered input controller. It reuses `DeclarativeSurface` and the host-owned
-`SurfaceConfirmationDialog` without initializing the ordinary Hook workspace.
+`SurfaceConfirmationDialog` without initializing the ordinary Otter workspace.
 The default viewport is 800 x 600 unless a manifest view supplies `fullSize`,
 with minimum size respected. At most four Art sources and sixteen Art placements
 are admitted. Same-source placements share a single ephemeral attachment.
@@ -132,7 +132,7 @@ Native transport tests use real loopback HTTP sockets to check authentication
 headers, identity injection, fixed routes, size claims/chunked overflow, truncated
 responses, rejection and redaction. They do not claim completed multi-display
 presentation. Static image iteration `v0.2.30.2` is built and verified in
-`Neuro/release/Hook/v0.2.30.2-image`; the initial directory without `-image`
+`Neuro/release/Otter/v0.2.30.2-image`; the initial directory without `-image`
 is retained as a failed CSP candidate. See Loom's stage 2 acceptance report for
 the static-image evidence; current Live/input evidence is in Loom's stage 4
 acceptance report. Real-process Art acceptance is exercised by

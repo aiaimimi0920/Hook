@@ -1,4 +1,4 @@
-name: Sign Hook UIAccess Release
+name: Sign Otter UIAccess Release
 
 on:
   workflow_dispatch:
@@ -127,7 +127,7 @@ jobs:
         with:
           artifact-ids: ${{ needs.validate-candidate.outputs.artifact-id }}
           merge-multiple: true
-          path: release/Hook/reviewed-candidate
+          path: release/Otter/reviewed-candidate
           repository: ${{ github.repository }}
           run-id: ${{ inputs.candidate_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -136,14 +136,14 @@ jobs:
         shell: powershell
         run: |
           . .\scripts\file-hash.ps1
-          $artifactManifest = ".\release\Hook\reviewed-candidate\manifest.json"
+          $artifactManifest = ".\release\Otter\reviewed-candidate\manifest.json"
           if (-not (Test-Path -LiteralPath $artifactManifest -PathType Leaf)) {
             throw "Reviewed candidate manifest is missing from the Actions artifact."
           }
           $commit = (git rev-parse HEAD).Trim()
           if ($LASTEXITCODE -ne 0 -or $commit -cne $env:EXPECTED_COMMIT) { throw "Candidate tag moved after validation." }
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\assert-reviewed-signing-candidate.ps1 `
-            -ExePath ".\release\Hook\reviewed-candidate\hook.exe" `
+            -ExePath ".\release\Otter\reviewed-candidate\otter.exe" `
             -ManifestPath $artifactManifest `
             -ExpectedTag $env:REQUESTED_TAG `
             -ExpectedCommit $commit `
@@ -154,8 +154,8 @@ jobs:
         id: upload-unsigned-artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: hook-uiaccess-reviewed-${{ inputs.tag }}-${{ inputs.candidate_run_id }}
-          path: release/Hook/reviewed-candidate/hook.exe
+          name: otter-uiaccess-reviewed-${{ inputs.tag }}-${{ inputs.candidate_run_id }}
+          path: release/Otter/reviewed-candidate/otter.exe
           if-no-files-found: error
           retention-days: 1
 
@@ -171,28 +171,28 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           wait-for-completion: true
           wait-for-completion-timeout-in-seconds: 1800
-          output-artifact-directory: release/Hook/uiaccess-signed
+          output-artifact-directory: release/Otter/uiaccess-signed
 
       - name: Package signed UIAccess installer
         shell: powershell
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-uiaccess-installer-zip.ps1 `
-            -ExePath ".\release\Hook\uiaccess-signed\hook.exe" `
-            -OutputDir ".\release\Hook" `
+            -ExePath ".\release\Otter\uiaccess-signed\otter.exe" `
+            -OutputDir ".\release\Otter" `
             -Tag $env:REQUESTED_TAG `
             -Force
 
       - name: Upload signed installer workflow artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: hook-uiaccess-signed-${{ inputs.tag }}
-          path: release/Hook/hook-windows-uiaccess-installer-${{ inputs.tag }}.zip
+          name: otter-uiaccess-signed-${{ inputs.tag }}
+          path: release/Otter/otter-windows-uiaccess-installer-${{ inputs.tag }}.zip
           if-no-files-found: error
 
       - name: Publish signed installer on the existing GitHub release
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           tag_name: ${{ inputs.tag }}
-          files: release/Hook/hook-windows-uiaccess-installer-${{ inputs.tag }}.zip
+          files: release/Otter/otter-windows-uiaccess-installer-${{ inputs.tag }}.zip
           overwrite_files: true
           fail_on_unmatched_files: true

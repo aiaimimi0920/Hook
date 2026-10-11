@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 
 const readSource = (relativePath: string) =>
   fs.readFileSync(path.resolve(process.cwd(), relativePath), "utf8");
@@ -30,7 +30,7 @@ describe("Add Art native hit rectangle contract", () => {
   });
 
   it("keeps low-level hit testing global while converting shield regions back to window-local coordinates", () => {
-    const source = readHookLibRustSources();
+    const source = readOtterLibRustSources();
     const updateBlock = sourceBetween(source, "fn update_pin_rects(", "#[tauri::command]\nfn set_mouse_monitor_active");
     const shieldBlock = sourceBetween(
       source,

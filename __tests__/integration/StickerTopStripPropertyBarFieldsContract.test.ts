@@ -9,7 +9,7 @@ const propertyBarSource = readFileSync(propertyBarPath, "utf8");
 const fieldsExists = existsSync(fieldsPath);
 const fieldsSource = fieldsExists ? readFileSync(fieldsPath, "utf8") : "";
 
-describe("Hook sticker top strip property bar fields extraction contract", () => {
+describe("Otter sticker top strip property bar fields extraction contract", () => {
     it("keeps reusable mini field primitives in a dedicated helper module instead of redefining them inline in the property bar", () => {
         expect(fieldsExists).toBe(true);
         expect(fieldsSource).toContain("export const createStickerTopStripPropertyBarFields =");

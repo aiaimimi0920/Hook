@@ -67,7 +67,7 @@ describe("file naming", () => {
         for (const pattern of fixture.invalidPatterns) {
             expect(validateFileNamingPattern(pattern)).not.toBeNull();
         }
-        expect(validateFileNamingPattern("Hook_{date}_{time}_{width}x{height}")).toBeNull();
+        expect(validateFileNamingPattern("Otter_{date}_{time}_{width}x{height}")).toBeNull();
     });
 
     it("limits the final filename stem by Unicode scalar count", () => {

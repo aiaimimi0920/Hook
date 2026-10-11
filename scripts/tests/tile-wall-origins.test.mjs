@@ -39,7 +39,7 @@ for (const route of ['//evil/', '/\\evil', 'http://evil', '@evil', '/\r\nHost: e
 }
 
 test('probe requests retain validated loopback authority despite runtime mutation', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'hook-origin-test-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'otter-origin-test-'));
   const previousFetch = globalThis.fetch;
   const calls = [];
   try {

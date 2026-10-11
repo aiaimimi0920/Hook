@@ -124,7 +124,7 @@
   transform: translateX(-50%);
 }
 
-.hook-live-window__controls .hook-terminal-btn {
+.hook-live-window__controls .otter-terminal-btn {
   min-width: 54px;
   height: 25px;
   padding: 0 6px;

@@ -2,7 +2,7 @@
  * Simple Logger wrapper to control verbosity and prefix logs
  */
 
-const LOG_PREFIX = "[Hook]";
+const LOG_PREFIX = "[Otter]";
 
 export const logger = {
     info: (...args: any[]) => {

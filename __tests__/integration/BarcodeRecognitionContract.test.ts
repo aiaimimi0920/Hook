@@ -6,7 +6,7 @@ const path = (...parts: string[]) => resolve(process.cwd(), ...parts);
 const read = (...parts: string[]) => readFileSync(path(...parts), "utf8");
 
 describe("QR/barcode capability migration contract", () => {
-  it("keeps decoders and product UI out of Hook core", () => {
+  it("keeps decoders and product UI out of Otter core", () => {
     expect(existsSync(path("src-tauri", "src", "barcode.rs"))).toBe(false);
     expect(existsSync(path("src", "services", "barcodeScanAction.ts"))).toBe(false);
     expect(existsSync(path("src", "components", "UnitBarcodeResultPanel.tsx"))).toBe(false);

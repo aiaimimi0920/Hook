@@ -3,16 +3,16 @@ use std::time::Duration;
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HookIntakeRequest {
+pub struct OtterIntakeRequest {
     pub source: String,
     pub text: String,
-    pub context: HookContext,
+    pub context: OtterContext,
     #[serde(default)]
-    pub attachments: Vec<HookAttachment>,
+    pub attachments: Vec<OtterAttachment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HookContext {
+pub struct OtterContext {
     pub active_window: Option<String>,
     pub selection_text: Option<String>,
     pub ocr_text: Option<String>,
@@ -22,7 +22,7 @@ pub struct HookContext {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HookAttachment {
+pub struct OtterAttachment {
     pub kind: String,
     pub reference: String,
 }
@@ -84,7 +84,7 @@ impl TeaIntakeConfig {
             base_url,
             auth_token,
             source: env_first_non_empty(&["HOOK_TEA_SOURCE"])
-                .unwrap_or_else(|| "hook-desktop".to_string()),
+                .unwrap_or_else(|| "otter-desktop".to_string()),
             enabled: true,
         })
     }
@@ -98,7 +98,7 @@ impl TeaIntakeClient {
                 .timeout(Duration::from_secs(20)),
             &config.base_url,
         )
-        .expect("validated Hook proxy settings should build a Tea client")
+        .expect("validated Otter proxy settings should build a Tea client")
         .build()
         .expect("reqwest client builder with timeout should not fail");
         Self { config, http }
@@ -106,7 +106,7 @@ impl TeaIntakeClient {
 
     pub async fn create_ticket(
         &self,
-        request: HookIntakeRequest,
+        request: OtterIntakeRequest,
     ) -> Result<TeaTicketSummary, TeaIntakeError> {
         if !self.config.enabled {
             return Err(TeaIntakeError::Disabled);
@@ -141,7 +141,9 @@ impl TeaIntakeClient {
 }
 
 #[tauri::command]
-pub async fn create_tea_ticket(mut request: HookIntakeRequest) -> Result<TeaTicketSummary, String> {
+pub async fn create_tea_ticket(
+    mut request: OtterIntakeRequest,
+) -> Result<TeaTicketSummary, String> {
     let config = TeaIntakeConfig::from_env().map_err(|error| error.to_string())?;
     apply_default_request_context(&mut request, &config);
     let client = TeaIntakeClient::new(config);
@@ -153,7 +155,7 @@ pub async fn create_tea_ticket(mut request: HookIntakeRequest) -> Result<TeaTick
     Ok(ticket)
 }
 
-fn apply_default_request_context(request: &mut HookIntakeRequest, config: &TeaIntakeConfig) {
+fn apply_default_request_context(request: &mut OtterIntakeRequest, config: &TeaIntakeConfig) {
     if request.source.trim().is_empty() {
         request.source = config.source.clone();
     }
@@ -176,7 +178,7 @@ fn apply_default_request_context(request: &mut HookIntakeRequest, config: &TeaIn
 
 fn env_first_non_empty(keys: &[&str]) -> Option<String> {
     keys.iter().find_map(|key| {
-        std::env::var(key)
+        crate::brand_env::var(key)
             .ok()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty())
@@ -184,7 +186,7 @@ fn env_first_non_empty(keys: &[&str]) -> Option<String> {
 }
 
 fn env_bool(key: &str, default: bool) -> Option<bool> {
-    let value = std::env::var(key).ok()?;
+    let value = crate::brand_env::var(key).ok()?;
     let normalized = value.trim().to_ascii_lowercase();
     if normalized.is_empty() {
         return Some(default);

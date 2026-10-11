@@ -1,6 +1,6 @@
 # Shared path, directory, encoding, and Playwright helpers for homepage capture.
 
-function Resolve-HookExePath {
+function Resolve-OtterExePath {
     param(
         [string]$RequestedPath,
         [string]$RepoRoot
@@ -10,11 +10,11 @@ function Resolve-HookExePath {
         return (Resolve-Path $RequestedPath).Path
     }
     $releaseRoot = (Resolve-Path (Join-Path $RepoRoot "..\release")).Path
-    $candidates = Get-ChildItem -Path $releaseRoot -Recurse -Filter "hook.exe" |
-        Where-Object { $_.FullName -match "\\Hook(\\|-)" } |
+    $candidates = Get-ChildItem -Path $releaseRoot -Recurse -Filter "otter.exe" |
+        Where-Object { $_.FullName -match "\\Otter(\\|-)" } |
         Sort-Object LastWriteTime -Descending
     if (-not $candidates) {
-        throw "No hook.exe found under $releaseRoot"
+        throw "No otter.exe found under $releaseRoot"
     }
     return $candidates[0].FullName
 }

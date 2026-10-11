@@ -1,11 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 
-describe("Hook Windows child process contract", () => {
-  it("keeps Hook-owned helper subprocesses hidden on Windows", () => {
-    const libSource = readHookLibRustSources();
+describe("Otter Windows child process contract", () => {
+  it("keeps Otter-owned helper subprocesses hidden on Windows", () => {
+    const libSource = readOtterLibRustSources();
 
     const watchdogSource = readFileSync(
       resolve(process.cwd(), "src-tauri", "src", "emergency_watchdog.rs"),

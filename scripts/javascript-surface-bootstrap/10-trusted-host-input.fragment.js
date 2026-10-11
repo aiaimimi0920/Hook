@@ -158,7 +158,7 @@
       if (event.key !== "Escape") return;
       // The capture listener runs before the Surface control. Defer Escape so
       // controls can explicitly consume it with preventDefault/stopPropagation;
-      // an otherwise unused Escape retains Hook's selected-node behavior.
+      // an otherwise unused Escape retains Otter's selected-node behavior.
       nativeSetTimeout(() => {
         if (event.defaultPrevented || event.cancelBubble) return;
         postHostKeydown(keydown);

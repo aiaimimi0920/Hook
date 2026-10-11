@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 
 const readSource = (relativePath: string) =>
     readFileSync(resolve(process.cwd(), relativePath), "utf8");
@@ -18,7 +18,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 describe("Art Surface native interaction contract", () => {
     it("keeps Surface Art on the synthetic sticker-body route used for dragging and iframe relay", () => {
         const syncSource = readSource("src/services/syncService/backendRects.ts");
-        const rustSource = readHookLibRustSources();
+        const rustSource = readOtterLibRustSources();
         const syntheticClassification = sourceBetween(
             rustSource,
             "fn is_sticker_body_synthetic_rect",

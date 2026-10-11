@@ -66,7 +66,7 @@ fn ensure_overlay_input_shield_window(window: &tauri::WebviewWindow) -> Option<H
     }
 
     let class_name: Vec<u16> = "STATIC".encode_utf16().chain(std::iter::once(0)).collect();
-    let window_name: Vec<u16> = "HookOverlayInputShield"
+    let window_name: Vec<u16> = "OtterOverlayInputShield"
         .encode_utf16()
         .chain(std::iter::once(0))
         .collect();

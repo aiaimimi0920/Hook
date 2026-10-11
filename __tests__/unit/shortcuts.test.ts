@@ -7,7 +7,7 @@ import {
     useShortcuts,
 } from "../../src/hooks/useShortcuts";
 
-describe("ShortcutManager Hook shortcuts", () => {
+describe("ShortcutManager Otter shortcuts", () => {
     beforeEach(() => {
         ShortcutManager.resetToDefaults();
     });
@@ -67,7 +67,7 @@ describe("ShortcutManager Hook shortcuts", () => {
         const editableChild = document.createElement("span");
         shell.append(editableChild);
         const liveControl = document.createElement("div");
-        liveControl.dataset.hookGlobalShortcuts = "ignore";
+        liveControl.dataset.otterGlobalShortcuts = "ignore";
         const liveControlChild = document.createElement("span");
         liveControl.append(liveControlChild);
 

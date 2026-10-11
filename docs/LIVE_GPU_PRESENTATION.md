@@ -70,7 +70,7 @@ claimed. The native branch still uses supported Windows graphics APIs.
 
 - Normal Windows launches automatically attempt native presentation for eligible
   images. Set `HOOK_LIVE_GPU_PREVIEW=0` to force JPEG; `1` remains accepted.
-  Exit existing Hook normally before running isolated candidate acceptance.
+  Exit existing Otter normally before running isolated candidate acceptance.
 - Existing WebView2 video-safe GPU-disable switches remain unchanged. Native
   composition is separate from Chromium's GPU rendering configuration.
 - The native visual is above WebView child HWNDs. The first slice therefore
@@ -237,7 +237,7 @@ npx vitest run __tests__/unit/liveCaptureHandoffRuntime.test.ts
 cargo test --locked --manifest-path src-tauri/Cargo.toml --lib live_gpu
 ```
 
-Owned-window compositor smoke, independent of Hook's running application:
+Owned-window compositor smoke, independent of Otter's running application:
 
 ```powershell
 cargo test --locked --manifest-path src-tauri/Cargo.toml --lib live_gpu::native_tests -- --ignored --nocapture
@@ -262,10 +262,10 @@ or physical display-FPS acceptance. Both fixtures
 initialize WinRT before capture and keep it alive until worker/window teardown;
 the test runner does not provide the application's COM apartment lifetime.
 
-After existing Hook has been exited normally, the real Unit gate is:
+After existing Otter has been exited normally, the real Unit gate is:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tests/Invoke-LiveUnitNativeProbe.ps1 -HookExe <candidate-hook.exe> -GpuPreview
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tests/Invoke-LiveUnitNativeProbe.ps1 -OtterExe <candidate-otter.exe> -GpuPreview
 ```
 
 This opts in only the spawned candidate and exercises Ctrl+2 placement/DPI,
@@ -281,6 +281,6 @@ frame. A real desktop visual check remains necessary for border/menu occlusion.
 
 JPEG remains the compatibility baseline and explicit opt-out. The real Unit probe
 also samples encoded frames, GPU submissions, skipped CPU readbacks, capture health
-over six seconds and Hook process CPU time; these are not monitor-FPS measurements.
+over six seconds and Otter process CPU time; these are not monitor-FPS measurements.
 No 60/120 FPS, mixed-DPI, HDR, RDP or arbitrary-app support is inferred
 from the small owned-window smoke.

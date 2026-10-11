@@ -33,7 +33,7 @@ pub fn read_default_loom_manifest() -> Result<LoomManifest, LoomConnectorError> 
 fn default_loom_manifest_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
 
-    if let Some(path) = std::env::var_os("LOOM_MANIFEST_PATH")
+    if let Some(path) = crate::brand_env::var_os("LOOM_MANIFEST_PATH")
         .map(PathBuf::from)
         .filter(|path| !path.as_os_str().is_empty())
     {
@@ -45,7 +45,7 @@ fn default_loom_manifest_paths() -> Vec<PathBuf> {
         "LOOM_CAPABILITY_MANIFEST_DIR",
         "NEURO_CAPABILITIES_DIR",
     ] {
-        if let Some(dir) = std::env::var_os(key)
+        if let Some(dir) = crate::brand_env::var_os(key)
             .map(PathBuf::from)
             .filter(|path| !path.as_os_str().is_empty())
         {
@@ -53,7 +53,7 @@ fn default_loom_manifest_paths() -> Vec<PathBuf> {
         }
     }
 
-    if let Some(appdata) = std::env::var_os("APPDATA")
+    if let Some(appdata) = crate::brand_env::var_os("APPDATA")
         .map(PathBuf::from)
         .filter(|path| !path.as_os_str().is_empty())
     {

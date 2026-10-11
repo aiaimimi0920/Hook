@@ -1,8 +1,8 @@
 #[test]
 #[ignore = "requires the isolated Godot fixture and its owned process ID"]
 fn real_godot_source_button_responds_to_window_input() {
-    let output = std::path::PathBuf::from(std::env::var("HOOK_LIVE_GODOT_OUTPUT").unwrap());
-    let owned_pid: u32 = std::env::var("HOOK_LIVE_GODOT_PID").unwrap().parse().unwrap();
+    let output = std::path::PathBuf::from(crate::brand_env::var("HOOK_LIVE_GODOT_OUTPUT").unwrap());
+    let owned_pid: u32 = crate::brand_env::var("HOOK_LIVE_GODOT_PID").unwrap().parse().unwrap();
     let read_json = |name: &str| -> serde_json::Value {
         let bytes = std::fs::read(output.join(name)).unwrap();
         assert!(bytes.len() < 65_536);

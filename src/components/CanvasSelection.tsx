@@ -16,7 +16,7 @@ export const CanvasSelection: Component = () => {
       <Show when={isSelecting()}>
         <div class="absolute inset-0 z-[2147483646] pointer-events-none">
             <Show when={isWindowTargetCaptureMode(captureMode()) && !startPos()}>
-                <div class="hook-capture-chip absolute left-1/2 top-5 -translate-x-1/2 px-3 py-1.5 text-[11px] font-semibold">
+                <div class="otter-capture-chip absolute left-1/2 top-5 -translate-x-1/2 px-3 py-1.5 text-[11px] font-semibold">
                     {captureMode() === "live"
                         ? "悬浮窗口可自动选择；双击建立实时截图；拖动可持续查看区域；Esc 取消"
                         : "悬浮窗口可自动选择；双击截图完整窗口；拖动可自由框选；Esc 取消"}
@@ -36,16 +36,16 @@ export const CanvasSelection: Component = () => {
                         "outline-offset": "0px",
                     }}
                 >
-                     <div class="hook-capture-chip absolute -top-7 left-0 px-2 py-1 font-mono text-[11px] font-semibold">
+                     <div class="otter-capture-chip absolute -top-7 left-0 px-2 py-1 font-mono text-[11px] font-semibold">
                         <span>{Math.round(selectionRect()!.w)} x {Math.round(selectionRect()!.h)}</span>
                         <Show when={captureMode() === "long-vertical"}>
-                            <span class="hook-capture-chip__tag px-1.5 py-[1px] text-[10px] font-semibold">长截图</span>
+                            <span class="otter-capture-chip__tag px-1.5 py-[1px] text-[10px] font-semibold">长截图</span>
                         </Show>
                         <Show when={captureMode() === "live"}>
-                            <span class="hook-capture-chip__tag px-1.5 py-[1px] text-[10px] font-semibold">实时</span>
+                            <span class="otter-capture-chip__tag px-1.5 py-[1px] text-[10px] font-semibold">实时</span>
                         </Show>
                         <Show when={captureMode() === "region" && !startPos()}>
-                            <span class="hook-capture-chip__tag px-1.5 py-[1px] text-[10px] font-semibold">窗口</span>
+                            <span class="otter-capture-chip__tag px-1.5 py-[1px] text-[10px] font-semibold">窗口</span>
                         </Show>
                      </div>
                 </div>
@@ -82,7 +82,7 @@ export const CanvasSelection: Component = () => {
                 }}
             >
                 <div
-                    class="hook-capture-chip absolute left-0 px-2 py-1 text-[11px] font-semibold"
+                    class="otter-capture-chip absolute left-0 px-2 py-1 text-[11px] font-semibold"
                     style={{
                         top: session().rect.y >= 32 ? "-30px" : `${session().rect.h + 8}px`,
                     }}

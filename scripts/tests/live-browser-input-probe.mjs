@@ -1,4 +1,4 @@
-// Isolated real Chromium video and DOM oracle; all clicks come from native Hook input.
+// Isolated real Chromium video and DOM oracle; all clicks come from native Otter input.
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -11,7 +11,7 @@ const repo = resolve(import.meta.dirname, '../..');
 assert(process.argv[2], 'An unused evidence directory is required');
 const output = resolve(process.argv[2]);
 await mkdir(output, { recursive: false });
-const title = `HookLiveInputProbe-${randomUUID()}`;
+const title = `OtterLiveInputProbe-${randomUUID()}`;
 let page;
 const observations = [];
 const server = createServer(async (request, response) => {

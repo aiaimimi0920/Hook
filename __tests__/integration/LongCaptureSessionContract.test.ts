@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { readLongCaptureRustSources } from "../helpers/longCaptureRustSources";
@@ -19,11 +19,11 @@ const captureStateSource = readFileSync(resolve(process.cwd(), "src/services/cap
 const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitView.tsx"), "utf8");
 const unitImageModelSource = readFileSync(resolve(process.cwd(), "src/components/unitImageModel.ts"), "utf8");
 const unitImageContentSource = readFileSync(resolve(process.cwd(), "src/components/UnitStickerImageContent.tsx"), "utf8");
-const rustSource = readHookLibRustSources();
+const rustSource = readOtterLibRustSources();
 const longCaptureSource = readLongCaptureRustSources();
 const tauriConfig = JSON.parse(readFileSync(resolve(process.cwd(), "src-tauri/tauri.conf.json"), "utf8"));
 
-describe("Hook long capture session contract", () => {
+describe("Otter long capture session contract", () => {
     it("exposes a backend-owned long capture session flow for Ctrl+3", () => {
         expect(captureApiSource).toContain("startLongCaptureSession");
         expect(captureApiSource).toContain("sampleLongCaptureSession");

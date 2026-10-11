@@ -5,7 +5,7 @@ import {
   MockWebSocket,
 } from '../helpers/browserApiTestHarness';
 
-describe('Hook api browser persistence and fallbacks', () => {
+describe('Otter api browser persistence and fallbacks', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
@@ -125,7 +125,7 @@ describe('Hook api browser persistence and fallbacks', () => {
       stickers: [],
       links: [],
     });
-    localStorageMock.setRaw('hook_browser_preview_session', future);
+    localStorageMock.setRaw('otter_browser_preview_session', future);
     installBrowserGlobals(localStorageMock);
     const { api } = await import('../../src/services/api');
 
@@ -152,9 +152,9 @@ describe('Hook api browser persistence and fallbacks', () => {
 
     for (const record of malformedRecords) {
       const raw = JSON.stringify(record);
-      localStorageMock.setRaw('hook_browser_preview_session', raw);
+      localStorageMock.setRaw('otter_browser_preview_session', raw);
       await expect(api.loadSession()).rejects.toThrow('SESSION_SCHEMA_INVALID');
-      expect(localStorageMock.dump().hook_browser_preview_session).toBe(raw);
+      expect(localStorageMock.dump().otter_browser_preview_session).toBe(raw);
     }
   });
 
@@ -222,8 +222,8 @@ describe('Hook api browser persistence and fallbacks', () => {
 
     await expect(
       api.createTeaTicket({
-        source: 'hook-browser-preview',
-        text: 'Create a Tea ticket from Hook',
+        source: 'otter-browser-preview',
+        text: 'Create a Tea ticket from Otter',
         context: {
           active_window: 'Browser Preview',
           selection_text: 'selected text',

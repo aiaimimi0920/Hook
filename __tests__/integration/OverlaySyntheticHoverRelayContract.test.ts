@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -16,7 +16,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 
 describe("overlay synthetic hover relay contract", () => {
   it("keeps the overlay click-through during sticker hover/click and relies on synthetic mouse relay instead of flipping the native window interactive", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
 
     const hookProcBlock = sourceBetween(
       rustSource,

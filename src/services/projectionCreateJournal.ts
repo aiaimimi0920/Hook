@@ -77,7 +77,7 @@ export function loadPreparedCreate(key: string): Promise<PreparedProjectionCreat
     });
 }
 
-/** Immutable first-writer wins, committed before any create request can leave Hook. */
+/** Immutable first-writer wins, committed before any create request can leave Otter. */
 export function savePreparedCreate(value: PreparedProjectionCreate): Promise<PreparedProjectionCreate> {
     const record = validate(value);
     return transact("readwrite", (store, done, fail) => {

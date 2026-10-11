@@ -17,7 +17,7 @@
 //
 // 2. Relayed events are tagged (`markSurfaceRelayedKeydown`) so host listeners
 //    can tell them apart from the user's keystrokes. `event.isTrusted` cannot do
-//    that job in Hook: the native overlay keyboard hook also replays untrusted
+//    that job in Otter: the native overlay keyboard hook also replays untrusted
 //    keydowns (app.tsx's `overlay/global_shortcut` listener), and those are
 //    genuine user input. Listeners default to ignoring tagged events and opt in
 //    with `acceptsSurfaceRelayedKeydown` only where a surface-originated key is
@@ -34,7 +34,7 @@ export interface SurfaceHostKeydownShape {
 
 // Escape dismisses transient host overlays; the bare modifier keys keep the
 // sticker annotation layer's modifier tracking in sync while a host drag that
-// started inside a surface is still running. Ctrl+E is Hook's reserved
+// started inside a surface is still running. Ctrl+E is Otter's reserved
 // edit-mode shortcut, which the bootstrap relays even from interactive targets.
 export const isRelayableSurfaceHostKeydown = (keydown: SurfaceHostKeydownShape): boolean => {
     if (keydown.code === "KeyE") {
@@ -51,7 +51,7 @@ export const isRelayableSurfaceHostKeydown = (keydown: SurfaceHostKeydownShape):
     return false;
 };
 
-const SURFACE_RELAYED_KEYDOWN_FLAG = "hookSurfaceRelayedKeydown";
+const SURFACE_RELAYED_KEYDOWN_FLAG = "otterSurfaceRelayedKeydown";
 
 export const markSurfaceRelayedKeydown = <EventType extends Event>(event: EventType): EventType => {
     Object.defineProperty(event, SURFACE_RELAYED_KEYDOWN_FLAG, {

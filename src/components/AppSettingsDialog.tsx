@@ -55,7 +55,7 @@ const patternRows: Array<{ key: PatternKey; label: string; description: string }
 ];
 
 const previewContext: FileNamingContext = {
-    app: "Hook",
+    app: "Otter",
     kind: "sticker",
     label: "图片压缩",
     title: "参考窗口 - 示例",
@@ -152,7 +152,7 @@ export const AppSettingsDialog: Component<Props> = (props) => {
     return (
         <Show when={props.open}>
             <div
-                class="hook-settings-backdrop"
+                class="otter-settings-backdrop"
                 role="presentation"
                 onMouseDown={(event) => {
                     event.stopPropagation();
@@ -160,22 +160,22 @@ export const AppSettingsDialog: Component<Props> = (props) => {
                 }}
             >
                 <section
-                    class="hook-terminal-shell hook-terminal-shell--strong hook-settings-dialog"
+                    class="otter-terminal-shell otter-terminal-shell--strong otter-settings-dialog"
                     role="dialog"
                     aria-modal="true"
-                    aria-labelledby="hook-settings-title"
+                    aria-labelledby="otter-settings-title"
                     onMouseDown={(event) => event.stopPropagation()}
                     onKeyDown={(event) => event.stopPropagation()}
                 >
-                    <header class="hook-settings-header">
+                    <header class="otter-settings-header">
                         <div>
-                            <div class="hook-settings-kicker">HOOK / APP SETTINGS</div>
-                            <h2 id="hook-settings-title">图片文件命名</h2>
+                            <div class="otter-settings-kicker">OTTER / APP SETTINGS</div>
+                            <h2 id="otter-settings-title">图片文件命名</h2>
                             <p>所有真实写盘操作由 Rust 后端统一清洗并原子分配冲突文件名。</p>
                         </div>
                         <button
                             type="button"
-                            class="hook-terminal-btn hook-settings-close"
+                            class="otter-terminal-btn otter-settings-close"
                             onClick={() => props.onClose()}
                             aria-label="关闭设置"
                         >
@@ -183,14 +183,14 @@ export const AppSettingsDialog: Component<Props> = (props) => {
                         </button>
                     </header>
 
-                    <div class="hook-settings-content">
+                    <div class="otter-settings-content">
                         <For each={patternRows}>
                             {(row) => (
-                                <label class="hook-settings-field">
-                                    <span class="hook-settings-field-title">{row.label}</span>
-                                    <span class="hook-settings-field-copy">{row.description}</span>
+                                <label class="otter-settings-field">
+                                    <span class="otter-settings-field-title">{row.label}</span>
+                                    <span class="otter-settings-field-copy">{row.description}</span>
                                     <input
-                                        class="hook-terminal-input hook-settings-pattern-input"
+                                        class="otter-terminal-input otter-settings-pattern-input"
                                         value={draft().fileNaming[row.key]}
                                         spellcheck={false}
                                         onInput={(event) =>
@@ -199,23 +199,23 @@ export const AppSettingsDialog: Component<Props> = (props) => {
                                     />
                                     <Show when={patternErrors()[row.key]}>
                                         {(error) => (
-                                            <span class="hook-settings-error">{error()}</span>
+                                            <span class="otter-settings-error">{error()}</span>
                                         )}
                                     </Show>
-                                    <span class="hook-settings-preview">
+                                    <span class="otter-settings-preview">
                                         预览 <code>{previewFor(row.key)}</code>
                                     </span>
                                 </label>
                             )}
                         </For>
 
-                        <label class="hook-settings-field hook-settings-field--compact">
-                            <span class="hook-settings-field-title">标题最大长度</span>
-                            <span class="hook-settings-field-copy">
+                        <label class="otter-settings-field otter-settings-field--compact">
+                            <span class="otter-settings-field-title">标题最大长度</span>
+                            <span class="otter-settings-field-copy">
                                 仅限制 <code>{"{title}"}</code> 的内容，最终文件名仍最多 120 个字符。
                             </span>
                             <input
-                                class="hook-terminal-input hook-settings-number-input"
+                                class="otter-terminal-input otter-settings-number-input"
                                 type="number"
                                 min="1"
                                 max="240"
@@ -232,20 +232,20 @@ export const AppSettingsDialog: Component<Props> = (props) => {
                             />
                         </label>
 
-                        <div class="hook-settings-placeholder-panel">
-                            <div class="hook-settings-field-title">可用占位符</div>
-                            <div class="hook-settings-placeholder-grid">
+                        <div class="otter-settings-placeholder-panel">
+                            <div class="otter-settings-field-title">可用占位符</div>
+                            <div class="otter-settings-placeholder-grid">
                                 <For each={FILE_NAMING_PLACEHOLDERS}>
                                     {(placeholder) => <code>{`{${placeholder}}`}</code>}
                                 </For>
                             </div>
                         </div>
 
-                        <label class="hook-settings-field hook-settings-field--compact">
-                            <span class="hook-settings-field-title">翻译目标语言</span>
-                            <span class="hook-settings-field-copy">Ctrl+5 使用此语言；跟随显示语言会按当前界面语言选择。</span>
+                        <label class="otter-settings-field otter-settings-field--compact">
+                            <span class="otter-settings-field-title">翻译目标语言</span>
+                            <span class="otter-settings-field-copy">Ctrl+5 使用此语言；跟随显示语言会按当前界面语言选择。</span>
                             <select
-                                class="hook-terminal-input"
+                                class="otter-terminal-input"
                                 value={draft().translationTargetLanguage}
                                 onChange={(event) => {
                                     const value = event.currentTarget.value as AppSettings["translationTargetLanguage"];
@@ -259,11 +259,11 @@ export const AppSettingsDialog: Component<Props> = (props) => {
                             </select>
                         </label>
 
-                        <label class="hook-settings-field hook-settings-field--compact">
-                            <span class="hook-settings-field-title">翻译引擎模式</span>
-                            <span class="hook-settings-field-copy">本机翻译服务需另行安装；自动模式在本地不可用时回退 Gateway。</span>
+                        <label class="otter-settings-field otter-settings-field--compact">
+                            <span class="otter-settings-field-title">翻译引擎模式</span>
+                            <span class="otter-settings-field-copy">本机翻译服务需另行安装；自动模式在本地不可用时回退 Gateway。</span>
                             <select
-                                class="hook-terminal-input"
+                                class="otter-terminal-input"
                                 value={draft().translationProviderMode}
                                 onChange={(event) => {
                                     const value = event.currentTarget.value as AppSettings["translationProviderMode"];
@@ -277,34 +277,34 @@ export const AppSettingsDialog: Component<Props> = (props) => {
                             </select>
                         </label>
 
-                        <div class="hook-settings-policy">
+                        <div class="otter-settings-policy">
                             冲突策略固定为 <code>name.png → name_2.png → name_3.png</code>，并使用
                             原子创建防止并发覆盖。
                         </div>
                         <Show when={saveError()}>
-                            {(error) => <div class="hook-settings-save-error">{error()}</div>}
+                            {(error) => <div class="otter-settings-save-error">{error()}</div>}
                         </Show>
                     </div>
 
-                    <footer class="hook-settings-footer">
+                    <footer class="otter-settings-footer">
                         <button
                             type="button"
-                            class="hook-terminal-btn"
+                            class="otter-terminal-btn"
                             onClick={() => setDraft(cloneSettings(DEFAULT_APP_SETTINGS))}
                         >
                             恢复默认
                         </button>
-                        <div class="hook-settings-footer-actions">
+                        <div class="otter-settings-footer-actions">
                             <button
                                 type="button"
-                                class="hook-terminal-btn"
+                                class="otter-terminal-btn"
                                 onClick={() => props.onClose()}
                             >
                                 取消
                             </button>
                             <button
                                 type="button"
-                                class="hook-terminal-btn hook-terminal-btn--active"
+                                class="otter-terminal-btn otter-terminal-btn--active"
                                 disabled={hasErrors() || saving()}
                                 onClick={() => void handleSave()}
                             >

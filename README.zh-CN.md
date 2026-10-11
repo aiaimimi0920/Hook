@@ -1,4 +1,4 @@
-# Hook
+# Otter
 
 <p align="center">
   <a href="README.md"><strong>English</strong></a>
@@ -15,21 +15,21 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/aiaimimi0920/Hook/actions/workflows/build-hook-exe.yml"><img src="https://github.com/aiaimimi0920/Hook/actions/workflows/build-hook-exe.yml/badge.svg" alt="Build Hook EXE" /></a>
+  <a href="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml"><img src="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml/badge.svg" alt="Build Otter EXE" /></a>
   <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows" />
   <img src="https://img.shields.io/badge/Tauri-v2-24C8DB" alt="Tauri v2" />
   <img src="https://img.shields.io/badge/SolidJS-TypeScript-2C4F7C" alt="SolidJS TypeScript" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-F4EA2A" alt="MIT License" /></a>
 </p>
 
-## 为什么是 Hook
+## 为什么是 Otter
 
-原生桌面 Hook 默认自动发现并连接经过认证的本机 Loom；设置 `HOOK_ENABLE_LOOM_HOOK=0` 可关闭集成。
+原生桌面 Otter 默认自动发现并连接经过认证的本机 Loom；设置 `HOOK_ENABLE_LOOM_HOOK=0` 可关闭集成。
 纯浏览器预览仅保留本地功能，不匿名连接 Loom 或执行真实 Art。
 详见[安全边界](docs/SECURITY_BOUNDARIES.md#authenticated-native-local-bridge)。
 
-启动 Loom 后，直接打开 `hook.exe` 即可使用 OCR、翻译等已安装扩展。
-Loom 未运行时，本地截图和编辑仍可使用。测试包保留可选的 `hook-with-loom.cmd`
+启动 Loom 后，直接打开 `otter.exe` 即可使用 OCR、翻译等已安装扩展。
+Loom 未运行时，本地截图和编辑仍可使用。测试包保留可选的 `otter-with-loom.cmd`
 兼容入口，它尊重显式关闭设置，不会修改用户或系统环境变量。
 选中图片贴图后，`Ctrl+4` 重新识别，`Alt+4` 显示或隐藏 OCR；`Ctrl+5` 重新翻译，
 `Alt+5` 显示或隐藏翻译。没有结果时会先生成结果；对应 Loom 能力需已安装、启用并授权。
@@ -47,11 +47,11 @@ attachment 与服务端鉴权，不自动获得控制权。关闭参数面板保
 “被投射”二级栏的数据流向为只读图标；贴图内的紧凑导入弹窗支持二维码图片和投射链接，
 点击“导入”后接收内容。右侧保留投射来源标识，不再显示版本数字按钮。
 
-Hook 将透明桌面截图层和可持续编辑的贴图工作区放在同一个应用中。截图后可以继续
+Otter 将透明桌面截图层和可持续编辑的贴图工作区放在同一个应用中。截图后可以继续
 贴在桌面、编辑和标注，也可以连接到本地 Art/Loom 工作流。
 
 [二维码投射](docs/QR_PROJECTION.md)可从 Ctrl+E 编辑栏进入，将贴图或 Art 正式图像
-同步到另一台 Windows Hook。可选择无需官方登录的共享 HTTPS Loom（仍需设备配对），
+同步到另一台 Windows Otter。可选择无需官方登录的共享 HTTPS Loom（仍需设备配对），
 或现有 Loom 账号模式；接收端保留独立布局。共享 Loom 支持选择在线设备投送并持续
 同步，接收端可配置确认或自动显示。确认提示位于桌面中央偏上，支持接受、拒绝和
 稍后处理。手动互信的离线双 Loom 也已支持投送，并通过
@@ -105,7 +105,7 @@ Hook 将透明桌面截图层和可持续编辑的贴图工作区放在同一个
 - 对同权限 Win32/WinForms 源窗口及其经过验证的跨 UI 线程/辅助进程子 HWND，提供
   持续捕获的逻辑隐藏，以及有序鼠标、滚轮、拖动、键盘控制、本地抢回和 watchdog 恢复；
 - Live 输入遵循 Windows UIPI 的权限方向：允许同一用户的同级或较低权限源程序，
-  不再误拦截管理员 Hook 操作普通程序；仍禁止向更高权限、其他用户/会话和安全桌面
+  不再误拦截管理员 Otter 操作普通程序；仍禁止向更高权限、其他用户/会话和安全桌面
   发送输入。输入被拒绝时显示贴图内短暂提示，不再静默无反应；
 - Windows 11 HDR 感知截图，并自动降级到 SDR；
 - `Ctrl+3` 长截图；
@@ -194,8 +194,8 @@ WPF、WinUI 或任意自定义控件兼容。
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\build-local-hook-exe.ps1 `
-  -OutputDir ..\release\Hook\local-build `
+  -File .\scripts\build-local-otter-exe.ps1 `
+  -OutputDir ..\release\Otter\local-build `
   -Force
 ```
 
@@ -204,12 +204,16 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 
 ## 发布包
 
+Hook 已更名为 **Otter（水獭）**。以下说明针对当前源码构建；此前已发布的
+Hook v0.2.33 等历史包保留原有附件名称和 `hook.exe`，请运行对应包内实际包含的
+程序，不要改写旧下载链接。兼容边界见[更名说明](docs/RENAMING.md)。
+
 - **便携版（当前推荐）**
-  - 解压后直接运行 `hook.exe`；
+  - 解压后直接运行 `otter.exe`；
   - 当前普通构建和版本标签发布中唯一面向用户的包；
   - 包含项目许可证、第三方归属说明和随包源码许可证；
-  - 如果 Windows 阻止 Hook 与 **任务管理器** 等提权前台窗口交互，可以暂时尝试
-    以**管理员身份**运行 Hook。
+  - 如果 Windows 阻止 Otter 与 **任务管理器** 等提权前台窗口交互，可以暂时尝试
+    以**管理员身份**运行 Otter。
 - **安装版（未来签名版本）**
   - 仓库保留 UIAccess 安装脚本和 SignPath 准备内容；
   - 在签名服务和受保护审批环境启用前，安装版不是当前公开包。
@@ -229,7 +233,7 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 ## 代码签名状态
 
 Free code signing provided by [SignPath.io](https://signpath.io/), certificate
-by [SignPath Foundation](https://signpath.org/) 只会在 Hook 项目完成开通、托管签名
+by [SignPath Foundation](https://signpath.org/) 只会在 Otter 项目完成开通、托管签名
 请求经过人工审批后适用。除非某个 Release 明确包含已批准的签名安装版，否则当前
 便携包应视为未签名产物。
 
@@ -241,12 +245,12 @@ by [SignPath Foundation](https://signpath.org/) 只会在 Hook 项目完成开�
 
 ## 本地数据目录
 
-当前公开 Tauri 包标识符是 `com.yamiyu.hook`。Hook 只读写该标识符对应的数据目录，
+当前公开 Tauri 包标识符是 `com.yamiyu.hook`。Otter 只读写该标识符对应的数据目录，
 不会探测、读取或迁移旧标识符的数据目录。
 
 ## 参与贡献
 
-- Issues：<https://github.com/aiaimimi0920/Hook/issues>
+- Issues：<https://github.com/aiaimimi0920/Otter/issues>
 - 开发与提交规范：[`CONTRIBUTING.md`](CONTRIBUTING.md)
 - 文档索引：[`docs/README.md`](docs/README.md)
 
@@ -256,4 +260,4 @@ MIT，详见 [`LICENSE`](LICENSE)。
 
 ## 友情链接
 
-- [linux.do](https://linux.do/) — 感谢 linux.do 社区帮助更多用户认识 Hook。
+- [linux.do](https://linux.do/) — 感谢 linux.do 社区帮助更多用户认识 Otter。

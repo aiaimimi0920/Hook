@@ -1,4 +1,4 @@
-// Runs the global rdev listener and routes input into Hook's native state machines.
+// Runs the global rdev listener and routes input into Otter's native state machines.
 
 fn spawn_rdev_input_listener(
     window: tauri::WebviewWindow,

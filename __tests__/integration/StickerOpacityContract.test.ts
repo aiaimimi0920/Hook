@@ -10,7 +10,7 @@ const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSour
 const exportSource = readFileSync(resolve(process.cwd(), "src/services/stickerCompositeRenderer.ts"), "utf8");
 const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitView.tsx"), "utf8");
 
-describe("Hook sticker opacity contract", () => {
+describe("Otter sticker opacity contract", () => {
     it("exposes opacity as a deferred numeric crop property and keeps export composition aligned with sticker opacity", () => {
         expect(propertyBarRenderSource).toContain("MiniDeferredNumericField");
         expect(propertyBarRenderSource).toContain('title="透明度"');

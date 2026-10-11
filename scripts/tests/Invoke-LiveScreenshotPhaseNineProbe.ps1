@@ -3,7 +3,7 @@ param(
     [string]$OutputRoot = "",
     [string]$PhaseEightSummary = "",
     [string]$LoomReleasePath = "",
-    [string]$HookReleasePath = "",
+    [string]$OtterReleasePath = "",
     [switch]$AllowPartial
 )
 
@@ -124,25 +124,25 @@ $commands.loomUrlSecurity = Invoke-LoggedCommand -Name "loom-url-security" -Work
     -FilePath $cargo -Arguments @("test", "-p", "loom_protocol", "external_navigation_accepts_only_plain_https_urls")
 $commands.loomLatencyTransport = Invoke-LoggedCommand -Name "loom-latency-transport" -WorkingDirectory $loomRoot `
     -FilePath $cargo -Arguments @("test", "-p", "loom-daemon", "live_media_websocket_fans_out_and_resumes_without_duplicate_frames")
-$commands.hookNetworkPrivacy = Invoke-LoggedCommand -Name "hook-network-privacy" -WorkingDirectory $repoRoot `
+$commands.otterNetworkPrivacy = Invoke-LoggedCommand -Name "otter-network-privacy" -WorkingDirectory $repoRoot `
     -FilePath $cargo -Arguments @("test", "--manifest-path", "src-tauri\Cargo.toml", "live_network_capability_tests")
-$commands.hookRuntimeLogPrivacy = Invoke-LoggedCommand -Name "hook-runtime-log-privacy" -WorkingDirectory $repoRoot `
+$commands.otterRuntimeLogPrivacy = Invoke-LoggedCommand -Name "otter-runtime-log-privacy" -WorkingDirectory $repoRoot `
     -FilePath $cargo -Arguments @("test", "--manifest-path", "src-tauri\Cargo.toml", "runtime_log_sanitize_tests")
-$commands.hookWebContracts = Invoke-LoggedCommand -Name "hook-web-contracts" -WorkingDirectory $repoRoot -FilePath $npm `
+$commands.otterWebContracts = Invoke-LoggedCommand -Name "otter-web-contracts" -WorkingDirectory $repoRoot -FilePath $npm `
     -Arguments @("test", "--", "__tests__\unit\liveNetworkCapabilities.test.ts", "__tests__\unit\liveRelayInputQos.test.ts", "__tests__\integration\RuntimeLoggingContract.test.ts")
-$commands.hookTypecheck = Invoke-LoggedCommand -Name "hook-typecheck" -WorkingDirectory $repoRoot `
+$commands.otterTypecheck = Invoke-LoggedCommand -Name "otter-typecheck" -WorkingDirectory $repoRoot `
     -FilePath $npm -Arguments @("run", "typecheck:test")
 
 $loomRelease = Get-ReleaseEvidence -ReleasePath $LoomReleasePath -ExecutableRelativePath "Loom.exe" -ExpectedApp "Loom"
-$hookRelease = Get-ReleaseEvidence -ReleasePath $HookReleasePath -ExecutableRelativePath "portable\hook.exe" -ExpectedApp "Hook"
+$otterRelease = Get-ReleaseEvidence -ReleasePath $OtterReleasePath -ExecutableRelativePath "portable\otter.exe" -ExpectedApp "Otter"
 $checks = [ordered]@{
-    lanIndependent = $commands.hookNetworkPrivacy.exitCode -eq 0
-    latencyAndCapabilityVisible = $commands.loomLatencyTransport.exitCode -eq 0 -and $commands.hookWebContracts.exitCode -eq 0
+    lanIndependent = $commands.otterNetworkPrivacy.exitCode -eq 0
+    latencyAndCapabilityVisible = $commands.loomLatencyTransport.exitCode -eq 0 -and $commands.otterWebContracts.exitCode -eq 0
     nonLoopbackTlsAndAuthentication = $commands.loomNonLoopbackSecurity.exitCode -eq 0
     pairingRevocationNonceReplay = $commands.loomDeviceReplayRevocation.exitCode -eq 0
     maliciousUrlRejected = $commands.loomUrlSecurity.exitCode -eq 0
-    localPrivacyAndRedaction = $commands.hookNetworkPrivacy.exitCode -eq 0 -and $commands.hookRuntimeLogPrivacy.exitCode -eq 0
-    hookContractsTypecheck = $commands.hookWebContracts.exitCode -eq 0 -and $commands.hookTypecheck.exitCode -eq 0
+    localPrivacyAndRedaction = $commands.otterNetworkPrivacy.exitCode -eq 0 -and $commands.otterRuntimeLogPrivacy.exitCode -eq 0
+    otterContractsTypecheck = $commands.otterWebContracts.exitCode -eq 0 -and $commands.otterTypecheck.exitCode -eq 0
     phaseEightUpstreamEvidence = $phaseEightValid
 }
 $localChecksPassed = @($checks.Values | Where-Object { -not $_ }).Count -eq 0
@@ -154,7 +154,7 @@ $externalChecks = [ordered]@{
 }
 $formalReleaseChecks = [ordered]@{
     loom = [bool]$loomRelease.cleanSource
-    hook = [bool]$hookRelease.cleanSource
+    hook = [bool]$otterRelease.cleanSource
 }
 $passed = $localChecksPassed -and
     @($externalChecks.Values | Where-Object { -not $_ }).Count -eq 0 -and
@@ -190,9 +190,9 @@ $result = [ordered]@{
         "No STUN/TURN/SFU or Cloud Relay provider is configured for public NAT traversal.",
         "No external cloud storage plane exists to audit retention and deletion behavior.",
         "Enterprise authorization and cross-network red-team evidence require external infrastructure and devices.",
-        "Dirty Loom and Hook source provenance cannot pass formal clean-source release gates."
+        "Dirty Loom and Otter source provenance cannot pass formal clean-source release gates."
     )
-    releaseEvidence = [ordered]@{ loom = $loomRelease; hook = $hookRelease }
+    releaseEvidence = [ordered]@{ loom = $loomRelease; hook = $otterRelease }
     phaseEightEvidence = [ordered]@{
         path = $phaseEightPath
         sha256 = (Get-FileHash -LiteralPath $phaseEightPath -Algorithm SHA256).Hash.ToLowerInvariant()

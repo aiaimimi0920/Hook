@@ -1,4 +1,4 @@
-# Hook version identities
+# Otter version identities
 
 Public releases use `vx.y.z`, for example `v0.2.30`. Internal iterations use
 `vx.y.z.n`, for example `v0.2.30.1` and `v0.2.30.2`. An internal iteration does
@@ -26,7 +26,7 @@ in the adjacent provenance file; no UI version display is added by this policy.
 Revision zero is the release baseline; the first subsequent internal iteration
 allocates revision one. Rebuilding does not allocate a new revision.
 Internal builds should be stored under the matching four-part release directory,
-for example `release/Hook/v0.2.30.1`.
+for example `release/Otter/v0.2.30.1`.
 
 ## Public release
 

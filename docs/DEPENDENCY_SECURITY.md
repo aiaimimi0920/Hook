@@ -1,6 +1,6 @@
-# Hook Dependency Security
+# Otter Dependency Security
 
-Hook applies inventory, advisory scanning, triage, remediation, and regenerated
+Otter applies inventory, advisory scanning, triage, remediation, and regenerated
 release evidence as one supply-chain control loop. A green scan is a release
 gate; it is not proof that unknown vulnerabilities do not exist.
 
@@ -23,8 +23,8 @@ release run on `main` can leave that workflow's configuration reporting failure
 even when its OSV job succeeded; later successful tag runs do not refresh the
 default-branch record. Check the failing job before changing scanner settings.
 
-`Release Hook Tag` now runs pure advisory scans on `main` pushes and relevant
-pull requests, preserving its existing `release-hook-tag.yml:osv-scan` identity.
+`Release Otter Tag` now runs pure advisory scans on `main` pushes and relevant
+pull requests, preserving its existing `release-otter-tag.yml:osv-scan` identity.
 Manual **scan-only=true** still scans the exact workflow commit. PR/main and
 maintenance events skip the entire publication job, including its cleanup and
 signing steps. Explicit typed false plus a valid three-part tag is required for
@@ -67,7 +67,7 @@ manifests, incomplete Cargo metadata, unknown line-checker diagnostics, and
 unrecognized Rust format output remain errors. Format findings require a valid
 in-repository diff with no stderr. Actual typechecking, compilation, checker
 unit tests, frontend/native tests, and browser/performance tests stay blocking
-in `Build Hook EXE`. Release and `npm run verify:local` keep their strict checks;
+in `Build Otter EXE`. Release and `npm run verify:local` keep their strict checks;
 `verify:local` also creates release packages and is not a scan-only command.
 
 Native repository protection settings are not changed by these workflows.
@@ -134,7 +134,7 @@ do not silently replace them.
 The baseline was refreshed on 2026-08-24. Directly fixable npm and Cargo
 findings were removed from the lockfiles. Remaining exception entries are
 time-bounded unmaintained transitive packages or GTK/glib code that is not
-compiled into Hook's formal Windows-only release. Those exceptions explicitly
+compiled into Otter's formal Windows-only release. Those exceptions explicitly
 block any future Linux publication until the Linux dependency stack is upgraded
 or independently reassessed. The gate does not replace source review, runtime
 reachability analysis, secret scanning, tests, or clean-source verification.

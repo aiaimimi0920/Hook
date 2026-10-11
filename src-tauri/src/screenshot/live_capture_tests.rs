@@ -32,7 +32,7 @@ struct PhaseTwoProbe {
 }
 
 fn required_env(name: &str) -> String {
-    std::env::var(name).unwrap_or_else(|_| panic!("{name} is required"))
+    crate::brand_env::var(name).unwrap_or_else(|_| panic!("{name} is required"))
 }
 
 fn fixture_hwnd() -> HWND {
@@ -45,12 +45,13 @@ fn fixture_hwnd() -> HWND {
 }
 
 fn config(session_id: &str, hwnd: HWND) -> LiveCaptureWorkerConfig {
-    let use_window_region = std::env::var("HOOK_LIVE_PHASE2_WINDOW_REGION").as_deref() == Ok("1");
+    let use_window_region =
+        crate::brand_env::var("HOOK_LIVE_PHASE2_WINDOW_REGION").as_deref() == Ok("1");
     LiveCaptureWorkerConfig {
         session_id: session_id.to_string(),
         window_id: Some(format!("{:x}", hwnd.0 as usize)),
         expected_process_id: None,
-        source_title: Some("Hook live Phase 2 fixture".to_string()),
+        source_title: Some("Otter live Phase 2 fixture".to_string()),
         x: 0,
         y: 0,
         width: 640,
@@ -128,7 +129,8 @@ fn phase_two_live_worker_soaks_recovers_and_cleans_up() {
     let deadline = started + Duration::from_secs(duration_seconds);
     let resize_at = started + Duration::from_secs((duration_seconds / 3).max(2));
     let move_at = started + Duration::from_secs((duration_seconds / 4).max(1));
-    let use_window_region = std::env::var("HOOK_LIVE_PHASE2_WINDOW_REGION").as_deref() == Ok("1");
+    let use_window_region =
+        crate::brand_env::var("HOOK_LIVE_PHASE2_WINDOW_REGION").as_deref() == Ok("1");
     let mut resize_requested = false;
     let mut move_requested = false;
     let mut move_after_frame_id = u64::MAX;

@@ -13,7 +13,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
 
     let emit_window = window.clone();
     let _ = std::thread::Builder::new()
-        .name("hook-capture-mouse-events".to_string())
+        .name("otter-capture-mouse-events".to_string())
         .spawn(move || {
             let mut deferred_event: Option<CaptureMouseHookEvent> = None;
             let mut cached_metrics = capture_window_metrics(&emit_window);
@@ -372,7 +372,7 @@ fn install_capture_mouse_hook_thread(window: tauri::WebviewWindow) {
         });
 
     let _ = std::thread::Builder::new()
-        .name("hook-capture-mouse-hook".to_string())
+        .name("otter-capture-mouse-hook".to_string())
         .spawn(move || {
             let hook = match unsafe {
                 SetWindowsHookExW(WH_MOUSE_LL, Some(capture_mouse_hook_proc), None, 0)

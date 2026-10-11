@@ -70,7 +70,7 @@ pub(crate) async fn projection_v2_request(
     if let Some(code) = code {
         return Ok(code);
     }
-    // A QR origin is never a network destination for Hook v2. Only the local Loom is contacted.
+    // A QR origin is never a network destination for Otter v2. Only the local Loom is contacted.
     let manifest = crate::loom_connector::read_default_loom_manifest()
         .map_err(|_| "projection_loom_unavailable")?;
     let origin = protocol::normalize_origin(&manifest.transport.base_url)?;

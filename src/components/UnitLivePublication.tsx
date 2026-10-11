@@ -34,12 +34,12 @@ export const UnitLivePublication: Component<{ unitId: string }> = (props) => {
         if (!disposed) liveRelayActions.updateStatus(current.relayId, status);
     }
     return <Show when={capture()}>
-        <section class="hook-unit-publication" aria-label="实时投射发布"
+        <section class="otter-unit-publication" aria-label="实时投射发布"
             data-capture-session-id={props.unitId} data-relay-id={source()?.relayId}>
             <strong>实时投射</strong>
             <Show when={source()} fallback={<>
-                <span class="hook-inline-muted">将当前实时采集发布给已配对的 Loom。</span>
-                <button type="button" class="hook-terminal-btn hook-terminal-btn--active"
+                <span class="otter-inline-muted">将当前实时采集发布给已配对的 Loom。</span>
+                <button type="button" class="otter-terminal-btn otter-terminal-btn--active"
                     disabled={pending() || !liveRelayOwner() || capture()?.status.captureState === 'failed'
                         || capture()?.status.captureState === 'closed'} onClick={() => void run(publish)}>
                     {pending() ? '正在发布…' : '发布到 Loom'}
@@ -51,23 +51,23 @@ export const UnitLivePublication: Component<{ unitId: string }> = (props) => {
                         : current().status.connectionState === 'closed' ? '已关闭' : '连接中'}
                         {current().status.remoteControlActive ? ' · 远端操作中' : ' · 无远端操作权'}</span>
                     <code title={current().status.liveSessionId}>{current().status.liveSessionId}</code>
-                    <div class="hook-unit-publication__actions">
-                        <button type="button" class="hook-terminal-btn" disabled={pending() || !liveRelayOwner()}
+                    <div class="otter-unit-publication__actions">
+                        <button type="button" class="otter-terminal-btn" disabled={pending() || !liveRelayOwner()}
                             onClick={() => void run(async () => { await liveRelayOwner()?.reclaim(current().relayId); })}>收回操作权</button>
-                        <button type="button" class="hook-terminal-btn" disabled={pending()}
+                        <button type="button" class="otter-terminal-btn" disabled={pending()}
                             onClick={() => void run(reconnect)}>重新连接</button>
-                        <button type="button" class="hook-terminal-btn" disabled={pending() || !liveRelayOwner()}
+                        <button type="button" class="otter-terminal-btn" disabled={pending() || !liveRelayOwner()}
                             onClick={() => void run(async () => { await liveRelayOwner()?.stop(current().relayId); })}>停止发布</button>
                     </div>
                     <Show when={current().status.errorMessage}>
-                        {(message) => <span class="hook-inline-danger">{message()}</span>}
+                        {(message) => <span class="otter-inline-danger">{message()}</span>}
                     </Show>
                     <Show when={current().controlError}>
-                        {(message) => <span class="hook-inline-danger" role="alert">{message()}</span>}
+                        {(message) => <span class="otter-inline-danger" role="alert">{message()}</span>}
                     </Show>
                 </>}
             </Show>
-            <Show when={error()}>{(message) => <span class="hook-inline-danger" role="alert">{message()}</span>}</Show>
+            <Show when={error()}>{(message) => <span class="otter-inline-danger" role="alert">{message()}</span>}</Show>
         </section>
     </Show>;
 };

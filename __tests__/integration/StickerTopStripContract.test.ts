@@ -77,7 +77,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
     return source.slice(startIndex, endIndex);
 };
 
-describe("Hook sticker top strip contract", () => {
+describe("Otter sticker top strip contract", () => {
     it("uses the dedicated top strip as the only sticker editing chrome", () => {
         expect(topStripExists).toBe(true);
         expect(propertyBarExists).toBe(true);

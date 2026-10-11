@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn quota_rejects_growth_without_deleting_referenced_assets() {
-        let root = std::env::temp_dir().join(format!("hook-image-quota-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("otter-image-quota-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&root).unwrap();
         let selected = root.join("selected.png");
         fs::write(&selected, [1u8; 80]).unwrap();

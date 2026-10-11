@@ -32,7 +32,7 @@ try {
             if (await candidate.evaluate(() => Boolean(window.__TAURI_INTERNALS__))) return candidate;
         }
     });
-    await waitFor(async () => (await readFile(join(output, "logs/hook-runtime.log"), "utf8")).includes("frontend-initialized"));
+    await waitFor(async () => (await readFile(join(output, "logs/otter-runtime.log"), "utf8")).includes("frontend-initialized"));
     await page.evaluate(() => {
         window.__liveProbeEvents = [];
         for (const name of ["pointerdown", "pointermove", "pointerup", "mousedown", "mouseup"]) document.addEventListener(name, (event) => {
@@ -64,7 +64,7 @@ try {
     };
     await os("key", 17, 50); // The product Ctrl+2 global shortcut, not direct start IPC.
     await waitFor(async () => {
-        const log = await readFile(join(output, "logs/hook-runtime.log"), "utf8");
+        const log = await readFile(join(output, "logs/otter-runtime.log"), "utf8");
         return log.includes("set_capture_input_active :: true") && log.includes("capture-window-targets-ready");
     });
     viewport = await page.evaluate(() => ({ dpr: devicePixelRatio, x: screenX, y: screenY, w: innerWidth, h: innerHeight }));
@@ -196,7 +196,7 @@ try {
     }
     await os("key", 17, 69);
     await waitFor(async () => (await page.locator(".unit-live-input").count()) === 0, 5000);
-    const toolbar = page.locator(`.fixed[data-hook-drag-follow-unit-id="${id}"]`);
+    const toolbar = page.locator(`.fixed[data-otter-drag-follow-unit-id="${id}"]`);
     await toolbar.waitFor();
     result.steps.push({ step: "native-ctrl-e-shared-editor" });
     if (gpuPreview) {
@@ -239,7 +239,7 @@ try {
                     .map((element) => element ? { className: element.className,
                         opacity: getComputedStyle(element).opacity, transform: getComputedStyle(element).transform,
                         rect: element.getBoundingClientRect().toJSON() } : null),
-                notices: image.closest(".unit-container")?.querySelector("[data-hook-unit-notice-layer]")?.textContent,
+                notices: image.closest(".unit-container")?.querySelector("[data-otter-unit-notice-layer]")?.textContent,
             })), visibility: document.visibilityState,
             scripts: Array.from(document.scripts).map((script) => script.src),
         })).catch(() => null);

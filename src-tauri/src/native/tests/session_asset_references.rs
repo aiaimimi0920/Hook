@@ -18,7 +18,7 @@ fn session_asset_request(
 
 #[test]
 fn session_save_reuses_committed_assets_and_recovers_missing_references() {
-    let root = std::env::temp_dir().join(format!("hook-session-assets-{}", uuid::Uuid::new_v4()));
+    let root = std::env::temp_dir().join(format!("otter-session-assets-{}", uuid::Uuid::new_v4()));
     let original: StickerData = serde_json::from_value(serde_json::json!({
         "id": "one", "src": tiny_png_data_url_for_test([1, 2, 3]),
         "previewSrc": tiny_png_data_url_for_test([4, 5, 6]), "x": 0, "y": 0, "w": 1, "h": 1

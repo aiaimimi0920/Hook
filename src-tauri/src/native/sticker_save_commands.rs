@@ -10,7 +10,7 @@ fn save_sticker_image(
     let (width, height) = image_dimensions_from_bytes(&image_data)?;
 
     // 1. Resolve a user-writable destination. Writing next to the executable
-    //    fails when Hook is installed under Program Files (read-only) and is
+    //    fails when Otter is installed under Program Files (read-only) and is
     //    poor practice; persist user data under the app data dir instead.
     let app_dir = effective_app_data_dir(&app)?;
     let saved_dir = app_dir.join("saved");

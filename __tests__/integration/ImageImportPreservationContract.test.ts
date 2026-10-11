@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const fileDropSource = readFileSync(resolve(process.cwd(), "src/hooks/useFileDrop.ts"), "utf8");
 const imageResourceApiSource = readFileSync(resolve(process.cwd(), "src/services/apiImageResource.ts"), "utf8");
-const rustSource = readHookLibRustSources();
+const rustSource = readOtterLibRustSources();
 const cargoToml = readFileSync(resolve(process.cwd(), "src-tauri/Cargo.toml"), "utf8");
 
-describe("Hook image import preservation contract", () => {
+describe("Otter image import preservation contract", () => {
     it("keeps the current drag-in image formats and the backend image crate", () => {
         // The drop handler now matches against a SUPPORTED_IMAGE_EXTENSIONS list
         // via endsWith rather than inline endsWith(".png") calls. Assert the

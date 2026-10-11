@@ -19,7 +19,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("../../src/services/client", () => ({
-    loomHook: {
+    loomOtter: {
         attachSurface: state.attachSurface,
         fetchSurfaceResource: state.fetchSurfaceResource,
     },

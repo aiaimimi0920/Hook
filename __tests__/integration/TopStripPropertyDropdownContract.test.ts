@@ -14,7 +14,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 };
 
 describe("top strip property dropdown contract", () => {
-  it("uses Hook-owned popup menus instead of native select popups so options that extend into sticker space still stay inside the protected overlay input model", () => {
+  it("uses Otter-owned popup menus instead of native select popups so options that extend into sticker space still stay inside the protected overlay input model", () => {
     const propertyBarSource = readSource("src/components/StickerTopStripPropertyBar.tsx");
     const fieldsSource = readSource("src/components/stickerTopStripPropertyBarFields.tsx");
     const dropdownSource = readSource("src/components/stickerTopStripPropertyDropdownController.tsx");
@@ -52,7 +52,7 @@ describe("top strip property dropdown contract", () => {
     expect(topStripSource).toContain('querySelector<HTMLElement>("[data-top-strip-menu=\'true\']")');
     expect(topStripSource).toContain("const scheduleOpenToolbarMenuRectSync = (");
     expect(topStripSource).toContain("removeRect(openMenuRectId());");
-    expect(chromeSource).toContain("hook-toolbar-menu pointer-events-auto");
+    expect(chromeSource).toContain("otter-toolbar-menu pointer-events-auto");
     expect(editActionsSource).toContain("onWheel={(event) => event.stopPropagation()}");
     expect(editActionsSource).toContain("onPointerMove={(event) => event.stopPropagation()}");
   });

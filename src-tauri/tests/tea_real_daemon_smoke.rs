@@ -1,12 +1,13 @@
-use hook_lib::tea_client::{
-    HookAttachment, HookContext, HookIntakeRequest, TeaIntakeClient, TeaIntakeConfig,
+use otter_lib::tea_client::{
+    OtterAttachment, OtterContext, OtterIntakeRequest, TeaIntakeClient, TeaIntakeConfig,
 };
 use serde_json::{json, Value};
 use std::time::Duration;
 
 #[tokio::test]
-#[ignore = "requires a running tea-daemon; use scripts/smoke-hook-tea-real.ps1"]
-async fn hook_client_creates_ticket_in_real_tea_daemon() -> Result<(), Box<dyn std::error::Error>> {
+#[ignore = "requires a running tea-daemon; use scripts/smoke-otter-tea-real.ps1"]
+async fn otter_client_creates_ticket_in_real_tea_daemon() -> Result<(), Box<dyn std::error::Error>>
+{
     let base_url = required_env("TEA_REAL_SMOKE_BASE_URL")?;
     let auth_token = required_env("TEA_REAL_SMOKE_AUTH_TOKEN")?;
     let result_path = std::env::var("TEA_REAL_SMOKE_RESULT_PATH").ok();
@@ -17,24 +18,24 @@ async fn hook_client_creates_ticket_in_real_tea_daemon() -> Result<(), Box<dyn s
     let client = TeaIntakeClient::new(TeaIntakeConfig {
         base_url: base_url.clone(),
         auth_token: auth_token.clone(),
-        source: "hook-real-smoke".to_string(),
+        source: "otter-real-smoke".to_string(),
         enabled: true,
     });
     let ticket = client
-        .create_ticket(HookIntakeRequest {
-            source: "hook-real-smoke".to_string(),
-            text: "Please create a real Hook to Tea smoke ticket".to_string(),
-            context: HookContext {
+        .create_ticket(OtterIntakeRequest {
+            source: "otter-real-smoke".to_string(),
+            text: "Please create a real Otter to Tea smoke ticket".to_string(),
+            context: OtterContext {
                 active_window: Some("PowerShell".to_string()),
                 selection_text: Some("real daemon smoke".to_string()),
                 ocr_text: None,
-                screenshot_ref: Some("file://hook-real-smoke.png".to_string()),
+                screenshot_ref: Some("file://otter-real-smoke.png".to_string()),
                 cwd,
                 app: Some("hook".to_string()),
             },
-            attachments: vec![HookAttachment {
+            attachments: vec![OtterAttachment {
                 kind: "screenshot".to_string(),
-                reference: "file://hook-real-smoke.png".to_string(),
+                reference: "file://otter-real-smoke.png".to_string(),
             }],
         })
         .await?;
@@ -60,7 +61,7 @@ async fn hook_client_creates_ticket_in_real_tea_daemon() -> Result<(), Box<dyn s
     assert!(api_ticket["description"]
         .as_str()
         .unwrap_or_default()
-        .contains("--- Hook context (untrusted) ---"));
+        .contains("--- Otter context (untrusted) ---"));
     assert!(api_ticket["description"]
         .as_str()
         .unwrap_or_default()
@@ -88,7 +89,7 @@ async fn hook_client_creates_ticket_in_real_tea_daemon() -> Result<(), Box<dyn s
         &format!("/v1/tickets/{}/export/markdown", ticket.id),
     )
     .await?;
-    assert!(markdown.contains("Please create a real Hook to Tea smoke ticket"));
+    assert!(markdown.contains("Please create a real Otter to Tea smoke ticket"));
     assert!(markdown.contains("TicketCreated"));
 
     if let Some(path) = result_path {

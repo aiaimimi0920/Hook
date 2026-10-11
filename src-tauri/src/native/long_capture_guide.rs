@@ -1,4 +1,4 @@
-// Detects and removes Hook's long-capture guide pixels from frame edges.
+// Detects and removes Otter's long-capture guide pixels from frame edges.
 
 fn is_long_capture_guide_blue(pixel: [u8; 3]) -> bool {
     let r_delta = (pixel[0] as i16 - 170).abs();

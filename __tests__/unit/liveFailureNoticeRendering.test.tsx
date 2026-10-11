@@ -29,10 +29,10 @@ it("renders unbound Live failure in the last sticker's standard dismissible noti
     const alert = vi.spyOn(window, "alert").mockImplementation(() => undefined);
     try {
         showLiveCaptureAdmissionError("live_resource_gpu_pressure");
-        const anchor = layer.querySelector<HTMLElement>("[data-hook-unit-notice-anchor]");
-        expect(anchor?.dataset.hookUnitNoticeAnchor).toBe("latest");
+        const anchor = layer.querySelector<HTMLElement>("[data-otter-unit-notice-anchor]");
+        expect(anchor?.dataset.otterUnitNoticeAnchor).toBe("latest");
         expect(anchor?.style.left).toBe("400px");
-        const stack = anchor?.querySelector<HTMLElement>(".hook-enhancement-notice-stack");
+        const stack = anchor?.querySelector<HTMLElement>(".otter-enhancement-notice-stack");
         expect(stack?.classList.contains("right-2")).toBe(true);
         expect(stack?.classList.contains("top-2")).toBe(true);
         expect(stack?.style.pointerEvents).toBe("auto");
@@ -42,6 +42,6 @@ it("renders unbound Live failure in the last sticker's standard dismissible noti
         const dismiss = stack?.querySelector<HTMLButtonElement>("button");
         expect(dismiss).not.toBeNull(); dismiss!.click();
         expect(enhancementNotices.latest ?? []).toHaveLength(0);
-        expect(layer.querySelector("[data-hook-unit-notice-anchor]")).toBeNull();
+        expect(layer.querySelector("[data-otter-unit-notice-anchor]")).toBeNull();
     } finally { alert.mockRestore(); }
 });

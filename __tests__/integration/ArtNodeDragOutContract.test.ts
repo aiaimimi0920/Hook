@@ -7,7 +7,7 @@ const unitNativeDragSource = readFileSync(
     "utf8",
 );
 
-describe("Hook art-node drag-out contract", () => {
+describe("Otter art-node drag-out contract", () => {
     const extractSection = (startMarker: string, endMarker: string) => {
         const start = unitNativeDragSource.indexOf(startMarker);
         const end = unitNativeDragSource.indexOf(endMarker, start + startMarker.length);
@@ -31,8 +31,8 @@ describe("Hook art-node drag-out contract", () => {
             "createEffect(() => {",
         );
         const beginDragSection = extractSection(
-            "const beginHookStickerExportDrag = async (globalX: number, globalY: number) => {",
-            "const updateHookStickerExportDragPreview =",
+            "const beginOtterStickerExportDrag = async (globalX: number, globalY: number) => {",
+            "const updateOtterStickerExportDragPreview =",
         );
 
         expect(overlayDownSection).not.toContain('props.unit.type !== "sticker"');

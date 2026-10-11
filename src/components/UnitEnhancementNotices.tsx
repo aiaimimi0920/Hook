@@ -95,8 +95,8 @@ export const UnitEnhancementNotices: Component<UnitEnhancementNoticesProps> = (p
                     wrapperElement = element;
                     syncDragFollowerRegistration();
                 }}
-                data-hook-unit-notice-anchor={props.unitId}
-                data-hook-drag-follow-unit-id={props.unitId}
+                data-otter-unit-notice-anchor={props.unitId}
+                data-otter-drag-follow-unit-id={props.unitId}
                 class="absolute pointer-events-none"
                 style={{
                     left: `${props.unitX}px`,
@@ -107,8 +107,8 @@ export const UnitEnhancementNotices: Component<UnitEnhancementNoticesProps> = (p
               >
               <div
                   ref={(el) => { stackElement = el; }}
-                  data-hook-unit-notice-layer="true"
-                  class="hook-enhancement-notice-stack absolute right-2 top-2 flex flex-col items-end gap-2"
+                  data-otter-unit-notice-layer="true"
+                  class="otter-enhancement-notice-stack absolute right-2 top-2 flex flex-col items-end gap-2"
                   style={{
                       width: `${stackWidth()}px`,
                       "max-height": `${stackHeight()}px`,
@@ -118,7 +118,7 @@ export const UnitEnhancementNotices: Component<UnitEnhancementNoticesProps> = (p
               >
                 <For each={notices()}>{(notice) => (
                     <div
-                        class="enhancement-notice hook-enhancement-notice p-3 text-left"
+                        class="enhancement-notice otter-enhancement-notice p-3 text-left"
                         style={{
                             "max-height": `${Math.min(140, stackHeight())}px`,
                             "pointer-events": "auto",
@@ -142,11 +142,11 @@ export const UnitEnhancementNotices: Component<UnitEnhancementNoticesProps> = (p
                     >
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
-                                <div class="hook-enhancement-notice__title text-[11px] font-semibold">{notice.title}</div>
-                                <div class="hook-enhancement-notice__copy mt-1 text-[10px] leading-snug break-words">{notice.message}</div>
+                                <div class="otter-enhancement-notice__title text-[11px] font-semibold">{notice.title}</div>
+                                <div class="otter-enhancement-notice__copy mt-1 text-[10px] leading-snug break-words">{notice.message}</div>
                             </div>
                             <button
-                                class="hook-terminal-btn shrink-0 px-2 py-1 text-[10px]"
+                                class="otter-terminal-btn shrink-0 px-2 py-1 text-[10px]"
                                 onMouseDown={(event) => event.stopPropagation()}
                                 onClick={(event) => {
                                     event.stopPropagation();

@@ -1,6 +1,6 @@
-# Contributing to Hook
+# Contributing to Otter
 
-Hook is a Windows-first Tauri/SolidJS application. Changes should be based on
+Otter is a Windows-first Tauri/SolidJS application. Changes should be based on
 current code, configuration, runtime behavior, and tests rather than historical
 plans or archived conversations.
 
@@ -89,7 +89,7 @@ file through `test:performance` with one worker and unchanged thresholds. The
 serial `npm test` packaging gate still includes every test. It runs in
 `frontend-serial` alongside the native build and `parallel-race` jobs.
 The stable `build-windows-exe` check fails unless all three succeed and only
-then promotes the same-run candidate to `hook-portable-windows-x64`.
+then promotes the same-run candidate to `otter-portable-windows-x64`.
 
 `npm run lint` remains strict (`--max-warnings 0`) for local/release verification.
 Development CI publishes valid findings through the independent advisory workflow. `npm run test:surface-browser` drives a real Chromium through

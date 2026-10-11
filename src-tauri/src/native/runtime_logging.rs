@@ -1,6 +1,6 @@
 // Owns bounded runtime logging, panic diagnostics, and their local path policy.
 fn runtime_log_dir() -> PathBuf {
-    std::env::var("HOOK_LOG_DIR")
+    crate::brand_env::var("HOOK_LOG_DIR")
         .ok()
         .map(PathBuf::from)
         .filter(|path| !path.as_os_str().is_empty())
@@ -8,12 +8,12 @@ fn runtime_log_dir() -> PathBuf {
 }
 
 fn default_runtime_log_dir() -> PathBuf {
-    std::env::var("LOCALAPPDATA")
+    crate::brand_env::var("LOCALAPPDATA")
         .ok()
         .map(PathBuf::from)
         .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or_else(std::env::temp_dir)
-        .join("Hook")
+        .join("Otter")
         .join("logs")
 }
 
@@ -67,7 +67,7 @@ fn append_runtime_log_line_sync(line: &str) {
         return;
     }
 
-    let path = dir.join("hook-runtime.log");
+    let path = dir.join("otter-runtime.log");
     if let Ok(mut file) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -81,7 +81,7 @@ fn runtime_log_sender() -> &'static mpsc::SyncSender<String> {
     RUNTIME_LOG_SENDER.get_or_init(|| {
         let (sender, receiver) = mpsc::sync_channel::<String>(RUNTIME_LOG_QUEUE_CAPACITY);
         let _ = std::thread::Builder::new()
-            .name("hook-runtime-log".to_string())
+            .name("otter-runtime-log".to_string())
             .spawn(move || {
                 while let Ok(line) = receiver.recv() {
                     append_runtime_log_line_sync(&line);
@@ -114,7 +114,7 @@ fn record_process_exit_event(source: &str, code: Option<i32>) {
 // Install a process-wide panic hook that records the panic message, location,
 // and thread name to the runtime log BEFORE the runtime aborts. The release
 // profile is `panic = "abort"` with `strip = true` and no symbols, so a panic
-// (on the UI thread or any Loom Hook worker)
+// (on the UI thread or any Loom Otter worker)
 // otherwise vanishes as a bare Windows fast-fail (0xc0000409) with no message.
 // Writing synchronously here — not via the async runtime-log channel — is
 // essential: the channel's background thread may never drain before abort.

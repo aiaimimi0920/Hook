@@ -4,7 +4,7 @@ mod ocr_migration_tests {
 
     fn test_root(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
-            "hook-{name}-{}-{}",
+            "otter-{name}-{}-{}",
             std::process::id(),
             SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos(),
         ))
@@ -197,7 +197,7 @@ mod ocr_migration_tests {
 
     #[test]
     fn ocr_migration_forced_crash_child() {
-        let Some(root) = std::env::var_os(OCR_MIGRATION_CRASH_ROOT_ENV).map(PathBuf::from) else {
+        let Some(root) = crate::brand_env::var_os(OCR_MIGRATION_CRASH_ROOT_ENV).map(PathBuf::from) else {
             return;
         };
         let session_path = root.join("session.json");

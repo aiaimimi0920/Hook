@@ -45,7 +45,7 @@ afterEach(() => {
 });
 
 describe("ExtensionBridgeClient", () => {
-    it("negotiates on the same Hook socket, invokes a command, and clears on disconnect", async () => {
+    it("negotiates on the same Otter socket, invokes a command, and clears on disconnect", async () => {
         const socket = new FakeWebSocket();
         const client = new ExtensionBridgeClient(() => socket as unknown as WebSocket);
         const stop = client.start();
@@ -94,7 +94,7 @@ describe("ExtensionBridgeClient", () => {
                 payload: { text: "ready" },
                 resourceRefs: [],
             }],
-            userGestureToken: "hook-gesture:1234567890",
+            userGestureToken: "otter-gesture:1234567890",
         });
         const invokeRequest = JSON.parse(socket.sent[3]!);
         expect(invokeRequest.params.authorizationId).toBe("extension-auth:00000000-0000-0000-0000-000000000001");

@@ -9,7 +9,7 @@ const propertyBarSource = readFileSync(propertyBarPath, "utf8");
 const iconsExists = existsSync(iconsPath);
 const iconsSource = iconsExists ? readFileSync(iconsPath, "utf8") : "";
 
-describe("Hook sticker top strip property bar icon extraction contract", () => {
+describe("Otter sticker top strip property bar icon extraction contract", () => {
     it("keeps the icon catalog in a dedicated helper module without re-inlining it into the property bar", () => {
         expect(iconsExists).toBe(true);
         expect(iconsSource).toContain("export type MiniIconProps");

@@ -1,4 +1,4 @@
-// Recovery authority is ephemeral: only the capturing Hook process can sign a journal.
+// Recovery authority is ephemeral: only the capturing Otter process can sign a journal.
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use std::sync::OnceLock;
 
@@ -58,7 +58,7 @@ pub(crate) fn read_parent_key(
         .to_string_lossy()
         .eq_ignore_ascii_case(&self_image.to_string_lossy())
     {
-        return Err("Watchdog parent is not the same Hook executable".into());
+        return Err("Watchdog parent is not the same Otter executable".into());
     }
     let input = std::io::stdin();
     let handle = input.as_raw_handle();
@@ -67,7 +67,7 @@ pub(crate) fn read_parent_key(
     if unsafe { GetNamedPipeServerProcessId(handle, &mut creator_pid) } == 0
         || creator_pid != parent_pid
     {
-        return Err("Recovery key pipe does not belong to the Hook parent".into());
+        return Err("Recovery key pipe does not belong to the Otter parent".into());
     }
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     loop {
@@ -109,7 +109,7 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn authenticated_key_pipe_child() {
-        let Ok(pid) = std::env::var("HOOK_TEST_RECOVERY_PARENT") else {
+        let Ok(pid) = crate::brand_env::var("HOOK_TEST_RECOVERY_PARENT") else {
             return;
         };
         use windows::Win32::Foundation::CloseHandle;
@@ -118,9 +118,9 @@ mod tests {
         let parent = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }.unwrap();
         let key = read_parent_key(parent, pid);
         let _ = unsafe { CloseHandle(parent) };
-        if std::env::var_os("HOOK_TEST_RECOVERY_REJECT").is_some() {
+        if crate::brand_env::var_os("HOOK_TEST_RECOVERY_REJECT").is_some() {
             assert!(key.is_err());
-        } else if std::env::var_os("HOOK_TEST_RECOVERY_FRAMES").is_some() {
+        } else if crate::brand_env::var_os("HOOK_TEST_RECOVERY_FRAMES").is_some() {
             let key = key.unwrap();
             let mut feed = crate::watchdog_recovery_feed::Reader::default();
             let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);

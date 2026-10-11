@@ -1,0 +1,525 @@
+param(
+    [int]$TeaPort = 0,
+    [int]$OtterPort = 0,
+    [string]$AuthToken = "otter-tea-ui-smoke-token",
+    [int]$TimeoutSec = 60,
+    [switch]$KeepArtifacts
+)
+
+$ErrorActionPreference = "Stop"
+
+
+# Dot-source lexical owners so cleanup, exit, and script-scope behavior stay unchanged.
+$smokeOwnersDir = Join-Path $PSScriptRoot "smoke-otter-tea-ui-real"
+. (Join-Path $smokeOwnersDir "process-artifact.ps1")
+. (Join-Path $smokeOwnersDir "command-tea.ps1")
+
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Split-Path -Parent $scriptRoot
+$otterRoot = Join-Path $repoRoot "Otter"
+$teaRoot = Join-Path $repoRoot "Tea"
+$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$runId = "$timestamp-$(([guid]::NewGuid()).ToString("N").Substring(0, 8))"
+$artifactRoot = Join-Path $repoRoot ".tmp\tea-smoke\otter-tea-ui-real-$runId"
+$storePath = Join-Path $artifactRoot "tea-smoke.sqlite"
+$teaStdoutPath = Join-Path $artifactRoot "tea-daemon.stdout.log"
+$teaStderrPath = Join-Path $artifactRoot "tea-daemon.stderr.log"
+$otterStdoutPath = Join-Path $artifactRoot "otter-static.stdout.log"
+$otterStderrPath = Join-Path $artifactRoot "otter-static.stderr.log"
+$uiSmokeScript = Join-Path $artifactRoot "ui-smoke.mjs"
+$resultPath = Join-Path $artifactRoot "otter-tea-ui-real-result.json"
+$summaryPath = Join-Path $artifactRoot "summary.json"
+
+New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
+
+$autoTeaPort = ($TeaPort -eq 0)
+if ($TeaPort -eq 0) {
+    $TeaPort = Get-FreeTcpPort
+}
+if ($OtterPort -eq 0) {
+    $OtterPort = Get-FreeTcpPort
+}
+
+$baseUrl = "http://127.0.0.1:$TeaPort"
+$otterUrl = "http://127.0.0.1:$OtterPort/"
+$teaManifest = Join-Path $repoRoot "Tea\Cargo.toml"
+$teaExe = Join-Path $repoRoot "Tea\target\debug\tea-daemon.exe"
+
+$daemon = $null
+$otterServer = $null
+$daemonPid = 0
+$otterServerPid = 0
+$smokeSucceeded = $false
+$teaApiVerified = $false
+
+$summary = [ordered]@{
+    status = "running"
+    run_id = $runId
+    artifact_root = $artifactRoot
+    base_url = $baseUrl
+    otter_url = $otterUrl
+    ticket_id = $null
+    ui_smoke_script = $uiSmokeScript
+    result_path = $resultPath
+    store_path = $storePath
+    tea_stdout_path = $teaStdoutPath
+    tea_stderr_path = $teaStderrPath
+    otter_stdout_path = $otterStdoutPath
+    otter_stderr_path = $otterStderrPath
+    daemon_pid = $null
+    otter_server_pid = $null
+    frontend_ticket_recorded = $false
+    tea_api_verified = $false
+    event_count = $null
+    labels = @()
+    keep_artifacts = [bool]$KeepArtifacts
+    cleanup_phase = "not_started"
+    cleanup_detail = "not_started"
+    cleanup_checked_at = $null
+    cleanup_error = $null
+    daemon_stopped = $false
+    otter_server_stopped = $false
+    port_listener_count_after_stop = $null
+    otter_port_listener_count_after_stop = $null
+    listeners_after_stop = @()
+    otter_listeners_after_stop = @()
+    store_files_before_cleanup = @()
+    store_file_count_before_cleanup = $null
+    store_total_size_before_cleanup_bytes = $null
+    store_files_after_cleanup = @()
+    store_file_count_after_cleanup = $null
+    store_preserved = $null
+    stdout_tail = @()
+    stderr_tail = @()
+    otter_stdout_tail = @()
+    otter_stderr_tail = @()
+    tea_port = $TeaPort
+    tea_bind_attempts = 0
+    started_at = (Get-Date).ToString("o")
+    finished_at = $null
+    error = $null
+}
+
+Write-SmokeSummary -Summary $summary -Path $summaryPath
+
+@'
+import { createRequire } from "node:module";
+import { writeFile } from "node:fs/promises";
+
+const require = createRequire(`${process.cwd()}\\package.json`);
+const { chromium } = require("playwright");
+
+const baseUrl = process.env.HOOK_TEA_UI_BASE_URL;
+const authToken = process.env.HOOK_TEA_UI_AUTH_TOKEN;
+const appUrl = process.env.HOOK_TEA_UI_APP_URL;
+const resultPath = process.env.HOOK_TEA_UI_RESULT_PATH;
+
+if (!baseUrl || !authToken || !appUrl || !resultPath) {
+  throw new Error("HOOK_TEA_UI_BASE_URL, HOOK_TEA_UI_AUTH_TOKEN, HOOK_TEA_UI_APP_URL, and HOOK_TEA_UI_RESULT_PATH are required");
+}
+
+const consoleMessages = [];
+const pageErrors = [];
+const debugEvents = [];
+const invokeCalls = [];
+let createdTicket = null;
+let createTicketRequest = null;
+
+const writeResult = async (result) => {
+  await writeFile(resultPath, JSON.stringify(result, null, 2), "utf8");
+};
+
+const postOtterIntake = async (request) => {
+  const response = await fetch(`${baseUrl}/v1/intake/hook`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${authToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+  const body = await response.text();
+  if (!response.ok) {
+    throw new Error(`Tea intake HTTP ${response.status}: ${body}`);
+  }
+  return JSON.parse(body);
+};
+
+const browser = await chromium.launch({ headless: true });
+const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+
+try {
+  page.on("console", (message) => {
+    consoleMessages.push({ type: message.type(), text: message.text() });
+  });
+  page.on("pageerror", (error) => {
+    pageErrors.push(error instanceof Error ? error.message : String(error));
+  });
+
+  await page.exposeFunction("__otterTeaUiSmokeInvoke", async (command, args = {}) => {
+    invokeCalls.push({ command, args });
+    switch (command) {
+      case "plugin:event|listen":
+        return invokeCalls.length;
+      case "plugin:event|unlisten":
+        return null;
+      case "get_boot_profile":
+        return {
+          startupMode: "visible",
+          initialUiMode: "canvas",
+          autoStartCapture: false,
+          loomOtterEnabled: false,
+          loomOtterWsUrl: "ws://127.0.0.1:19820",
+        };
+      case "get_voice_settings_summary":
+        return {
+          shortcut: "Ctrl+Alt+Space",
+          triggerMode: "toggle",
+          audioBackend: "silent",
+          providerKind: "mock",
+          outputMode: "dry_run",
+          clipboardBackend: "fallback",
+          voiceMode: "dictate",
+        };
+      case "loom_otter_handshake":
+        return {
+          server_name: "otter-tea-ui-smoke",
+          capabilities: { art_definitions: [] },
+          negotiated_transport: "shared_memory",
+          session_id: "otter-tea-ui-smoke",
+        };
+      case "load_session":
+        return { stickers: [], links: [], groups: [] };
+      case "save_session":
+      case "show_canvas_window":
+      case "show_overlay_host":
+      case "set_mouse_monitor_active":
+      case "set_overlay_click_through":
+      case "update_pin_rects":
+      case "loom_otter_dispatch_action":
+      case "append_runtime_log":
+        if (command === "append_runtime_log") {
+          debugEvents.push(args);
+        }
+        return null;
+      case "create_tea_ticket":
+        createTicketRequest = args.request;
+        createdTicket = await postOtterIntake(args.request);
+        return createdTicket;
+      default:
+        throw new Error(`Unexpected Tauri command in Otter Tea UI smoke: ${command}`);
+    }
+  });
+
+  await page.addInitScript(() => {
+    let nextCallbackId = 1;
+    const callbacks = new Map();
+    window.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
+      unregisterListener: () => {},
+    };
+    window.__TAURI_INTERNALS__ = {
+      transformCallback: (callback, once = false) => {
+        const id = nextCallbackId++;
+        callbacks.set(id, { callback, once });
+        return id;
+      },
+      invoke: (command, args) => window.__otterTeaUiSmokeInvoke(command, args || {}),
+      convertFileSrc: (path) => path,
+    };
+  });
+
+  await page.goto(appUrl, { waitUntil: "domcontentloaded" });
+  const button = page.locator('[data-testid="tea-ticket-button"]');
+  const output = page.locator('[data-testid="tea-ticket-output"]');
+  await button.waitFor({ state: "attached", timeout: 20000 });
+  await button.evaluate((element) => element.click());
+  await page.waitForFunction(() => {
+    const text = document.querySelector('[data-testid="tea-ticket-output"]')?.textContent || "";
+    return /[0-9a-f-]{36}/i.test(text);
+  }, { timeout: 20000 });
+
+  const outputText = await output.evaluate((element) => element.textContent || "");
+  const ticketId = outputText.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0] || createdTicket?.id || null;
+  if (!ticketId) {
+    throw new Error(`Could not extract ticket id from output: ${outputText}`);
+  }
+  if (!createdTicket || createdTicket.id !== ticketId) {
+    throw new Error(`UI ticket id did not match create_tea_ticket result: output=${ticketId} created=${createdTicket?.id}`);
+  }
+  if (!createTicketRequest?.text?.includes("Otter desktop ticket request (automation)")) {
+    throw new Error("UI did not submit the expected automation Otter ticket text");
+  }
+
+  await writeResult({
+    status: "passed",
+    ticketId,
+    outputText,
+    frontendTicketRecorded: outputText.includes(ticketId),
+    createTicketRequest,
+    createdTicket,
+    invokeCalls,
+    debugEvents,
+    consoleMessages,
+    pageErrors,
+  });
+} catch (error) {
+  await writeResult({
+    status: "failed",
+    error: error instanceof Error ? error.message : String(error),
+    createdTicket,
+    createTicketRequest,
+    invokeCalls,
+    debugEvents,
+    consoleMessages,
+    pageErrors,
+  });
+  throw error;
+} finally {
+  await browser.close();
+}
+'@ | Set-Content -LiteralPath $uiSmokeScript -Encoding UTF8
+
+$oldEnv = @{
+    TEA_BIND_ADDR = $env:TEA_BIND_ADDR
+    TEA_AUTH_TOKEN = $env:TEA_AUTH_TOKEN
+    TEA_STORE_PATH = $env:TEA_STORE_PATH
+    TEA_LOOM_BASE_URL = $env:TEA_LOOM_BASE_URL
+    TEA_LOOM_AUTH_TOKEN = $env:TEA_LOOM_AUTH_TOKEN
+    HOOK_TEA_UI_BASE_URL = $env:HOOK_TEA_UI_BASE_URL
+    HOOK_TEA_UI_AUTH_TOKEN = $env:HOOK_TEA_UI_AUTH_TOKEN
+    HOOK_TEA_UI_APP_URL = $env:HOOK_TEA_UI_APP_URL
+    HOOK_TEA_UI_RESULT_PATH = $env:HOOK_TEA_UI_RESULT_PATH
+}
+
+try {
+    Invoke-Checked -FilePath "cargo" -WorkingDirectory $repoRoot -Arguments @(
+        "build",
+        "--manifest-path", $teaManifest,
+        "-p", "tea-daemon"
+    )
+
+    if (!(Test-Path -LiteralPath $teaExe)) {
+        throw "tea-daemon executable was not built at $teaExe"
+    }
+
+    Invoke-Checked -FilePath "npm.cmd" -WorkingDirectory $otterRoot -Arguments @("run", "build")
+
+    $env:TEA_BIND_ADDR = "127.0.0.1:$TeaPort"
+    $env:TEA_AUTH_TOKEN = $AuthToken
+    $env:TEA_STORE_PATH = $storePath
+    $env:TEA_LOOM_BASE_URL = ""
+    $env:TEA_LOOM_AUTH_TOKEN = ""
+
+    $daemonStart = Start-TeaDaemonWithPortRetry `
+        -TeaExe $teaExe `
+        -TeaRoot $teaRoot `
+        -InitialPort $TeaPort `
+        -AutoPort $autoTeaPort `
+        -StdoutPath $teaStdoutPath `
+        -StderrPath $teaStderrPath `
+        -TimeoutSec $TimeoutSec `
+        -Summary $summary `
+        -SummaryPath $summaryPath
+    $daemon = $daemonStart.process
+    $daemonPid = $daemon.Id
+    $TeaPort = [int]$daemonStart.port
+    $baseUrl = [string]$daemonStart.base_url
+    $summary["daemon_pid"] = $daemonPid
+    $summary["base_url"] = $baseUrl
+    $summary["tea_port"] = $TeaPort
+    $summary["tea_bind_attempts"] = [int]$daemonStart.attempts
+    Write-SmokeSummary -Summary $summary -Path $summaryPath
+
+    Write-Host ">> starting Otter static preview at $otterUrl"
+    $otterServer = Start-Process -FilePath "node.exe" `
+        -ArgumentList @("scripts\serve-static.mjs", "--host", "127.0.0.1", "--port", "$OtterPort", "--root", ".output/public") `
+        -WorkingDirectory $otterRoot `
+        -RedirectStandardOutput $otterStdoutPath `
+        -RedirectStandardError $otterStderrPath `
+        -WindowStyle Hidden `
+        -PassThru
+    $otterServerPid = $otterServer.Id
+    $summary["otter_server_pid"] = $otterServerPid
+    Write-SmokeSummary -Summary $summary -Path $summaryPath
+
+    Wait-HttpOk -Url $otterUrl -Process $otterServer -Name "Otter static preview" -TimeoutSec $TimeoutSec
+
+    $env:HOOK_TEA_UI_BASE_URL = $baseUrl
+    $env:HOOK_TEA_UI_AUTH_TOKEN = $AuthToken
+    $env:HOOK_TEA_UI_APP_URL = $otterUrl
+    $env:HOOK_TEA_UI_RESULT_PATH = $resultPath
+
+    Invoke-Checked -FilePath "node" -WorkingDirectory $otterRoot -Arguments @($uiSmokeScript)
+
+    if (!(Test-Path -LiteralPath $resultPath)) {
+        throw "Otter Tea UI smoke result was not written at $resultPath"
+    }
+
+    $result = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
+    if ($result.status -ne "passed") {
+        throw "Otter Tea UI smoke result status was $($result.status): $($result.error)"
+    }
+    if ([string]::IsNullOrWhiteSpace($result.ticketId)) {
+        throw "Otter Tea UI smoke result did not contain ticketId"
+    }
+    if ($result.frontendTicketRecorded -ne $true) {
+        throw "Otter Tea UI smoke did not confirm frontend_ticket_recorded"
+    }
+
+    $headers = @{ Authorization = "Bearer $AuthToken" }
+    $ticketId = $result.ticketId
+    $ticket = Invoke-RestMethod -Uri "$baseUrl/v1/tickets/$ticketId" -Headers $headers -Method Get -TimeoutSec 5
+    $events = Invoke-RestMethod -Uri "$baseUrl/v1/tickets/$ticketId/events" -Headers $headers -Method Get -TimeoutSec 5
+    $markdown = Invoke-TeaText -Uri "$baseUrl/v1/tickets/$ticketId/export/markdown" -AuthToken $AuthToken
+
+    if ($ticket.id -ne $ticketId) {
+        throw "Tea ticket id mismatch: expected $ticketId got $($ticket.id)"
+    }
+    if ($ticket.source -ne "hook") {
+        throw "expected source=hook, got $($ticket.source)"
+    }
+    if ($ticket.approval_policy -ne "plan_only") {
+        throw "expected approval_policy=plan_only, got $($ticket.approval_policy)"
+    }
+    if (!$ticket.description.Contains("Otter desktop ticket request (automation)")) {
+        throw "ticket description does not contain Otter automation ticket text"
+    }
+    if (!$ticket.description.Contains("--- Otter context (untrusted) ---")) {
+        throw "ticket description does not contain Otter context marker"
+    }
+    $labels = @($ticket.labels)
+    foreach ($label in @("source:hook", "policy:plan-only", "context:untrusted")) {
+        if ($labels -notcontains $label) {
+            throw "ticket labels do not contain $label"
+        }
+    }
+    if (@($events | Where-Object { $_.kind -eq "ticket_created" }).Count -lt 1) {
+        throw "ticket events do not contain ticket_created"
+    }
+    if (!$markdown.Contains("Otter desktop ticket request (automation)")) {
+        throw "markdown export does not contain Otter automation ticket text"
+    }
+    if (!$markdown.Contains("TicketCreated")) {
+        throw "markdown export does not contain TicketCreated"
+    }
+
+    $teaApiVerified = $true
+    $smokeSucceeded = $true
+    $summary["status"] = "validated_pending_cleanup"
+    $summary["ticket_id"] = $ticketId
+    $summary["frontend_ticket_recorded"] = [bool]$result.frontendTicketRecorded
+    $summary["tea_api_verified"] = $teaApiVerified
+    $summary["event_count"] = @($events).Count
+    $summary["labels"] = $labels
+    Write-SmokeSummary -Summary $summary -Path $summaryPath
+
+    Write-Host "Otter UI -> Tea real smoke validated; cleanup still pending"
+    Write-Host "ticket_id=$ticketId"
+    Write-Host "summary=$summaryPath"
+}
+catch {
+    $summary["status"] = "failed"
+    $summary["error"] = $_.Exception.Message
+    Write-SmokeSummary -Summary $summary -Path $summaryPath
+    throw
+}
+finally {
+    $cleanupFailure = $null
+    $daemonStopped = $false
+    $otterServerStopped = $false
+    $listenersAfterStop = @()
+    $otterListenersAfterStop = @()
+    $storeFilesBeforeCleanup = @()
+    $storeTotalSizeBeforeCleanupBytes = $null
+    $storeFilesAfterCleanup = @()
+
+    try {
+        Set-SmokeCleanupPhase -Summary $summary -Path $summaryPath -Phase "stopping_servers" -Detail "stopping_otter_static"
+        [void](Stop-SmokeProcess -ProcessId $otterServerPid -Name "Otter static preview" -TimeoutMs 5000)
+        if ($otterServer -ne $null) {
+            $otterServer.Dispose()
+            $otterServer = $null
+        }
+
+        Set-SmokeCleanupPhase -Summary $summary -Path $summaryPath -Phase "stopping_servers" -Detail "stopping_tea_daemon"
+        [void](Stop-SmokeProcess -ProcessId $daemonPid -Name "tea-daemon" -TimeoutMs 5000)
+        if ($daemon -ne $null) {
+            $daemon.Dispose()
+            $daemon = $null
+        }
+
+        Set-SmokeCleanupPhase -Summary $summary -Path $summaryPath -Phase "collecting_evidence" -Detail "collecting_store"
+        $storeFilesBeforeCleanup = @(Get-StoreFiles -StorePath $storePath)
+        $storeTotalSizeBeforeCleanupBytes = 0
+        foreach ($storeFile in $storeFilesBeforeCleanup) {
+            $storeTotalSizeBeforeCleanupBytes += $storeFile.length
+        }
+
+        Set-SmokeCleanupPhase -Summary $summary -Path $summaryPath -Phase "collecting_evidence" -Detail "collecting_listeners"
+        $listenersAfterStop = @(Get-PortListeners -Port $TeaPort)
+        $otterListenersAfterStop = @(Get-PortListeners -Port $OtterPort)
+        $daemonStopped = [bool]($daemonPid -le 0 -or $null -eq (Get-Process -Id $daemonPid -ErrorAction SilentlyContinue))
+        $otterServerStopped = [bool]($otterServerPid -le 0 -or $null -eq (Get-Process -Id $otterServerPid -ErrorAction SilentlyContinue))
+
+        if (!$KeepArtifacts) {
+            Set-SmokeCleanupPhase -Summary $summary -Path $summaryPath -Phase "removing_store"
+            Remove-Item -LiteralPath $storePath -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath "$storePath-shm" -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath "$storePath-wal" -Force -ErrorAction SilentlyContinue
+        }
+        $storeFilesAfterCleanup = @(Get-StoreFiles -StorePath $storePath)
+
+        if ($smokeSucceeded -and (!$daemonStopped -or !$otterServerStopped -or $listenersAfterStop.Count -ne 0 -or $otterListenersAfterStop.Count -ne 0)) {
+            $cleanupFailure = "cleanup failed: daemon_stopped=$daemonStopped otter_server_stopped=$otterServerStopped port_listener_count_after_stop=$($listenersAfterStop.Count) otter_port_listener_count_after_stop=$($otterListenersAfterStop.Count)"
+        }
+    }
+    catch {
+        $cleanupFailure = $_.Exception.Message
+    }
+    finally {
+        foreach ($entry in $oldEnv.GetEnumerator()) {
+            if ($null -eq $entry.Value) {
+                Remove-Item -Path "Env:$($entry.Key)" -ErrorAction SilentlyContinue
+            }
+            else {
+                Set-Item -Path "Env:$($entry.Key)" -Value $entry.Value
+            }
+        }
+
+        Set-SmokeCleanupPhase -Summary $summary -Path $summaryPath -Phase "writing_final_summary" -Detail "collecting_log_tails"
+        $summary["cleanup_checked_at"] = (Get-Date).ToString("o")
+        $summary["daemon_stopped"] = $daemonStopped
+        $summary["otter_server_stopped"] = $otterServerStopped
+        $summary["port_listener_count_after_stop"] = $listenersAfterStop.Count
+        $summary["otter_port_listener_count_after_stop"] = $otterListenersAfterStop.Count
+        $summary["listeners_after_stop"] = $listenersAfterStop
+        $summary["otter_listeners_after_stop"] = $otterListenersAfterStop
+        $summary["store_files_before_cleanup"] = $storeFilesBeforeCleanup
+        $summary["store_file_count_before_cleanup"] = $storeFilesBeforeCleanup.Count
+        $summary["store_total_size_before_cleanup_bytes"] = $storeTotalSizeBeforeCleanupBytes
+        $summary["store_files_after_cleanup"] = $storeFilesAfterCleanup
+        $summary["store_file_count_after_cleanup"] = $storeFilesAfterCleanup.Count
+        $summary["store_preserved"] = [bool](Test-Path -LiteralPath $storePath)
+        $summary["stdout_tail"] = @(Get-LogTail -Path $teaStdoutPath)
+        $summary["stderr_tail"] = @(Get-LogTail -Path $teaStderrPath)
+        $summary["otter_stdout_tail"] = @(Get-LogTail -Path $otterStdoutPath)
+        $summary["otter_stderr_tail"] = @(Get-LogTail -Path $otterStderrPath)
+        $summary["finished_at"] = (Get-Date).ToString("o")
+
+        if ($cleanupFailure -ne $null) {
+            $summary["status"] = "failed"
+            $summary["cleanup_error"] = $cleanupFailure
+        }
+        elseif ($smokeSucceeded -and $summary["status"] -ne "failed") {
+            $summary["status"] = "passed"
+        }
+
+        $summary["cleanup_phase"] = "complete"
+        $summary["cleanup_detail"] = "complete"
+        Write-SmokeSummary -Summary $summary -Path $summaryPath
+
+        if ($cleanupFailure -ne $null) {
+            throw $cleanupFailure
+        }
+    }
+}

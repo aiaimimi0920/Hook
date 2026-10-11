@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const clipboardSource = readFileSync(resolve(process.cwd(), "src/hooks/useClipboard.ts"), "utf8");
 const imageResourceApiSource = readFileSync(resolve(process.cwd(), "src/services/apiImageResource.ts"), "utf8");
 const sessionHistoryApiSource = readFileSync(resolve(process.cwd(), "src/services/apiSessionHistory.ts"), "utf8");
-const rustSource = readHookLibRustSources();
+const rustSource = readOtterLibRustSources();
 const cargoToml = readFileSync(resolve(process.cwd(), "src-tauri/Cargo.toml"), "utf8");
 
-describe("Hook Ctrl+S sticker save-as contract", () => {
+describe("Otter Ctrl+S sticker save-as contract", () => {
     it("keeps session autosave separate while routing manual sticker save through a native save-as dialog near the sticker center", () => {
         expect(clipboardSource).toContain("const centerX = unit.x + unit.w / 2");
         expect(clipboardSource).toContain("const centerY = unit.y + unit.h / 2");

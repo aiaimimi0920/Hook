@@ -1,17 +1,17 @@
-# Hook Code Signing Policy
+# Otter Code Signing Policy
 
-This document defines how signed Hook release artifacts are produced, reviewed,
+This document defines how signed Otter release artifacts are produced, reviewed,
 and approved.
 
-It is public and implements the SignPath Foundation requirements for Hook's
+It is public and implements the SignPath Foundation requirements for Otter's
 hosted Windows signing lane.
 
 ## Scope
 
 This policy applies to signed Windows release artifacts published from:
 
-- repository: `https://github.com/aiaimimi0920/Hook`
-- product: **Hook**
+- repository: `https://github.com/aiaimimi0920/Otter`
+- product: **Otter**
 - maintainer label: **yamiyu**
 
 The policy is about release integrity, approval, and signing workflow. It does
@@ -27,7 +27,7 @@ by [SignPath Foundation](https://signpath.org/).
 
 ## Signed vs unsigned artifacts
 
-Hook may publish more than one Windows package on the same release page across
+Otter may publish more than one Windows package on the same release page across
 different release phases:
 
 - **Portable package**
@@ -67,7 +67,7 @@ maintainer-triggered release workflow run that targets that tag.
 
 ### Committers
 
-Committers are maintainers with write access to the Hook repository who can land
+Committers are maintainers with write access to the Otter repository who can land
 changes on the release branch or create the release tag.
 
 The current public assignment is recorded in `GOVERNANCE.md`.
@@ -98,7 +98,7 @@ Approvers must:
 
 ## Approval requirements
 
-Before any signed Hook artifact is approved, the approver must confirm all of
+Before any signed Otter artifact is approved, the approver must confirm all of
 the following:
 
 1. the release version/tag is intentional;
@@ -106,7 +106,7 @@ the following:
 3. the artifact came from the hosted build output for that run;
 4. the release tag is reachable from the protected public `main` branch;
 5. the candidate workflow run ID, Actions artifact digest manifest, reviewed SHA-256, and
-   downloaded `hook.exe` all identify the same bytes;
+   downloaded `otter.exe` all identify the same bytes;
 6. no unsigned replacement has been manually swapped into the installer lane;
 7. the release notes and package labels clearly distinguish **portable** from
    **installer/UIAccess** output;
@@ -153,7 +153,7 @@ The hosted workflow is `.github/workflows/signpath-signing.yml`:
 ## What gets signed
 
 For the Windows UIAccess-compatible lane, the signed payload is the distributed
-`hook.exe` that will be installed by the installer package helper scripts.
+`otter.exe` that will be installed by the installer package helper scripts.
 
 If additional signed artifacts are introduced later, this policy must be
 updated before they are publicly released as trusted outputs.
@@ -161,7 +161,7 @@ updated before they are publicly released as trusted outputs.
 ## Incident response
 
 If a signing credential, signing account, or release approval path is suspected
-to be compromised, Hook maintainers will:
+to be compromised, Otter maintainers will:
 
 1. stop approving new signed releases;
 2. rotate or revoke the affected signing access;
@@ -173,4 +173,4 @@ to be compromised, Hook maintainers will:
 
 Project contact and public issue intake:
 
-- GitHub Issues: `https://github.com/aiaimimi0920/Hook/issues`
+- GitHub Issues: `https://github.com/aiaimimi0920/Otter/issues`

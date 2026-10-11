@@ -1,10 +1,10 @@
 # Third-Party Notices
 
-Hook is licensed under the MIT License. The complete resolved dependency
+Otter is licensed under the MIT License. The complete resolved dependency
 versions used by the public build are recorded in `package-lock.json` and
 `src-tauri/Cargo.lock`.
 
-Hook does not intentionally include proprietary Hook-owned components. The
+Otter does not intentionally include proprietary Otter-owned components. The
 project's direct dependencies and vendored source are distributed under
 open-source licenses. Important bundled-source attribution follows.
 
@@ -17,8 +17,8 @@ open-source licenses. Important bundled-source attribution follows.
 - Local attribution: `src-tauri/crates/CAPTURE_CRATES_SOURCE.md`
 - License text: `src-tauri/crates/LICENSE_CAP_SCAP_MIT`
 
-Only the `scap-*` crate source covered by Cap's MIT grant was imported. Hook
-does not import or relicense the rest of the Cap application under Hook's MIT
+Only the `scap-*` crate source covered by Cap's MIT grant was imported. Otter
+does not import or relicense the rest of the Cap application under Otter's MIT
 license.
 
 ## CrabNebula `drag` crate

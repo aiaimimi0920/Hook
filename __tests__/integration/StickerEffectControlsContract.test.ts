@@ -13,7 +13,7 @@ const pointerCommitSource = readFileSync(
 );
 const effectOverlaySource = readFileSync(resolve(process.cwd(), "src/components/StickerEffectOverlay.tsx"), "utf8");
 
-describe("Hook sticker effect controls contract", () => {
+describe("Otter sticker effect controls contract", () => {
     it("exposes manual blur degree and mosaic unit square width controls that feed effect annotation creation", () => {
         expect(propertyBarRenderSource).toContain('settingKey="mosaicSize"');
         expect(propertyBarRenderSource).toContain('settingKey="blurStrength"');

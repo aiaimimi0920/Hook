@@ -17,7 +17,7 @@ describe("imageSource display normalization", () => {
     });
 
     it("detects Windows file-backed sources and converts them only for display", () => {
-        const windowsPath = String.raw`C:\Users\Public\nas_home\AI\GameEditor\Neuro\Hook\images\demo.png`;
+        const windowsPath = String.raw`C:\Users\Public\nas_home\AI\GameEditor\Neuro\Otter\images\demo.png`;
 
         expect(isLikelyLocalFilePath(windowsPath)).toBe(true);
         expect(

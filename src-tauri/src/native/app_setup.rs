@@ -25,9 +25,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             executable.display().to_string().replace(['\r', '\n'], " ")
         ));
     }
-    // A force-killed prior Hook cannot run its cleanup path. Once this
+    // A force-killed prior Otter cannot run its cleanup path. Once this
     // process owns the single-instance mutex, reload the user's cursor
-    // scheme before Hook can enter capture mode again.
+    // scheme before Otter can enter capture mode again.
     restore_system_cursors_unconditionally();
     match emergency_watchdog::spawn_for_current_process() {
         Ok(watchdog_pid) => append_runtime_log_line(&format!(
@@ -62,20 +62,20 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             append_runtime_log_line(&format!("app_settings_load_failed :: {error}"));
             error
         })?;
-    set_runtime_hook_cache_settings(initial_app_settings.cache.clone());
+    set_runtime_otter_cache_settings(initial_app_settings.cache.clone());
     app.manage(AppSettingsState::new(initial_app_settings));
 
     // Native coordination may start before the frontend handshake, but only
     // when the process has explicitly enabled the authenticated integration.
-    let loom_hook = LoomHook::new();
+    let loom_otter = LoomOtter::new();
     let listener_started =
-        loom_hook::ensure_loom_hook_listener(app.handle(), &loom_hook).map_err(|error| {
-            append_runtime_log_line(&format!("loom_hook_listener_start_failed :: {error}"));
+        loom_otter::ensure_loom_otter_listener(app.handle(), &loom_otter).map_err(|error| {
+            append_runtime_log_line(&format!("loom_otter_listener_start_failed :: {error}"));
             error
         })?;
-    app.manage(loom_hook);
+    app.manage(loom_otter);
     append_runtime_log_line(&format!(
-        "loom_hook_listener_ready :: started={listener_started}"
+        "loom_otter_listener_ready :: started={listener_started}"
     ));
     if let Err(error) = cleanup_clipboard_cache() {
         append_runtime_log_line(&format!("clipboard_cache_cleanup_failed :: {}", error));
@@ -137,7 +137,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
         let mut tray_builder = TrayIconBuilder::with_id("hook")
             .menu(&tray_menu)
-            .tooltip("Hook")
+            .tooltip("Otter")
             .show_menu_on_left_click(true)
             .on_menu_event(|app, event| match event.id().as_ref() {
                 "capture" => {
@@ -200,12 +200,12 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         };
         let boot_profile = boot_profile_from_env();
         append_runtime_log_line(&format!(
-                    "app_setup :: startup_mode={} initial_ui_mode={} auto_start_capture={} loom_hook_enabled={} loom_hook_ws_url={}",
+                    "app_setup :: startup_mode={} initial_ui_mode={} auto_start_capture={} loom_otter_enabled={} loom_otter_ws_url={}",
                     boot_profile.startup_mode,
                     boot_profile.initial_ui_mode,
                     boot_profile.auto_start_capture,
-                    boot_profile.loom_hook_enabled,
-                    boot_profile.loom_hook_ws_url
+                    boot_profile.loom_otter_enabled,
+                    boot_profile.loom_otter_ws_url
                 ));
         install_capture_mouse_hook_thread(window.clone());
         install_overlay_keyboard_hook_thread(window.clone());

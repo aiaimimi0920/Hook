@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 
 describe("runtime logging does not block screenshot interaction", () => {
   it("records the running executable identity and the actual live source without page credentials", () => {
@@ -30,7 +30,7 @@ describe("runtime logging does not block screenshot interaction", () => {
     expect(app).not.toContain("registerBrowserLiveEntries");
   });
   it("queues runtime log lines instead of opening and writing the log file on the caller thread", () => {
-    const source = readHookLibRustSources();
+    const source = readOtterLibRustSources();
     const appendStart = source.indexOf("pub(crate) fn append_runtime_log_line");
     const appendEnd = source.indexOf("fn unix_timestamp_millis", appendStart);
     const appendBlock = source.slice(appendStart, appendEnd);
@@ -38,7 +38,7 @@ describe("runtime logging does not block screenshot interaction", () => {
     expect(source).toContain("RUNTIME_LOG_SENDER");
     expect(source).toContain("mpsc::sync_channel::<String>");
     expect(source).toContain("try_send(");
-    expect(source).toContain("hook-runtime-log");
+    expect(source).toContain("otter-runtime-log");
     expect(appendStart).toBeGreaterThan(-1);
     expect(appendEnd).toBeGreaterThan(appendStart);
     expect(appendBlock).toContain(".try_send(");
@@ -49,21 +49,21 @@ describe("runtime logging does not block screenshot interaction", () => {
   it("uses a local per-user log directory by default instead of the portable release folder that may live on a NAS share", () => {
     const configSource = readFileSync(resolve(process.cwd(), "launch-config.cmd"), "utf8");
 
-    expect(configSource).toContain("if not defined HOOK_LOG_DIR");
-    expect(configSource).toContain("%LOCALAPPDATA%\\Hook\\logs");
+    expect(configSource).toContain("if not defined OTTER_LOG_DIR");
+    expect(configSource).toContain("%LOCALAPPDATA%\\Otter\\logs");
     expect(configSource).not.toContain('set "HOOK_LOG_DIR=%HOOK_PORTABLE_DIR%\\logs"');
   });
 
-  it("falls back to a local per-user log directory even when hook.exe is launched directly", () => {
-    const source = readHookLibRustSources();
+  it("falls back to a local per-user log directory even when otter.exe is launched directly", () => {
+    const source = readOtterLibRustSources();
 
-    expect(source).toContain('std::env::var("LOCALAPPDATA")');
-    expect(source).toContain('.join("Hook")');
+    expect(source).toContain('crate::brand_env::var("LOCALAPPDATA")');
+    expect(source).toContain('.join("Otter")');
     expect(source).toContain('.join("logs")');
   });
 
   it("redacts and bounds runtime messages before disk and panic console output", () => {
-    const source = readHookLibRustSources();
+    const source = readOtterLibRustSources();
 
     expect(source).toContain("sanitize_runtime_log_message(message)");
     expect(source).toContain("sanitize_runtime_log_message(line)");

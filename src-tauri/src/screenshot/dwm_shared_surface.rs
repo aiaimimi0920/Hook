@@ -37,7 +37,7 @@ pub(super) struct ProtectedSurfaceCapture {
 }
 
 // This is an undocumented user32 export. Resolve it dynamically so unsupported
-// Windows builds fail closed and continue through Hook's normal capture path.
+// Windows builds fail closed and continue through Otter's normal capture path.
 type DwmGetDxSharedSurface = unsafe extern "system" fn(
     HWND,
     *mut HANDLE,
@@ -340,7 +340,7 @@ mod tests {
     #[test]
     #[ignore = "requires a visible protected window HWND in HOOK_PROTECTED_WINDOW_HWND"]
     fn captures_live_protected_window_from_dwm_shared_surface() {
-        let capture_window_id = std::env::var("HOOK_PROTECTED_WINDOW_HWND")
+        let capture_window_id = crate::brand_env::var("HOOK_PROTECTED_WINDOW_HWND")
             .expect("HOOK_PROTECTED_WINDOW_HWND must be set for the live probe");
         let hwnd = parse_window_id(&capture_window_id).expect("HWND should be hexadecimal");
         let mut bounds = RECT::default();
@@ -370,7 +370,7 @@ mod tests {
             },
         )
         .unwrap_or_else(|error| panic!("DWM shared-surface capture should succeed: {error:#}"));
-        let path = std::env::temp_dir().join("hook-protected-window-dwm-probe.png");
+        let path = std::env::temp_dir().join("otter-protected-window-dwm-probe.png");
         capture
             .image
             .save(&path)

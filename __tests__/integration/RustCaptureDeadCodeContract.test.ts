@@ -10,7 +10,7 @@ const screenshotSources = [
     "src-tauri/src/screenshot/gdi_fallback.rs",
 ].map((path) => readFileSync(resolve(process.cwd(), path), "utf8")).join("\n");
 
-describe("Hook Rust capture dead-code contract", () => {
+describe("Otter Rust capture dead-code contract", () => {
     it("keeps the backend capture API focused on region capture without unused primary-monitor helpers", () => {
         expect(captureSource).not.toContain("capture_primary_monitor");
         expect(screenshotSources).not.toContain("capture_primary_display");

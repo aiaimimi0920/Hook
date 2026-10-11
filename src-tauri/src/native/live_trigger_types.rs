@@ -1,4 +1,4 @@
-// Typed Hook mirror for Loom-owned live trigger registration and audit state.
+// Typed Otter mirror for Loom-owned live trigger registration and audit state.
 const LIVE_RELAY_TRIGGER_LIMIT: usize = 64;
 const LIVE_RELAY_TRIGGER_AUDIT_LIMIT: usize = 256;
 const LIVE_RELAY_TRIGGER_OPERAND_LIMIT: usize = 4 * 1024;

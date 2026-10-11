@@ -123,7 +123,7 @@ fn capture_area_verbose_logging_enabled() -> bool {
     }
 
     capture_area_verbose_logging_enabled_for(
-        std::env::var("HOOK_CAPTURE_AREA_VERBOSE_LOG")
+        crate::brand_env::var("HOOK_CAPTURE_AREA_VERBOSE_LOG")
             .ok()
             .as_deref(),
     )

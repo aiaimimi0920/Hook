@@ -1,4 +1,4 @@
-/** The normal Hook runtime owns relay workers; closing a Unit panel never disposes them. */
+/** The normal Otter runtime owns relay workers; closing a Unit panel never disposes them. */
 import { createSignal, untrack } from 'solid-js';
 import type { LiveRelayController } from './liveRelayController';
 

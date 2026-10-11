@@ -117,7 +117,7 @@ fn phase_four_live_relay_source_endpoint() {
         capture_session_id: capture_status.session_id.clone(),
         surface_instance_id: Some(ready.surface_instance_id.clone()),
         source_attachment_id: Some(ready.source_attachment_id.clone()),
-        source_hook_id: "hook-node:phase4-source".to_owned(),
+        source_hook_id: "otter-node:phase4-source".to_owned(),
         live_session_id: Some(live_session_id.clone()),
     };
     let body = build_live_session_create_body(
@@ -268,7 +268,7 @@ fn phase_four_live_relay_source_endpoint() {
 #[ignore = "started by Invoke-LiveScreenshotPhaseFourProbe.ps1"]
 fn phase_four_live_relay_viewer_endpoint() {
     let ready = phase_four_daemon_ready();
-    let viewer = std::env::var("HOOK_LIVE_PHASE4_VIEWER").expect("viewer role is required");
+    let viewer = crate::brand_env::var("HOOK_LIVE_PHASE4_VIEWER").expect("viewer role is required");
     let session_ready_path = required_phase_four_path("HOOK_LIVE_PHASE4_SESSION_READY");
     let output = required_phase_four_path("HOOK_LIVE_PHASE4_OUTPUT");
     let coordination = required_phase_four_path("HOOK_LIVE_PHASE4_COORDINATION");

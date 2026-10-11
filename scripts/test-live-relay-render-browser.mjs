@@ -66,7 +66,7 @@ const server = await createServer({
             instance.middlewares.use((request, response, next) => {
                 if (request.url !== "/") return next();
                 response.setHeader("Content-Type", "text/html");
-                response.end('<!doctype html><title>Hook viewer render evidence</title><script type="module" src="/relay-render-harness.tsx"></script>');
+                response.end('<!doctype html><title>Otter viewer render evidence</title><script type="module" src="/relay-render-harness.tsx"></script>');
             });
         },
     }, solid({ hot: false })],
@@ -118,7 +118,7 @@ try {
     await page.waitForTimeout(250); assert.equal(await snapshot(), null);
     const remainingUrls = await page.evaluate(() => window.relayRenderTest.dispose());
     assert.equal(remainingUrls, 0); assert.deepEqual(errors, []);
-    const result = { schemaVersion: 1, passed: true, scope: "mounted-hook-viewer-browser-element-render",
+    const result = { schemaVersion: 1, passed: true, scope: "mounted-otter-viewer-browser-element-render",
         browser: browser.version(), first, second, replacement, remainingUrls,
         hiddenNoProof: true, brokenNoProof: true, lateUnmountNoProof: true,
         nativeCaptureTested: false, crossDeviceTested: false, physicalPresentationTested: false };

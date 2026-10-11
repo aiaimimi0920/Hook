@@ -19,7 +19,7 @@ fn write_history_settings_json_atomically(path: &Path, json: &[u8]) -> Result<()
     let parent = path
         .parent()
         .ok_or_else(|| "History/settings path has no parent directory".to_string())?;
-    let (mut temp_file, temp_path) = create_unique_file(parent, ".hook-json", Some("tmp"))?;
+    let (mut temp_file, temp_path) = create_unique_file(parent, ".otter-json", Some("tmp"))?;
     if let Err(error) = temp_file.write_all(json).and_then(|_| temp_file.sync_all()) {
         drop(temp_file);
         let _ = fs::remove_file(&temp_path);
@@ -28,7 +28,7 @@ fn write_history_settings_json_atomically(path: &Path, json: &[u8]) -> Result<()
     drop(temp_file);
     if let Err(error) = replace_session_file(&temp_path, path) {
         let _ = fs::remove_file(&temp_path);
-        return Err(error.replace("Hook session", "Hook history/settings"));
+        return Err(error.replace("Otter session", "Otter history/settings"));
     }
     Ok(())
 }
@@ -105,7 +105,7 @@ fn load_history(app: tauri::AppHandle) -> Result<HistoryData, String> {
         .map_err(|_| "History/settings file I/O lock is poisoned".to_string())?;
     let content = read_history_settings_json(&history_file)?;
     let mut history: HistoryData = serde_json::from_slice(&content)
-        .map_err(|_| "Hook history file contains malformed JSON".to_string())?;
+        .map_err(|_| "Otter history file contains malformed JSON".to_string())?;
     history.colors.truncate(HISTORY_MAX_COLORS);
     history.screenshots.truncate(HISTORY_MAX_SCREENSHOTS);
     Ok(history)
@@ -146,6 +146,6 @@ fn load_tool_settings(app: tauri::AppHandle) -> Result<ToolSettingsData, String>
         .map_err(|_| "History/settings file I/O lock is poisoned".to_string())?;
     let content = read_history_settings_json(&tool_settings_file)?;
     let payload: ToolSettingsData = serde_json::from_slice(&content)
-        .map_err(|_| "Hook tool settings file contains malformed JSON".to_string())?;
+        .map_err(|_| "Otter tool settings file contains malformed JSON".to_string())?;
     Ok(payload)
 }

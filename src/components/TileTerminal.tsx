@@ -96,7 +96,7 @@ export default function TileTerminal() {
     });
     onCleanup(() => { disposed = true; clearInterval(statsTimer); identification.clear(); unbindInput?.(); window.removeEventListener('blur', blur); document.removeEventListener('keydown', identificationEscape, true); document.removeEventListener('keydown', escape); void input.stop(); void presenter.stop(); });
     return <Show when={outputMode} fallback={<main class="tile-control">
-        <header><h1>Hook 瓷砖终端</h1><button disabled={busy()} onClick={() => void refresh()}>刷新输出与配对</button></header>
+        <header><h1>Otter 瓷砖终端</h1><button disabled={busy()} onClick={() => void refresh()}>刷新输出与配对</button></header>
         <p>每块屏幕独立呈现，由 Loom 管理墙面布局。终端复用 LOOM_MANIFEST_PATH 指定的连接配置；首次配对请在 Loom 设备页批准。</p>
         <p role="status">{status()}</p><Show when={reason()}><p role="alert" class="tile-error">{reason()}</p></Show>
         <label class="tile-media-choice">新输出的 Live 画面
@@ -112,7 +112,7 @@ export default function TileTerminal() {
             <span>{output.width} × {output.height} · ({output.x}, {output.y})</span>
             <button disabled={busy()} onClick={() => void launch(output.outputId)}>在此屏幕启动</button>
         </section>}</For>
-        <p>支持图片、Hook Live 和声明式 Art Surface。Live 点击、拖动、滚轮和键盘经过 Loom 回源；Art 操作复用实例、确认和取消合同。未支持的 Art 运行时会显示原因。输出窗口按 Escape 退出，关闭管理窗口不停止输出。</p>
+        <p>支持图片、Otter Live 和声明式 Art Surface。Live 点击、拖动、滚轮和键盘经过 Loom 回源；Art 操作复用实例、确认和取消合同。未支持的 Art 运行时会显示原因。输出窗口按 Escape 退出，关闭管理窗口不停止输出。</p>
     </main>}>
         <main class="tile-output" data-media-mode={format()} data-media-stats={mediaStats()}>
             <div class="tile-output-content" inert={marker() !== null}>

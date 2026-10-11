@@ -5,18 +5,18 @@ import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
-const hookRoot = process.cwd();
+const otterRoot = process.cwd();
 const readSource = (relativePath: string) =>
-  readFileSync(resolve(hookRoot, relativePath), "utf8");
+  readFileSync(resolve(otterRoot, relativePath), "utf8");
 
 describe("release provenance contract", () => {
   it("validates release versions and protected-branch ancestry before expensive build steps", () => {
-    const releaseWorkflow = readSource(".github/workflows/release-hook-tag.yml");
-    const buildWorkflow = readSource(".github/workflows/build-hook-exe.yml");
+    const releaseWorkflow = readSource(".github/workflows/release-otter-tag.yml");
+    const buildWorkflow = readSource(".github/workflows/build-otter-exe.yml");
     const versionScript = readSource("scripts/assert-release-version.ps1");
 
     expect(versionScript).toContain("git merge-base --is-ancestor");
-    expect(versionScript).toContain("Hook product version must use strict SemVer X.Y.Z");
+    expect(versionScript).toContain("Otter product version must use strict SemVer X.Y.Z");
     expect(releaseWorkflow).toContain("-RequireReachableFromBranch \"origin/main\"");
     expect(releaseWorkflow.indexOf("Verify release provenance and product versions")).toBeLessThan(
       releaseWorkflow.indexOf("Install npm dependencies"),
@@ -34,7 +34,7 @@ describe("release provenance contract", () => {
   });
 
   it("binds SignPath submission to the reviewed Actions artifact and original workflow run", () => {
-    const releaseWorkflow = readSource(".github/workflows/release-hook-tag.yml");
+    const releaseWorkflow = readSource(".github/workflows/release-otter-tag.yml");
     const signingWorkflow = readSource(".github/workflows/signpath-signing.yml");
 
     expect(releaseWorkflow).toContain("Create signing candidate digest manifest");
@@ -45,7 +45,7 @@ describe("release provenance contract", () => {
     expect(signingWorkflow).not.toContain("gh release download");
     expect(signingWorkflow).toContain("Reviewed candidate manifest is missing from the Actions artifact.");
     expect(signingWorkflow).toContain("assert-reviewed-signing-candidate.ps1");
-    expect(releaseWorkflow).toContain("Get-HookFileSha256");
+    expect(releaseWorkflow).toContain("Get-OtterFileSha256");
     expect(releaseWorkflow).not.toContain("Get-FileHash");
     expect(signingWorkflow).not.toContain("Get-FileHash");
     expect(signingWorkflow.indexOf("Verify reviewed candidate digest and provenance")).toBeLessThan(
@@ -54,23 +54,23 @@ describe("release provenance contract", () => {
   });
 
   it("rejects a signing candidate when the reviewed digest does not match", () => {
-    const root = mkdtempSync(join(tmpdir(), "hook-signing-candidate-"));
+    const root = mkdtempSync(join(tmpdir(), "otter-signing-candidate-"));
     try {
-      const exePath = join(root, "hook.exe");
+      const exePath = join(root, "otter.exe");
       const manifestPath = join(root, "manifest.json");
-      const bytes = Buffer.from("reviewed Hook candidate", "utf8");
+      const bytes = Buffer.from("reviewed Otter candidate", "utf8");
       const sha256 = createHash("sha256").update(bytes).digest("hex");
       writeFileSync(exePath, bytes);
       writeFileSync(manifestPath, JSON.stringify({
         schemaVersion: 1,
-        artifact: "hook.exe",
+        artifact: "otter.exe",
         tag: "V0.1.6",
         commit: "0123456789abcdef0123456789abcdef01234567",
         runId: "12345",
         sha256,
       }));
 
-      const script = resolve(hookRoot, "scripts/assert-reviewed-signing-candidate.ps1");
+      const script = resolve(otterRoot, "scripts/assert-reviewed-signing-candidate.ps1");
       const baseArgs = [
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",

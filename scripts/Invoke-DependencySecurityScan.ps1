@@ -57,4 +57,4 @@ $scannerExit = $LASTEXITCODE
 if ($LASTEXITCODE -ne 0) {
     throw "Dependency vulnerability scan failed with exit code $LASTEXITCODE. Evidence: $OutputPath"
 }
-Write-Output "Hook dependency scan completed in $Mode mode. Evidence: $OutputPath"
+Write-Output "Otter dependency scan completed in $Mode mode. Evidence: $OutputPath"

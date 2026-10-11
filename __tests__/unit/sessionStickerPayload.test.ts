@@ -67,7 +67,7 @@ describe("session sticker payload helpers", () => {
         ]);
     });
 
-    it("injects a baked preview for stickers whose visible result depends on Hook-only edit state", async () => {
+    it("injects a baked preview for stickers whose visible result depends on Otter-only edit state", async () => {
         const unit = makeSticker({
             data: {
                 ...makeSticker().data,

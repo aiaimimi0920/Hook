@@ -52,7 +52,7 @@ export const createStickerAnnotationTextController = (
         try {
             await options.restoreTextCursor?.();
         } catch (error) {
-            console.error("[Hook] Failed to restore cursor after text input", error);
+            console.error("[Otter] Failed to restore cursor after text input", error);
         }
     };
     let editing = false;
@@ -112,7 +112,7 @@ export const createStickerAnnotationTextController = (
         try {
             await options.refreshOverlayInteractivity?.();
         } catch (error) {
-            console.error("[Hook] Failed to refresh overlay interactivity after text commit", error);
+            console.error("[Otter] Failed to refresh overlay interactivity after text commit", error);
         } finally {
             // Persistence/rendering may complete after the input is removed.
             // Restore again here without ending a newer edit session.

@@ -173,7 +173,7 @@ mod tests {
     #[test]
     #[ignore = "requires a visible protected window and desktop capture permissions"]
     fn captures_a_partial_protected_region_with_fixed_output_dimensions() {
-        let hwnd = std::env::var("HOOK_PROTECTED_WINDOW_HWND")
+        let hwnd = crate::brand_env::var("HOOK_PROTECTED_WINDOW_HWND")
             .expect("HOOK_PROTECTED_WINDOW_HWND must be set for the live composite probe");
         if super::super::dwm_shared_surface::window_display_affinity(&hwnd)
             .is_none_or(|affinity| affinity == 0)
@@ -184,7 +184,7 @@ mod tests {
             return;
         }
         let parse = |name: &str, default: &str| {
-            std::env::var(name)
+            crate::brand_env::var(name)
                 .unwrap_or_else(|_| default.to_string())
                 .parse::<i32>()
                 .expect("probe coordinates must be integers")
@@ -245,7 +245,7 @@ mod tests {
         assert!(image
             .pixels()
             .any(|pixel| pixel.0.iter().any(|channel| *channel > 8)));
-        let path = std::env::temp_dir().join("hook-protected-region-composite-probe.png");
+        let path = std::env::temp_dir().join("otter-protected-region-composite-probe.png");
         image
             .save(&path)
             .expect("composite probe image should be writable");

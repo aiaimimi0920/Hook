@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 
 describe("capture overlay stability", () => {
   it("uses the final mouse-up coordinate before ending a capture so fast drags are not mistaken for zero-size screenshots", () => {
@@ -63,7 +63,7 @@ describe("capture overlay stability", () => {
     const appSource = fs.readFileSync(appPath, "utf8");
     const uiStoreSource = fs.readFileSync(uiStorePath, "utf8");
     const overlayWindowApiSource = fs.readFileSync(overlayWindowApiPath, "utf8");
-    const libRsSource = readHookLibRustSources();
+    const libRsSource = readOtterLibRustSources();
 
     expect(selectionSource).not.toContain("await api.hideToTray()");
     expect(selectionSource).not.toContain("setIsCaptureSnapshotting(");

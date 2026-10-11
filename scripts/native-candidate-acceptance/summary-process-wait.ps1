@@ -37,9 +37,9 @@ function ConvertTo-IsoTime {
 
 function Get-HookProcessRecords {
     $records = @()
-    $processes = @(Get-CimInstance Win32_Process -Filter "Name = 'hook.exe'" -ErrorAction SilentlyContinue)
+    $processes = @(Get-CimInstance Win32_Process -Filter "Name = 'otter.exe' OR Name = 'hook.exe'" -ErrorAction SilentlyContinue)
     foreach ($process in $processes) {
-        $role = if ([string]$process.CommandLine -match '--hook-emergency-watchdog') { "watchdog" } else { "main" }
+        $role = if ([string]$process.CommandLine -match '--(?:otter|hook)-emergency-watchdog') { "watchdog" } else { "main" }
         $records += [pscustomobject][ordered]@{
             processId = [int]$process.ProcessId
             parentProcessId = [int]$process.ParentProcessId
@@ -98,7 +98,7 @@ function Invoke-JsonPost {
     return Invoke-RestMethod @request
 }
 
-function Wait-HookBridgeSubscriber {
+function Wait-OtterBridgeSubscriber {
     param(
         [Parameter(Mandatory = $true)][string]$BaseUrl,
         [Parameter(Mandatory = $true)][int]$TimeoutSeconds
@@ -117,10 +117,10 @@ function Wait-HookBridgeSubscriber {
         }
         Start-Sleep -Milliseconds 200
     }
-    throw "Timed out waiting for Hook to subscribe to the isolated Loom bridge"
+    throw "Timed out waiting for Otter to subscribe to the isolated Loom bridge"
 }
 
-function Wait-AndApprovePendingHookDevice {
+function Wait-AndApprovePendingOtterDevice {
     param(
         [Parameter(Mandatory = $true)][string]$BaseUrl,
         [Parameter(Mandatory = $true)][int]$TimeoutSeconds
@@ -141,7 +141,7 @@ function Wait-AndApprovePendingHookDevice {
                 throw "isolated Loom reported multiple protected local devices"
             }
             if ($local.Count -eq 1 -and $pending.Count -gt 0) {
-                throw "isolated Loom reported a protected local device and unexpected pending Hook devices"
+                throw "isolated Loom reported a protected local device and unexpected pending Otter devices"
             }
             if ($local.Count -eq 1) {
                 return [ordered]@{
@@ -153,7 +153,7 @@ function Wait-AndApprovePendingHookDevice {
                 }
             }
             if ($pending.Count -gt 1) {
-                throw "isolated Loom reported multiple pending Hook devices"
+                throw "isolated Loom reported multiple pending Otter devices"
             }
             if ($pending.Count -eq 1) {
                 $device = $pending[0]
@@ -163,7 +163,7 @@ function Wait-AndApprovePendingHookDevice {
                     $device.isLocal -eq $true -or
                     [string]::IsNullOrWhiteSpace([string]$device.publicKey)
                 ) {
-                    throw "isolated Loom returned an invalid pending Hook device"
+                    throw "isolated Loom returned an invalid pending Otter device"
                 }
                 $encodedDeviceId = [Uri]::EscapeDataString([string]$device.id)
                 $approvedRegistry = Invoke-JsonPost -Uri "$BaseUrl/v1/devices/$encodedDeviceId/approve" -Body @{}
@@ -173,7 +173,7 @@ function Wait-AndApprovePendingHookDevice {
                     $_.enabled -eq $true
                 })
                 if ($approved.Count -ne 1) {
-                    throw "isolated Loom did not confirm the Hook device approval"
+                    throw "isolated Loom did not confirm the Otter device approval"
                 }
                 return [ordered]@{
                     deviceId = [string]$device.id
@@ -188,11 +188,11 @@ function Wait-AndApprovePendingHookDevice {
             if ($_.Exception.Message -like "isolated Loom*") {
                 throw
             }
-            # Hook may still be creating its device identity and pairing request.
+            # Otter may still be creating its device identity and pairing request.
         }
         Start-Sleep -Milliseconds 200
     }
-    throw "Timed out waiting for Hook to register its pending Surface device"
+    throw "Timed out waiting for Otter to register its pending Surface device"
 }
 
 function Get-PropertyValue {
@@ -280,7 +280,7 @@ function Wait-ForCdp {
     while ((Get-Date) -lt $deadline) {
         $Process.Refresh()
         if ($Process.HasExited) {
-            throw "Hook exited before WebView2 CDP became available; exitCode=$($Process.ExitCode)"
+            throw "Otter exited before WebView2 CDP became available; exitCode=$($Process.ExitCode)"
         }
         try {
             $version = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/json/version" -Method Get -TimeoutSec 2

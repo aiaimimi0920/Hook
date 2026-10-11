@@ -1,4 +1,4 @@
-# Hook Documentation
+# Otter Documentation
 
 This directory contains only documentation that describes the current product,
 release process, or public policy. Current code, configuration, workflows, and
@@ -29,7 +29,7 @@ tests remain the source of truth.
 - [`LIVE_SCREENSHOT_PROTOCOL.md`](LIVE_SCREENSHOT_PROTOCOL.md) - `loom.live.v1`
   source/viewer, ordering, binary-media, and security boundaries.
 - [`ASSET_LIBRARY_INTEGRATION.md`](ASSET_LIBRARY_INTEGRATION.md) - target
-  AssetLibrary catalog, download, Loom-owned installation, and Hook activation
+  AssetLibrary catalog, download, Loom-owned installation, and Otter activation
   boundary.
 
 ## Release and signing
@@ -60,6 +60,6 @@ correct or remove the document; do not change working code merely to match an ol
 plan.
 
 Historical commits may contain sanitized path placeholders such as
-`<hook-repo-root>`, `<legacy-arthook-root>`, and
+`<otter-repo-root>`, `<legacy-artotter-root>`, and
 `<legacy-artnexus-workflows-root>`. They describe old machine-local roots only
 and are not active repository locations.

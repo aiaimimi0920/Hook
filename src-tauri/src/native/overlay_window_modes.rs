@@ -6,7 +6,7 @@ fn show_canvas_window_impl(window: &tauri::WebviewWindow) {
     let _ = window.set_ignore_cursor_events(false);
     set_overlay_transparent_style(window, false);
     OVERLAY_CLICK_THROUGH_ACTIVE.store(false, Ordering::SeqCst);
-    let _ = window.set_title("Hook");
+    let _ = window.set_title("Otter");
     let _ = window.set_skip_taskbar(false);
     let _ = window.set_always_on_top(false);
     let _ = window.set_decorations(true);

@@ -49,35 +49,35 @@ describe("formal release security contract", () => {
     const build = readSource("scripts/build-release.ps1");
     const verify = readSource("scripts/verify-release.ps1");
     const pathSafety = readSource("scripts/release/PathSafety.ps1");
-    const headlessSmoke = readSource("scripts/Invoke-HookHeadlessReleaseSmoke.ps1");
-    const workflow = readSource(".github/workflows/release-hook-tag.yml");
+    const headlessSmoke = readSource("scripts/Invoke-OtterHeadlessReleaseSmoke.ps1");
+    const workflow = readSource(".github/workflows/release-otter-tag.yml");
 
     expect(readSource(".gitignore")).toContain("/release/");
 
     expect(build).toContain("RequireCleanSource");
-    expect(build.indexOf("Formal Hook release requires a clean")).toBeLessThan(
+    expect(build.indexOf("Formal Otter release requires a clean")).toBeLessThan(
       build.indexOf("New-Item -ItemType Directory -Path $destination"),
     );
-    expect(verify).toContain("Read-HookBoundedText");
-    expect(verify).toContain("Get-HookArchiveEntries");
-    expect(verify).toContain("Read-HookArchiveEntryText");
-    expect(verify).toContain("Embedded Hook build provenance does not match packaged hook.exe");
+    expect(verify).toContain("Read-OtterBoundedText");
+    expect(verify).toContain("Get-OtterArchiveEntries");
+    expect(verify).toContain("Read-OtterArchiveEntryText");
+    expect(verify).toContain("Embedded Otter build provenance does not match packaged otter.exe");
     expect(verify).toContain("RunHeadlessSmoke");
     expect(headlessSmoke).toContain("--self-check");
     expect(headlessSmoke).toContain("HOOK_SELF_CHECK_OUTPUT");
-    expect(headlessSmoke).toContain("Headless Hook self-check timed out");
-    expect(verify).toContain("Hook checksum inventory is incomplete");
+    expect(headlessSmoke).toContain("Headless Otter self-check timed out");
+    expect(verify).toContain("Otter checksum inventory is incomplete");
     expect(verify).toContain("CycloneDX SBOM contract failed");
     expect(pathSafety).toContain("IsPathRooted");
     expect(pathSafety).toContain("ReparsePoint");
-    expect(pathSafety).toContain("Assert-HookAbsolutePathNoReparsePoints");
+    expect(pathSafety).toContain("Assert-OtterAbsolutePathNoReparsePoints");
     expect(pathSafety).toContain("MaxUncompressedBytes");
     expect(workflow).toContain("draft: true");
     expect(workflow).toContain("publishVerifiedDraft");
     expect(workflow).toContain("-RunHeadlessSmoke");
     expect(workflow).toContain("Effective-line ratchet failed with exit code");
     expect(workflow).toContain("Dependency security contract failed with exit code");
-    expect(workflow).toContain("hook-formal-release-smoke-");
+    expect(workflow).toContain("otter-formal-release-smoke-");
     expect(workflow).toContain("if: always()");
     expect(workflow).toContain(
       "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
@@ -92,13 +92,13 @@ describe("formal release security contract", () => {
   });
 
   it("requires the exact public asset set and verifies remote digests", async () => {
-    const root = mkdtempSync(join(tmpdir(), "hook-release-contract-"));
+    const root = mkdtempSync(join(tmpdir(), "otter-release-contract-"));
     const tag = "v9.8.7";
     try {
       const releaseRoot = join(root, tag);
       const paths = [
-        join(releaseRoot, "packages", `hook-windows-x64-${tag}.zip`),
-        join(releaseRoot, "packages", `hook-windows-x64-${tag}.zip.sha256`),
+        join(releaseRoot, "packages", `otter-windows-x64-${tag}.zip`),
+        join(releaseRoot, "packages", `otter-windows-x64-${tag}.zip.sha256`),
       ];
       paths.forEach((path, index) => writeFixture(path, `fixture-${index}`));
 

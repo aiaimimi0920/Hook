@@ -23,7 +23,7 @@
   --neuro-overlay: rgba(4, 6, 10, 0.78);
   --neuro-shadow: rgba(0, 0, 0, 0.38);
 
-  /* Hook component tokens mapped onto the canonical Neuro palette. */
+  /* Otter component tokens mapped onto the canonical Neuro palette. */
   --theme-signal: var(--neuro-signal-yellow);
   --theme-signal-text: var(--neuro-signal-text);
   --theme-success: var(--neuro-signal-green);
@@ -88,7 +88,7 @@
   --radius-xl: 0px;
 }
 
-:root[data-hook-theme="light"] {
+:root[data-otter-theme="light"] {
   --neuro-bg: #edf1e4;
   --neuro-surface: #f8faf3;
   --neuro-panel: #ffffff;
@@ -108,7 +108,7 @@
 }
 
 @media (prefers-color-scheme: light) {
-  :root[data-hook-theme="system"] {
+  :root[data-otter-theme="system"] {
     --neuro-bg: #edf1e4;
     --neuro-surface: #f8faf3;
     --neuro-panel: #ffffff;

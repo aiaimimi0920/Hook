@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-describe("Hook art-node upstream propagation contract", () => {
+describe("Otter art-node upstream propagation contract", () => {
   it("treats upstream image propagation as a final upstream execution trigger", () => {
     const source = readFileSync(resolve(process.cwd(), "src", "hooks", "useUnitActions.ts"), "utf8");
 

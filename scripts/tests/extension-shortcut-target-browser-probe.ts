@@ -7,7 +7,7 @@ import { resolve, join, relative, isAbsolute } from "node:path";
 const repo = resolve(process.cwd());
 const output = resolve(process.argv[2]);
 const within = relative(join(repo, "artifacts"), output);
-assert(within && !within.startsWith("..") && !isAbsolute(within), "Evidence must stay in Hook artifacts");
+assert(within && !within.startsWith("..") && !isAbsolute(within), "Evidence must stay in Otter artifacts");
 await mkdir(output);
 // Keep the real registry/parser/when engine; replace only command side effects and selected-unit context.
 const bundle = await build({
@@ -51,7 +51,7 @@ const errors: string[] = [];
 try {
     const page = await browser.newPage();
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.setContent("<input id='editor'><div data-hook-global-shortcuts='ignore'><span id='ignored'>live</span><svg id='ignored-svg'></svg></div>");
+    await page.setContent("<input id='editor'><div data-otter-global-shortcuts='ignore'><span id='ignored'>live</span><svg id='ignored-svg'></svg></div>");
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
     const observed = await page.evaluate(() => {
         const probe = (window as unknown as { __shortcutProbe: {

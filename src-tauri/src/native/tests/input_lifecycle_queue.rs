@@ -418,7 +418,7 @@
     }
 
     #[test]
-    fn foreign_alt_wheel_routes_only_when_the_pointer_is_over_hook() {
+    fn foreign_alt_wheel_routes_only_when_the_pointer_is_over_otter() {
         assert!(!should_passthrough_foreign_alt_mouse_input(
             true, false, false, false, false, true, true,
         ));

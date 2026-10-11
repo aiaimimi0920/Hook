@@ -23,7 +23,7 @@ describe("Art parameter security", () => {
         )).toEqual({ query: "red panda" });
     });
 
-    it("removes Hook execution controls while preserving Art-owned selection params", () => {
+    it("removes Otter execution controls while preserving Art-owned selection params", () => {
         expect(stripNonPersistableArtParams(
             { type: "art", artId: capability.id },
             [capability],

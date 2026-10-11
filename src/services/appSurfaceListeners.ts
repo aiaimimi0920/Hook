@@ -6,7 +6,7 @@ import { surfaceResourceStore } from "../store/surfaceResourceStore";
 import { api } from "./api";
 import { artExecutionRequests } from "./artExecutionRequests";
 import type { ArtDelivery } from "./protocol";
-import { loomHook } from "./client";
+import { loomOtter } from "./client";
 import { normalizeImageSourceForDisplay } from "./imageSource";
 import { surfaceAttachmentRequests } from "./surfaceAttachmentRequests";
 import {
@@ -65,7 +65,7 @@ export async function transitionAppSurfaceLifecycle(
     };
     if (!surfaceStore.actions.applyLifecycle(unitId, event)) return;
     try {
-        await loomHook.dispatchSurfaceLifecycle(event);
+        await loomOtter.dispatchSurfaceLifecycle(event);
     } catch (error) {
         console.warn(`Failed to move Surface ${unitId} to ${state}:`, error);
     }
@@ -90,7 +90,7 @@ export async function registerAppSurfaceListeners({
         document.removeEventListener("visibilitychange", onSurfaceVisibilityChange);
     });
 
-    await registry.register(() => loomHook.listenForProgress((artId, progress, requestId) => {
+    await registry.register(() => loomOtter.listenForProgress((artId, progress, requestId) => {
         if (requestId && !artExecutionRequests.isLatest(artId, requestId)) return;
         graphStore.actions.updateUnitData(artId, {
             processing: true,
@@ -99,7 +99,7 @@ export async function registerAppSurfaceListeners({
         });
     }));
 
-    await registry.register(() => loomHook.listenForDelivery((delivery) => {
+    await registry.register(() => loomOtter.listenForDelivery((delivery) => {
         handleArtDelivery(delivery).catch((error) => {
             console.error("Failed to process art delivery", error);
             if (!artExecutionRequests.isLatest(delivery.art_id, delivery.request_id)) return;
@@ -120,7 +120,7 @@ export async function registerAppSurfaceListeners({
     }));
 
     const surfaceRemountsInFlight = new Set<string>();
-    await registry.register(() => loomHook.listenForSurfaceReset(() => {
+    await registry.register(() => loomOtter.listenForSurfaceReset(() => {
         surfaceRemountsInFlight.clear();
         setSurfaceConfirmations([]);
         surfaceStore.actions.clearAll();
@@ -128,7 +128,7 @@ export async function registerAppSurfaceListeners({
         surfaceAttachmentRequests.clearAll();
     }));
 
-    await registry.register(() => loomHook.listenForSurfaceSnapshot((delivery) => {
+    await registry.register(() => loomOtter.listenForSurfaceSnapshot((delivery) => {
         const unit = graphStore.units.find((candidate) => candidate.id === delivery.hookNodeId);
         if (!unit || unit.type !== "art") {
             console.warn("Ignoring Surface snapshot for unknown non-Art node", delivery.hookNodeId);
@@ -154,7 +154,7 @@ export async function registerAppSurfaceListeners({
         }
     }));
 
-    await registry.register(() => loomHook.listenForSurfacePatch((delivery) => {
+    await registry.register(() => loomOtter.listenForSurfacePatch((delivery) => {
         const current = surfaceStore.byUnit[delivery.hookNodeId];
         if (!current || current.snapshot.instanceId !== delivery.patch.instanceId) return;
         if (delivery.patch.revision <= current.snapshot.revision) return;
@@ -166,7 +166,7 @@ export async function registerAppSurfaceListeners({
                 const recoveryKey = `${delivery.patch.instanceId}:${current.snapshot.attachmentId}`;
                 if (!surfaceRemountsInFlight.has(recoveryKey)) {
                     surfaceRemountsInFlight.add(recoveryKey);
-                    void loomHook.remountSurface(
+                    void loomOtter.remountSurface(
                         delivery.patch.instanceId,
                         current.snapshot.attachmentId,
                         delivery.hookNodeId,
@@ -190,7 +190,7 @@ export async function registerAppSurfaceListeners({
         }
     }));
 
-    await registry.register(() => loomHook.listenForSurfaceGeneration((delivery) => {
+    await registry.register(() => loomOtter.listenForSurfaceGeneration((delivery) => {
         const current = surfaceStore.byUnit[delivery.hookNodeId];
         if (
             current?.snapshot.instanceId === delivery.instanceId
@@ -205,7 +205,7 @@ export async function registerAppSurfaceListeners({
             ([, state]) => state?.snapshot.instanceId === instanceId,
         )?.[0];
 
-    await registry.register(() => loomHook.listenForSurfaceActionAck((ack) => {
+    await registry.register(() => loomOtter.listenForSurfaceActionAck((ack) => {
         if (ack.status !== "awaiting_confirmation") {
             setSurfaceConfirmations((requests) => requests.filter(
                 (request) => request.requestId !== ack.requestId,
@@ -247,10 +247,10 @@ export async function registerAppSurfaceListeners({
         }
     }));
 
-    await registry.register(() => loomHook.listenForSurfaceConfirmation((request) => {
+    await registry.register(() => loomOtter.listenForSurfaceConfirmation((request) => {
         if (request.protocolVersion !== SURFACE_PROTOCOL_VERSION) return;
         if (request.expiresAtMs <= Date.now()) {
-            void loomHook.decideSurfaceConfirmation({
+            void loomOtter.decideSurfaceConfirmation({
                 protocolVersion: SURFACE_PROTOCOL_VERSION,
                 confirmationId: request.confirmationId,
                 instanceId: request.instanceId,
@@ -265,7 +265,7 @@ export async function registerAppSurfaceListeners({
         ) ? current : [...current, request]);
     }));
 
-    await registry.register(() => loomHook.listenForSurfaceProgress((progress) => {
+    await registry.register(() => loomOtter.listenForSurfaceProgress((progress) => {
         const unitId = surfaceUnitIdForInstance(progress.instanceId);
         const current = unitId ? surfaceStore.byUnit[unitId] : undefined;
         if (!unitId || !current || current.generation !== progress.generation) return;
@@ -278,7 +278,7 @@ export async function registerAppSurfaceListeners({
         }
     }));
 
-    await registry.register(() => loomHook.listenForSurfacePreview((delivery) => {
+    await registry.register(() => loomOtter.listenForSurfacePreview((delivery) => {
         if (!surfaceStore.actions.acceptPreviewCommit(delivery.hookNodeId, delivery.commit)) return;
         const previewSrc = surfacePreviewSource(delivery.commit.value);
         if (!previewSrc) return;
@@ -290,7 +290,7 @@ export async function registerAppSurfaceListeners({
         });
     }));
 
-    await registry.register(() => loomHook.listenForSurfaceResult((delivery) => {
+    await registry.register(() => loomOtter.listenForSurfaceResult((delivery) => {
         if (!surfaceStore.actions.acceptResultCommit(delivery.hookNodeId, delivery.commit)) return;
         const unit = graphStore.units.find((candidate) => candidate.id === delivery.hookNodeId);
         if (!unit || unit.type !== "art") return;
@@ -311,7 +311,7 @@ export async function registerAppSurfaceListeners({
         void syncService.performWorkflowSync();
     }));
 
-    await registry.register(() => loomHook.listenForSurfaceFailure((delivery) => {
+    await registry.register(() => loomOtter.listenForSurfaceFailure((delivery) => {
         const unitId = delivery.hookNodeId ?? surfaceUnitIdForInstance(delivery.failure.instanceId);
         const current = unitId ? surfaceStore.byUnit[unitId] : undefined;
         if (!unitId || !current || current.generation !== delivery.failure.generation) return;
@@ -322,7 +322,7 @@ export async function registerAppSurfaceListeners({
         });
     }));
 
-    await registry.register(() => loomHook.listenForSurfaceLifecycle((delivery) => {
+    await registry.register(() => loomOtter.listenForSurfaceLifecycle((delivery) => {
         const applied = surfaceStore.actions.applyLifecycle(delivery.hookNodeId, delivery.event);
         if (applied && delivery.event.state === "disposed") {
             setSurfaceConfirmations((requests) => requests.filter((request) =>
@@ -333,7 +333,7 @@ export async function registerAppSurfaceListeners({
         }
     }));
 
-    await registry.register(() => loomHook.listenForSurfaceDispose((delivery) => {
+    await registry.register(() => loomOtter.listenForSurfaceDispose((delivery) => {
         const current = surfaceStore.byUnit[delivery.hookNodeId];
         if (
             current?.snapshot.instanceId === delivery.instanceId
@@ -346,7 +346,7 @@ export async function registerAppSurfaceListeners({
         }
     }));
 
-    await registry.register(() => loomHook.listenForSurfaceResource((delivery) => {
+    await registry.register(() => loomOtter.listenForSurfaceResource((delivery) => {
         if (!surfaceResourceStore.actions.complete(
             delivery.resourceId,
             delivery.dataUrl,

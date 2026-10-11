@@ -1,13 +1,13 @@
 # Win32 window discovery, input, and bounded bitmap capture helpers.
 
 Add-Type -AssemblyName System.Drawing
-if (-not ("HookWin32" -as [type])) {
+if (-not ("OtterWin32" -as [type])) {
     Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
-public static class HookWin32 {
+public static class OtterWin32 {
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
     [StructLayout(LayoutKind.Sequential)]
@@ -46,22 +46,22 @@ $MAX_CAPTURE_PIXELS = 100000000
 function Get-WindowTitle {
     param([IntPtr]$Handle)
     $builder = New-Object System.Text.StringBuilder 512
-    [void][HookWin32]::GetWindowText($Handle, $builder, $builder.Capacity)
+    [void][OtterWin32]::GetWindowText($Handle, $builder, $builder.Capacity)
     return $builder.ToString()
 }
 
 function Get-WindowBounds {
     param([IntPtr]$Handle)
-    $bounds = New-Object "HookWin32+RECT"
-    $dwmResult = [HookWin32]::DwmGetWindowAttribute(
+    $bounds = New-Object "OtterWin32+RECT"
+    $dwmResult = [OtterWin32]::DwmGetWindowAttribute(
         $Handle,
         $DWMWA_EXTENDED_FRAME_BOUNDS,
         [ref]$bounds,
-        [System.Runtime.InteropServices.Marshal]::SizeOf([type]"HookWin32+RECT")
+        [System.Runtime.InteropServices.Marshal]::SizeOf([type]"OtterWin32+RECT")
     )
     if ($dwmResult -ne 0 -or (($bounds.Right - $bounds.Left) -le 0) -or (($bounds.Bottom - $bounds.Top) -le 0)) {
-        if (-not [HookWin32]::GetWindowRect($Handle, [ref]$bounds)) {
-            throw "Failed to read bounds for Hook window $Handle"
+        if (-not [OtterWin32]::GetWindowRect($Handle, [ref]$bounds)) {
+            throw "Failed to read bounds for Otter window $Handle"
         }
     }
     return [pscustomobject]@{
@@ -72,14 +72,14 @@ function Get-WindowBounds {
     }
 }
 
-function Get-HookWindowsForProcess {
+function Get-OtterWindowsForProcess {
     param([uint32]$TargetProcessId)
     $windows = New-Object System.Collections.Generic.List[object]
-    $enumProc = [HookWin32+EnumWindowsProc]{
+    $enumProc = [OtterWin32+EnumWindowsProc]{
         param([IntPtr]$Handle, [IntPtr]$LParam)
         $ownerProcessId = [uint32]0
-        [void][HookWin32]::GetWindowThreadProcessId($Handle, [ref]$ownerProcessId)
-        if ($ownerProcessId -ne $TargetProcessId -or -not [HookWin32]::IsWindowVisible($Handle)) {
+        [void][OtterWin32]::GetWindowThreadProcessId($Handle, [ref]$ownerProcessId)
+        if ($ownerProcessId -ne $TargetProcessId -or -not [OtterWin32]::IsWindowVisible($Handle)) {
             return $true
         }
         $bounds = Get-WindowBounds -Handle $Handle
@@ -97,11 +97,11 @@ function Get-HookWindowsForProcess {
             })
         return $true
     }
-    [void][HookWin32]::EnumWindows($enumProc, [IntPtr]::Zero)
+    [void][OtterWin32]::EnumWindows($enumProc, [IntPtr]::Zero)
     return $windows | Sort-Object Area -Descending
 }
 
-function Wait-HookWindow {
+function Wait-OtterWindow {
     param(
         [System.Diagnostics.Process]$Process,
         [int]$TimeoutSeconds = 30
@@ -110,26 +110,26 @@ function Wait-HookWindow {
     while ($stopwatch.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
         $Process.Refresh()
         if ($Process.HasExited) {
-            throw "Hook process exited with code $($Process.ExitCode) before creating a visible window"
+            throw "Otter process exited with code $($Process.ExitCode) before creating a visible window"
         }
-        $window = Get-HookWindowsForProcess -TargetProcessId $Process.Id | Select-Object -First 1
+        $window = Get-OtterWindowsForProcess -TargetProcessId $Process.Id | Select-Object -First 1
         if ($window) {
             return $window
         }
         Start-Sleep -Milliseconds 250
     }
-    throw "Timed out waiting for a visible Hook window from process $($Process.Id)"
+    throw "Timed out waiting for a visible Otter window from process $($Process.Id)"
 }
 
-function Focus-HookWindow {
+function Focus-OtterWindow {
     param([IntPtr]$Handle)
-    [void][HookWin32]::ShowWindow($Handle, $SW_RESTORE)
+    [void][OtterWin32]::ShowWindow($Handle, $SW_RESTORE)
     Start-Sleep -Milliseconds 120
-    [void][HookWin32]::SetForegroundWindow($Handle)
+    [void][OtterWin32]::SetForegroundWindow($Handle)
     Start-Sleep -Milliseconds 200
 }
 
-function Move-HookWindow {
+function Move-OtterWindow {
     param(
         [IntPtr]$Handle,
         [int]$Left,
@@ -137,15 +137,15 @@ function Move-HookWindow {
         [int]$Width,
         [int]$Height
     )
-    if (-not [HookWin32]::MoveWindow($Handle, $Left, $Top, $Width, $Height, $true)) {
-        throw "Failed to move Hook window $Handle"
+    if (-not [OtterWin32]::MoveWindow($Handle, $Left, $Top, $Width, $Height, $true)) {
+        throw "Failed to move Otter window $Handle"
     }
     Start-Sleep -Milliseconds 350
 }
 
 function Get-WindowScale {
     param([IntPtr]$Handle)
-    $dpi = [HookWin32]::GetDpiForWindow($Handle)
+    $dpi = [OtterWin32]::GetDpiForWindow($Handle)
     if ($dpi -gt 0) {
         return [double]$dpi / 96.0
     }
@@ -159,11 +159,11 @@ function Convert-ClientCssPointToScreen {
         [double]$CssY,
         [double]$Scale
     )
-    $point = New-Object "HookWin32+POINT"
+    $point = New-Object "OtterWin32+POINT"
     $point.X = [int][Math]::Round($CssX * $Scale)
     $point.Y = [int][Math]::Round($CssY * $Scale)
-    if (-not [HookWin32]::ClientToScreen($Handle, [ref]$point)) {
-        throw "Failed to translate Hook client coordinates"
+    if (-not [OtterWin32]::ClientToScreen($Handle, [ref]$point)) {
+        throw "Failed to translate Otter client coordinates"
     }
     return [pscustomobject]@{ X = $point.X; Y = $point.Y }
 }
@@ -175,19 +175,19 @@ function Invoke-MouseClick {
         [ValidateSet("Left", "Right")]
         [string]$Button
     )
-    if (-not [HookWin32]::SetCursorPos($X, $Y)) {
+    if (-not [OtterWin32]::SetCursorPos($X, $Y)) {
         throw "Failed to position the mouse cursor"
     }
     Start-Sleep -Milliseconds 100
     if ($Button -eq "Left") {
-        [HookWin32]::mouse_event($MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
+        [OtterWin32]::mouse_event($MOUSEEVENTF_LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
         Start-Sleep -Milliseconds 60
-        [HookWin32]::mouse_event($MOUSEEVENTF_LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
+        [OtterWin32]::mouse_event($MOUSEEVENTF_LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
     }
     else {
-        [HookWin32]::mouse_event($MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, [UIntPtr]::Zero)
+        [OtterWin32]::mouse_event($MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, [UIntPtr]::Zero)
         Start-Sleep -Milliseconds 60
-        [HookWin32]::mouse_event($MOUSEEVENTF_RIGHTUP, 0, 0, 0, [UIntPtr]::Zero)
+        [OtterWin32]::mouse_event($MOUSEEVENTF_RIGHTUP, 0, 0, 0, [UIntPtr]::Zero)
     }
 }
 
@@ -209,7 +209,7 @@ function Save-WindowCapture {
     try {
         $hdc = $graphics.GetHdc()
         try {
-            $windowPrinted = [HookWin32]::PrintWindow($Handle, $hdc, $PW_RENDERFULLCONTENT)
+            $windowPrinted = [OtterWin32]::PrintWindow($Handle, $hdc, $PW_RENDERFULLCONTENT)
         }
         finally {
             $graphics.ReleaseHdc($hdc)

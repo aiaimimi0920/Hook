@@ -43,7 +43,7 @@ const geometryEditSource = readFileSync(resolve(process.cwd(), "src/services/sti
 const geometryTransformsSource = readFileSync(resolve(process.cwd(), "src/services/stickerAnnotationTransforms.ts"), "utf8");
 const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitView.tsx"), "utf8");
 
-describe("Hook sticker transform modes contract", () => {
+describe("Otter sticker transform modes contract", () => {
     it("splits editing domains, transform modes, and sticker-processing tools in sticker editing state", () => {
         expect(typeSource).toContain('export type StickerEditingDomain =');
         expect(typeSource).toContain('| "existing"');

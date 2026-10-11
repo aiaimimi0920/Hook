@@ -176,7 +176,7 @@ export const createPropertyDropdownController = (options: CreatePropertyDropdown
                         }}
                         data-top-strip-menu="true"
                         data-top-strip-property-popup="true"
-                        class="hook-toolbar-menu pointer-events-auto fixed z-[1305] overflow-hidden"
+                        class="otter-toolbar-menu pointer-events-auto fixed z-[1305] overflow-hidden"
                         style={{
                             left: `${menu().anchor.x}px`,
                             top: `${menu().anchor.y + menu().anchor.height + 4}px`,
@@ -199,9 +199,9 @@ export const createPropertyDropdownController = (options: CreatePropertyDropdown
                                 {(option) => (
                                     <button
                                         type="button"
-                                        class="hook-toolbar-menu-item flex h-7 w-full items-center px-2 text-left text-[11px] transition-colors"
+                                        class="otter-toolbar-menu-item flex h-7 w-full items-center px-2 text-left text-[11px] transition-colors"
                                         classList={{
-                                            "hook-toolbar-menu-item--active": menu().value === option.value,
+                                            "otter-toolbar-menu-item--active": menu().value === option.value,
                                         }}
                                         title={option.title ?? option.label}
                                         onClick={() => menu().onSelect(option.value)}

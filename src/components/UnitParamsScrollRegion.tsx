@@ -264,11 +264,11 @@ export const UnitParamsScrollRegion: Component<UnitParamsScrollRegionProps> = (p
                             {(group) => (
                                 <div class="param-group flex flex-col gap-3" data-param-group={group.id}>
                                     <div
-                                        class="hook-param-group-header flex items-center justify-between gap-2 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                                        class="otter-param-group-header flex items-center justify-between gap-2 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
                                         data-param-group-header={group.id}
                                     >
                                         <span class="truncate">{group.label}</span>
-                                        <span class="hook-param-group-count">{group.params.length}</span>
+                                        <span class="otter-param-group-count">{group.params.length}</span>
                                     </div>
                                     <For each={group.params}>{(param) => props.renderParamControl(param)}</For>
                                 </div>

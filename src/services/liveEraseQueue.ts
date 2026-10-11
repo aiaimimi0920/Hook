@@ -155,7 +155,7 @@ export class LiveEraseQueue {
             }
         } catch (error) {
             this.metrics.errors += 1;
-            console.error("[Hook] Live erase queue failed", error);
+            console.error("[Otter] Live erase queue failed", error);
         } finally {
             this.activeRunners -= 1;
             // Only clear the runner flag if we are still the current generation;

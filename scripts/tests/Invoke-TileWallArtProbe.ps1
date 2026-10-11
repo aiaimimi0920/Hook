@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$HookExe,
+    [Parameter(Mandatory = $true)][string]$OtterExe,
     [Parameter(Mandatory = $true)][string]$LoomPackageDir,
     [Parameter(Mandatory = $true)][string]$PrototypeDir,
     [Parameter(Mandatory = $true)][string]$EvidenceRoot,
@@ -12,14 +12,14 @@ $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $root = [IO.Path]::GetFullPath($EvidenceRoot)
 $artifacts = [IO.Path]::GetFullPath((Join-Path $repo 'artifacts')).TrimEnd('\') + '\'
-if (-not $root.StartsWith($artifacts, [StringComparison]::OrdinalIgnoreCase)) { throw 'Evidence must stay below Hook/artifacts' }
+if (-not $root.StartsWith($artifacts, [StringComparison]::OrdinalIgnoreCase)) { throw 'Evidence must stay below Otter/artifacts' }
 if (Test-Path -LiteralPath $root) { throw 'Evidence directory already exists' }
-$HookExe = (Resolve-Path -LiteralPath $HookExe).Path
+$OtterExe = (Resolve-Path -LiteralPath $OtterExe).Path
 $PrototypeDir = (Resolve-Path -LiteralPath $PrototypeDir).Path
 $daemonExe = (Resolve-Path -LiteralPath (Join-Path $LoomPackageDir 'runtime/loom-daemon.exe')).Path
-$provenance = Get-Content -LiteralPath (Join-Path (Split-Path $HookExe) 'build-provenance.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-$hookHash = (Get-FileHash -LiteralPath $HookExe -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($hookHash -cne $provenance.artifact.sha256.ToLowerInvariant()) { throw 'Hook candidate digest mismatch' }
+$provenance = Get-Content -LiteralPath (Join-Path (Split-Path $OtterExe) 'build-provenance.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$otterHash = (Get-FileHash -LiteralPath $OtterExe -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($otterHash -cne $provenance.artifact.sha256.ToLowerInvariant()) { throw 'Otter candidate digest mismatch' }
 $owned = New-Object 'System.Collections.Generic.List[System.Diagnostics.Process]'
 $processPaths = New-Object 'System.Collections.Generic.List[object]'
 $samples = New-Object 'System.Collections.Generic.List[object]'
@@ -36,7 +36,7 @@ function Free-Port {
 }
 function Start-Owned([string]$Exe, [string[]]$Arguments, [hashtable]$Values, [string]$Name) {
     $saved = @{}
-    $keys = @(Get-ChildItem Env: | Where-Object Name -Match '^(LOOM_|HOOK_|WEBVIEW2_)' | ForEach-Object Name) + @($Values.Keys)
+    $keys = @(Get-ChildItem Env: | Where-Object Name -Match '^(LOOM_|OTTER_|WEBVIEW2_)' | ForEach-Object Name) + @($Values.Keys)
     try {
         foreach ($key in ($keys | Select-Object -Unique)) {
             $saved[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
@@ -87,13 +87,13 @@ function Owned-Sample {
         if ($row) { $row }
     })
 }
-foreach ($name in @('control-plane', 'configuration', 'manifest', 'appdata', 'localappdata', 'hook-data', 'webview', 'output-webview', 'loom-webview')) {
+foreach ($name in @('control-plane', 'configuration', 'manifest', 'appdata', 'localappdata', 'otter-data', 'webview', 'output-webview', 'loom-webview')) {
     $null = New-Item -ItemType Directory -Path (Join-Path $root $name) -Force
 }
 $ports = @()
 while ($ports.Count -lt 5) { $port = Free-Port; if ($ports -notcontains $port) { $ports += $port } }
 $record = @{ daemonBaseUrl = "http://127.0.0.1:$($ports[0])"; cdpPort = $ports[1]; outputCdpPort = $ports[2]
-    daemonExe = $daemonExe; hookExe = $HookExe }
+    daemonExe = $daemonExe; otterExe = $OtterExe }
 $success = $false
 $probe = if ($Scenario -eq 'presentation') { 'probePresentation.ts' } else { 'probeArt.ts' }
 try {
@@ -111,13 +111,13 @@ try {
     Wait-File 'manifest/loom.json' $daemon
     $record.daemonPid = $daemon.Id
     $environment = @{
-        LOOM_MANIFEST_PATH = (Join-Path $root 'manifest/loom.json'); HOOK_APPDATA_DIR = (Join-Path $root 'hook-data')
+        LOOM_MANIFEST_PATH = (Join-Path $root 'manifest/loom.json'); HOOK_APPDATA_DIR = (Join-Path $root 'otter-data')
         APPDATA = (Join-Path $root 'appdata'); LOCALAPPDATA = (Join-Path $root 'localappdata')
         WEBVIEW2_USER_DATA_FOLDER = (Join-Path $root 'webview')
         WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$($ports[1])"
     }
-    $manager = Start-Owned $HookExe @('--tile') $environment 'manager'
-    $record.hookPid = $manager.Id; Write-Json 'runtime.json' $record
+    $manager = Start-Owned $OtterExe @('--tile') $environment 'manager'
+    $record.otterPid = $manager.Id; Write-Json 'runtime.json' $record
     Run-Node 'prepareArt.ts' 'prepare' $PrototypeDir
     $record.deviceId = (Get-Content -LiteralPath (Join-Path $root 'runtime.json') -Raw -Encoding UTF8 | ConvertFrom-Json).deviceId
     if ($Scenario -eq 'presentation') {
@@ -131,7 +131,7 @@ try {
         $desktop = Start-Owned $loomExe @() $desktopEnvironment 'loom-manager'
         $record.loomPid = $desktop.Id; $record.loomCdpPort = $ports[3]; $record.loomExe = $loomExe
     }
-    $cli = Start-Owned $HookExe @('--tile-outputs') @{ HOOK_CLI_OUTPUT = (Join-Path $root 'outputs.json') } 'outputs'
+    $cli = Start-Owned $OtterExe @('--tile-outputs') @{ HOOK_CLI_OUTPUT = (Join-Path $root 'outputs.json') } 'outputs'
     if (-not $cli.WaitForExit(10000)) { throw 'Output enumeration timed out' }
     $parsedOutputs = Get-Content -LiteralPath (Join-Path $root 'outputs.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $outputs = @($parsedOutputs)
@@ -142,12 +142,12 @@ try {
     if (@($outputs | Where-Object outputId -CEQ $OutputId).Count -ne 1) { throw 'Selected output was not enumerated' }
     $environment.WEBVIEW2_USER_DATA_FOLDER = Join-Path $root 'output-webview'
     $environment.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$($ports[2])"
-    $output = Start-Owned $HookExe @('--tile-output', $OutputId) $environment 'output'
+    $output = Start-Owned $OtterExe @('--tile-output', $OutputId) $environment 'output'
     $record.outputPid = $output.Id; Write-Json 'runtime.json' $record
     $before = @(Owned-Sample)
     Run-Node $probe $Scenario
     if (-not $output.WaitForExit(10000)) { throw 'Output crash phase did not exit its owned process' }
-    $restarted = Start-Owned $HookExe @('--tile-output', $OutputId) $environment 'output-restarted'
+    $restarted = Start-Owned $OtterExe @('--tile-output', $OutputId) $environment 'output-restarted'
     $record.outputPid = $restarted.Id; Write-Json 'runtime.json' $record
     Run-Node $probe 'recovery' 'recovery'
     if ($Scenario -eq 'art') { Run-Node 'stressArt.ts' 'stress' '' 420 }
@@ -160,7 +160,7 @@ try {
     $record.daemonPid = $daemon.Id; Write-Json 'runtime.json' $record
     Run-Node $probe 'daemon-recovery' 'daemon-recovery'
     $summary = @{
-        passed = $true; hookExe = $HookExe; hookSha256 = $hookHash; daemonExe = $daemonExe
+        passed = $true; otterExe = $OtterExe; otterSha256 = $otterHash; daemonExe = $daemonExe
         daemonSha256 = (Get-FileHash -LiteralPath $daemonExe -Algorithm SHA256).Hash.ToLowerInvariant()
         scope = 'One physical output; packaged terminal/daemon; real installed PowerShell Art runtimes'
         scenario = $Scenario

@@ -63,8 +63,8 @@ export const StickerTopStripCreateTools: Component<StickerTopStripCreateToolsPro
                     type="button"
                     class={toolbarButtonRightBorderClass}
                     classList={{
-                        "hook-toolbar-button--active": props.isModeSelected,
-                        "hook-toolbar-idle": !props.isModeSelected,
+                        "otter-toolbar-button--active": props.isModeSelected,
+                        "otter-toolbar-idle": !props.isModeSelected,
                     }}
                     aria-label={`${currentTransformOption().label}模式`}
                     title={`${currentTransformOption().label} (${currentTransformOption().shortcut})`}
@@ -109,14 +109,14 @@ export const StickerTopStripCreateTools: Component<StickerTopStripCreateToolsPro
                                         type="button"
                                         class={toolbarMenuItemClass}
                                         classList={{
-                                            "hook-toolbar-menu-item--active": props.currentTransformMode === item.mode,
-                                            "hook-toolbar-menu-idle": props.currentTransformMode !== item.mode,
+                                            "otter-toolbar-menu-item--active": props.currentTransformMode === item.mode,
+                                            "otter-toolbar-menu-idle": props.currentTransformMode !== item.mode,
                                         }}
                                         onClick={() => props.onTransformMode(item.mode)}
                                     >
                                         <option.Icon class="h-4 w-4 shrink-0" />
                                         <span>{item.label}</span>
-                                        <span class="hook-toolbar-shortcut ml-auto text-[10px]">{item.shortcut}</span>
+                                        <span class="otter-toolbar-shortcut ml-auto text-[10px]">{item.shortcut}</span>
                                     </button>
                                 );
                             }}
@@ -130,8 +130,8 @@ export const StickerTopStripCreateTools: Component<StickerTopStripCreateToolsPro
                     type="button"
                     class={toolbarButtonRightBorderClass}
                     classList={{
-                        "hook-toolbar-button--active": props.isShapeSelected,
-                        "hook-toolbar-idle": !props.isShapeSelected,
+                        "otter-toolbar-button--active": props.isShapeSelected,
+                        "otter-toolbar-idle": !props.isShapeSelected,
                     }}
                     aria-label={`${currentShapeOption().label}图形工具`}
                     title={currentShapeOption().label}
@@ -172,8 +172,8 @@ export const StickerTopStripCreateTools: Component<StickerTopStripCreateToolsPro
                                     type="button"
                                     class={toolbarMenuItemClass}
                                     classList={{
-                                        "hook-toolbar-menu-item--active": props.currentShapeTool === item.mode,
-                                        "hook-toolbar-menu-idle": props.currentShapeTool !== item.mode,
+                                        "otter-toolbar-menu-item--active": props.currentShapeTool === item.mode,
+                                        "otter-toolbar-menu-idle": props.currentShapeTool !== item.mode,
                                     }}
                                     onClick={() => props.onCreateTool(item.mode)}
                                 >
@@ -191,8 +191,8 @@ export const StickerTopStripCreateTools: Component<StickerTopStripCreateToolsPro
                     type="button"
                     class={toolbarButtonClass}
                     classList={{
-                        "hook-toolbar-button--active": props.isLineSelected,
-                        "hook-toolbar-idle": !props.isLineSelected,
+                        "otter-toolbar-button--active": props.isLineSelected,
+                        "otter-toolbar-idle": !props.isLineSelected,
                     }}
                     aria-label="直线工具"
                     title="直线"
@@ -230,8 +230,8 @@ export const StickerTopStripCreateTools: Component<StickerTopStripCreateToolsPro
                                     type="button"
                                     class={toolbarMenuItemClass}
                                     classList={{
-                                        "hook-toolbar-menu-item--active": props.isLineSelected,
-                                        "hook-toolbar-menu-idle": !props.isLineSelected,
+                                        "otter-toolbar-menu-item--active": props.isLineSelected,
+                                        "otter-toolbar-menu-idle": !props.isLineSelected,
                                     }}
                                     onClick={() => props.onCreateTool(item.mode)}
                                 >
@@ -249,8 +249,8 @@ export const StickerTopStripCreateTools: Component<StickerTopStripCreateToolsPro
                     type="button"
                     class={toolbarButtonRightBorderClass}
                     classList={{
-                        "hook-toolbar-button--active": props.isBrushSelected,
-                        "hook-toolbar-idle": !props.isBrushSelected,
+                        "otter-toolbar-button--active": props.isBrushSelected,
+                        "otter-toolbar-idle": !props.isBrushSelected,
                     }}
                     aria-label="画笔工具"
                     title="画笔"
@@ -266,8 +266,8 @@ export const StickerTopStripCreateTools: Component<StickerTopStripCreateToolsPro
                     type="button"
                     class={toolbarButtonClass}
                     classList={{
-                        "hook-toolbar-button--active": props.isLabelSelected,
-                        "hook-toolbar-idle": !props.isLabelSelected,
+                        "otter-toolbar-button--active": props.isLabelSelected,
+                        "otter-toolbar-idle": !props.isLabelSelected,
                     }}
                     aria-label={`${currentLabelOption().label}标记工具`}
                     title={currentLabelOption().label}
@@ -308,8 +308,8 @@ export const StickerTopStripCreateTools: Component<StickerTopStripCreateToolsPro
                                     type="button"
                                     class={toolbarMenuItemClass}
                                     classList={{
-                                        "hook-toolbar-menu-item--active": props.currentLabelTool === item.mode,
-                                        "hook-toolbar-menu-idle": props.currentLabelTool !== item.mode,
+                                        "otter-toolbar-menu-item--active": props.currentLabelTool === item.mode,
+                                        "otter-toolbar-menu-idle": props.currentLabelTool !== item.mode,
                                     }}
                                     onClick={() => props.onCreateTool(item.mode)}
                                 >
@@ -328,8 +328,8 @@ export const StickerTopStripCreateTools: Component<StickerTopStripCreateToolsPro
                         type="button"
                         class={toolbarButtonClass}
                         classList={{
-                            "hook-toolbar-button--active": props.isEffectSelected,
-                            "hook-toolbar-idle": !props.isEffectSelected,
+                            "otter-toolbar-button--active": props.isEffectSelected,
+                            "otter-toolbar-idle": !props.isEffectSelected,
                         }}
                         aria-label={`${currentEffectOption().label}效果工具`}
                         title={currentEffectOption().label}
@@ -370,8 +370,8 @@ export const StickerTopStripCreateTools: Component<StickerTopStripCreateToolsPro
                                         type="button"
                                         class={toolbarMenuItemClass}
                                         classList={{
-                                            "hook-toolbar-menu-item--active": props.currentEffectTool === item.mode,
-                                            "hook-toolbar-menu-item--idle": props.currentEffectTool !== item.mode,
+                                            "otter-toolbar-menu-item--active": props.currentEffectTool === item.mode,
+                                            "otter-toolbar-menu-item--idle": props.currentEffectTool !== item.mode,
                                         }}
                                         onClick={() => props.onCreateTool(item.mode)}
                                     >

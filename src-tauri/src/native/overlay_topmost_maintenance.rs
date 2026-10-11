@@ -8,7 +8,7 @@ fn install_overlay_hwnd_retry_thread(window: &tauri::WebviewWindow) {
 
     let app_handle = window.app_handle().clone();
     let _ = std::thread::Builder::new()
-        .name("hook-overlay-hwnd-retry".to_string())
+        .name("otter-overlay-hwnd-retry".to_string())
         .spawn(move || {
             for _attempt in 0..OVERLAY_HWND_RETRY_ATTEMPTS {
                 let Some(window) = app_handle.get_webview_window("main") else {
@@ -53,7 +53,7 @@ fn install_overlay_topmost_maintenance_thread(window: &tauri::WebviewWindow) {
 
     let maintenance_window = window.clone();
     let _ = std::thread::Builder::new()
-        .name("hook-overlay-topmost-maintenance".to_string())
+        .name("otter-overlay-topmost-maintenance".to_string())
         .spawn(move || loop {
             std::thread::sleep(Duration::from_millis(
                 OVERLAY_TOPMOST_MAINTENANCE_INTERVAL_MS,

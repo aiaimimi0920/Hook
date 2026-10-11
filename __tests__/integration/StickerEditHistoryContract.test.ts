@@ -37,7 +37,7 @@ const selectionOverlaySource = readFileSync(
     "utf8",
 );
 
-describe("Hook sticker edit history contract", () => {
+describe("Otter sticker edit history contract", () => {
     it("wires undo and redo through both the sticker toolbar and keyboard shortcuts", () => {
         expect(topStripRenderSource).toContain("撤销");
         expect(topStripRenderSource).toContain("重做");

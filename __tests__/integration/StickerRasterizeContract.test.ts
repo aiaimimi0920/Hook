@@ -40,7 +40,7 @@ const annotationModelSource = readFileSync(resolve(process.cwd(), "src/component
 // restored unit) was extracted from syncService.ts into its own module.
 const sessionMappingSource = readFileSync(resolve(process.cwd(), "src/services/sessionStickerMapping.ts"), "utf8");
 
-describe("Hook sticker rasterize contract", () => {
+describe("Otter sticker rasterize contract", () => {
     it("exposes option C: rasterize the selected control or every editable control", () => {
         expect(topStripRenderSource).toContain("栅格化");
         expect(topStripRenderSource).toContain("栅格化全部");

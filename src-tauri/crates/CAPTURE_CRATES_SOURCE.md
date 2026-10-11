@@ -1,7 +1,7 @@
 # Capture crates source attribution
 
 The crates in this directory were imported from the former top-level `Cap/`
-source subset when Hook absorbed the Cap-like visual capture boundary.
+source subset when Otter absorbed the Cap-like visual capture boundary.
 
 Imported crates:
 
@@ -18,8 +18,8 @@ Original source context:
 - `scap-direct3d/Cargo.toml` declares `license = "MIT"`.
 - `scap-targets/Cargo.toml` declares `license = "MIT"`.
 - The corresponding Cap Software MIT text is preserved in
-  `LICENSE_CAP_SCAP_MIT` and included in Hook release archives.
+  `LICENSE_CAP_SCAP_MIT` and included in Otter release archives.
 
-These crates are now Hook-owned implementation dependencies, not a separate
+These crates are now Otter-owned implementation dependencies, not a separate
 Neuro product or user-facing program. Keep source attribution and license
 metadata intact when modifying them.

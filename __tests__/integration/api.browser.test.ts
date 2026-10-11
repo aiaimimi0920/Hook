@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installBrowserGlobals, MockWebSocket } from "../helpers/browserApiTestHarness";
 
-describe("Hook standalone browser trust boundary", () => {
+describe("Otter standalone browser trust boundary", () => {
     beforeEach(() => {
         vi.resetModules();
         MockWebSocket.instances = [];
@@ -19,11 +19,11 @@ describe("Hook standalone browser trust boundary", () => {
         "loom.hook.handshake", "loom.hook.subscribe", "loom.hook.workflow.sync",
         "loom.hook.workflow.node.update", "loom.hook.art.execute", "loom.extension.handshake",
     ])("rejects %s without opening an anonymous socket", async (method) => {
-        const { browserLoomHookRequest, loomHookRequest, NATIVE_LOOM_REQUIRED } =
+        const { browserLoomOtterRequest, loomOtterRequest, NATIVE_LOOM_REQUIRED } =
             await import("../../src/services/apiBrowserLoomTransport");
-        await expect(browserLoomHookRequest({ method, params: { requestId: "test" } }))
+        await expect(browserLoomOtterRequest({ method, params: { requestId: "test" } }))
             .rejects.toThrow(NATIVE_LOOM_REQUIRED);
-        await expect(loomHookRequest(method)).rejects.toThrow(NATIVE_LOOM_REQUIRED);
+        await expect(loomOtterRequest(method)).rejects.toThrow(NATIVE_LOOM_REQUIRED);
         expect(MockWebSocket.instances).toHaveLength(0);
     });
 
@@ -39,10 +39,10 @@ describe("Hook standalone browser trust boundary", () => {
 
     it("does not open push sockets or schedule retries for browser listeners", async () => {
         vi.useFakeTimers();
-        const { listenBrowserLoomHookMethod } = await import("../../src/services/api");
+        const { listenBrowserLoomOtterMethod } = await import("../../src/services/api");
         const handler = vi.fn();
-        const stopWorkflow = listenBrowserLoomHookMethod("loom.hook.workflow.instantiated", handler);
-        const stopArt = listenBrowserLoomHookMethod("loom.hook.art.progress", handler);
+        const stopWorkflow = listenBrowserLoomOtterMethod("loom.hook.workflow.instantiated", handler);
+        const stopArt = listenBrowserLoomOtterMethod("loom.hook.art.progress", handler);
         await vi.advanceTimersByTimeAsync(60_000);
         stopWorkflow();
         stopArt();
@@ -65,7 +65,7 @@ describe("Hook standalone browser trust boundary", () => {
         const { api } = await import("../../src/services/api");
         const ready = vi.fn();
         const readInputs = vi.fn(() => { throw new Error("Must not read images in unsupported preview execution"); });
-        window.addEventListener("hook-browser-art-ready", ready);
+        window.addEventListener("otter-browser-art-ready", ready);
         const payload = { node_id: "node", request_id: "request" };
         Object.defineProperty(payload, "inputs", { get: readInputs });
         await api.dispatchAction({ action: "execute_art", payload });
@@ -82,7 +82,7 @@ describe("Hook standalone browser trust boundary", () => {
         "does not dispatch malformed local Art identities", async (payload) => {
             const { api } = await import("../../src/services/api");
             const ready = vi.fn();
-            window.addEventListener("hook-browser-art-ready", ready);
+            window.addEventListener("otter-browser-art-ready", ready);
             await api.dispatchAction({ action: "execute_art", payload });
             expect(ready).not.toHaveBeenCalled();
             expect(MockWebSocket.instances).toHaveLength(0);

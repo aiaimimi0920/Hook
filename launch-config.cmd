@@ -1,14 +1,18 @@
 @echo off
 
-if not defined HOOK_STARTUP_MODE set "HOOK_STARTUP_MODE=silent"
-if not defined HOOK_INITIAL_UI_MODE set "HOOK_INITIAL_UI_MODE=overlay"
-if not defined HOOK_ENABLE_LOOM_HOOK set "HOOK_ENABLE_LOOM_HOOK=1"
+if not defined OTTER_STARTUP_MODE if defined HOOK_STARTUP_MODE set "OTTER_STARTUP_MODE=%HOOK_STARTUP_MODE%"
+if not defined OTTER_STARTUP_MODE set "OTTER_STARTUP_MODE=silent"
+if not defined OTTER_INITIAL_UI_MODE if defined HOOK_INITIAL_UI_MODE set "OTTER_INITIAL_UI_MODE=%HOOK_INITIAL_UI_MODE%"
+if not defined OTTER_INITIAL_UI_MODE set "OTTER_INITIAL_UI_MODE=overlay"
+if not defined OTTER_ENABLE_LOOM_OTTER if defined HOOK_ENABLE_LOOM_HOOK set "OTTER_ENABLE_LOOM_OTTER=%HOOK_ENABLE_LOOM_HOOK%"
+if not defined OTTER_ENABLE_LOOM_OTTER set "OTTER_ENABLE_LOOM_OTTER=1"
 
-if exist "%~dp0hook.exe" (
-    set "HOOK_PORTABLE_DIR=%~dp0"
+if exist "%~dp0otter.exe" (
+    set "OTTER_PORTABLE_DIR=%~dp0"
 ) else (
-    set "HOOK_PORTABLE_DIR=%~dp0dist\desktop\Hook"
+    set "OTTER_PORTABLE_DIR=%~dp0dist\desktop\Otter"
 )
 
-set "HOOK_EXE=%HOOK_PORTABLE_DIR%\hook.exe"
-if not defined HOOK_LOG_DIR set "HOOK_LOG_DIR=%LOCALAPPDATA%\Hook\logs"
+set "OTTER_EXE=%OTTER_PORTABLE_DIR%\otter.exe"
+if not defined OTTER_LOG_DIR if defined HOOK_LOG_DIR set "OTTER_LOG_DIR=%HOOK_LOG_DIR%"
+if not defined OTTER_LOG_DIR set "OTTER_LOG_DIR=%LOCALAPPDATA%\Otter\logs"

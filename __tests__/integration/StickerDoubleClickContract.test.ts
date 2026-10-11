@@ -16,7 +16,7 @@ const topStripSource = readFileSync(resolve(process.cwd(), "src/components/Stick
 const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/StickerTopStripPropertyBar.tsx"), "utf8");
 const graphStoreSource = readFileSync(resolve(process.cwd(), "src/store/graphStore.ts"), "utf8");
 
-describe("Hook sticker double-click contract", () => {
+describe("Otter sticker double-click contract", () => {
     it("derives double-click minify from the actual sticker visual rect and routes the crop math through the shared helper so every corner uses the same edge handling", () => {
         expect(actionsSource).toContain("computeMinifiedStickerWindow(");
         expect(actionsSource).toContain("resolveStickerSurfaceDoubleClickTarget(");
@@ -41,7 +41,7 @@ describe("Hook sticker double-click contract", () => {
         expect(actionsSource).not.toContain("setTimeout(() => {\n              syncService.performWorkflowSync();");
         expect(actionsSource).toContain("void syncService.performWorkflowSync();");
         expect(unitImageContentSource).toContain('"pointer-events": "none"');
-        expect(unitViewSource).toContain("data-hook-drag-follow-unit-id={props.unit.id}");
+        expect(unitViewSource).toContain("data-otter-drag-follow-unit-id={props.unit.id}");
         expect(unitViewSource).not.toContain("props.dragPosition");
         expect(unitImageContentSource).toContain('data-sticker-base-image="true"');
         expect(unitImageModelSource).toContain("shaderImageIntrinsicSize() || baseImageIntrinsicSize() || undefined");

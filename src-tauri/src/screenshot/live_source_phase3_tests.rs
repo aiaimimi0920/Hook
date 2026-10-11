@@ -43,7 +43,7 @@ struct PhaseThreeProbe {
 }
 
 fn required_env(name: &str) -> String {
-    std::env::var(name).unwrap_or_else(|_| panic!("{name} is required"))
+    crate::brand_env::var(name).unwrap_or_else(|_| panic!("{name} is required"))
 }
 
 fn fixture_hwnd() -> HWND {
@@ -65,7 +65,7 @@ fn config(
         session_id: "phase3-logical-hide".to_string(),
         window_id: Some(format!("{:x}", hwnd.0 as usize)),
         expected_process_id: Some(process_id),
-        source_title: Some("Hook live Phase 3 fixture".to_string()),
+        source_title: Some("Otter live Phase 3 fixture".to_string()),
         x: 0,
         y: 0,
         width: 640,
@@ -224,8 +224,9 @@ fn phase_three_logical_hide_input_reclaim_and_restore() {
     let hwnd = fixture_hwnd();
     let _watchdog = crate::emergency_watchdog::tests::start_interactive_test_watchdog();
     let fixture_kind = required_env("HOOK_LIVE_PHASE3_FIXTURE_KIND");
-    let window_region = (std::env::var("HOOK_LIVE_PHASE3_WINDOW_REGION").as_deref() == Ok("1"))
-        .then(|| region_support::client_region(hwnd));
+    let window_region = (crate::brand_env::var("HOOK_LIVE_PHASE3_WINDOW_REGION").as_deref()
+        == Ok("1"))
+    .then(|| region_support::client_region(hwnd));
     let source = Arc::new(Mutex::new(
         LiveSourceWindowLifecycle::new_with_region(
             &format!("{:x}", hwnd.0 as usize),

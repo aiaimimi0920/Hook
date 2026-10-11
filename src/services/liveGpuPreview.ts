@@ -53,7 +53,7 @@ export function registerLiveGpuPreview(
             || graphStore.units.length > 32) return null;
         const visual = image.closest<HTMLElement>(".sticker-visual");
         if (!visual || getComputedStyle(visual).opacity !== "1"
-            || unit.querySelector("[data-sticker-annotation-id], [data-hook-unit-notice-layer], .extension-unit-surface, .extension-attachment-placeholder")) return null;
+            || unit.querySelector("[data-sticker-annotation-id], [data-otter-unit-notice-layer], .extension-unit-surface, .extension-attachment-placeholder")) return null;
         const style = getComputedStyle(image);
         if (style.transform !== "none" && style.transform !== "matrix(1, 0, 0, 1, 0, 0)") return null;
         if (style.objectFit !== "contain" || style.objectPosition !== "50% 50%") return null;

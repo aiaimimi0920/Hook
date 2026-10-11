@@ -79,7 +79,7 @@ export interface LoomQuickBindingConfig {
   key?: string;
 }
 
-export interface LoomHookSettings {
+export interface LoomOtterSettings {
   shortcuts?: Record<string, LoomShortcutConfig>;
   quick_bindings?: LoomQuickBindingConfig[];
 }
@@ -259,7 +259,7 @@ class ShortcutManagerClass {
   applyLoomSettings(settings: unknown): void {
     if (!settings || typeof settings !== 'object') return;
     this.restoreRuntimeDefaults();
-    const snapshot = settings as LoomHookSettings;
+    const snapshot = settings as LoomOtterSettings;
     const shortcuts = snapshot.shortcuts || {};
     for (const [sourceId, actionIds] of Object.entries(LOOM_SHORTCUT_ACTIONS)) {
       const config = shortcuts[sourceId];

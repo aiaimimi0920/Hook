@@ -8,8 +8,9 @@ import { build } from "vite";
 import { chromium } from "playwright";
 
 // Exercise the actual production-built module worker, not a mocked JS decoder.
+// The fixture text is encoded in its QR matrix; it is test data, not product branding.
 const fixture = JSON.parse(await fs.readFile(new URL("./fixtures/qr-worker.json", import.meta.url), "utf8"));
-const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "hook-qr-worker-browser-"));
+const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "otter-qr-worker-browser-"));
 let browser;
 let server;
 try {

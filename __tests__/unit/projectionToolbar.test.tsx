@@ -26,12 +26,12 @@ beforeEach(() => {
 afterEach(() => { dispose(); graphStore.actions.replaceUnits([]); document.body.replaceChildren(); vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
 it("opens projection as a secondary icon tab, without creating an invitation or mutating crop mode", () => {
-    expect(button("裁剪工具").classList.contains("hook-toolbar-button--active")).toBe(true);
+    expect(button("裁剪工具").classList.contains("otter-toolbar-button--active")).toBe(true);
     expect(button("投射贴图").textContent).toBe("");
     expect(button("投射贴图").querySelector("svg")).not.toBeNull();
     button("投射贴图").click();
     expect(document.querySelector('[aria-label="投射二级设置"]')).not.toBeNull();
-    expect(document.querySelectorAll(".hook-toolbar-button--active")).toHaveLength(1);
+    expect(document.querySelectorAll(".otter-toolbar-button--active")).toHaveLength(1);
     expect(button("投射贴图").getAttribute("aria-pressed")).toBe("true");
     expect(projectionDialog()).toBeUndefined();
     expect(stickerToolSettings.activeCanvasTool).toBe("crop");
@@ -70,5 +70,5 @@ it("leaves projection when reselecting the same underlying tool", () => {
     button("裁剪工具").click();
     expect(document.querySelector('[aria-label="投射二级设置"]')).toBeNull();
     expect(button("投射贴图").getAttribute("aria-pressed")).toBe("false");
-    expect(button("裁剪工具").classList.contains("hook-toolbar-button--active")).toBe(true);
+    expect(button("裁剪工具").classList.contains("otter-toolbar-button--active")).toBe(true);
 });

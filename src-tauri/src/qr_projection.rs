@@ -140,7 +140,7 @@ pub(crate) async fn projection_request(
     .await
     .map_err(|_| "projection_prepare_failed")??;
     if prepare_only {
-        // No network side effect: Hook must durably save this identity before publishing.
+        // No network side effect: Otter must durably save this identity before publishing.
         return Ok(json!({"envelope": body["envelope"]}));
     }
     let context = response::ResponseContext::new(path, &origin, &body).offline(offline);

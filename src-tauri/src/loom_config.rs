@@ -11,7 +11,7 @@ struct LoomVoiceConfigResponse {
     config: VoiceConfig,
 }
 
-pub async fn read_hook_voice_config(
+pub async fn read_otter_voice_config(
     base_url: &str,
     auth_token: Option<&str>,
 ) -> Result<Option<VoiceConfig>, String> {

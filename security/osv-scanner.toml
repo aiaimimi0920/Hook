@@ -9,57 +9,57 @@ reason = "Transitive proc-macro-error is unmaintained and has no patched release
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0411"
 ignoreUntil = 2026-11-21
-reason = "Unmaintained GTK3 binding is Linux-only and absent from Hook's formal Windows release; reassess before any Linux publication."
+reason = "Unmaintained GTK3 binding is Linux-only and absent from Otter's formal Windows release; reassess before any Linux publication."
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0412"
 ignoreUntil = 2026-11-21
-reason = "Unmaintained GTK3 binding is Linux-only and absent from Hook's formal Windows release; reassess before any Linux publication."
+reason = "Unmaintained GTK3 binding is Linux-only and absent from Otter's formal Windows release; reassess before any Linux publication."
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0413"
 ignoreUntil = 2026-11-21
-reason = "Unmaintained GTK3 binding is Linux-only and absent from Hook's formal Windows release; reassess before any Linux publication."
+reason = "Unmaintained GTK3 binding is Linux-only and absent from Otter's formal Windows release; reassess before any Linux publication."
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0414"
 ignoreUntil = 2026-11-21
-reason = "Unmaintained GTK3 binding is Linux-only and absent from Hook's formal Windows release; reassess before any Linux publication."
+reason = "Unmaintained GTK3 binding is Linux-only and absent from Otter's formal Windows release; reassess before any Linux publication."
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0415"
 ignoreUntil = 2026-11-21
-reason = "Unmaintained GTK3 binding is Linux-only and absent from Hook's formal Windows release; reassess before any Linux publication."
+reason = "Unmaintained GTK3 binding is Linux-only and absent from Otter's formal Windows release; reassess before any Linux publication."
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0416"
 ignoreUntil = 2026-11-21
-reason = "Unmaintained GTK3 binding is Linux-only and absent from Hook's formal Windows release; reassess before any Linux publication."
+reason = "Unmaintained GTK3 binding is Linux-only and absent from Otter's formal Windows release; reassess before any Linux publication."
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0417"
 ignoreUntil = 2026-11-21
-reason = "Unmaintained GTK3 binding is Linux-only and absent from Hook's formal Windows release; reassess before any Linux publication."
+reason = "Unmaintained GTK3 binding is Linux-only and absent from Otter's formal Windows release; reassess before any Linux publication."
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0418"
 ignoreUntil = 2026-11-21
-reason = "Unmaintained GTK3 binding is Linux-only and absent from Hook's formal Windows release; reassess before any Linux publication."
+reason = "Unmaintained GTK3 binding is Linux-only and absent from Otter's formal Windows release; reassess before any Linux publication."
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0419"
 ignoreUntil = 2026-11-21
-reason = "Unmaintained GTK3 binding is Linux-only and absent from Hook's formal Windows release; reassess before any Linux publication."
+reason = "Unmaintained GTK3 binding is Linux-only and absent from Otter's formal Windows release; reassess before any Linux publication."
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0420"
 ignoreUntil = 2026-11-21
-reason = "Unmaintained GTK3 binding is Linux-only and absent from Hook's formal Windows release; reassess before any Linux publication."
+reason = "Unmaintained GTK3 binding is Linux-only and absent from Otter's formal Windows release; reassess before any Linux publication."
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0429"
 ignoreUntil = 2026-11-21
-reason = "Affected glib code is Linux-only and absent from Hook's formal Windows release; block Linux publication until upgraded."
+reason = "Affected glib code is Linux-only and absent from Otter's formal Windows release; block Linux publication until upgraded."
 
 [[IgnoredVulns]]
 id = "RUSTSEC-2024-0436"

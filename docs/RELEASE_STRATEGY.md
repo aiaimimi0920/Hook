@@ -1,17 +1,17 @@
-# Hook Release Strategy
+# Otter Release Strategy
 
-This document explains Hook's current public release phase and the planned
+This document explains Otter's current public release phase and the planned
 future release phase.
 
 ## Current phase: portable-first
 
-Hook is currently in a **portable-first** public release phase.
+Otter is currently in a **portable-first** public release phase.
 
 That means:
 
 - the portable Windows zip is the only current user-facing software package in a
   public GitHub Release;
-- tag releases keep `hook-uiaccess-signing-candidate-Vx.x.x.json` in short-lived
+- tag releases keep `otter-uiaccess-signing-candidate-Vx.x.x.json` in short-lived
   Actions review evidence; it is not a public Release asset or installer;
 - normal GitHub Actions build artifacts expose only the portable executable;
 - the repository contains a manual SignPath workflow, but it cannot publish an
@@ -30,7 +30,7 @@ and [`DEPENDENCY_SECURITY.md`](DEPENDENCY_SECURITY.md).
 
 ## Why the repository still keeps installer/UIAccess prep
 
-Hook still keeps all future signed-installer engineering preparation in-repo,
+Otter still keeps all future signed-installer engineering preparation in-repo,
 including:
 
 - UIAccess manifest wiring
@@ -43,7 +43,7 @@ signing material is available.
 
 ## Future phase: signed-installer
 
-Hook's intended future public phase is the **signed-installer** phase.
+Otter's intended future public phase is the **signed-installer** phase.
 
 That phase begins once:
 
@@ -64,8 +64,8 @@ The current portable-first phase is reflected in:
 - `README.md`
 - `README.zh-CN.md`
 - `UIACCESS_DISTRIBUTION.md`
-- `.github/workflows/build-hook-exe.yml`
-- `.github/workflows/release-hook-tag.yml`
+- `.github/workflows/build-otter-exe.yml`
+- `.github/workflows/release-otter-tag.yml`
 - `.github/workflows/signpath-signing.yml`
 
 The phrase "portable-first" describes the downloadable application package. It
@@ -75,9 +75,9 @@ does not exclude non-executable audit metadata such as the signing-candidate JSO
 
 The future signed-installer path is preserved by:
 
-- `scripts/install-hook-uiaccess.ps1`
+- `scripts/install-otter-uiaccess.ps1`
 - `scripts/package-uiaccess-installer-zip.ps1`
-- `scripts/setup-hook-uiaccess-local-test.ps1`
+- `scripts/setup-otter-uiaccess-local-test.ps1`
 - `src-tauri/windows/uiaccess.manifest.xml`
 - `docs/CODE_SIGNING_POLICY.md`
 - `docs/MAINTAINER_SIGNING_GUIDE.md`
@@ -86,14 +86,14 @@ The future signed-installer path is preserved by:
 
 ## Switching phases later
 
-When Hook moves from portable-first to signed-installer public releases, update
+When Otter moves from portable-first to signed-installer public releases, update
 all of the following together:
 
 - `README.md`
 - `README.zh-CN.md`
 - `UIACCESS_DISTRIBUTION.md`
-- `.github/workflows/build-hook-exe.yml`
-- `.github/workflows/release-hook-tag.yml`
+- `.github/workflows/build-otter-exe.yml`
+- `.github/workflows/release-otter-tag.yml`
 - related integration contract tests
 
 Do not partially flip the phase. The docs and GitHub Actions contract should

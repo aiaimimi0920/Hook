@@ -157,7 +157,7 @@ mod tests {
     #[test]
     #[ignore = "requires a visible protected window HWND in HOOK_PROTECTED_WINDOW_HWND"]
     fn resolves_a_protected_window_that_only_partially_overlaps_a_region() {
-        let expected = std::env::var("HOOK_PROTECTED_WINDOW_HWND")
+        let expected = crate::brand_env::var("HOOK_PROTECTED_WINDOW_HWND")
             .expect("HOOK_PROTECTED_WINDOW_HWND must be set for the live target probe");
         let metrics = CaptureWindowMetrics {
             physical_origin_x: 0.0,

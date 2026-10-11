@@ -12,7 +12,7 @@ const pointerCommitSource = readFileSync(
 );
 const annotationModelSource = readFileSync(resolve(process.cwd(), "src/components/stickerAnnotationModel.ts"), "utf8");
 
-describe("Hook sticker shape bounds contract", () => {
+describe("Otter sticker shape bounds contract", () => {
     it("clamps box-drawn tools to the current sticker bounds instead of allowing rectangles to spill outside the sticker", () => {
         expect(annotationModelSource).toContain('export const isBoundedBoxMode = (mode: DraftShape["mode"]) =>');
         expect(annotationModelSource).toContain('mode === "shape-rect"');

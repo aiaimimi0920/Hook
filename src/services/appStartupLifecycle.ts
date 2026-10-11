@@ -4,7 +4,7 @@ import { graphStore } from "../store/graphStore";
 import { surfaceResourceStore } from "../store/surfaceResourceStore";
 import { uiActions } from "../store/uiStore";
 import type { AppSettings } from "../types/appSettings";
-import { api, listenBrowserLoomHookMethod, type VoiceSettingsSummary } from "./api";
+import { api, listenBrowserLoomOtterMethod, type VoiceSettingsSummary } from "./api";
 import { AppListenerRegistry } from "./appListenerRegistry";
 import { setStartupSessionReady } from "./appStartupState";
 import { registerAppArtControlListeners } from "./appArtControlListeners";
@@ -16,7 +16,7 @@ import { installErrorDiagnostics } from "./errorDiagnostics";
 import { registerExtensionLifecycle } from "./extensionLifecycle";
 import { sanitizeHistoryState } from "./historyModel";
 import { logger } from "./logger";
-import { refreshLoomHookCapabilitiesOnStartup } from "./loomHookStartup";
+import { refreshLoomOtterCapabilitiesOnStartup } from "./loomOtterStartup";
 import {
     restoredSessionNeedsCapabilityRefresh,
     sessionSnapshotNeedsCapabilityRefresh,
@@ -95,7 +95,7 @@ const restoreStartupSession = async (
     try {
         const preloadedSessionData = await api.loadSession();
         preloadedSession = preloadedSessionData;
-        if (bootProfile?.loomHookEnabled === true && sessionSnapshotNeedsCapabilityRefresh(preloadedSessionData?.stickers, graphStore.capabilities)) {
+        if (bootProfile?.loomOtterEnabled === true && sessionSnapshotNeedsCapabilityRefresh(preloadedSessionData?.stickers, graphStore.capabilities)) {
             try {
                 await refreshCapabilities();
             } catch (error) {
@@ -115,7 +115,7 @@ const restoreStartupSession = async (
 
     // Restored Art nodes need current catalog metadata before their second
     // materialization; otherwise they temporarily degrade into generic images.
-    if (bootProfile?.loomHookEnabled === true && restoredSessionNeedsCapabilityRefresh(graphStore.units, graphStore.capabilities)) {
+    if (bootProfile?.loomOtterEnabled === true && restoredSessionNeedsCapabilityRefresh(graphStore.units, graphStore.capabilities)) {
         try {
             await refreshCapabilities();
             await syncService.restoreSession(bootProfile || undefined);
@@ -158,7 +158,7 @@ export function useAppStartupLifecycle(dependencies: AppStartupLifecycleDependen
             if (dependencies.tauriRuntime) {
                 void api.debugLogEvent(
                     "boot-profile-loaded",
-                    `startupMode=${bootProfile.startupMode} initialUiMode=${bootProfile.initialUiMode} autoStartCapture=${bootProfile.autoStartCapture} loomHookEnabled=${bootProfile.loomHookEnabled}`,
+                    `startupMode=${bootProfile.startupMode} initialUiMode=${bootProfile.initialUiMode} autoStartCapture=${bootProfile.autoStartCapture} loomOtterEnabled=${bootProfile.loomOtterEnabled}`,
                 );
             }
         } catch (error) {
@@ -176,7 +176,7 @@ export function useAppStartupLifecycle(dependencies: AppStartupLifecycleDependen
         if (dependencies.tauriRuntime) {
             // Register before handshake/session restore so no initial workflow
             // broadcast can race ahead of the frontend listeners.
-            if (bootProfile?.loomHookEnabled === true) {
+            if (bootProfile?.loomOtterEnabled === true) {
                 await registerExtensionLifecycle(cleanups, dependencies.tauriRuntime);
             }
             await registerAppCommandListeners({
@@ -187,7 +187,7 @@ export function useAppStartupLifecycle(dependencies: AppStartupLifecycleDependen
                 registry: cleanups,
                 ...dependencies.registerAppPointerListeners,
             });
-            if (bootProfile?.loomHookEnabled === true) {
+            if (bootProfile?.loomOtterEnabled === true) {
                 await registerAppArtControlListeners({
                     registry: cleanups,
                     ...dependencies.registerAppArtControlListeners,
@@ -208,9 +208,9 @@ export function useAppStartupLifecycle(dependencies: AppStartupLifecycleDependen
 
         const refreshCapabilities = dependencies.registerAppArtControlListeners.refreshCapabilities;
         try {
-            await refreshLoomHookCapabilitiesOnStartup(refreshCapabilities, bootProfile?.loomHookEnabled === true);
+            await refreshLoomOtterCapabilitiesOnStartup(refreshCapabilities, bootProfile?.loomOtterEnabled === true);
         } catch (error) {
-            console.warn("Loom Hook bridge unavailable during startup; continuing in standalone mode.", error);
+            console.warn("Loom Otter bridge unavailable during startup; continuing in standalone mode.", error);
         }
 
         await restoreStartupSession(bootProfile, refreshCapabilities);
@@ -223,7 +223,7 @@ export function useAppStartupLifecycle(dependencies: AppStartupLifecycleDependen
 
         if (!dependencies.tauriRuntime) {
             logger.debug("Running in browser preview mode; attaching browser IPC listeners.");
-            const stopInstantiate = listenBrowserLoomHookMethod(
+            const stopInstantiate = listenBrowserLoomOtterMethod(
                 "loom.hook.workflow.instantiated",
                 (payload) => {
                     dependencies.registerAppArtControlListeners
@@ -231,7 +231,7 @@ export function useAppStartupLifecycle(dependencies: AppStartupLifecycleDependen
                         .catch((error) => console.error("Browser instantiate handler failed:", error));
                 },
             );
-            const stopCapabilitiesUpdated = listenBrowserLoomHookMethod(
+            const stopCapabilitiesUpdated = listenBrowserLoomOtterMethod(
                 "loom.hook.capabilities.updated",
                 async () => {
                     try {

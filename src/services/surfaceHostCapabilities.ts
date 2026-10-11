@@ -4,7 +4,7 @@ import {
     type SurfaceHostCapabilities,
 } from "./surfaceProtocol";
 
-export const hookSurfaceHostCapabilities = (): SurfaceHostCapabilities => ({
+export const otterSurfaceHostCapabilities = (): SurfaceHostCapabilities => ({
     apiVersion: SURFACE_API_VERSION,
     runtimes: ["declarative", "javascript"],
     nodes: [...DECLARATIVE_SURFACE_NODE_TYPES],

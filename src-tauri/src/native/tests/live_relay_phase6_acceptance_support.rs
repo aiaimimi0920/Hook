@@ -276,5 +276,5 @@ fn set_phase_six_source_hidden(relay: &LiveRelaySession, hidden: bool) -> Result
 }
 
 fn phase_six_enabled() -> bool {
-    std::env::var("HOOK_LIVE_PHASE6").is_ok_and(|value| value == "1")
+    crate::brand_env::var("HOOK_LIVE_PHASE6").is_ok_and(|value| value == "1")
 }

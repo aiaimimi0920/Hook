@@ -46,7 +46,7 @@ type AppCommandListenerDependencies = {
     setAppSettingsOpen: Setter<boolean>;
     handleCopy: () => void;
     handlePaste: () => void;
-    createTeaTicketFromCurrentHookState: () => Promise<void>;
+    createTeaTicketFromCurrentOtterState: () => Promise<void>;
     setLastVoiceHotkey: Setter<VoiceHotkeyPayload | null>;
     setLastVoiceSession: Setter<VoiceSessionPayload | null>;
     setVoiceStatus: Setter<VoiceStatus>;
@@ -89,7 +89,7 @@ export async function registerAppCommandListeners({
     setAppSettingsOpen,
     handleCopy,
     handlePaste,
-    createTeaTicketFromCurrentHookState,
+    createTeaTicketFromCurrentOtterState,
     setLastVoiceHotkey,
     setLastVoiceSession,
     setVoiceStatus,
@@ -195,7 +195,7 @@ export async function registerAppCommandListeners({
         untrack(() => {
             logger.debug("Backend Triggered Tea Ticket Creation");
             void api.debugLogEvent("trigger-create-tea-ticket-listener");
-            runBackgroundTask("Tea ticket creation", createTeaTicketFromCurrentHookState());
+            runBackgroundTask("Tea ticket creation", createTeaTicketFromCurrentOtterState());
         });
     }));
 

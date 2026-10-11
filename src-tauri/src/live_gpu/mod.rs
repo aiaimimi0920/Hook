@@ -1,4 +1,4 @@
-//! Experimental native presentation boundary. Unit state and source input stay in Hook.
+//! Experimental native presentation boundary. Unit state and source input stay in Otter.
 
 use serde::{Deserialize, Serialize};
 
@@ -74,7 +74,11 @@ pub(crate) struct PreviewStatus {
 
 pub(crate) fn enabled() -> bool {
     cfg!(target_os = "windows")
-        && preview_requested(std::env::var("HOOK_LIVE_GPU_PREVIEW").ok().as_deref())
+        && preview_requested(
+            crate::brand_env::var("HOOK_LIVE_GPU_PREVIEW")
+                .ok()
+                .as_deref(),
+        )
 }
 
 fn preview_requested(value: Option<&str>) -> bool {

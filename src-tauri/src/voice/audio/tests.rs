@@ -20,7 +20,7 @@ mod tests {
     #[test]
     fn write_silent_wav_creates_readable_pcm_wav() {
         let mut dir = std::env::temp_dir();
-        dir.push(format!("hook-audio-contract-{}", std::process::id()));
+        dir.push(format!("otter-audio-contract-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("create temp audio dir");
 
@@ -37,7 +37,7 @@ mod tests {
     #[test]
     fn capture_audio_uses_silent_backend_for_readable_wav_artifacts() {
         let mut dir = std::env::temp_dir();
-        dir.push(format!("hook-audio-silent-capture-{}", std::process::id()));
+        dir.push(format!("otter-audio-silent-capture-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
 
         let request = AudioCaptureRequest {
@@ -62,7 +62,7 @@ mod tests {
     fn write_captured_wav_downmixes_and_resamples_to_requested_pcm_wav() {
         let mut dir = std::env::temp_dir();
         dir.push(format!(
-            "hook-audio-captured-conversion-{}",
+            "otter-audio-captured-conversion-{}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&dir);
@@ -94,10 +94,10 @@ mod tests {
     #[test]
     fn capture_audio_native_windows_backend_disabled_is_not_silent_fallback() {
         let mut dir = std::env::temp_dir();
-        dir.push(format!("hook-audio-native-disabled-{}", std::process::id()));
+        dir.push(format!("otter-audio-native-disabled-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
 
-        let previous = std::env::var_os("HOOK_DISABLE_NATIVE_AUDIO");
+        let previous = crate::brand_env::var_os("HOOK_DISABLE_NATIVE_AUDIO");
         std::env::set_var("HOOK_DISABLE_NATIVE_AUDIO", "1");
 
         let request = AudioCaptureRequest {
@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn wav_writers_reject_invalid_or_oversized_payloads_before_file_creation() {
-        let dir = std::env::temp_dir().join(format!("hook-audio-bounds-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("otter-audio-bounds-{}", std::process::id()));
         let invalid_settings = AudioArtifact::new(dir.join("invalid.wav"), "audio/wav");
         let error = write_silent_wav(
             &invalid_settings,
@@ -172,7 +172,7 @@ mod tests {
     #[test]
     fn captured_wav_rejects_incomplete_source_frames() {
         let artifact = AudioArtifact::new(
-            std::env::temp_dir().join("hook-incomplete-frame.wav"),
+            std::env::temp_dir().join("otter-incomplete-frame.wav"),
             "audio/wav",
         );
         let source = CapturedAudioBuffer {

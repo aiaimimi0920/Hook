@@ -8,7 +8,7 @@ const unitVisualOverlaysSource = readFileSync(resolve(process.cwd(), "src/compon
 const stickerEditingFacadeSource = readFileSync(resolve(process.cwd(), "src/services/stickerEditing.ts"), "utf8");
 const stickerFrameGeometrySource = readFileSync(resolve(process.cwd(), "src/services/stickerFrameGeometry.ts"), "utf8");
 
-describe("Hook sticker minified annotation visibility contract", () => {
+describe("Otter sticker minified annotation visibility contract", () => {
     it("uses a current baked bitmap for fast minified display while retaining the live annotation fallback", () => {
         expect(stickerEditingFacadeSource).toContain("computeMinifiedStickerAnnotationViewport");
         expect(stickerFrameGeometrySource).toContain("export const computeMinifiedStickerAnnotationViewport = (");

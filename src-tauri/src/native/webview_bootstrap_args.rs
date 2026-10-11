@@ -59,10 +59,10 @@ mod tests {
 
     #[test]
     fn merges_duplicate_feature_switches_without_losing_quoted_arguments() {
-        let arguments = r#"--user-agent="Hook  Custom Agent" --disable-features=Existing --remote-debugging-port=9337 --disable-features="UseSkiaRenderer,CanvasOopRasterization""#;
+        let arguments = r#"--user-agent="Otter  Custom Agent" --disable-features=Existing --remote-debugging-port=9337 --disable-features="UseSkiaRenderer,CanvasOopRasterization""#;
         let result = with_visible_typing_cursor(arguments);
         assert_eq!(result.matches("--disable-features=").count(), 1);
-        assert!(result.contains(r#"--user-agent="Hook  Custom Agent""#));
+        assert!(result.contains(r#"--user-agent="Otter  Custom Agent""#));
         assert!(result.contains("--remote-debugging-port=9337"));
         assert!(result.ends_with("--disable-features=CanvasOopRasterization,Existing,HideCursorWhileTyping,UseSkiaRenderer"));
         assert_eq!(with_visible_typing_cursor(&result), result);

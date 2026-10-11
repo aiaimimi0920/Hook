@@ -31,7 +31,7 @@ use super::{CaptureBackend, CaptureWorkloadProfile, DynamicCapturePixels, Dynami
 #[cfg(target_os = "windows")]
 fn capture_backend_mode() -> String {
     // WGC captures hardware-overlay video; GDI remains an explicit diagnostic fallback.
-    std::env::var("HOOK_CAPTURE_BACKEND")
+    crate::brand_env::var("HOOK_CAPTURE_BACKEND")
         .ok()
         .map(|value| value.trim().to_ascii_lowercase())
         .filter(|value| !value.is_empty())
@@ -204,7 +204,7 @@ pub fn capture_region_with_dynamic_range(
 
 /// Captures a confirmed whole-window target from the HWND-backed WGC source.
 ///
-/// This deliberately stays SDR: window captures do not include Hook's black
+/// This deliberately stays SDR: window captures do not include Otter's black
 /// composition overlay and therefore must not run the display HDR/overlay
 /// compensation path. Callers can fall back to the normal display crop when
 /// WGC cannot create a window item.

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const readSource = (relativePath: string) =>
   readFileSync(resolve(process.cwd(), relativePath), "utf8");
 
-describe("Hook Escape delete contract", () => {
+describe("Otter Escape delete contract", () => {
   it("closes an open actions menu before the selected-unit delete handler", () => {
     const shortcutsSource = readSource("src/hooks/useShortcuts.ts");
     const appSource = readSource("src/app.tsx");
@@ -104,7 +104,7 @@ describe("Hook Escape delete contract", () => {
   });
 
   it("emits global Escape from the backend so the same selected-unit delete behavior works when the overlay is not focused", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const escapeStart = rustSource.indexOf("rdev::EventType::KeyPress(rdev::Key::Escape)");
     const escapeEnd = rustSource.indexOf("rdev::EventType::MouseMove", escapeStart);
     const escapeBlock = rustSource.slice(escapeStart, escapeEnd);
@@ -116,7 +116,7 @@ describe("Hook Escape delete contract", () => {
   });
 
   it("routes Delete and Backspace to the active sticker without an artificial timeout", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
     const deleteStart = rustSource.indexOf("rdev::EventType::KeyPress(rdev::Key::Delete)");
     const deleteEnd = rustSource.indexOf("rdev::EventType::KeyPress(rdev::Key::Return)", deleteStart);
     const deleteBlock = rustSource.slice(deleteStart, deleteEnd);
@@ -142,7 +142,7 @@ describe("Hook Escape delete contract", () => {
   });
 
   it("keeps rdev and the low-level hook on independent Esc+Delete trackers", () => {
-    const rustSource = readHookLibRustSources();
+    const rustSource = readOtterLibRustSources();
 
     expect(rustSource).toContain("static EMERGENCY_EXIT_TRACKER:");
     expect(rustSource).toContain("static RDEV_EMERGENCY_EXIT_TRACKER:");

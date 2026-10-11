@@ -1,4 +1,4 @@
-// Owns bounded Hook-side state for loom.live.v1 publishers and viewers.
+// Owns bounded Otter-side state for loom.live.v1 publishers and viewers.
 const LIVE_RELAY_PROTOCOL_VERSION: &str = "loom.live.v1";
 const LIVE_RELAY_MAX_SESSIONS: usize = 8;
 const LIVE_RELAY_FRAME_BUFFER: usize = 3;

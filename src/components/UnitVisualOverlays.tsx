@@ -27,11 +27,11 @@ export const UnitVisualOverlays: Component<UnitVisualOverlaysProps> = (props) =>
     <>
         <Show when={props.isArt && props.unit.data.nodeStatus === "error"}>
             <div
-                class="hook-art-error-overlay pointer-events-none absolute inset-0 flex items-center justify-center px-3 text-center"
+                class="otter-art-error-overlay pointer-events-none absolute inset-0 flex items-center justify-center px-3 text-center"
                 style={{ "z-index": 30 }}
             >
                 <div style={{ "max-height": "70%", overflow: "hidden" }}>
-                    <div class="hook-art-error-overlay__title text-xs font-semibold">执行失败</div>
+                    <div class="otter-art-error-overlay__title text-xs font-semibold">执行失败</div>
                     <div class="mt-1 text-[11px] leading-snug break-words">{props.artErrorMessage}</div>
                 </div>
             </div>

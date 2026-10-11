@@ -76,7 +76,7 @@ export const createPropertyBarCropController = (options: CreatePropertyBarCropCo
                 await syncService.performWorkflowSync();
             });
         } catch (error) {
-            console.error("[Hook] Failed to flip sticker crop content", error);
+            console.error("[Otter] Failed to flip sticker crop content", error);
         }
     };
 

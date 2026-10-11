@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$HookExe,
+    [Parameter(Mandatory = $true)][string]$OtterExe,
     [Parameter(Mandatory = $true)][string]$LoomPackageDir,
     [string]$SourceTestExe,
     [Parameter(Mandatory = $true)][string]$EvidenceRoot,
@@ -15,20 +15,20 @@ if ($SoakSeconds -gt 0) { $WithManagement = $true }
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $root = [IO.Path]::GetFullPath($EvidenceRoot)
 $artifacts = [IO.Path]::GetFullPath((Join-Path $repo 'artifacts')).TrimEnd('\') + '\'
-if (-not $root.StartsWith($artifacts, [StringComparison]::OrdinalIgnoreCase)) { throw 'Evidence must stay below Hook/artifacts' }
+if (-not $root.StartsWith($artifacts, [StringComparison]::OrdinalIgnoreCase)) { throw 'Evidence must stay below Otter/artifacts' }
 if (Test-Path -LiteralPath $root) { throw 'Evidence directory already exists' }
-$HookExe = (Resolve-Path -LiteralPath $HookExe).Path
+$OtterExe = (Resolve-Path -LiteralPath $OtterExe).Path
 if ($GuiSource) {
-    if (Get-Process -Name hook -ErrorAction SilentlyContinue) { throw 'Ordinary GUI source requires no existing Hook process' }
+    if (Get-Process -Name hook,otter -ErrorAction SilentlyContinue) { throw 'Ordinary GUI source requires no existing Otter process' }
     $WithManagement = $true
 } else {
     if (-not $SourceTestExe) { throw 'SourceTestExe is required for the Rust source mode' }
     $SourceTestExe = (Resolve-Path -LiteralPath $SourceTestExe).Path
 }
 $daemonExe = (Resolve-Path -LiteralPath (Join-Path $LoomPackageDir 'runtime/loom-daemon.exe')).Path
-$provenance = Get-Content -LiteralPath (Join-Path (Split-Path $HookExe) 'build-provenance.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-$hookHash = (Get-FileHash -LiteralPath $HookExe -Algorithm SHA256).Hash.ToLowerInvariant()
-if ($hookHash -cne $provenance.artifact.sha256.ToLowerInvariant()) { throw 'Hook candidate digest mismatch' }
+$provenance = Get-Content -LiteralPath (Join-Path (Split-Path $OtterExe) 'build-provenance.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$otterHash = (Get-FileHash -LiteralPath $OtterExe -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($otterHash -cne $provenance.artifact.sha256.ToLowerInvariant()) { throw 'Otter candidate digest mismatch' }
 $owned = New-Object 'System.Collections.Generic.List[System.Diagnostics.Process]'
 $processPaths = New-Object 'System.Collections.Generic.List[object]'
 $resourceSamples = New-Object 'System.Collections.Generic.List[object]'
@@ -45,7 +45,7 @@ function Free-Port {
 }
 function Start-Owned([string]$Exe, [string[]]$Arguments, [hashtable]$Values, [string]$Name) {
     $saved = @{}
-    $keys = @(Get-ChildItem Env: | Where-Object Name -Match '^(LOOM_|HOOK_|WEBVIEW2_)' | ForEach-Object Name) + @($Values.Keys)
+    $keys = @(Get-ChildItem Env: | Where-Object Name -Match '^(LOOM_|OTTER_|WEBVIEW2_)' | ForEach-Object Name) + @($Values.Keys)
     try {
         foreach ($key in ($keys | Select-Object -Unique)) {
             $saved[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
@@ -107,14 +107,14 @@ function Process-Sample {
     })
     @{ atUtc = [DateTime]::UtcNow.ToString('o'); processes = $rows }
 }
-foreach ($name in @('control-plane', 'configuration', 'manifest', 'appdata', 'localappdata', 'hook-data', 'webview', 'output-webview', 'loom-webview')) {
+foreach ($name in @('control-plane', 'configuration', 'manifest', 'appdata', 'localappdata', 'otter-data', 'webview', 'output-webview', 'loom-webview')) {
     $null = New-Item -ItemType Directory -Path (Join-Path $root $name) -Force
 }
 $ports = @()
 $portCount = if ($GuiSource) { 6 } elseif ($WithManagement) { 5 } else { 3 }
 while ($ports.Count -lt $portCount) { $port = Free-Port; if ($ports -notcontains $port) { $ports += $port } }
 $record = @{ daemonBaseUrl = "http://127.0.0.1:$($ports[0])"; cdpPort = $ports[1]; outputCdpPort = $ports[2]
-    daemonExe = $daemonExe; hookExe = $HookExe; sourceTestExe = $SourceTestExe; evidenceRoot = $root; soakSeconds = $SoakSeconds }
+    daemonExe = $daemonExe; otterExe = $OtterExe; sourceTestExe = $SourceTestExe; evidenceRoot = $root; soakSeconds = $SoakSeconds }
 $sourceProcess = $null
 $success = $false
 try {
@@ -132,13 +132,13 @@ try {
     Wait-File 'manifest/loom.json' $daemon
     $record.daemonPid = $daemon.Id
     $terminalEnvironment = @{
-        LOOM_MANIFEST_PATH = (Join-Path $root 'manifest/loom.json'); HOOK_APPDATA_DIR = (Join-Path $root 'hook-data')
+        LOOM_MANIFEST_PATH = (Join-Path $root 'manifest/loom.json'); HOOK_APPDATA_DIR = (Join-Path $root 'otter-data')
         APPDATA = (Join-Path $root 'appdata'); LOCALAPPDATA = (Join-Path $root 'localappdata')
         WEBVIEW2_USER_DATA_FOLDER = (Join-Path $root 'webview')
         WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$($ports[1])"
     }
-    $manager = Start-Owned $HookExe @('--tile') $terminalEnvironment 'manager'
-    $record.hookPid = $manager.Id
+    $manager = Start-Owned $OtterExe @('--tile') $terminalEnvironment 'manager'
+    $record.otterPid = $manager.Id
     $fixtureExe = Join-Path $root 'WallInputFixture.exe'
     $csc = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
     & $csc /nologo /target:winexe "/out:$fixtureExe" /reference:System.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll (Join-Path $PSScriptRoot 'fixtures/LiveScreenshotPhaseZeroFixture.cs')
@@ -172,8 +172,8 @@ try {
         $sourceEnvironment.LOOM_HOOK_WS_URL = "ws://127.0.0.1:$($ports[4])"
         $sourceEnvironment.WEBVIEW2_USER_DATA_FOLDER = Join-Path $root 'source-webview'
         $sourceEnvironment.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$($ports[5])"
-        $sourceGui = Start-Owned $HookExe @() $sourceEnvironment 'source-hook'
-        $record.sourceHookPid = $sourceGui.Id; $record.sourceCdpPort = $ports[5]; $record.pointerExe = $pointerExe
+        $sourceGui = Start-Owned $OtterExe @() $sourceEnvironment 'source-hook'
+        $record.sourceOtterPid = $sourceGui.Id; $record.sourceCdpPort = $ports[5]; $record.pointerExe = $pointerExe
         Write-Json 'runtime.json' $record
         $sourceProcess = Start-Owned (Get-Command node.exe).Source @('--experimental-strip-types',
             ('"' + (Join-Path $PSScriptRoot 'tile-wall/probeGuiSource.ts') + '"'), ('"' + $root + '"')) @{} 'source'
@@ -184,13 +184,13 @@ try {
         } 'source'
         Wait-File 'input-source-ready.json' $sourceProcess 40
     }
-    $cli = Start-Owned $HookExe @('--tile-outputs') @{ HOOK_CLI_OUTPUT = (Join-Path $root 'outputs.json') } 'outputs'
+    $cli = Start-Owned $OtterExe @('--tile-outputs') @{ HOOK_CLI_OUTPUT = (Join-Path $root 'outputs.json') } 'outputs'
     if (-not $cli.WaitForExit(10000)) { throw 'Output enumeration timed out' }
     $outputs = @(Get-Content -LiteralPath (Join-Path $root 'outputs.json') -Raw -Encoding UTF8 | ConvertFrom-Json)
     if ($outputs.Count -ne 1) { throw 'This probe requires exactly one physical output; select a multi-output acceptance explicitly' }
     $terminalEnvironment.WEBVIEW2_USER_DATA_FOLDER = Join-Path $root 'output-webview'
     $terminalEnvironment.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$($ports[2])"
-    $output = Start-Owned $HookExe @('--tile-output', $outputs[0].outputId) $terminalEnvironment 'output'
+    $output = Start-Owned $OtterExe @('--tile-output', $outputs[0].outputId) $terminalEnvironment 'output'
     $record.outputPid = $output.Id; Write-Json 'runtime.json' $record
     $before = Process-Sample
     if ($WithManagement) { Run-Node 'probeManagement.ts' 'management' }
@@ -201,18 +201,18 @@ try {
     }
     Run-Node 'probeNativeInput.ts' 'input'
     $output.WaitForExit(10000) | Out-Null
-    $restarted = Start-Owned $HookExe @('--tile-output', $outputs[0].outputId) $terminalEnvironment 'output-restarted'
+    $restarted = Start-Owned $OtterExe @('--tile-output', $outputs[0].outputId) $terminalEnvironment 'output-restarted'
     $record.outputPid = $restarted.Id; Write-Json 'runtime.json' $record
     Run-Node 'probeNativeInput.ts' 'recovery' 'recovery'
     if (-not $sourceProcess.WaitForExit(15000)) { throw 'Native source did not finish' }
     $sourceProcess.WaitForExit(); $sourceProcess.Refresh()
     if ($sourceProcess.ExitCode -ne 0) { throw 'Native source semantic or cleanup failure' }
-    if ($GuiSource -and -not $sourceGui.WaitForExit(10000)) { throw 'Ordinary Hook source did not exit normally' }
+    if ($GuiSource -and -not $sourceGui.WaitForExit(10000)) { throw 'Ordinary Otter source did not exit normally' }
     Write-Json 'summary.json' @{
-        passed = $true; hookExe = $HookExe; hookSha256 = $hookHash; daemonExe = $daemonExe
+        passed = $true; otterExe = $OtterExe; otterSha256 = $otterHash; daemonExe = $daemonExe
         daemonSha256 = (Get-FileHash -LiteralPath $daemonExe -Algorithm SHA256).Hash.ToLowerInvariant()
         sourceTestExe = $SourceTestExe; sourceTestSha256 = $(if (-not $GuiSource) { (Get-FileHash -LiteralPath $SourceTestExe -Algorithm SHA256).Hash.ToLowerInvariant() } else { $null })
-        scope = $(if ($GuiSource) { 'One physical output, packaged terminal, daemon and ordinary Hook GUI source' } else { 'One physical output, packaged terminal and daemon, native WGC/input test harness source' })
+        scope = $(if ($GuiSource) { 'One physical output, packaged terminal, daemon and ordinary Otter GUI source' } else { 'One physical output, packaged terminal and daemon, native WGC/input test harness source' })
         input = (Get-Content -LiteralPath (Join-Path $root 'input-result.json') -Raw -Encoding UTF8 | ConvertFrom-Json)
         recovery = (Get-Content -LiteralPath (Join-Path $root 'recovery-result.json') -Raw -Encoding UTF8 | ConvertFrom-Json)
         management = $(if ($WithManagement) { Get-Content -LiteralPath (Join-Path $root 'management-result.json') -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null })

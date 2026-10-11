@@ -3,7 +3,7 @@
     #[test]
     fn session_library_clear_is_persisted_before_the_control_command_completes() {
         let root = std::env::temp_dir().join(format!(
-            "hook-session-library-clear-test-{}-{}",
+            "otter-session-library-clear-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
@@ -33,7 +33,7 @@
     #[test]
     fn session_document_rejects_stale_revision_without_mutating_the_file() {
         let root = std::env::temp_dir().join(format!(
-            "hook-session-revision-test-{}-{}",
+            "otter-session-revision-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
@@ -68,7 +68,7 @@
     #[test]
     fn history_settings_json_is_atomic_bounded_and_does_not_hide_corruption() {
         let root = std::env::temp_dir().join(format!(
-            "hook-history-settings-test-{}-{}",
+            "otter-history-settings-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
@@ -96,7 +96,7 @@
     #[test]
     fn session_document_rejects_unsupported_schema_without_overwrite() {
         let root = std::env::temp_dir().join(format!(
-            "hook-session-schema-test-{}-{}",
+            "otter-session-schema-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
@@ -117,7 +117,7 @@
     #[test]
     fn session_file_lease_serializes_independent_writers() {
         let root = std::env::temp_dir().join(format!(
-            "hook-session-lock-test-{}-{}",
+            "otter-session-lock-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
@@ -143,7 +143,7 @@
     #[test]
     fn app_settings_state_serves_cached_values_and_preserves_them_after_failed_save() {
         let root = std::env::temp_dir().join(format!(
-            "hook-app-settings-state-test-{}-{}",
+            "otter-app-settings-state-test-{}-{}",
             std::process::id(),
             file_timestamp_component(),
         ));
@@ -166,7 +166,7 @@
     #[test]
     fn effective_app_data_dir_uses_current_identifier_dir() {
         let root = std::env::temp_dir().join(format!(
-            "hook-app-data-current-test-{}-{}",
+            "otter-app-data-current-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
@@ -183,7 +183,7 @@
     #[test]
     fn effective_app_data_dir_honors_explicit_override_before_current_state() {
         let root = std::env::temp_dir().join(format!(
-            "hook-app-data-override-test-{}-{}",
+            "otter-app-data-override-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
@@ -203,7 +203,7 @@
     #[test]
     fn restore_loaded_session_stickers_keeps_file_backed_srcs_in_path_form() {
         let root = std::env::temp_dir().join(format!(
-            "hook-session-restore-test-{}-{}",
+            "otter-session-restore-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
@@ -256,7 +256,7 @@
     #[test]
     fn session_asset_persistence_reuses_the_same_file_for_unchanged_content() {
         let root = std::env::temp_dir().join(format!(
-            "hook-session-asset-test-{}-{}",
+            "otter-session-asset-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
@@ -281,7 +281,7 @@
     #[test]
     fn session_asset_persistence_uses_a_new_file_when_content_changes() {
         let root = std::env::temp_dir().join(format!(
-            "hook-session-asset-change-test-{}-{}",
+            "otter-session-asset-change-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));
@@ -302,7 +302,7 @@
     #[test]
     fn session_asset_cleanup_keeps_current_session_references_and_prunes_old_orphans() {
         let root = std::env::temp_dir().join(format!(
-            "hook-session-asset-cleanup-test-{}-{}",
+            "otter-session-asset-cleanup-test-{}-{}",
             std::process::id(),
             file_timestamp_component()
         ));

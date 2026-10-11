@@ -254,7 +254,7 @@ const LiveRelayWindow: Component<{ view: typeof liveRelayViews[number]; controll
                 <span class="hook-live-window__state">{relayStateLabel(props.view.status.connectionState)}</span>
                 <button
                     type="button"
-                    class={`hook-terminal-btn hook-live-window__button ${props.view.pinned ? "hook-terminal-btn--active" : ""}`}
+                    class={`otter-terminal-btn hook-live-window__button ${props.view.pinned ? "otter-terminal-btn--active" : ""}`}
                     aria-pressed={props.view.pinned}
                     onMouseDown={(event) => event.stopPropagation()}
                     onClick={() => liveRelayActions.setPinned(props.view.relayId, !props.view.pinned)}
@@ -263,7 +263,7 @@ const LiveRelayWindow: Component<{ view: typeof liveRelayViews[number]; controll
                 </button>
                 <button
                     type="button"
-                    class="hook-terminal-btn hook-terminal-btn--danger hook-live-window__button"
+                    class="otter-terminal-btn otter-terminal-btn--danger hook-live-window__button"
                     disabled={pending()}
                     onMouseDown={(event) => event.stopPropagation()}
                     onClick={() => void close()}
@@ -272,7 +272,7 @@ const LiveRelayWindow: Component<{ view: typeof liveRelayViews[number]; controll
             <div
                 class={`hook-live-window__viewport ${interactive() ? "hook-live-window__viewport--interactive" : ""}`}
                 tabIndex={interactive() ? 0 : -1}
-                data-hook-global-shortcuts={interactive() ? "ignore" : undefined}
+                data-otter-global-shortcuts={interactive() ? "ignore" : undefined}
                 onContextMenu={(event) => { if (interactive()) event.preventDefault(); }}
                 onPointerMove={(event) => {
                     if (!interactive()) return;
@@ -333,7 +333,7 @@ const LiveRelayWindow: Component<{ view: typeof liveRelayViews[number]; controll
                 <div class="hook-live-window__controls" onPointerDown={(event) => event.stopPropagation()}>
                     <button
                         type="button"
-                        class={`hook-terminal-btn ${interactive() ? "hook-terminal-btn--active" : ""}`}
+                        class={`otter-terminal-btn ${interactive() ? "otter-terminal-btn--active" : ""}`}
                         disabled={pending() || props.view.status.connectionState !== "connected"}
                         aria-pressed={props.view.status.controllerOwned}
                         onClick={() => void changeControl()}

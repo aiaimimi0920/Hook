@@ -49,7 +49,7 @@ export async function cleanupCaptureInput({
     if (failures.length > 0) {
         // Do not copy native error details into logs; step names are enough to
         // diagnose a partial cleanup without exposing paths or payload data.
-        console.error(`[Hook] capture cleanup incomplete (${reason}: ${failures.join(",")})`);
+        console.error(`[Otter] capture cleanup incomplete (${reason}: ${failures.join(",")})`);
     }
     return failures;
 }

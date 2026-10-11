@@ -44,7 +44,7 @@ try {
             if (await candidate.evaluate(() => Boolean((window as unknown as Tauri).__TAURI_INTERNALS__))) return candidate;
         }
     });
-    await waitFor(async () => (await readFile(join(output, "logs/hook-runtime.log"), "utf8")).includes("frontend-initialized") ? true : undefined);
+    await waitFor(async () => (await readFile(join(output, "logs/otter-runtime.log"), "utf8")).includes("frontend-initialized") ? true : undefined);
     await os("show", ready.hwnd);
     const client = JSON.parse(await os("client", ready.hwnd)) as Client;
     // Use one common left-edge source anchor, rather than starting later tiles
@@ -57,7 +57,7 @@ try {
     for (let i = 0; i < count; i++) {
         await os("show", ready.hwnd);
         await sleep(150);
-        const readyCount = async () => (await readFile(join(output, "logs/hook-runtime.log"), "utf8")).split("capture-window-targets-ready").length;
+        const readyCount = async () => (await readFile(join(output, "logs/otter-runtime.log"), "utf8")).split("capture-window-targets-ready").length;
         const previousReady = await readyCount();
         await invoke("plugin:event|emit", { event: "trigger-live-capture", payload: null });
         await waitFor(async () => await readyCount() > previousReady ? true : undefined);

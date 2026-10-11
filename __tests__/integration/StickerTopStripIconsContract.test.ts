@@ -14,7 +14,7 @@ const presentationSource = [
 const iconsExists = existsSync(iconsPath);
 const iconsSource = iconsExists ? readFileSync(iconsPath, "utf8") : "";
 
-describe("Hook sticker top strip icon extraction contract", () => {
+describe("Otter sticker top strip icon extraction contract", () => {
     it("keeps reusable top strip toolbar icons in a dedicated helper module instead of redefining them inline in StickerTopStrip", () => {
         expect(iconsExists).toBe(true);
         expect(iconsSource).toContain("export interface TopStripIconProps");

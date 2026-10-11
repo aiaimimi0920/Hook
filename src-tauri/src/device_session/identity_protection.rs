@@ -39,7 +39,7 @@ mod platform {
     fn input_blob(bytes: &mut [u8]) -> Result<CRYPT_INTEGER_BLOB, String> {
         Ok(CRYPT_INTEGER_BLOB {
             cbData: u32::try_from(bytes.len())
-                .map_err(|_| "Hook device private key is too large".to_owned())?,
+                .map_err(|_| "Otter device private key is too large".to_owned())?,
             pbData: bytes.as_mut_ptr(),
         })
     }
@@ -47,17 +47,17 @@ mod platform {
     pub(super) fn protect(encoded: &str) -> Result<String, String> {
         let mut plaintext = BASE64
             .decode(encoded.trim())
-            .map_err(|_| "Hook device private key is not valid Base64".to_owned())?;
+            .map_err(|_| "Otter device private key is not valid Base64".to_owned())?;
         if plaintext.len() != 32 {
             plaintext.fill(0);
-            return Err("Hook device private key must contain 32 Ed25519 bytes".to_owned());
+            return Err("Otter device private key must contain 32 Ed25519 bytes".to_owned());
         }
         let input = input_blob(&mut plaintext)?;
         let mut output = LocalBlob(CRYPT_INTEGER_BLOB::default());
         let result = unsafe {
             CryptProtectData(
                 &input,
-                w!("Hook device identity"),
+                w!("Otter device identity"),
                 None,
                 None,
                 None,
@@ -66,9 +66,9 @@ mod platform {
             )
         };
         plaintext.fill(0);
-        result.map_err(|_| "protect Hook device identity private key".to_owned())?;
+        result.map_err(|_| "protect Otter device identity private key".to_owned())?;
         if output.0.pbData.is_null() || output.0.cbData == 0 {
-            return Err("protect Hook device identity private key".to_owned());
+            return Err("protect Otter device identity private key".to_owned());
         }
         let protected = unsafe { slice::from_raw_parts(output.0.pbData, output.0.cbData as usize) };
         Ok(format!("{DPAPI_PREFIX}{}", BASE64.encode(protected)))
@@ -77,10 +77,10 @@ mod platform {
     pub(super) fn unprotect(stored: &str) -> Result<String, String> {
         let payload = stored
             .strip_prefix(DPAPI_PREFIX)
-            .ok_or_else(|| "Hook device identity has an invalid DPAPI envelope".to_owned())?;
+            .ok_or_else(|| "Otter device identity has an invalid DPAPI envelope".to_owned())?;
         let mut protected = BASE64
             .decode(payload)
-            .map_err(|_| "Hook device identity has an invalid DPAPI envelope".to_owned())?;
+            .map_err(|_| "Otter device identity has an invalid DPAPI envelope".to_owned())?;
         let input = input_blob(&mut protected)?;
         let mut output = LocalBlob(CRYPT_INTEGER_BLOB::default());
         unsafe {
@@ -94,9 +94,9 @@ mod platform {
                 &mut output.0,
             )
         }
-        .map_err(|_| "unprotect Hook device identity private key".to_owned())?;
+        .map_err(|_| "unprotect Otter device identity private key".to_owned())?;
         if output.0.pbData.is_null() || output.0.cbData != 32 {
-            return Err("unprotect Hook device identity private key".to_owned());
+            return Err("unprotect Otter device identity private key".to_owned());
         }
         let plaintext = unsafe { slice::from_raw_parts(output.0.pbData, output.0.cbData as usize) };
         Ok(BASE64.encode(plaintext))
@@ -135,9 +135,11 @@ pub(super) fn decode_from_storage(
             #[cfg(not(windows))]
             {
                 let _ = stored;
-                Err("Hook device identity requires Windows DPAPI".to_owned())
+                Err("Otter device identity requires Windows DPAPI".to_owned())
             }
         }
-        version => Err(format!("unsupported Hook device identity schema {version}")),
+        version => Err(format!(
+            "unsupported Otter device identity schema {version}"
+        )),
     }
 }

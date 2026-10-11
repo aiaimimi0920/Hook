@@ -208,7 +208,7 @@ export const createStickerAnnotationPointerDownController = (
         }
 
         void api.focusOverlayWindow().catch((error) => {
-            console.warn("[Hook] Failed to focus overlay for annotation interaction", error);
+            console.warn("[Otter] Failed to focus overlay for annotation interaction", error);
         });
         if (
             hit &&
@@ -281,7 +281,7 @@ export const createStickerAnnotationPointerDownController = (
         if (activeTool === "color-picker") return;
         if (activeTool === "text") {
             await api.focusOverlayWindow().catch((error) => {
-                console.warn("[Hook] Failed to focus overlay for text input", error);
+                console.warn("[Otter] Failed to focus overlay for text input", error);
             });
             options.text.beginPendingTextInput(point);
             return;
@@ -425,7 +425,7 @@ export const createStickerAnnotationPointerDownController = (
         event.stopPropagation();
         event.preventDefault();
         await api.focusOverlayWindow().catch((error) => {
-            console.warn("[Hook] Failed to focus overlay for text edit", error);
+            console.warn("[Otter] Failed to focus overlay for text edit", error);
         });
         options.text.beginPendingTextInput({ x: hit.x, y: hit.y }, hit);
     };

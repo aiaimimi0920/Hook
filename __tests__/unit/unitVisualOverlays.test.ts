@@ -243,7 +243,7 @@ describe("Unit visual OCR overlay validation", () => {
     it("does not infer label columns across unrelated document rows", () => {
         const rows = resolveOcrOverlayBlocks([
             ocrBlock("#七、当前仍需人工观察的部分", 7, 26, 310, 25),
-            ocrBlock("Hook EXE  测试：", 159, 75, 172, 30),
+            ocrBlock("Otter EXE  测试：", 159, 75, 172, 30),
             ocrBlock("建议你重点用新", 8, 78, 158, 24),
             ocrBlock("1.很小的 OCR 原始文字；", 6, 126, 258, 32),
             ocrBlock("截图顶部第一行；", 38, 153, 172, 29),
@@ -312,15 +312,15 @@ describe("Unit visual OCR overlay validation", () => {
 
     it("retains every adjacent OCR row when detector boxes overlap", () => {
         const rows = resolveOcrOverlayBlocks([
-            ocrBlock("1.关闭当前正在运行的旧 Hook;", 14, 11, 328, 34),
-            ocrBlock("2.启动hook-ocr-layout-fix-20260827-v2.exe;", 13, 38, 494, 33),
+            ocrBlock("1.关闭当前正在运行的旧 Otter;", 14, 11, 328, 34),
+            ocrBlock("2.启动otter-ocr-layout-fix-20260827-v2.exe;", 13, 38, 494, 33),
             ocrBlock("3.使用Ctr1+1截取你刚才提供的原始测试图片；", 13, 63, 494, 33),
             ocrBlock("4.使用Ctr1+2执行OCR；", 9, 85, 284, 42),
         ]);
 
         expect(rows.map((row) => row.text)).toEqual([
-            "1.关闭当前正在运行的旧 Hook;",
-            "2.启动hook-ocr-layout-fix-20260827-v2.exe;",
+            "1.关闭当前正在运行的旧 Otter;",
+            "2.启动otter-ocr-layout-fix-20260827-v2.exe;",
             "3.使用Ctr1+1截取你刚才提供的原始测试图片；",
             "4.使用Ctr1+2执行OCR；",
         ]);

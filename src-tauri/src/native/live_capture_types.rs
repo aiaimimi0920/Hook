@@ -255,7 +255,7 @@ impl LiveCaptureSessionState {
         self.capture_state = "streaming".to_string();
         self.visibility_state = "visible".to_string();
         self.epoch = epoch;
-        // Status dimensions stay in Hook logical coordinates for the complete
+        // Status dimensions stay in Otter logical coordinates for the complete
         // session. Frame descriptors are physical pixels and must not silently
         // change the unit consumed by view geometry and normalized input.
         self.last_frame_at_ms = Some(self.last_frame_at_ms.unwrap_or(0).max(captured_at_ms));

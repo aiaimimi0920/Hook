@@ -3,7 +3,7 @@ import { graphStore } from "../store/graphStore";
 import { Unit, Link, WorkflowAssetArchiveHints } from "../types/unit";
 import { requestBackendRectSync } from "./syncService/backendRects";
 import { SyncScheduler } from "./syncService/scheduler";
-import { loomHook } from "./client";
+import { loomOtter } from "./client";
 import { WORKFLOW_ID } from "../constants";
 import type { BootProfile } from "./bootProfile";
 import type { StickerGroup } from "../types/stickerEditing";
@@ -46,7 +46,7 @@ const mapGroupToSessionGroup = (group: StickerGroup) => ({
     locked: group.locked ?? false,
 });
 
-const SESSION_REVISION_CONFLICT_EVENT = "hook:session-revision-conflict";
+const SESSION_REVISION_CONFLICT_EVENT = "otter:session-revision-conflict";
 let currentSessionRevision = 0;
 
 const isSessionRevisionConflict = (error: unknown) =>
@@ -242,13 +242,13 @@ const executeSyncCycle = async () => {
 
             const rfNodes = componentUnits.map(async (u) => {
                 const syncImg = shouldSyncImage(u, dominantWfId!);
-                const loomHookType = u.type === 'sticker' ? 'sticker' : 'artNode';
+                const loomOtterType = u.type === 'sticker' ? 'sticker' : 'artNode';
                 const imagePayload = syncImg
                     ? await buildSyncedImagePayload(u, { renderBakedPreviewSrc })
                     : {};
                 return {
                     id: u.data?.originNodeId || u.id,
-                    type: loomHookType,
+                    type: loomOtterType,
                     position: { x: u.x, y: u.y },
                     data: {
                         label: u.artId || "Node",
@@ -317,14 +317,14 @@ const executeSyncCycle = async () => {
 
     const globalRfNodes = currentUnits.map(async (u) => {
         const syncImg = shouldSyncImage(u, WORKFLOW_ID);
-        const loomHookType = u.type === 'sticker' ? 'sticker' : 'artNode';
+        const loomOtterType = u.type === 'sticker' ? 'sticker' : 'artNode';
         const imagePayload = syncImg
             ? await buildSyncedImagePayload(u, { renderBakedPreviewSrc })
             : {};
 
         return {
             id: u.id,
-            type: loomHookType,
+            type: loomOtterType,
             position: { x: u.x, y: u.y },
             data: {
                 label: u.artId || "Node",
@@ -366,7 +366,7 @@ const executeSyncCycle = async () => {
         liveWorkflowArchiveHint.nodes[u.id] = { stickerId: u.id };
     });
 
-    // Hook owns the durable document revision. Save first so every Loom snapshot
+    // Otter owns the durable document revision. Save first so every Loom snapshot
     // carries the exact generation against which later Loom patches must compare.
     const sessionStickers = await buildSessionStickersForSave(graphStore.units, {
         renderBakedPreviewSrc,
@@ -396,7 +396,7 @@ const executeSyncCycle = async () => {
         await syncService.restoreSession(undefined, latest);
         window.dispatchEvent(new CustomEvent(SESSION_REVISION_CONFLICT_EVENT, {
             detail: {
-                message: "Loom 与 Hook 同时修改了画布。Hook 已刷新到磁盘中的最新版本；请确认内容后重试同步。",
+                message: "Loom 与 Otter 同时修改了画布。Otter 已刷新到磁盘中的最新版本；请确认内容后重试同步。",
             },
         }));
         return;
@@ -405,7 +405,7 @@ const executeSyncCycle = async () => {
 
     await Promise.all(
         syncRequests.map(({ workflowId, snapshot }) =>
-            loomHook.syncWorkflow(workflowId, {
+            loomOtter.syncWorkflow(workflowId, {
                 ...(snapshot as Record<string, unknown>),
                 documentSchemaVersion: 1,
                 documentRevision: currentSessionRevision,

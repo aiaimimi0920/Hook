@@ -54,7 +54,7 @@ fn phase_four_capture_config(hwnd: HWND, interactive: bool) -> LiveCaptureWorker
         session_id: format!("phase4-source-{}", std::process::id()),
         window_id: Some(format!("{:x}", hwnd.0 as usize)),
         expected_process_id,
-        source_title: Some("Hook live Phase 4 source".to_owned()),
+        source_title: Some("Otter live Phase 4 source".to_owned()),
         x: 0,
         y: 0,
         width: 640,

@@ -6,7 +6,7 @@ const syncServiceSource = readFileSync(resolve(process.cwd(), "src/services/sync
 const payloadHelperSource = readFileSync(resolve(process.cwd(), "src/services/syncedImagePayload.ts"), "utf8");
 const sessionStickerSource = readFileSync(resolve(process.cwd(), "src/services/sessionStickerPayload.ts"), "utf8");
 
-describe("Hook workflow payload slimming contract", () => {
+describe("Otter workflow payload slimming contract", () => {
     it("drops redundant preview payloads when previewSrc matches src", () => {
         expect(sessionStickerSource).toContain("normalizePreviewSrc");
         expect(sessionStickerSource).toContain("previewSrc: normalizePreviewSrc(unit) || null");

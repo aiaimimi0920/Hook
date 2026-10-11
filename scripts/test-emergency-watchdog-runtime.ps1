@@ -1,17 +1,17 @@
 param(
-    [string]$HookExe = "",
+    [string]$OtterExe = "",
     [switch]$SkipKeyboardInjection
 )
 
 $ErrorActionPreference = "Stop"
 
-if ([string]::IsNullOrWhiteSpace($HookExe)) {
-    $HookExe = Join-Path $PSScriptRoot "..\src-tauri\target\debug\hook.exe"
+if ([string]::IsNullOrWhiteSpace($OtterExe)) {
+    $OtterExe = Join-Path $PSScriptRoot "..\src-tauri\target\debug\otter.exe"
 }
-$HookExe = (Resolve-Path -LiteralPath $HookExe).Path
+$OtterExe = (Resolve-Path -LiteralPath $OtterExe).Path
 $tempBase = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $runtimeRoot = [IO.Path]::GetFullPath(
-    (Join-Path $tempBase ("hook-watchdog-runtime-" + [guid]::NewGuid().ToString("N")))
+    (Join-Path $tempBase ("otter-watchdog-runtime-" + [guid]::NewGuid().ToString("N")))
 )
 if (-not $runtimeRoot.StartsWith($tempBase, [StringComparison]::OrdinalIgnoreCase)) {
     throw "Refusing to create the watchdog runtime test outside the temp directory: $runtimeRoot"
@@ -21,7 +21,7 @@ New-Item -ItemType Directory -Path $runtimeRoot | Out-Null
 $parentScript = Join-Path $runtimeRoot "watchdog-parent.ps1"
 $parentScriptSource = @'
 param(
-    [Parameter(Mandatory=$true)][string]$HookPath,
+    [Parameter(Mandatory=$true)][string]$OtterPath,
     [Parameter(Mandatory=$true)][string]$InfoPath,
     [Parameter(Mandatory=$true)][string]$LogDir,
     [Parameter(Mandatory=$true)][int]$LifetimeMs
@@ -30,8 +30,8 @@ param(
 $ErrorActionPreference = "Stop"
 $env:HOOK_LOG_DIR = $LogDir
 $watchdog = Start-Process `
-    -FilePath $HookPath `
-    -ArgumentList @("--hook-emergency-watchdog", "$PID") `
+    -FilePath $OtterPath `
+    -ArgumentList @("--otter-emergency-watchdog", "$PID") `
     -PassThru `
     -WindowStyle Hidden
 [IO.File]::WriteAllText(
@@ -51,7 +51,7 @@ Add-Type @'
 using System;
 using System.Runtime.InteropServices;
 
-public static class HookWatchdogKeyboardTest
+public static class OtterWatchdogKeyboardTest
 {
     [DllImport("user32.dll", SetLastError = true)]
     public static extern void keybd_event(
@@ -82,7 +82,7 @@ function Start-WatchdogParent {
             "-NoProfile",
             "-ExecutionPolicy", "Bypass",
             "-File", $parentScript,
-            "-HookPath", $HookExe,
+            "-OtterPath", $OtterExe,
             "-InfoPath", $infoPath,
             "-LogDir", $caseDirectory,
             "-LifetimeMs", "$LifetimeMs"
@@ -129,8 +129,8 @@ function Wait-ProcessGone {
 
 try {
     $mismatchProcess = Start-Process `
-        -FilePath $HookExe `
-        -ArgumentList @("--hook-emergency-watchdog", "$($PID + 100000)") `
+        -FilePath $OtterExe `
+        -ArgumentList @("--otter-emergency-watchdog", "$($PID + 100000)") `
         -PassThru `
         -Wait `
         -WindowStyle Hidden
@@ -151,12 +151,12 @@ try {
         Start-Sleep -Milliseconds 150
         foreach ($attempt in 1..3) {
             try {
-                [HookWatchdogKeyboardTest]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero)
-                [HookWatchdogKeyboardTest]::keybd_event(0x2E, 0, 0, [UIntPtr]::Zero)
+                [OtterWatchdogKeyboardTest]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero)
+                [OtterWatchdogKeyboardTest]::keybd_event(0x2E, 0, 0, [UIntPtr]::Zero)
                 Start-Sleep -Milliseconds 50
             } finally {
-                [HookWatchdogKeyboardTest]::keybd_event(0x2E, 0, [HookWatchdogKeyboardTest]::KeyEventKeyUp, [UIntPtr]::Zero)
-                [HookWatchdogKeyboardTest]::keybd_event(0x1B, 0, [HookWatchdogKeyboardTest]::KeyEventKeyUp, [UIntPtr]::Zero)
+                [OtterWatchdogKeyboardTest]::keybd_event(0x2E, 0, [OtterWatchdogKeyboardTest]::KeyEventKeyUp, [UIntPtr]::Zero)
+                [OtterWatchdogKeyboardTest]::keybd_event(0x1B, 0, [OtterWatchdogKeyboardTest]::KeyEventKeyUp, [UIntPtr]::Zero)
             }
             Start-Sleep -Milliseconds 90
         }
@@ -167,7 +167,7 @@ try {
             throw "The watchdog remained after Triple Esc+Delete"
         }
         $escapeLog = [IO.File]::ReadAllText(
-            (Join-Path $escape.Directory "hook-runtime.log")
+            (Join-Path $escape.Directory "otter-runtime.log")
         )
         if ($escapeLog -notmatch "source=triple_esc_delete") {
             throw "The Triple Esc+Delete termination source was not logged"
@@ -176,7 +176,7 @@ try {
         $chord = Start-WatchdogParent -Name "backup-chord" -LifetimeMs 600000
         Start-Sleep -Milliseconds 150
         foreach ($virtualKey in [byte[]](0x11, 0x12, 0x10, 0x7B)) {
-            [HookWatchdogKeyboardTest]::keybd_event(
+            [OtterWatchdogKeyboardTest]::keybd_event(
                 $virtualKey,
                 0,
                 0,
@@ -185,10 +185,10 @@ try {
         }
         Start-Sleep -Milliseconds 80
         foreach ($virtualKey in [byte[]](0x7B, 0x10, 0x12, 0x11)) {
-            [HookWatchdogKeyboardTest]::keybd_event(
+            [OtterWatchdogKeyboardTest]::keybd_event(
                 $virtualKey,
                 0,
-                [HookWatchdogKeyboardTest]::KeyEventKeyUp,
+                [OtterWatchdogKeyboardTest]::KeyEventKeyUp,
                 [UIntPtr]::Zero
             )
         }
@@ -199,7 +199,7 @@ try {
             throw "The watchdog remained after Ctrl+Alt+Shift+F12"
         }
         $chordLog = [IO.File]::ReadAllText(
-            (Join-Path $chord.Directory "hook-runtime.log")
+            (Join-Path $chord.Directory "otter-runtime.log")
         )
         if ($chordLog -notmatch "source=ctrl_alt_shift_f12") {
             throw "The backup chord termination source was not logged"

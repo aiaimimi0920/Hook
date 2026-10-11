@@ -109,7 +109,7 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
                             syncDragFollowerRegistration();
                         }}
                         class="absolute pointer-events-none" // Wrapper follows unit, non-interactive itself
-                        data-hook-drag-follow-unit-id={props.unit.id}
+                        data-otter-drag-follow-unit-id={props.unit.id}
                         style={{
                             left: `${props.x}px`,
                             top: `${props.y}px`,
@@ -132,7 +132,7 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
                         <For each={getVisibleInputs()}>
                             {(port, i) => (
                                 <div
-                                    class="hook-panel-port rounded-full transition-all cursor-pointer relative group/port hover:scale-110"
+                                    class="otter-panel-port rounded-full transition-all cursor-pointer relative group/port hover:scale-110"
                                     data-port-name={port.name}
                                     data-node-port="true"
                                     style={{
@@ -174,7 +174,7 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
                         <For each={getVisibleOutputs()}>
                             {(port, i) => (
                                 <div
-                                    class="hook-panel-port rounded-full transition-all cursor-cell relative group/port hover:scale-110"
+                                    class="otter-panel-port rounded-full transition-all cursor-cell relative group/port hover:scale-110"
                                     data-port-name={port.name}
                                     data-node-port="true"
                                     title={port.label || "Output"}

@@ -72,7 +72,7 @@ $csc = @(
 if (-not $csc) { throw "The .NET Framework C# compiler is unavailable" }
 
 $fixtureDir = Join-Path $resolvedOutput "fixture"
-$fixtureExe = Join-Path $fixtureDir "HookLiveScreenshotPhaseTwoFixture.exe"
+$fixtureExe = Join-Path $fixtureDir "OtterLiveScreenshotPhaseTwoFixture.exe"
 $readyPath = Join-Path $resolvedOutput "fixture-ready.json"
 $probePath = Join-Path $resolvedOutput "probe.json"
 $stdoutPath = Join-Path $resolvedOutput "cargo-test.stdout.log"

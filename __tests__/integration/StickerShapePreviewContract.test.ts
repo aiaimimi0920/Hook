@@ -35,7 +35,7 @@ const renderGeometrySource = readFileSync(
 );
 const unitViewSource = readFileSync(resolve(process.cwd(), "src/components/UnitView.tsx"), "utf8");
 
-describe("Hook sticker shape preview contract", () => {
+describe("Otter sticker shape preview contract", () => {
     it("renders radius-aware rectangle and ellipse previews as their actual shapes during drag", () => {
         expect(annotationLayerSource).toContain("const draftShapeMode = createMemo");
         expect(draftOverlaySource).toContain('props.draftShapeMode === "shape-ellipse"');

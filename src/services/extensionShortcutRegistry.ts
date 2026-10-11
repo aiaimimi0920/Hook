@@ -124,7 +124,7 @@ export class ExtensionShortcutRegistry {
         if (
             (target instanceof HTMLElement && target.isContentEditable)
             || ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "")
-            || target?.closest("[data-hook-global-shortcuts='ignore']")
+            || target?.closest("[data-otter-global-shortcuts='ignore']")
         ) return;
         const binding = this.bindings.find((entry) => (
             entry.available(currentExtensionWhenContext()) && eventMatches(event, entry.candidate)

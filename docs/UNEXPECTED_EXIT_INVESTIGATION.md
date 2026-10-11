@@ -1,4 +1,4 @@
-# Hook unexpected-exit investigation (2026-09-25)
+# Otter unexpected-exit investigation (2026-09-25)
 
 Status: the captured 2026-10-02 overnight exit was caused by the old triple-Escape
 emergency shortcut, not an observed crash. Its input origin is unknown. The earlier
@@ -18,7 +18,7 @@ human input and must not be relabelled as the new chord.
 ## Observations
 
 Source: the local runtime log at
-C:/Users/vmjcv/AppData/Local/Hook/logs/hook-runtime.log and Windows event logs.
+C:/Users/vmjcv/AppData/Local/Otter/logs/otter-runtime.log and Windows event logs.
 Times below use America/Los_Angeles (UTC-07:00).
 
 - 2026-10-02 23:43:35 (PID 39300): Escape inputs at 23:43:34.470,
@@ -62,8 +62,8 @@ It injects no keyboard input and cannot serve as proof of the user's crash cause
 
 ## Verified diagnostic candidate
 
-- Candidate: `release/Hook/v0.2.31.6/hook.exe` relative to Neuro root.
-  Actual workspace path: `Neuro/release/Hook/v0.2.31.6/hook.exe`.
+- Candidate: `release/Otter/v0.2.31.6/otter.exe` relative to Neuro root.
+  Actual workspace path: `Neuro/release/Otter/v0.2.31.6/otter.exe`.
 - SHA-256: `f572847e5d146fe01de99e9366b6b58b712cbf73c75d4d167b625c55cbc76a01`.
   Internal dirty-worktree candidate; no public release or installed-version replacement.
 - Rust watchdog tests: 3 passed. Exit/logging/watchdog contracts: 10 passed.

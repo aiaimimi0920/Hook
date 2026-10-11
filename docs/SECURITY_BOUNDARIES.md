@@ -22,7 +22,7 @@ private keys or tokens in diagnostics or ordinary application state.
 Public HTTPS Loom origins use the normal Rustls/WebPKI roots. For a self-hosted
 private CA, an operator may set both `HOOK_LOOM_TLS_ORIGIN` (one HTTPS origin,
 scheme/host/port only) and `HOOK_LOOM_TLS_CA_FILE` (an absolute certificate-only
-PEM file path) in the Hook process environment. This does not install OS roots,
+PEM file path) in the Otter process environment. This does not install OS roots,
 enable plaintext remote access, or change device pairing/session authority.
 
 `src-tauri/src/loom_tls.rs` owns this immutable process configuration. It reads
@@ -31,11 +31,11 @@ malformed, key-containing or mixed-content files and incomplete environment
 pairs fail closed before trust-aware requests are sent. Invalid configuration
 rejects all such HTTP/WSS client construction, including loopback, rather than
 silently selecting another trust policy. Correcting or rotating it requires a
-Hook restart. Errors never print PEM content or the configured file path.
+Otter restart. Errors never print PEM content or the configured file path.
 Use a local regular file: the byte budget does not place a timeout on a stalled
 network filesystem during this one-time initialization.
 
-For example, set the process environment before starting the isolated Hook:
+For example, set the process environment before starting the isolated Otter:
 
 ```powershell
 $env:HOOK_LOOM_TLS_ORIGIN = "https://loom.example.test:8443"
@@ -79,20 +79,20 @@ three, selected-first. The native image-search cache uses a cross-process lock,
 a 512 MiB / 1024-file quota and a 64 MiB admission reservation. A full cache
 rejects new downloads without evicting images referenced by persisted Units.
 Temporary writes are atomically published; crash leftovers count against quota.
-This bounds cooperative Hook writers, not arbitrary local filesystem writers or
+This bounds cooperative Otter writers, not arbitrary local filesystem writers or
 the disk space consumed by other applications. No historical user assets are
 automatically deleted by this policy.
 
 ## Extension permission authority
 
-Hook treats contribution permissions as requested privileges, not approvals.
+Otter treats contribution permissions as requested privileges, not approvals.
 Only `trusted` plugin bindings can register executable shortcuts, commands or
 menus; the command owner and scope must match. Missing host-owned
 `effectivePermissions` grants no resource access. The entire operation is bound
 to the current extension session, exact snapshot, and Unit revision, including
 after asynchronous image preparation and before applying returned effects.
 
-Before reading images or attachments, Hook asks Loom to revalidate installed
+Before reading images or attachments, Otter asks Loom to revalidate installed
 package trust and persistent grants through `resource.authorization.v1`. Cached
 overlay actions use a live check without a ticket. Uploads and attachment/context
 invocations use short-lived, single-use tickets, issued after any prerequisite
@@ -100,7 +100,7 @@ OCR finishes. Loom consumes and revalidates before staging resources and checks
 grants again before returning runtime effects. Revocation cannot retroactively
 erase data already received or undo side effects already executed.
 
-This requires a coordinated Hook/Loom upgrade. Resource tickets are not transport
+This requires a coordinated Otter/Loom upgrade. Resource tickets are not transport
 authentication: session IDs and a successful application protocol handshake are
 not proof of peer identity.
 
@@ -113,11 +113,11 @@ Startup capability refresh and extension registrations obey the same gate as
 direct native connection attempts. Local capture and standalone session restore
 do not need to connect to Loom.
 
-Opening `hook.exe` directly uses authenticated local discovery. Local test packages
-retain `hook-with-loom.cmd` as an optional compatibility entry point; it supplies
+Opening `otter.exe` directly uses authenticated local discovery. Local test packages
+retain `otter-with-loom.cmd` as an optional compatibility entry point; it supplies
 the enabled default only when unset and preserves explicit disable. It neither
 persists environment settings nor disables discovery authentication or capability
-grants. Restart Hook for environment changes to take effect. Browser preview stays
+grants. Restart Otter for environment changes to take effect. Browser preview stays
 disconnected, and a missing native boot profile does not grant connection authority.
 
 Native code accepts only the descriptor's canonical loopback WSS endpoint,
@@ -157,12 +157,12 @@ The watchdog authenticates the held parent process's executable path and the
 creator of its inherited key pipe before enabling recovery or emergency input.
 The capturing process keeps an ephemeral Ed25519 signing key; only its public key
 crosses that pipe. Recovery journals are signed, bounded to 64 KiB and 16 records,
-and bind the Hook process ID. The same authenticated pipe streams the current
+and bind the Otter process ID. The same authenticated pipe streams the current
 snapshot, including revocation; the watchdog restores only its latest in-memory
 snapshot, never a journal reloaded from a replayable filesystem path. Unsigned
 legacy JSON journals are not accepted.
 The existing target PID/thread checks remain in force. This is not a claim of
-protection against code injection into a trusted Hook process or arbitrary
+protection against code injection into a trusted Otter process or arbitrary
 same-user process-memory access; native UIAccess/crash recovery still requires
 separate interactive acceptance.
 

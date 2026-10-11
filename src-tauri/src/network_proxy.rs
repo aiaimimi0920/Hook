@@ -63,7 +63,7 @@ fn runtime_proxy() -> RuntimeProxy {
             let proxy = poisoned.into_inner().clone();
             proxy_store().clear_poison();
             // The value itself is never logged: a custom proxy address may carry credentials.
-            eprintln!("Hook proxy setting lock was poisoned by an earlier panic; kept the configured setting");
+            eprintln!("Otter proxy setting lock was poisoned by an earlier panic; kept the configured setting");
             proxy
         }
     }
@@ -118,7 +118,9 @@ fn lock_client_cache() -> MutexGuard<'static, ClientCache> {
             client_cache().clear_poison();
             let mut cache = poisoned.into_inner();
             cache.clients.clear();
-            eprintln!("Hook shared HTTP client cache was poisoned by an earlier panic; emptied it");
+            eprintln!(
+                "Otter shared HTTP client cache was poisoned by an earlier panic; emptied it"
+            );
             cache
         }
     }
@@ -134,13 +136,13 @@ pub fn apply_loom_settings(settings: &serde_json::Value) -> Result<(), String> {
             let protocol = settings.network.hook.protocol.trim();
             let address = settings.network.hook.address.trim();
             if !matches!(protocol, "http" | "https" | "socks5") || address.is_empty() {
-                return Err("Hook 自定义代理配置无效".to_owned());
+                return Err("Otter 自定义代理配置无效".to_owned());
             }
             let url = format!("{protocol}://{address}");
-            Proxy::all(&url).map_err(|error| format!("Hook 自定义代理配置无效：{error}"))?;
+            Proxy::all(&url).map_err(|error| format!("Otter 自定义代理配置无效：{error}"))?;
             RuntimeProxy::Custom(url)
         }
-        mode => return Err(format!("Hook 不支持代理模式 `{mode}`")),
+        mode => return Err(format!("Otter 不支持代理模式 `{mode}`")),
     };
     let changed = {
         // A poisoned lock is recovered rather than reported: the same reasoning as
@@ -153,7 +155,7 @@ pub fn apply_loom_settings(settings: &serde_json::Value) -> Result<(), String> {
                 let store = poisoned.into_inner();
                 proxy_store().clear_poison();
                 eprintln!(
-                    "Hook proxy setting lock was poisoned by an earlier panic; applying the new setting anyway"
+                    "Otter proxy setting lock was poisoned by an earlier panic; applying the new setting anyway"
                 );
                 store
             }
@@ -426,7 +428,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn loom_settings_update_hook_proxy_runtime() {
+    fn loom_settings_update_otter_proxy_runtime() {
         let _guard = TEST_GUARD.lock().unwrap_or_else(|error| error.into_inner());
         apply_loom_settings(&serde_json::json!({
             "network": {
@@ -476,7 +478,7 @@ pub(crate) mod tests {
         shared_client("http://127.0.0.1:8765", None).unwrap();
         assert_eq!(cached_client_count(), 4);
         shared_client_with("http://127.0.0.1:8765", timeout, "image-fetch", |builder| {
-            builder.user_agent("hook-test")
+            builder.user_agent("otter-test")
         })
         .unwrap();
         assert_eq!(cached_client_count(), 5);

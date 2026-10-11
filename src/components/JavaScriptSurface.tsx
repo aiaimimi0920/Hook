@@ -188,7 +188,7 @@ export const JavaScriptSurface: Component<JavaScriptSurfaceProps> = (props) => {
         if (message.type === "host-activate") {
             void Promise.resolve(props.onActivate?.())
                 .catch(() => {
-                    console.warn("[Hook] JavaScript Surface activation failed");
+                    console.warn("[Otter] JavaScript Surface activation failed");
                 })
                 .finally(() => {
                     try {

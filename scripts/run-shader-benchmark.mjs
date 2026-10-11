@@ -15,9 +15,9 @@ const buildResult = await build({
     target: "es2022",
     lib: {
       entry: resolve(projectRoot, "scripts/shader-benchmark-entry.ts"),
-      name: "HookShaderBenchmark",
+      name: "OtterShaderBenchmark",
       formats: ["iife"],
-      fileName: "hook-shader-benchmark",
+      fileName: "otter-shader-benchmark",
     },
     rollupOptions: {
       output: {
@@ -85,7 +85,7 @@ try {
   await page.setContent("<!doctype html><html><body></body></html>");
   await page.addScriptTag({ content: benchmarkChunk.code });
   const report = await page.evaluate(
-    async (options) => window.runHookShaderBenchmark(options),
+    async (options) => window.runOtterShaderBenchmark(options),
     benchmarkOptions,
   );
 
@@ -127,7 +127,7 @@ try {
   }
 
   process.stdout.write(`${JSON.stringify({
-    benchmark: "hook-shader-resolution",
+    benchmark: "otter-shader-resolution",
     rehydrationScope: "ShaderRenderer compile, source texture upload, first draw, and a 1x1 GPU completion barrier",
     adjustmentScope: "Uniform update, draw, and a benchmark-only 1x1 GPU completion barrier",
     options: benchmarkOptions,

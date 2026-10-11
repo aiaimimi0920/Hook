@@ -21,8 +21,8 @@ export async function captureGuiSource(page: Page, root: string, pointerExe: str
     })).stdout;
     const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
     const fixture = await readJson<{ hwnd: string; targets: Record<string, [number, number]> }>(path.join(root, 'fixture-ready.json'));
-    const log = () => readFile(path.join(root, 'source-logs/hook-runtime.log'), 'utf8').catch(() => '');
-    await until(log, (value) => value.includes('frontend-initialized'), 'ordinary Hook frontend initialized', 35000);
+    const log = () => readFile(path.join(root, 'source-logs/otter-runtime.log'), 'utf8').catch(() => '');
+    await until(log, (value) => value.includes('frontend-initialized'), 'ordinary Otter frontend initialized', 35000);
     await os('show', fixture.hwnd); await pause(500);
     const client = JSON.parse(await os('client', fixture.hwnd)) as { x: number; y: number; w: number; h: number };
     const selected = { x: client.x + 8, y: client.y + 8, w: client.w - 16, h: client.h - 16 };

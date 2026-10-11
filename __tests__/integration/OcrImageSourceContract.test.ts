@@ -11,13 +11,13 @@ describe("unit image source conversion", () => {
         const result = await resolveUnitImageDataUrl(
             {
                 src: "http://asset.localhost/capture.png",
-                filePath: "C:\\Users\\Public\\Hook\\capture.png",
+                filePath: "C:\\Users\\Public\\Otter\\capture.png",
             },
             { readImageFromPath },
         );
 
         expect(result).toBe(PNG_DATA_URL);
-        expect(readImageFromPath).toHaveBeenCalledWith("C:\\Users\\Public\\Hook\\capture.png");
+        expect(readImageFromPath).toHaveBeenCalledWith("C:\\Users\\Public\\Otter\\capture.png");
     });
 
     it("does not copy or fetch an already inline image", async () => {
@@ -36,7 +36,7 @@ describe("unit image source conversion", () => {
 
     it("rejects non-image sources instead of sending them to Loom", async () => {
         await expect(resolveUnitImageDataUrl(
-            { src: "C:\\Users\\Public\\Hook\\capture.png" },
+            { src: "C:\\Users\\Public\\Otter\\capture.png" },
             { readImageFromPath: vi.fn(async () => PNG_DATA_URL) },
         )).rejects.toThrow("cannot be converted");
     });

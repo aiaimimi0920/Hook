@@ -6,21 +6,21 @@ import {
 export interface AppSettings {
     schemaVersion: number;
     fileNaming: FileNamingSettings;
-    cache: HookCacheSettings;
-    /** Empty means follow the Hook display language. */
+    cache: OtterCacheSettings;
+    /** Empty means follow the Otter display language. */
     translationTargetLanguage: "" | "zh-CN" | "en";
     /** Selects the host-side translation backend. */
     translationProviderMode: "auto" | "local" | "gateway";
 }
 
-export interface HookCacheSettings {
+export interface OtterCacheSettings {
     recycleBinMaxEntries: number;
     recycleBinRetentionDays: number;
     tempCacheMaxBytes: number;
     tempCacheRetentionDays: number;
 }
 
-export const DEFAULT_HOOK_CACHE_SETTINGS: HookCacheSettings = {
+export const DEFAULT_OTTER_CACHE_SETTINGS: OtterCacheSettings = {
     recycleBinMaxEntries: 15,
     recycleBinRetentionDays: 0,
     tempCacheMaxBytes: 256 * 1024 * 1024,
@@ -30,7 +30,7 @@ export const DEFAULT_HOOK_CACHE_SETTINGS: HookCacheSettings = {
 export const DEFAULT_APP_SETTINGS: AppSettings = {
     schemaVersion: 2,
     fileNaming: { ...DEFAULT_FILE_NAMING_SETTINGS },
-    cache: { ...DEFAULT_HOOK_CACHE_SETTINGS },
+    cache: { ...DEFAULT_OTTER_CACHE_SETTINGS },
     translationTargetLanguage: "",
     translationProviderMode: "auto",
 };

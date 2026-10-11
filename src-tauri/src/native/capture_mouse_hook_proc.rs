@@ -103,7 +103,7 @@ unsafe extern "system" fn capture_mouse_hook_proc(
         || OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.load(Ordering::SeqCst);
     let native_drag_preflight_active =
         OVERLAY_MOUSE_HOOK_NATIVE_DRAG_PREFLIGHT_ACTIVE.load(Ordering::SeqCst);
-    let hook_pointer_owner =
+    let otter_pointer_owner =
         overlay_pointer_source_owns_session(OverlayPointerSource::LowLevelHook);
     let overlay_pointer_session_active =
         OVERLAY_POINTER_STATE.load(Ordering::SeqCst) != OVERLAY_POINTER_STATE_NONE;
@@ -146,7 +146,7 @@ unsafe extern "system" fn capture_mouse_hook_proc(
 
     match message {
         WM_MOUSEMOVE => {
-            if overlay_pointer_session_active && !hook_pointer_owner {
+            if overlay_pointer_session_active && !otter_pointer_owner {
                 return unsafe { CallNextHookEx(None, code, wparam, lparam) };
             }
             if should_route_overlay_mouse || overlay_drag_active || native_drag_preflight_active {

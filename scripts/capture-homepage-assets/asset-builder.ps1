@@ -84,16 +84,16 @@ selected = load_rgb_bounded(args.selected)
 context = load_rgb_bounded(args.context)
 try:
     overview_out = resize_to_width(overview, min(overview.width, 1280))
-    overview_out.save(os.path.join(args.outdir, "hook-home-overview-cropped.png"), optimize=True)
+    overview_out.save(os.path.join(args.outdir, "otter-home-overview-cropped.png"), optimize=True)
     context_crop = clamp_crop_box(context, (120, 150, 980, 760))
     context_out = resize_to_width(context.crop(context_crop), 960)
-    context_out.save(os.path.join(args.outdir, "hook-home-context-menu-cropped.png"), optimize=True)
+    context_out.save(os.path.join(args.outdir, "otter-home-context-menu-cropped.png"), optimize=True)
     gif_frames = [
         resize_to_width(frame, min(frame.width, 1120)).convert("P", palette=Image.Palette.ADAPTIVE)
         for frame in (overview, context)
     ]
     gif_frames[0].save(
-        os.path.join(args.outdir, "hook-home-demo.gif"),
+        os.path.join(args.outdir, "otter-home-demo.gif"),
         save_all=True,
         append_images=gif_frames[1:],
         duration=[1300, 1700],

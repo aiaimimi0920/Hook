@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHookLibRustSources } from "../helpers/hookLibRustSources";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { readLongCaptureRustSources } from "../helpers/longCaptureRustSources";
@@ -16,10 +16,10 @@ const autoLongCaptureActivationSource = readFileSync(
 const captureUnitSource = readFileSync(resolve(process.cwd(), "src/hooks/captureUnitController.ts"), "utf8");
 const captureApiSource = readFileSync(resolve(process.cwd(), "src/services/apiCapture.ts"), "utf8");
 const captureStateSource = readFileSync(resolve(process.cwd(), "src/services/captureState.ts"), "utf8");
-const rustSource = readHookLibRustSources();
+const rustSource = readOtterLibRustSources();
 const longCaptureSource = readLongCaptureRustSources();
 
-describe("Hook long capture contract", () => {
+describe("Otter long capture contract", () => {
     it("wires a dedicated long-capture selection mode through frontend and Tauri entrypoints", () => {
         expect(appSource).toContain("registerAppCommandListeners");
         expect(commandSource).toContain('listen("trigger-long-capture"');

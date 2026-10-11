@@ -114,7 +114,7 @@ fn release_art_shared_memory(
     handles: Vec<String>,
 ) {
     std::thread::spawn(move || {
-        crate::loom_hook::release_hook_art_resources(
+        crate::loom_otter::release_otter_art_resources(
             &node_id,
             &execution_request_id,
             generation,

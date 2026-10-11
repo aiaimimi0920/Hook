@@ -55,11 +55,11 @@ fn cropped_video_controls_survive_minimize_and_restore() {
     let _lock = WATCHDOG_TEST_LOCK.lock().unwrap();
     let _watchdog = crate::emergency_watchdog::tests::start_interactive_test_watchdog();
     let ready: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(std::env::var("HOOK_BROWSER_INPUT_FIXTURE").unwrap()).unwrap(),
+        &std::fs::read(crate::brand_env::var("HOOK_BROWSER_INPUT_FIXTURE").unwrap()).unwrap(),
     )
     .unwrap();
     let title = ready["title"].as_str().unwrap();
-    assert!(title.starts_with("HookLiveInputProbe-"));
+    assert!(title.starts_with("OtterLiveInputProbe-"));
     let hwnd = owned_window(title, ready["pid"].as_u64().unwrap() as u32);
     let _dpi = enter_live_source_dpi_context(hwnd).unwrap();
     let client = reqwest::blocking::Client::builder()

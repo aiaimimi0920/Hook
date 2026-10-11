@@ -45,9 +45,9 @@ pub struct FileNamingSettings {
 impl Default for FileNamingSettings {
     fn default() -> Self {
         Self {
-            sticker_save_pattern: "Hook_{date}_{time}_{width}x{height}".to_string(),
+            sticker_save_pattern: "Otter_{date}_{time}_{width}x{height}".to_string(),
             drag_export_pattern: "{label}_{shortId}_{date}_{time}".to_string(),
-            clipboard_file_pattern: "Hook_{kind}_{date}_{time}".to_string(),
+            clipboard_file_pattern: "Otter_{kind}_{date}_{time}".to_string(),
             title_max_length: 80,
             collision_policy: CollisionPolicy::Increment,
         }
@@ -77,7 +77,7 @@ impl FileNamingContext {
 
     fn normalized(mut self, title_max_length: usize) -> Self {
         if self.app.trim().is_empty() {
-            self.app = "Hook".to_string();
+            self.app = "Otter".to_string();
         }
         if self.kind.trim().is_empty() {
             self.kind = "image".to_string();
@@ -338,7 +338,7 @@ pub fn sanitize_windows_filename_stem(value: &str) -> String {
         sanitized.pop();
     }
     if sanitized.is_empty() || sanitized == "." || sanitized == ".." {
-        sanitized = "Hook".to_string();
+        sanitized = "Otter".to_string();
     }
     if is_reserved_windows_device_name(&sanitized) {
         sanitized.insert(0, '_');

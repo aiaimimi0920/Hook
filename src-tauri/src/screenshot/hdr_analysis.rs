@@ -32,7 +32,11 @@ pub(super) fn hdr_capture_mode_for(value: Option<&str>) -> HdrCaptureMode {
 }
 
 pub(super) fn hdr_capture_mode() -> HdrCaptureMode {
-    hdr_capture_mode_for(std::env::var("HOOK_CAPTURE_DYNAMIC_RANGE").ok().as_deref())
+    hdr_capture_mode_for(
+        crate::brand_env::var("HOOK_CAPTURE_DYNAMIC_RANGE")
+            .ok()
+            .as_deref(),
+    )
 }
 
 pub(super) fn should_attempt_hdr_capture(
