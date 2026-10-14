@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSignal } from "solid-js";
 import { render } from "solid-js/web";
-import { StickerEffectDraftOverlay } from "../../src/components/StickerEffectOverlay";
+import { StickerEffectDraftOverlay, renderStickerEffectOverlay } from "../../src/components/StickerEffectOverlay";
 import { acquireStickerBlurTexture } from "../../src/services/stickerBlurTexture";
 import { buildMosaicTextureDataUrl } from "../../src/services/stickerEffects";
 
@@ -17,7 +17,7 @@ describe("blur draft raster presentation", () => {
 
     it("updates the path without filtering, reacquiring textures, or building mosaics", async () => {
         const release = vi.fn();
-        vi.mocked(acquireStickerBlurTexture).mockReturnValue({ ready: Promise.resolve("blob:blur"), release });
+        vi.mocked(acquireStickerBlurTexture).mockReturnValue({ url: null, ready: Promise.resolve("blob:blur"), release });
         const [path, setPath] = createSignal("M 1 1 L 2 2");
         const host = document.createElement("div"); document.body.append(host);
         dispose = render(() => <svg><StickerEffectDraftOverlay effectType="blur" pathData={path}
@@ -40,8 +40,8 @@ describe("blur draft raster presentation", () => {
         let finishOld!: (url: string | null) => void;
         const releaseOld = vi.fn();
         vi.mocked(acquireStickerBlurTexture)
-            .mockReturnValueOnce({ ready: new Promise((resolve) => { finishOld = resolve; }), release: releaseOld })
-            .mockReturnValue({ ready: Promise.resolve(null), release: vi.fn() });
+            .mockReturnValueOnce({ url: null, ready: new Promise((resolve) => { finishOld = resolve; }), release: releaseOld })
+            .mockReturnValue({ url: null, ready: Promise.resolve(null), release: vi.fn() });
         const [source, setSource] = createSignal("data:first");
         const [strength, setStrength] = createSignal(8);
         const host = document.createElement("div"); document.body.append(host);
@@ -53,7 +53,27 @@ describe("blur draft raster presentation", () => {
         expect(releaseOld).toHaveBeenCalledOnce();
         expect(host.querySelector("image")?.getAttribute("href")).toBe("data:second");
         expect(host.querySelector("feGaussianBlur")).not.toBeNull();
+        expect(host.querySelector("filter")?.getAttribute("color-interpolation-filters")).toBe("sRGB");
         setStrength(15);
         expect(acquireStickerBlurTexture).toHaveBeenLastCalledWith("data:second", 400, 300, 15);
+    });
+
+    it("matches draft and committed opacity, geometry and ready texture without a fallback frame", () => {
+        vi.mocked(acquireStickerBlurTexture).mockReturnValue({ url: "blob:blur", ready: Promise.resolve("blob:blur"), release: vi.fn() });
+        const host = document.createElement("div"); document.body.append(host);
+        dispose = render(() => <>
+            <svg data-draft><StickerEffectDraftOverlay effectType="blur" pathData={() => "M 10 20 L 90 40"}
+                brushWidth={30} strength={8} imageSrc="data:source" stickerWidth={400} stickerHeight={300} /></svg>
+            <svg data-committed>{renderStickerEffectOverlay({ effectType: "blur", points: [{ x: 10, y: 20 }, { x: 90, y: 40 }],
+                brushWidth: 30, strength: 8, imageSrc: "data:source", stickerWidth: 400, stickerHeight: 300,
+                x: -5, y: 5, w: 110, h: 50, maskId: "committed" })}</svg>
+        </>, host);
+        for (const svg of host.querySelectorAll("svg")) {
+            expect(svg.querySelector("g")?.getAttribute("opacity")).toBe("1");
+            expect(svg.querySelector("path")?.getAttribute("d")).toBe("M 10 20 L 90 40");
+            expect(svg.querySelector("path")?.getAttribute("stroke-width")).toBe("30");
+            expect(svg.querySelector("image")?.getAttribute("href")).toBe("blob:blur");
+            expect(svg.querySelector("filter")).toBeNull();
+        }
     });
 });

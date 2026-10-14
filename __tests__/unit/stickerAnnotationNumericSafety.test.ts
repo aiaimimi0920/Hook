@@ -6,17 +6,36 @@ import {
     sanitizeEffectBrushSize,
     sanitizeEffectStrength,
     sanitizePolygonSides,
+    sanitizeShapeCornerRadius,
+    sanitizeShapeSnapStep,
     sanitizeStickerPoints,
     sanitizeStickerRect,
     sanitizeStrokeWidth,
+    sanitizeTextSize,
+    sanitizeSerialRadius,
 } from "../../src/components/stickerAnnotationNumericSafety";
 
 describe("sticker annotation numeric safety", () => {
+    it("preserves three-digit text sizes and serial radii while rejecting invalid values", () => {
+        for (const sanitize of [sanitizeTextSize, sanitizeSerialRadius]) {
+            expect(sanitize(300)).toBe(300);
+            expect(sanitize(999)).toBe(999);
+            expect(sanitize(1000)).toBe(999);
+            expect(sanitize(0)).toBe(8);
+        }
+        expect(sanitizeTextSize(Number.NaN)).toBe(16);
+        expect(sanitizeSerialRadius(Number.POSITIVE_INFINITY)).toBe(14);
+    });
     it("normalizes non-finite and out-of-range settings to UI-supported limits", () => {
         expect(sanitizeCanvasDimension(Number.NaN)).toBe(1);
         expect(sanitizeCanvasDimension(Number.POSITIVE_INFINITY)).toBe(1);
         expect(sanitizeStrokeWidth(Number.NaN)).toBe(3);
-        expect(sanitizeStrokeWidth(999)).toBe(96);
+        expect(sanitizeStrokeWidth(999)).toBe(999);
+        for (const sanitize of [sanitizeStrokeWidth, sanitizeShapeCornerRadius, sanitizeShapeSnapStep]) {
+            expect(sanitize(999)).toBe(999);
+            expect(sanitize(1000)).toBe(999);
+            expect(sanitize(-1)).toBe(0);
+        }
         expect(sanitizePolygonSides(4.6)).toBe(5);
         expect(sanitizePolygonSides(Number.NaN)).toBe(6);
         expect(sanitizeEffectBrushSize(-1)).toBe(4);

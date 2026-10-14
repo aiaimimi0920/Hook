@@ -56,7 +56,7 @@ export const addStickerPaletteColor = (palette: string[], color: string) => {
     if (!normalized || palette.includes(normalized)) {
         return palette;
     }
-    return [...palette, normalized];
+    return [normalized, ...palette];
 };
 
 export const removeStickerPaletteColor = (palette: string[], color: string) => {
@@ -99,7 +99,7 @@ export const adjustEffectStrength = (current: number, delta: number, min = 2, ma
 
 export const buildSerialAnnotationMetrics = (radius: number) => {
     const finiteRadius = Number.isFinite(radius) ? radius : 14;
-    const safeRadius = Math.min(96, Math.max(8, Math.round(finiteRadius)));
+    const safeRadius = Math.min(999, Math.max(8, Math.round(finiteRadius)));
     return {
         radius: safeRadius,
         fontSize: Math.max(10, Math.round(safeRadius * 1.15)),

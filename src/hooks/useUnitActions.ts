@@ -41,7 +41,12 @@ export function useUnitActions() {
     };
 
     // Helper: Recursive Propagation (Frontend Only for Stickers)
-    const propagateFromUnit = (fromUnitId: string) => {
+    const propagateFromUnit = (fromUnitId: string, allowTrigger = true, visited = new Set<string>()) => {
+        if (visited.has(fromUnitId)) return;
+        const path = new Set(visited).add(fromUnitId);
+        const source = graphStore.units.find(unit => unit.id === fromUnitId);
+        const sourceConfig = graphStore.unitExecConfig[fromUnitId] ?? source?.data.executionConfig;
+        const notify = allowTrigger && (sourceConfig?.propagation?.notifyDownstream ?? true);
         // Find direct downstream links
         const outLinks = graphStore.links.filter(l => l.fromUnitId === fromUnitId);
 
@@ -51,6 +56,7 @@ export function useUnitActions() {
             if (!childUnit) return;
 
             if (childUnit.type === 'art') {
+                if (!notify) return;
                 const childCapability = childUnit.artId
                     ? findArtCapability(graphStore.capabilities, childUnit.artId)
                     : undefined;
@@ -97,7 +103,8 @@ export function useUnitActions() {
                      // RECURSIVE: Propagate further from this child. Defer to a
                      // microtask so the updateUnitData write above has settled
                      // before we read it, without a magic timer delay.
-                     queueMicrotask(() => propagateFromUnit(childId));
+                     // Refresh data even when automatic execution notifications are disabled.
+                     queueMicrotask(() => propagateFromUnit(childId, notify, path));
                 }
             }
         });

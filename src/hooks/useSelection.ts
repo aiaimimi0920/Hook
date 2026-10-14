@@ -510,10 +510,10 @@ export function useSelection(
 
                 logger.debug("Requesting Capture:", resolvedCaptureRect);
                 const response = await api.captureRegion(
-                    Math.round(resolvedCaptureRect.x),
-                    Math.round(resolvedCaptureRect.y),
-                    Math.round(resolvedCaptureRect.w),
-                    Math.round(resolvedCaptureRect.h),
+                    resolvedCaptureRect.x,
+                    resolvedCaptureRect.y,
+                    resolvedCaptureRect.w,
+                    resolvedCaptureRect.h,
                     captureWindowSurfaceTargetId
                         ? { captureWindowId: captureWindowSurfaceTargetId }
                         : undefined,

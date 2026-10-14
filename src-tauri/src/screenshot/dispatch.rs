@@ -39,13 +39,13 @@ fn capture_backend_mode() -> String {
 }
 
 #[cfg(target_os = "windows")]
-struct SdrCaptureResult {
-    image: RgbImage,
+pub(super) struct SdrCaptureResult {
+    pub(super) image: RgbImage,
     backend: CaptureBackend,
 }
 
 #[cfg(target_os = "windows")]
-fn capture_sdr_from_plan(
+pub(super) fn capture_sdr_from_plan(
     plan: &CapturePlan,
     profile: CaptureWorkloadProfile,
 ) -> anyhow::Result<SdrCaptureResult> {
@@ -100,10 +100,10 @@ fn capture_sdr_from_plan(
 }
 
 pub fn capture_area_with_profile(
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    x: impl Into<f64>,
+    y: impl Into<f64>,
+    w: impl Into<f64>,
+    h: impl Into<f64>,
     profile: CaptureWorkloadProfile,
 ) -> anyhow::Result<RgbImage> {
     #[cfg(target_os = "windows")]
@@ -117,13 +117,14 @@ pub fn capture_area_with_profile(
 }
 
 pub fn capture_region_with_dynamic_range(
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    x: impl Into<f64>,
+    y: impl Into<f64>,
+    w: impl Into<f64>,
+    h: impl Into<f64>,
     display_metrics: Option<CaptureWindowMetrics>,
     overlay_gain: f32,
 ) -> anyhow::Result<DynamicCaptureResult> {
+    let (x, y, w, h) = (x.into(), y.into(), w.into(), h.into());
     #[cfg(target_os = "windows")]
     {
         let profile = CaptureWorkloadProfile::StandardRegion;
@@ -156,12 +157,14 @@ pub fn capture_region_with_dynamic_range(
                 wgc_note_success();
                 return Ok(match frame {
                     HdrFrameDecision::Hdr(image) => DynamicCaptureResult {
+                        origin: plan.origin,
                         pixels: DynamicCapturePixels::Hdr(image),
                         backend: CaptureBackend::WgcHdr,
                         downgraded_from_hdr: false,
                         overlay_compensated: true,
                     },
                     HdrFrameDecision::Sdr(image) => DynamicCaptureResult {
+                        origin: plan.origin,
                         pixels: DynamicCapturePixels::Sdr(image),
                         backend: CaptureBackend::WgcHdr,
                         downgraded_from_hdr: true,
@@ -182,6 +185,7 @@ pub fn capture_region_with_dynamic_range(
             windows_11_or_newer,
         );
         return Ok(DynamicCaptureResult {
+            origin: plan.origin,
             pixels: DynamicCapturePixels::Sdr(sdr.image),
             backend: sdr.backend,
             downgraded_from_hdr,
@@ -194,6 +198,7 @@ pub fn capture_region_with_dynamic_range(
         let image = capture_area_with_profile(x, y, w, h, CaptureWorkloadProfile::StandardRegion)?;
         let _ = (display_metrics, overlay_gain);
         Ok(DynamicCaptureResult {
+            origin: crate::capture_coords::CapturePoint { x, y },
             pixels: DynamicCapturePixels::Sdr(image),
             backend: CaptureBackend::Gdi,
             downgraded_from_hdr: false,
@@ -210,27 +215,30 @@ pub fn capture_region_with_dynamic_range(
 /// WGC cannot create a window item.
 pub fn capture_window_with_dynamic_range(
     capture_window_id: &str,
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
     display_metrics: CaptureWindowMetrics,
 ) -> anyhow::Result<DynamicCaptureResult> {
     #[cfg(target_os = "windows")]
     {
-        if let Some(image) =
+        if let Some((image, origin)) =
             try_capture_protected_window(capture_window_id, x, y, w, h, display_metrics)
         {
             return Ok(DynamicCaptureResult {
+                origin,
                 pixels: DynamicCapturePixels::Sdr(image),
                 backend: CaptureBackend::DwmSharedSurface,
                 downgraded_from_hdr: false,
                 overlay_compensated: true,
             });
         }
-        let image = try_fast_capture_window(capture_window_id, x, y, w, h, display_metrics)
-            .ok_or_else(|| anyhow::anyhow!("Window surface capture is unavailable"))?;
+        let (image, origin) =
+            try_fast_capture_window(capture_window_id, x, y, w, h, display_metrics)
+                .ok_or_else(|| anyhow::anyhow!("Window surface capture is unavailable"))?;
         return Ok(DynamicCaptureResult {
+            origin,
             pixels: DynamicCapturePixels::Sdr(image),
             backend: CaptureBackend::WgcSdr,
             downgraded_from_hdr: false,

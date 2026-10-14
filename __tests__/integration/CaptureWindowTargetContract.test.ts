@@ -124,7 +124,8 @@ describe("capture window target contract", () => {
     expect(dwmSharedSurfaceSource).toContain("OpenSharedResource::<ID3D11Texture2D>");
     expect(dwmSharedSurfaceSource).toContain("D3D11_USAGE_STAGING");
     expect(dwmSharedSurfaceSource).toContain("capture_window dwm_shared_success");
-    expect(protectedRegionSource).toContain("capture_area_with_profile");
+    expect(protectedRegionSource).toContain("capture_plan(x, y, w, h, Some(display_metrics))");
+    expect(protectedRegionSource).toContain("capture_sdr_from_plan(&plan, CaptureWorkloadProfile::StandardRegion)");
     expect(protectedRegionSource).toContain("paste_protected_surface");
     expect(protectedRegionSource).toContain("occlusion_rects_for_targets");
     expect(protectedRegionSource).toContain("higher z-order window");

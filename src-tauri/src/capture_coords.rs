@@ -7,7 +7,7 @@ pub(crate) struct CaptureWindowMetrics {
     pub logical_height: f64,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
 pub(crate) struct CapturePoint {
     pub x: f64,
     pub y: f64,
@@ -84,5 +84,22 @@ mod tests {
         let point = normalize_global_physical_to_local_logical(-2410.0, -50.0, metrics);
 
         assert_eq!(point, CapturePoint { x: 100.0, y: 100.0 });
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
+pub(crate) struct CaptureRect {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}
+
+// Undo only floating-point round-trip noise, never a meaningful subpixel edge.
+pub(crate) fn physical_edge(value: f64) -> f64 {
+    if (value - value.round()).abs() < 1e-7 {
+        value.round()
+    } else {
+        value
     }
 }

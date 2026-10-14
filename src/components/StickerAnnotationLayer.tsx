@@ -1,4 +1,5 @@
 import { Component, Show, createMemo, createSignal } from "solid-js";
+import { createStickerBrushFrameInput } from "./stickerBrushFrameInput";
 import { graphStore } from "../store/graphStore";
 import { api } from "../services/api";
 import { syncService } from "../services/syncService";
@@ -35,6 +36,7 @@ import { createStickerAnnotationTextController } from "./stickerAnnotationTextCo
 import { createStickerAnnotationEraseController } from "./stickerAnnotationEraseController";
 import { StickerAnnotationElements } from "./StickerAnnotationElements";
 import { StickerAnnotationSelectionOverlay } from "./StickerAnnotationSelectionOverlay";
+import { createBezierNodeMenu } from "./stickerBezierNodeMenu";
 import { StickerAnnotationDraftOverlays } from "./StickerAnnotationDraftOverlays";
 import { StickerDesktopColorPickerOverlay } from "./StickerDesktopColorPickerOverlay";
 import { createStickerAnnotationPointerRuntime } from "./stickerAnnotationPointerRuntime";
@@ -106,7 +108,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
     });
     const {
         beginPendingTextInput,
-        commitPendingTextInput,
+        commitOnExit,
         getPendingTextExistingAnnotation,
         handlePendingTextInputKeyDown,
         pendingTextInput,
@@ -209,7 +211,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                 ? clampShapeRectToStickerBounds(draft.start, draft.current, {
                       w: stickerWidth(),
                       h: stickerHeight(),
-                  }, true, draft.snapStep)
+                  }, true, draft.snapStep, draft.aspectRatio)
                 : isRegularShapeMode(draft.mode)
                   ? clampShapeRectToStickerBounds(draft.start, draft.current, {
                         w: stickerWidth(),
@@ -225,7 +227,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
         !!event?.shiftKey || shiftPressed();
     const isRegularShapeStepSnapActive = (mode: DraftShape["mode"], event?: PointerEvent) =>
         isRegularShapeMode(mode) && (!!event?.ctrlKey || ctrlPressed());
-    const { isPointerReleaseInFlight, onPointerMove, onPointerUp } =
+    const { isPointerReleaseInFlight, onPointerMove, onPointerUp, onPointerCancel } =
         createStickerAnnotationPointerCommitController({
         width: () => stickerWidth(),
         height: () => stickerHeight(),
@@ -275,6 +277,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             effectiveTransformMode,
             setDraftShape,
             setDraftLine,
+            setReshapeLine,
             setTransformInteraction,
             isSquareConstraintActive,
             isRegularShapeStepSnapActive,
@@ -286,7 +289,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                 scaleHandleSize: TRANSFORM_GIZMO_SCALE_HANDLE_SIZE,
             },
             pointerRuntime,
-            persistence: { commitAnnotation },
+            persistence: { commitAnnotation, commitAnnotationElements },
             text: { beginPendingTextInput },
             erase: {
                 beginLiveContentErase,
@@ -294,6 +297,10 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
             },
         });
 
+    const brushFrameInput = createStickerBrushFrameInput({
+        enabled: () => draftLine()?.mode === "paintbrush",
+        down: onPointerDown, move: onPointerMove, up: onPointerUp, cancel: onPointerCancel,
+    });
     const { dispose: disposeWheelController, onWheel } = createStickerAnnotationWheelController({
         interactionEnabled,
         usesExistingNodeInteractions,
@@ -352,33 +359,31 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
         disposePointerRuntime,
     });
 
+    const nodeMenu = createBezierNodeMenu({
+        unitId: () => props.unitId,
+        enabled: () => interactionEnabled() && effectiveTransformMode() === "select" && !reshapeLine() && !transformInteraction() && !isPointerReleaseInFlight(),
+        selected: () => selectedAnnotationIds().length === 1 ? annotationState().elements.find((item) => item.id === selectedAnnotationIds()[0]) : undefined,
+        elements: () => annotationState().elements,
+        toLocalPoint,
+        commit: commitAnnotationElements,
+    });
+
     return (
         <div
             ref={setHostRef}
             class="absolute inset-0 z-[16]"
             data-sticker-interaction-root="true"
+            onContextMenu={nodeMenu.onContextMenu}
             data-sticker-surface-pass-through={usesExistingNodeInteractions() ? "true" : "false"}
             style={{
                 "pointer-events": interactionEnabled() ? "auto" : "none",
                 "overflow": cropClipped() ? "hidden" : "visible",
                 cursor: "default",
             }}
-            onPointerDown={(event) =>
-                void onPointerDown(event).catch((error) =>
-                    console.error("[Otter] Sticker pointer-down handler failed", error),
-                )
-            }
-            onPointerMove={onPointerMove}
-            onPointerUp={() =>
-                void onPointerUp().catch((error) =>
-                    console.error("[Otter] Sticker pointer-up handler failed", error),
-                )
-            }
-            onPointerCancel={() =>
-                void onPointerUp().catch((error) =>
-                    console.error("[Otter] Sticker pointer-cancel handler failed", error),
-                )
-            }
+            onPointerDown={(event) => void brushFrameInput.down(event)}
+            onPointerMove={brushFrameInput.move}
+            onPointerUp={(event) => void brushFrameInput.up(event)}
+            onPointerCancel={() => void brushFrameInput.cancel()}
             onWheel={(event) =>
                 void onWheel(event).catch((error) =>
                     console.error("[Otter] Sticker wheel handler failed", error),
@@ -390,6 +395,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                 )
             }
         >
+            <nodeMenu.View />
             <canvas
                 ref={setLiveErasePreviewRef}
                 class="absolute inset-0 h-full w-full"
@@ -455,7 +461,6 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                     draftEffectMode={draftEffectMode()}
                     draftEffectPathData={draftEffectPathData}
                     draftLine={draftLine()}
-                    liveErasePreviewVisible={liveErasePreviewVisible()}
                     draftShapeRect={draftShapeRect()}
                     draftShapeMode={draftShapeMode()}
                     draftShapeMeasurement={draftShapeMeasurement()}
@@ -482,7 +487,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                         }}
                         aria-label="输入标注文本"
                         value={draft().value}
-                        placeholder="输入文本，Enter 确认"
+                        placeholder="输入文本"
                         onInput={(event) =>
                             setPendingTextInput((current) =>
                                 current ? { ...current, value: event.currentTarget.value } : current,
@@ -491,7 +496,7 @@ export const StickerAnnotationLayer: Component<StickerAnnotationLayerProps> = (p
                         onPointerDown={(event) => event.stopPropagation()}
                         onMouseDown={(event) => event.stopPropagation()}
                         onClick={(event) => event.stopPropagation()}
-                        onBlur={() => void commitPendingTextInput()}
+                        onBlur={() => void commitOnExit()}
                         onKeyDown={(event) => handlePendingTextInputKeyDown(event)}
                     />
                 )}

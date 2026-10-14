@@ -68,8 +68,8 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Native coordination may start before the frontend handshake, but only
     // when the process has explicitly enabled the authenticated integration.
     let loom_otter = LoomOtter::new();
-    let listener_started =
-        loom_otter::ensure_loom_otter_listener(app.handle(), &loom_otter).map_err(|error| {
+    let listener_started = loom_otter::ensure_loom_otter_listener(app.handle(), &loom_otter)
+        .map_err(|error| {
             append_runtime_log_line(&format!("loom_otter_listener_start_failed :: {error}"));
             error
         })?;
@@ -96,31 +96,38 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             append_runtime_log_line("register_voice_hotkey_success");
         }
 
-        let capture_item = MenuItem::with_id(app, "capture", "截图 (Ctrl+1)", true, None::<&str>)?;
-        let live_capture_item = MenuItem::with_id(
+        let capture_item = MenuItem::with_id(
             app,
-            "live_capture",
-            "实时截图… (Ctrl+2)",
+            "capture",
+            tray_shortcut_label("截图", "capture"),
             true,
             None::<&str>,
         )?;
-        let long_capture_item =
-            MenuItem::with_id(app, "long_capture", "长截图 (Ctrl+3)", true, None::<&str>)?;
+        let live_capture_item = MenuItem::with_id(
+            app,
+            "live_capture",
+            tray_shortcut_label("实时截图…", "live_capture"),
+            true,
+            None::<&str>,
+        )?;
+        let long_capture_item = MenuItem::with_id(
+            app,
+            "long_capture",
+            tray_shortcut_label("长截图", "long_capture"),
+            true,
+            None::<&str>,
+        )?;
         let open_image_item = MenuItem::with_id(
             app,
             "open_image",
-            "编辑已有图片… (Ctrl+O)",
+            tray_shortcut_label("编辑已有图片…", "open_image"),
             true,
             None::<&str>,
         )?;
         let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-        let projection_item = MenuItem::with_id(
-            app,
-            "receive_projection",
-            "接收二维码投射…",
-            true,
-            None::<&str>,
-        )?;
+        let autostart_item = create_tray_autostart(app)?;
+        let projection_item =
+            MenuItem::with_id(app, "receive_projection", "接收投射", true, None::<&str>)?;
         let tray_menu = Menu::with_items(
             app,
             &[
@@ -129,6 +136,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 &long_capture_item,
                 &open_image_item,
                 &projection_item,
+                &autostart_item,
                 // Temporarily keep app settings out of the tray menu while
                 // retaining the existing command and event handler.
                 &quit_item,
@@ -180,6 +188,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                         let _ = window.emit("trigger-receive-projection", ());
                     }
                 }
+                "autostart" => toggle_tray_autostart(app),
                 "quit" => {
                     record_process_exit_event("tray_quit", Some(0));
                     app.exit(0);
@@ -193,6 +202,14 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
         let tray = tray_builder.build(app)?;
         app.manage(tray);
+        app.manage(TrayAutostartItem(autostart_item));
+        app.manage(TrayShortcutItems(vec![
+            (capture_item, "截图", "capture"),
+            (live_capture_item, "实时截图…", "live_capture"),
+            (long_capture_item, "长截图", "long_capture"),
+            (open_image_item, "编辑已有图片…", "open_image"),
+        ]));
+        refresh_tray_shortcut_labels(app.handle());
 
         let Some(window) = app.get_webview_window("main") else {
             append_runtime_log_line("app_setup_main_window_missing");

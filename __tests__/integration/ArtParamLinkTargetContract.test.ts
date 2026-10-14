@@ -22,7 +22,8 @@ describe("Art parameter link target contract", () => {
         const source = readFileSync(resolve(process.cwd(), "src", "components", "UnitParamsPanel.tsx"), "utf8");
 
         expect(source).toContain("isParamLinked");
-        expect(source).toContain("registerLinkTarget={(el) => registerPanelPort(el, param.id)}");
+        expect(source).toContain("<UnitPropertyCapsule name={param.id}");
+        expect(source).toContain("register={registerPanelPort}");
         expect(source).toContain("onLinkDrop={props.onLinkDrop}");
         expect(source).toContain("onLinkMove={props.onLinkMove}");
     });

@@ -45,7 +45,7 @@ class ImageMock {
 
 const UNIT: Unit = {
     id: "resize-unit",
-    type: "sticker",
+    type: "art",
     x: 0,
     y: 0,
     w: 200,
@@ -93,6 +93,13 @@ describe("UnitParamsExpandedSettings image resize lifecycle", () => {
         setSrc("data:image/png;base64,NEW");
         oldImage.onload?.();
         expect(onParamChange).not.toHaveBeenCalled();
+        dispose();
+    });
+
+    it("no longer duplicates the sticker fit action in the Tab panel", () => {
+        const host = document.createElement("div");
+        const dispose = render(() => <UnitParamsExpandedSettings unit={{ ...UNIT, type: "sticker" }} expanded displaySrc="data:image/png;base64,CURRENT" onParamChange={vi.fn()} />, host);
+        expect(host.querySelector("button[aria-label='合拢外框']")).toBeNull();
         dispose();
     });
 

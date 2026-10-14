@@ -1,18 +1,24 @@
 import { createSignal } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import type { ProjectionSyncStatus } from "../services/qrProjectionSync";
+import { dismissProjectionPopup } from "../services/projectionPopup";
 
 export type ProjectionShareAction = "qr" | "link" | "targets";
 export type ProjectionImportKind = "qr" | "link" | "combined";
-export interface ProjectionDialogTarget { unitId?: string; anchorUnitId?: string; invitationText?: string; shareAction?: ProjectionShareAction; importKind?: ProjectionImportKind }
+export interface ProjectionDialogTarget { unitId?: string; anchorUnitId?: string; receiverUnitId?: string; invitationText?: string; shareAction?: ProjectionShareAction; importKind?: ProjectionImportKind }
 export const [projectionDialog, setProjectionDialog] = createSignal<ProjectionDialogTarget>();
 const [projectionStatuses, setStatuses] = createStore<Record<string, ProjectionSyncStatus | undefined>>({});
 export { projectionStatuses };
 // Sync reports are complete snapshots; recovered errors and old delivery receipts must not survive a new phase.
 export const setProjectionStatuses = (id: string, status: ProjectionSyncStatus | undefined) => setStatuses(id, reconcile(status));
-export const openProjection = (unitId: string, shareAction?: ProjectionShareAction) => setProjectionDialog({ unitId, ...(shareAction ? { shareAction } : {}) });
-export const openProjectionReceiver = (invitationText = "", importKind?: ProjectionImportKind, anchorUnitId?: string) =>
-    setProjectionDialog({ invitationText, ...(importKind ? { importKind } : {}), ...(anchorUnitId ? { anchorUnitId } : {}) });
+export const openProjection = (unitId: string, shareAction?: ProjectionShareAction) => {
+    dismissProjectionPopup();
+    setProjectionDialog({ unitId, ...(shareAction ? { shareAction } : {}) });
+};
+export const openProjectionReceiver = (invitationText = "", importKind?: ProjectionImportKind, anchorUnitId?: string, receiverUnitId?: string) => {
+    dismissProjectionPopup();
+    setProjectionDialog({ invitationText, ...(importKind ? { importKind } : {}), ...(anchorUnitId ? { anchorUnitId } : {}), ...(receiverUnitId ? { receiverUnitId } : {}) });
+};
 export const closeProjectionDialog = () => setProjectionDialog(undefined);
 
 export const projectionStatusLabel = (status: ProjectionSyncStatus | undefined): string => status?.phase === "connected" && status.delivery

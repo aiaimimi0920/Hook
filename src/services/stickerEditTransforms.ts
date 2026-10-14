@@ -115,6 +115,7 @@ const flipAnnotation = (
     }
 
     return annotation.type === "line" ||
+        annotation.type === "bezier" ||
         annotation.type === "polyline" ||
         annotation.type === "arrow" ||
         annotation.type === "brush" ||

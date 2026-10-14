@@ -8,7 +8,8 @@ const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/St
 const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarSections.tsx");
 const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
 const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(propertyBarSectionsPath, "utf8") : "";
-const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
+const textSerialFieldsSource = readFileSync(resolve(process.cwd(), "src/components/TextSerialPropertyFields.tsx"), "utf8");
+const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}\n${textSerialFieldsSource}`;
 const propertyBarSelectionSource = readFileSync(
     resolve(process.cwd(), "src/components/stickerTopStripPropertyBarSelectionController.ts"),
     "utf8",
@@ -50,11 +51,11 @@ describe("Otter sticker text sizing contract", () => {
     it("stores font size on text annotations and exposes direct text size controls", () => {
         expect(typeSource).toContain("fontSize?: number");
         expect(toolbarContractSource).toContain('| "textSize"');
-        expect(propertyBarRenderSource).toContain('title="字号"');
-        expect(propertyBarRenderSource).toContain('settingKey="textSize"');
-        expect(propertyBarRenderSource).toMatch(/currentValue=\{(?:options\.)?stickerToolSettings\.textSize\}/);
+        expect(textSerialFieldsSource).toContain('title={props.serial ? "半径" : "字号"}');
+        expect(propertyBarSectionsSource).toContain('onSize={(textSize) => options.patchStickerToolSettings({ textSize })}');
+        expect(propertyBarSectionsSource).toContain('size={options.stickerToolSettings.textSize}');
         expect(textControllerSource).toContain(
-            "fontSize: sanitizeTextSize(existing?.fontSize ?? stickerToolSettings.textSize)",
+            "const fontSize = sanitizeTextSize(existing?.fontSize ?? stickerToolSettings.textSize)",
         );
         expect(viewModelSource).toContain("fontSize: sanitizeTextSize(draft.fontSize)");
         expect(viewModelSource).toContain("text().fontSize");
@@ -64,9 +65,9 @@ describe("Otter sticker text sizing contract", () => {
     it("uses the shared color-slot palette for text color instead of the generic active color controls", () => {
         expect(typeSource).toContain("textColor: string");
         expect(stickerEditingDefaultsSource).toContain('textColor: "#ef4444"');
-        expect(propertyBarRenderSource).toContain('title="文字颜色"');
-        expect(propertyBarRenderSource).toContain('slot="textColor"');
-        expect(propertyBarRenderSource).toContain("Icon={TextIcon}");
+        expect(textSerialFieldsSource).toContain('title={props.serial ? "描边/数字颜色" : "文字颜色"}');
+        expect(propertyBarSectionsSource).toContain('options.openColorPicker("textColor", button)');
+        expect(textSerialFieldsSource).toContain("<DrawingColorField");
         expect(propertyBarSource).toContain("<ColorPicker");
         expect(propertyBarSource).not.toContain("renderColorControls");
         expect(textControllerSource).toContain("color: existing?.style.color ?? stickerToolSettings.textColor");
@@ -76,7 +77,7 @@ describe("Otter sticker text sizing contract", () => {
 
     it("creates text through an inline input near the clicked text position instead of a blocking prompt", () => {
         expect(annotationLayerSource).toContain("pendingTextInput");
-        expect(annotationLayerSource).toContain("commitPendingTextInput");
+        expect(annotationLayerSource).toContain("onBlur={() => void commitOnExit()}");
         expect(textControllerSource).toContain("setPendingTextInput({");
         expect(annotationLayerSource).toContain('aria-label="输入标注文本"');
         expect(annotationLayerSource).toContain("pendingTextInputStyle()");
@@ -89,7 +90,7 @@ describe("Otter sticker text sizing contract", () => {
         const serialToolStart = pointerDownSource.indexOf('if (activeTool === "serial")', textToolStart);
         const textToolBlock = pointerDownSource.slice(textToolStart, serialToolStart);
         const textFocusIndex = textToolBlock.indexOf("api.focusOverlayWindow()");
-        const textInputIndex = textToolBlock.indexOf("beginPendingTextInput(point)");
+        const textInputIndex = textToolBlock.indexOf('beginPendingTextInput(point, hit?.type === "text" ? hit : undefined)');
         expect(textFocusIndex).toBeGreaterThanOrEqual(0);
         expect(textInputIndex).toBeGreaterThan(textFocusIndex);
 
@@ -97,7 +98,7 @@ describe("Otter sticker text sizing contract", () => {
         const returnStart = pointerDownSource.indexOf("    return { beginDirectTransform", doubleClickStart);
         const doubleClickBlock = pointerDownSource.slice(doubleClickStart, returnStart);
         const editFocusIndex = doubleClickBlock.indexOf("api.focusOverlayWindow()");
-        const editInputIndex = doubleClickBlock.indexOf("beginPendingTextInput({ x: hit.x, y: hit.y }, hit)");
+        const editInputIndex = doubleClickBlock.indexOf("beginPendingTextInput(point, hit)");
         expect(editFocusIndex).toBeGreaterThanOrEqual(0);
         expect(editInputIndex).toBeGreaterThan(editFocusIndex);
     });
@@ -108,7 +109,7 @@ describe("Otter sticker text sizing contract", () => {
         expect(viewModelSource).toContain("visiblePreviewAnnotations");
         expect(textControllerSource).toContain('color: "transparent"');
         expect(textControllerSource).toContain('"caret-color": draft.color');
-        expect(textControllerSource).toContain("draft.y - draft.fontSize");
+        expect(textControllerSource).toContain("draft.y - line.baselineOffset - height / 2");
         expect(textControllerSource).toContain("top: `${top}px`");
     });
 
@@ -132,7 +133,7 @@ describe("Otter sticker text sizing contract", () => {
         expect(stickerEditingDefaultsSource).toContain('textFontFamily: "微软雅黑"');
         expect(stickerEditingDefaultsSource).toContain('serialFontFamily: "微软雅黑"');
         expect(uiStoreSource).toContain("patchStickerToolSettings");
-        expect(textControllerSource).toContain("fontFamily: resolveTextAnnotationFontFamily(existing)");
+        expect(textControllerSource).toContain("const fontFamily = resolveTextAnnotationFontFamily(existing)");
         expect(pointerDownSource).toContain("fontFamily: stickerToolSettings.serialFontFamily");
         expect(viewModelSource).toContain("fontFamily: draft.fontFamily");
         expect(viewModelSource).toContain("text().fontFamily");
@@ -146,8 +147,8 @@ describe("Otter sticker text sizing contract", () => {
         expect(installedFontLoaderSource).toMatch(/api\s*\.\s*getInstalledFonts\(\)/);
         expect(installedFontLoaderSource).toContain("setInstalledStickerFonts(fonts)");
         expect(propertyBarSource).toContain("availableFontFamilies");
-        expect(propertyBarRenderSource).toMatch(/value=\{(?:options\.)?stickerToolSettings\.textFontFamily\}/);
-        expect(propertyBarRenderSource).toMatch(/value=\{(?:options\.)?stickerToolSettings\.serialFontFamily\}/);
+        expect(propertyBarSectionsSource).toContain('font={options.stickerToolSettings.textFontFamily}');
+        expect(propertyBarSectionsSource).toContain('font={options.stickerToolSettings.serialFontFamily}');
         expect(propertyBarRenderSource).toContain('title="字体"');
         expect(propertyBarSelectionSource).toContain('updateTextAnnotationFontFamilyById');
         expect(bootSettingsApiSource).toContain("getInstalledFonts");
@@ -158,7 +159,8 @@ describe("Otter sticker text sizing contract", () => {
         expect(topStripSource).toContain("resolveSelectedExistingNodePropertyTool");
         expect(propertyBarSelectionSource).toContain("selectedExistingTextFontFamily");
         expect(propertyBarSelectionSource).toContain("selectedExistingSerialFontFamily");
-        expect(propertyBarRenderSource).toContain('title="节点字体"');
+        expect(propertyBarSectionsSource).toContain('font={options.selectedExistingTextFontFamily()}');
+        expect(propertyBarSectionsSource).toContain('font={options.selectedExistingSerialFontFamily()}');
         expect(propertyBarRenderSource).toContain('applySelectedAnnotationFontFamilyChange("text", value)');
         expect(propertyBarRenderSource).toContain('applySelectedAnnotationFontFamilyChange("serial", value)');
         expect(textControllerSource).toContain(
@@ -176,9 +178,9 @@ describe("Otter sticker text sizing contract", () => {
     });
 
     it("aligns text selection/export bounds to the SVG text baseline", () => {
-        expect(textControllerSource).toContain("draft.y - draft.fontSize");
-        expect(textGeometrySource).toContain("top: annotation.y - fontSize");
-        expect(textGeometrySource).toContain("centerY: annotation.y - fontSize / 2");
+        expect(textControllerSource).toContain("draft.y - line.baselineOffset - height / 2");
+        expect(textGeometrySource).toContain("top: annotation.y - line.baselineOffset - line.height / 2");
+        expect(textGeometrySource).toContain("centerY: annotation.y - line.baselineOffset");
         expect(exportSource).toContain('context.textBaseline = annotation.type === "serial" ? "middle" : "alphabetic";');
         expect(exportSource).not.toContain('context.textBaseline = annotation.type === "serial" ? "middle" : "top";');
     });

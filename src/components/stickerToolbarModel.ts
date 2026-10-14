@@ -10,14 +10,18 @@ export type StickerTopStripPropertyTool =
     | "crop"
     | "selected-text"
     | "selected-serial"
+    | "selected-line"
+    | "selected-bezier"
     | "shape-rect"
     | "shape-round-rect"
     | "shape-ellipse"
     | "shape-triangle"
     | "shape-polygon"
     | "line"
+    | "bezier"
     | "arrow"
     | "brush"
+    | "paintbrush"
     | "highlighter"
     | "text"
     | "serial"
@@ -104,7 +108,7 @@ export const getShapeStrokeColorKey = (mode: StickerCreateTool | null): ShapeCol
     if (mode === "shape-ellipse") return "ellipseStrokeColor";
     if (mode === "shape-triangle") return "triangleStrokeColor";
     if (mode === "shape-polygon") return "polygonStrokeColor";
-    if (mode === "line" || mode === "arrow") return "lineStrokeColor";
+    if (mode === "line" || mode === "arrow" || mode === "bezier") return "lineStrokeColor";
     return "rectStrokeColor";
 };
 
@@ -123,7 +127,6 @@ export const resolveStickerTopStripPropertyTool = (
     activeCanvasTool: StickerToolSettings["activeCanvasTool"],
 ): StickerTopStripPropertyTool | null => {
     if (domain === "sticker") {
-        if (activeCanvasTool === "crop") return "crop";
         return activeCanvasTool === "content-eraser" ? "content-eraser" : null;
     }
 
@@ -136,8 +139,10 @@ export const resolveStickerTopStripPropertyTool = (
         case "shape-triangle":
         case "shape-polygon":
         case "line":
+        case "bezier":
         case "arrow":
         case "brush":
+        case "paintbrush":
         case "highlighter":
         case "text":
         case "serial":
@@ -157,5 +162,7 @@ export const resolveSelectedExistingNodePropertyTool = (
     if (domain !== "existing" || selectionCount !== 1) return null;
     if (selectedAnnotationType === "text") return "selected-text";
     if (selectedAnnotationType === "serial") return "selected-serial";
+    if (selectedAnnotationType === "bezier") return "selected-bezier";
+    if (selectedAnnotationType === "line" || selectedAnnotationType === "arrow") return "selected-line";
     return null;
 };

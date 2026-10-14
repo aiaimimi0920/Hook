@@ -1,5 +1,5 @@
 
-import { Component, Match, Switch } from "solid-js";
+import { Component, Match, Switch, Show } from "solid-js";
 import { ArtParam } from "../../services/protocol";
 import { NumberControl } from "./controls/NumberControl";
 import { StringControl } from "./controls/StringControl";
@@ -10,6 +10,7 @@ import { SelectControl } from "./controls/SelectControl";
 import { formatArtParamTextValue } from "../../services/artParamTextValue";
 
 interface UnitParamControlProps {
+  hidePort?: boolean;
   param: ArtParam;
   value: any;
   isDisabled: boolean;
@@ -62,7 +63,7 @@ export const UnitParamControl: Component<UnitParamControlProps> = (props) => {
         style={props.isDisabled && !props.isLinked ? { opacity: 0.4 } : {}}
         onContextMenu={handleDisable}
     >
-      <div
+      <Show when={!props.hidePort}><div
         class="otter-param-link-port absolute w-4 h-4 rounded-full border shadow-sm cursor-pointer hover:scale-110 transition-transform z-[55]"
         classList={{ "otter-param-link-port--linked": props.isLinked }}
         style={{ left: "-13px", top: "50%", transform: "translateY(-50%)" }}
@@ -74,10 +75,11 @@ export const UnitParamControl: Component<UnitParamControlProps> = (props) => {
         title={props.isLinked ? "参数已由上游节点驱动；拖动可重新连接" : "拖入上游输出以驱动这个参数"}
         onMouseDown={handleLinkMove}
         onMouseUp={handleLinkDrop}
-      />
+      /></Show>
       <Switch fallback={<div>Unknown Widget: {props.param.widget}</div>}>
         <Match when={props.param.widget === "slider" || props.param.widget === "number"}>
             <NumberControl
+                compact={props.hidePort}
                 id={props.param.id}
                 label={props.param.label}
                 widget={props.param.widget as "slider" | "number"}

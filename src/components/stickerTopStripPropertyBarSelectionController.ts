@@ -115,14 +115,14 @@ export const createPropertyBarSelectionController = (
     };
 
     const patchSelectedTextAnnotationFontSize = (next: number) => {
-        const clamped = Math.min(96, Math.max(8, Math.round(next)));
+        const clamped = Math.min(999, Math.max(8, Math.round(next)));
         updateSelectedTextAnnotationStyle((annotation) =>
             annotation.type !== "text" ? annotation : { ...annotation, fontSize: clamped },
         );
     };
 
     const patchSelectedSerialAnnotationRadius = (next: number) => {
-        const clamped = Math.min(96, Math.max(8, Math.round(next)));
+        const clamped = Math.min(999, Math.max(8, Math.round(next)));
         updateSelectedTextAnnotationStyle((annotation) =>
             annotation.type !== "serial"
                 ? annotation
@@ -160,14 +160,14 @@ export const createPropertyBarSelectionController = (
 
     const commitSelectedTextSizeDraft = () => {
         const fallback = selectedExistingTextSize();
-        const nextSize = parseCanvasStepperValue(selectedTextSizeDraft(), fallback, 8, 96);
+        const nextSize = parseCanvasStepperValue(selectedTextSizeDraft(), fallback, 8, 999);
         setSelectedTextSizeDraft(null);
         if (nextSize !== fallback) patchSelectedTextAnnotationFontSize(nextSize);
     };
 
     const commitSelectedSerialRadiusDraft = () => {
         const fallback = selectedExistingSerialRadius();
-        const nextRadius = parseCanvasStepperValue(selectedSerialRadiusDraft(), fallback, 8, 96);
+        const nextRadius = parseCanvasStepperValue(selectedSerialRadiusDraft(), fallback, 8, 999);
         setSelectedSerialRadiusDraft(null);
         if (nextRadius !== fallback) patchSelectedSerialAnnotationRadius(nextRadius);
     };

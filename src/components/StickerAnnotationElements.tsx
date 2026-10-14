@@ -1,6 +1,7 @@
 import { For, type Accessor, type Component, type JSX } from "solid-js";
 
 import { HIGHLIGHTER_LAYER_OPACITY } from "../services/stickerEditing";
+import { freehandOpacity } from "../services/stickerPaintbrushGeometry";
 import type {
     ContentEraserStroke,
     StickerAnnotation,
@@ -53,6 +54,7 @@ export const StickerAnnotationElements: Component<StickerAnnotationElementsProps
                             stroke-linecap="round"
                             stroke-linejoin="round"
                             fill="none"
+                            opacity={freehandOpacity((line.style.opacity ?? HIGHLIGHTER_LAYER_OPACITY) / HIGHLIGHTER_LAYER_OPACITY)}
                         />
                     </g>
                 )}

@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { Show } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import { render } from "solid-js/web";
 import { QrProjectionDialog } from "../../src/components/QrProjectionDialog";
 import { openProjection, openProjectionReceiver, projectionDialog, closeProjectionDialog } from "../../src/store/qrProjectionStore";
 import { extraRects } from "../../src/services/uiRegistry";
+import { ProjectionTargetPopover } from "../../src/components/ProjectionTargetPopover";
 
 vi.mock("../../src/components/QrProjectionSender", () => ({ QrProjectionSender: () => <input aria-label="投射链接" readOnly value="hook://projection/v1#test" /> }));
 vi.mock("../../src/components/QrProjectionReceiver", () => ({ QrProjectionReceiver: () => null }));
@@ -64,4 +65,24 @@ it("anchors imports to the selected sticker without rendering the sender or expl
     expect(rect()).toMatchObject({ x: 224, y: 182 });
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     expect(rect()).toBeUndefined();
+});
+
+it("replaces QR, target, link and import dialogs instead of stacking them", () => {
+    const [visible, setVisible] = createSignal(true);
+    const disposeTarget = render(() => <Show when={visible()}><ProjectionTargetPopover anchor={trigger}
+        label="投射目标" list fixedTarget close={() => setVisible(false)}><button>设备</button></ProjectionTargetPopover></Show>, document.body);
+    try {
+        expect(projectionDialog()).toBeUndefined();
+        expect(rect()).toBeUndefined();
+        expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+        expect(document.querySelector('[role="dialog"]')?.getAttribute("aria-label")).toBe("投射目标");
+        openProjection("source", "link");
+        expect(visible()).toBe(false);
+        expect(extraRects().some((item) => item.id.startsWith("projection-target-popover-"))).toBe(false);
+        expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+        expect(document.querySelector('[role="dialog"]')?.getAttribute("aria-label")).toBe("投射链接");
+        openProjectionReceiver("", "qr", "source");
+        expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+        expect(document.querySelector('[role="dialog"]')?.getAttribute("aria-label")).toBe("导入投射");
+    } finally { disposeTarget(); }
 });

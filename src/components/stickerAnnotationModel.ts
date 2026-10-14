@@ -1,4 +1,5 @@
 import type { ScreenColorSample } from "../services/api";
+import type { BrushSample } from "../services/stickerBrushDynamics";
 import { isTransparentStickerColor } from "../services/stickerEditing";
 import { getDashSegments } from "../services/stickerCanvas";
 import type { StickerPoint, StickerShapeAnnotation } from "../types/stickerEditing";
@@ -147,12 +148,13 @@ export type DraftShape = {
     start: StickerPoint;
     current: StickerPoint;
     constrainSquare?: boolean;
+    aspectRatio?: number;
     snapStep?: number;
 };
 
 export type DraftLine = {
-    mode: "line" | "polyline" | "arrow" | "brush" | "highlighter" | "content-eraser" | "mosaic" | "blur";
-    points: StickerPoint[];
+    mode: "line" | "bezier" | "polyline" | "arrow" | "brush" | "paintbrush" | "highlighter" | "content-eraser" | "mosaic" | "blur";
+    points: BrushSample[];
     showArrowHead?: boolean;
 };
 
@@ -197,6 +199,7 @@ export const isStraightLineMode = (mode: DraftLine["mode"]) =>
     mode === "line" ||
     mode === "arrow" ||
     mode === "brush" ||
+    mode === "paintbrush" ||
     mode === "highlighter";
 
 export const isMeasuredLineMode = (mode: DraftLine["mode"]) =>

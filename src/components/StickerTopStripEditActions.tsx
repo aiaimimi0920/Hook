@@ -18,13 +18,12 @@ import type { StickerRasterizeScope } from "../services/stickerRasterize";
 type TopStripCanvasTool = "crop" | "content-eraser";
 
 interface StickerTopStripEditActionsProps {
+    section: "control" | "canvas";
     openMenu: TopStripOpenMenu;
     supportsBitmapTools: boolean;
     isArt: boolean;
     isEraserSelected: boolean;
     isCropSelected: boolean;
-    currentHistoryAction: HistoryActionMode;
-    isHistoryEnabled: boolean;
     canUndo: boolean;
     canRedo: boolean;
     currentRasterizeScope: StickerRasterizeScope;
@@ -34,24 +33,20 @@ interface StickerTopStripEditActionsProps {
     onToggleMenu: (menu: Exclude<TopStripOpenMenu, null>) => void;
     onCanvasTool: (mode: TopStripCanvasTool) => void;
     onHistoryAction: (mode: HistoryActionMode) => void;
-    onSelectHistoryAction: (mode: HistoryActionMode) => void;
     onRasterize: (scope: StickerRasterizeScope) => void;
     onSelectRasterizeScope: (scope: StickerRasterizeScope) => void;
 }
 
 /** Renders edit actions while the parent retains mutation and async ownership. */
 export const StickerTopStripEditActions: Component<StickerTopStripEditActionsProps> = (props) => {
-    const currentHistoryOption = createMemo(
-        () => historyActionOptions.find((item) => item.mode === props.currentHistoryAction) ?? historyActionOptions[0],
-    );
     const currentRasterizeOption = createMemo(
         () => rasterizeScopeOptions.find((item) => item.mode === props.currentRasterizeScope) ?? rasterizeScopeOptions[0],
     );
 
     return (
         <>
-            <Show when={props.supportsBitmapTools}>
-                <div class="relative h-[50px] w-[50px]" onPointerDown={(event) => event.stopPropagation()}>
+            <Show when={props.section === "canvas" && props.supportsBitmapTools}>
+                <div class="relative h-7 w-7" onPointerDown={(event) => event.stopPropagation()}>
                     <button
                         type="button"
                         class={toolbarButtonLeftBorderClass}
@@ -64,13 +59,13 @@ export const StickerTopStripEditActions: Component<StickerTopStripEditActionsPro
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={() => props.onCanvasTool("content-eraser")}
                     >
-                        <EraserToolIcon class="h-7 w-7" />
+                        <EraserToolIcon class="h-[18px] w-[18px]" />
                     </button>
                 </div>
             </Show>
 
-            <Show when={props.supportsBitmapTools || props.isArt}>
-                <div class="relative h-[50px] w-[50px]" onPointerDown={(event) => event.stopPropagation()}>
+            <Show when={props.section === "canvas" && (props.supportsBitmapTools || props.isArt)}>
+                <div class="relative h-7 w-7" onPointerDown={(event) => event.stopPropagation()}>
                     <button
                         type="button"
                         class={toolbarButtonLeftBorderClass}
@@ -83,80 +78,31 @@ export const StickerTopStripEditActions: Component<StickerTopStripEditActionsPro
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={() => props.onCanvasTool("crop")}
                     >
-                        <CropToolIcon class="h-7 w-7" />
+                        <CropToolIcon class="h-[18px] w-[18px]" />
                     </button>
                 </div>
             </Show>
 
-            <div class="relative h-[50px] w-[50px]" onPointerDown={(event) => event.stopPropagation()}>
-                <button
-                    type="button"
-                    class={toolbarButtonLeftBorderClass}
-                    classList={{
-                        "otter-toolbar-idle": props.isHistoryEnabled,
-                        "otter-toolbar-disabled": !props.isHistoryEnabled,
-                    }}
-                    aria-label={currentHistoryOption().label}
-                    title={currentHistoryOption().label}
-                    disabled={!props.isHistoryEnabled}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={() => props.onHistoryAction(props.currentHistoryAction)}
-                >
-                    {(() => {
-                        const Icon = currentHistoryOption().Icon;
-                        return <Icon class="h-7 w-7" />;
-                    })()}
-                </button>
-                <button
-                    type="button"
-                    class={toolbarCornerToggleClass}
-                    aria-label="展开历史操作列表"
-                    title="展开历史操作列表"
-                    onPointerDown={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                    }}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        props.onToggleMenu("history");
-                    }}
-                >
-                    <ChevronDownCornerIcon class="h-3 w-3" />
-                </button>
-                <Show when={props.openMenu === "history"}>
-                    <div
-                        class={toolbarMenuClass}
-                        data-top-strip-menu="true"
-                        onPointerMove={(event) => event.stopPropagation()}
-                        onWheel={(event) => event.stopPropagation()}
-                    >
-                        <For each={historyActionOptions}>
-                            {(item) => {
-                                const enabled = item.mode === "undo" ? props.canUndo : props.canRedo;
-                                return (
-                                    <button
-                                        type="button"
-                                        class={toolbarMenuItemClass}
-                                        classList={{
-                                            "otter-toolbar-menu-item--active": props.currentHistoryAction === item.mode,
-                                            "otter-toolbar-menu-item--idle":
-                                                props.currentHistoryAction !== item.mode && enabled,
-                                            "otter-toolbar-disabled": !enabled,
-                                        }}
-                                        onClick={() => props.onSelectHistoryAction(item.mode)}
-                                    >
-                                        <item.Icon class="h-4 w-4 shrink-0" />
-                                        <span>{item.label}</span>
-                                    </button>
-                                );
-                            }}
-                        </For>
-                    </div>
-                </Show>
-            </div>
+            <Show when={props.section === "control"}>
+                <For each={historyActionOptions}>
+                    {(item) => (
+                        <button
+                            type="button"
+                            class={toolbarButtonLeftBorderClass}
+                            aria-label={item.label}
+                            title={item.label}
+                            disabled={item.mode === "undo" ? !props.canUndo : !props.canRedo}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={() => props.onHistoryAction(item.mode)}
+                        >
+                            <item.Icon class="h-[18px] w-[18px]" />
+                        </button>
+                    )}
+                </For>
+            </Show>
 
-            <Show when={props.supportsBitmapTools}>
-                <div class="relative h-[50px] w-[50px]" onPointerDown={(event) => event.stopPropagation()}>
+            <Show when={props.section === "control" && props.supportsBitmapTools}>
+                <div class="relative h-7 w-7" onPointerDown={(event) => event.stopPropagation()}>
                     <button
                         type="button"
                         class={toolbarButtonLeftBorderClass}
@@ -172,7 +118,7 @@ export const StickerTopStripEditActions: Component<StickerTopStripEditActionsPro
                     >
                         {(() => {
                             const Icon = currentRasterizeOption().Icon;
-                            return <Icon class="h-7 w-7" />;
+                            return <Icon class="h-[18px] w-[18px]" />;
                         })()}
                     </button>
                     <button

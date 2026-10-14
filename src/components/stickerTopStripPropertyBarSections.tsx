@@ -1,19 +1,18 @@
 import { Show, type Accessor } from "solid-js";
+import { TextSerialPropertyFields } from "./TextSerialPropertyFields";
+import { EffectPropertyFields } from "./EffectPropertyFields";
+import { DrawingNumberField } from "./RectanglePropertyFields";
 
 import {
     AngleSnapIcon,
     AnnotationsOnlyFocusedIcon,
     ArrowHeadIcon,
-    BlurIcon,
-    BrushIcon,
     CanvasSizeIcon,
-    EraserIcon,
     FillColorIcon,
     FlipXIcon,
     FlipYIcon,
     HighlighterGlowIcon,
     LineWidthIcon,
-    MosaicIcon,
     OpacityIcon,
     PolygonSidesIcon,
     RadiusIcon,
@@ -21,7 +20,6 @@ import {
     SquareConstraintGlyphIcon,
     StepIcon,
     StrokeColorIcon,
-    TextIcon,
 } from "./stickerTopStripPropertyBarIcons";
 import type {
     MiniActionFieldComponent,
@@ -46,6 +44,7 @@ export type SelectedExistingColorRole =
     | "selected-serial-fill";
 
 interface CreateStickerTopStripPropertyBarSectionsOptions {
+    openColorPicker: (slot: ShapeColorSettingKey, button: HTMLButtonElement) => void;
     tool: Accessor<StickerTopStripPropertyTool>;
     stickerToolSettings: StickerToolSettings;
     shapeStrokeColorSlot: Accessor<ShapeColorSettingKey>;
@@ -221,168 +220,56 @@ export const createStickerTopStripPropertyBarSections = (options: CreateStickerT
     );
 
     const renderTextFields = () => (
-        <>
-            <options.MiniColorField title="文字颜色" slot="textColor" Icon={TextIcon} />
-            <options.MiniNumericField
-                title="字号"
-                settingKey="textSize"
-                currentValue={options.stickerToolSettings.textSize}
-                min={8}
-                max={96}
-                Icon={LineWidthIcon}
-            />
-            <options.MiniFontField
-                title="字体"
-                value={options.stickerToolSettings.textFontFamily}
-                onChange={(value) => options.patchStickerToolSettings({ textFontFamily: value })}
-            />
-        </>
+        <TextSerialPropertyFields color={options.stickerToolSettings.textColor}
+            size={options.stickerToolSettings.textSize} font={options.stickerToolSettings.textFontFamily}
+            onColor={(button) => options.openColorPicker("textColor", button)}
+            onSize={(textSize) => options.patchStickerToolSettings({ textSize })}
+            onFont={(textFontFamily) => options.patchStickerToolSettings({ textFontFamily })} FontField={options.MiniFontField} />
     );
 
     const renderSelectedTextFields = () => (
-        <>
-            <options.MiniDirectColorField
-                title="节点文字颜色"
-                value={options.selectedExistingTextColor()}
-                Icon={TextIcon}
-                onOpen={(button) =>
-                    options.openSelectedExistingColorPicker(
-                        "selected-text-color",
-                        options.selectedExistingTextColor(),
-                        button,
-                    )
-                }
-            />
-            <options.MiniDeferredNumericField
-                title="节点字号"
-                value={options.selectedTextSizeDraft() ?? String(options.selectedExistingTextSize())}
-                Icon={LineWidthIcon}
-                onInput={options.setSelectedTextSizeDraft}
-                onCommit={options.commitSelectedTextSizeDraft}
-            />
-            <options.MiniFontField
-                title="节点字体"
-                value={options.selectedExistingTextFontFamily()}
-                onChange={(value) => options.applySelectedAnnotationFontFamilyChange("text", value)}
-            />
-        </>
+        <TextSerialPropertyFields color={options.selectedExistingTextColor()}
+            size={options.selectedExistingTextSize()} font={options.selectedExistingTextFontFamily()}
+            onColor={(button) => options.openSelectedExistingColorPicker("selected-text-color", options.selectedExistingTextColor(), button)}
+            onSize={(value) => { options.setSelectedTextSizeDraft(String(value)); options.commitSelectedTextSizeDraft(); }}
+            onFont={(value) => options.applySelectedAnnotationFontFamilyChange("text", value)} FontField={options.MiniFontField} />
     );
 
     const renderSerialFields = () => (
-        <>
-            <options.MiniColorField title="描边颜色" slot="serialForegroundColor" Icon={StrokeColorIcon} />
-            <options.MiniColorField title="填充颜色" slot="serialFillColor" Icon={FillColorIcon} />
-            <options.MiniNumericField
-                title="半径"
-                settingKey="serialRadius"
-                currentValue={options.stickerToolSettings.serialRadius}
-                min={8}
-                max={96}
-                Icon={RadiusIcon}
-            />
-            <options.MiniFontField
-                title="字体"
-                value={options.stickerToolSettings.serialFontFamily}
-                onChange={(value) => options.patchStickerToolSettings({ serialFontFamily: value })}
-            />
-        </>
+        <TextSerialPropertyFields serial color={options.stickerToolSettings.serialForegroundColor}
+            fill={options.stickerToolSettings.serialFillColor}
+            size={options.stickerToolSettings.serialRadius} font={options.stickerToolSettings.serialFontFamily}
+            onColor={(button) => options.openColorPicker("serialForegroundColor", button)}
+            onFill={(button) => options.openColorPicker("serialFillColor", button)}
+            onSize={(serialRadius) => options.patchStickerToolSettings({ serialRadius })}
+            onFont={(serialFontFamily) => options.patchStickerToolSettings({ serialFontFamily })} FontField={options.MiniFontField} />
     );
 
     const renderSelectedSerialFields = () => (
-        <>
-            <options.MiniDirectColorField
-                title="节点描边/数字颜色"
-                value={options.selectedExistingSerialForegroundColor()}
-                Icon={StrokeColorIcon}
-                onOpen={(button) =>
-                    options.openSelectedExistingColorPicker(
-                        "selected-serial-foreground",
-                        options.selectedExistingSerialForegroundColor(),
-                        button,
-                    )
-                }
-            />
-            <options.MiniDirectColorField
-                title="节点填充颜色"
-                value={options.selectedExistingSerialFillColor()}
-                Icon={FillColorIcon}
-                onOpen={(button) =>
-                    options.openSelectedExistingColorPicker(
-                        "selected-serial-fill",
-                        options.selectedExistingSerialFillColor(),
-                        button,
-                    )
-                }
-            />
-            <options.MiniDeferredNumericField
-                title="节点半径"
-                value={options.selectedSerialRadiusDraft() ?? String(options.selectedExistingSerialRadius())}
-                Icon={RadiusIcon}
-                onInput={options.setSelectedSerialRadiusDraft}
-                onCommit={options.commitSelectedSerialRadiusDraft}
-            />
-            <options.MiniFontField
-                title="节点字体"
-                value={options.selectedExistingSerialFontFamily()}
-                onChange={(value) => options.applySelectedAnnotationFontFamilyChange("serial", value)}
-            />
-        </>
+        <TextSerialPropertyFields serial color={options.selectedExistingSerialForegroundColor()}
+            fill={options.selectedExistingSerialFillColor()}
+            size={options.selectedExistingSerialRadius()} font={options.selectedExistingSerialFontFamily()}
+            onColor={(button) => options.openSelectedExistingColorPicker("selected-serial-foreground", options.selectedExistingSerialForegroundColor(), button)}
+            onFill={(button) => options.openSelectedExistingColorPicker("selected-serial-fill", options.selectedExistingSerialFillColor(), button)}
+            onSize={(value) => { options.setSelectedSerialRadiusDraft(String(value)); options.commitSelectedSerialRadiusDraft(); }}
+            onFont={(value) => options.applySelectedAnnotationFontFamilyChange("serial", value)} FontField={options.MiniFontField} />
     );
 
-    const renderEffectFields = () => (
-        <>
-            <options.MiniNumericField
-                title="笔刷"
-                settingKey="effectBrushSize"
-                currentValue={options.stickerToolSettings.effectBrushSize}
-                min={4}
-                max={200}
-                Icon={BrushIcon}
-                inputClass="w-9"
-            />
-            <Show when={options.tool() === "mosaic"}>
-                <options.MiniNumericField
-                    title="强度"
-                    settingKey="mosaicSize"
-                    currentValue={options.stickerToolSettings.mosaicSize}
-                    min={2}
-                    max={64}
-                    Icon={MosaicIcon}
-                />
-            </Show>
-            <Show when={options.tool() === "blur"}>
-                <options.MiniNumericField
-                    title="强度"
-                    settingKey="blurStrength"
-                    currentValue={options.stickerToolSettings.blurStrength}
-                    min={2}
-                    max={64}
-                    Icon={BlurIcon}
-                />
-            </Show>
-        </>
-    );
+    const renderEffectFields = () => <EffectPropertyFields blur={options.tool() === "blur"} />;
 
     const renderEraserFields = () => (
         <>
-            <options.MiniNumericField
-                title="擦除半径"
-                settingKey="contentEraserSize"
-                currentValue={options.stickerToolSettings.contentEraserSize}
-                min={4}
-                max={96}
-                Icon={EraserIcon}
-            />
-            <options.MiniToggleField
-                title="只擦标记"
-                enabled={options.stickerToolSettings.contentEraserOnlyAnnotations}
-                onToggle={() =>
+            <DrawingNumberField title="擦除大小" setting="contentEraserSize" min={4} max={96} />
+            <button type="button" class="rectangle-constraint" title="只擦标记" aria-label="只擦标记"
+                aria-pressed={options.stickerToolSettings.contentEraserOnlyAnnotations}
+                onClick={() =>
                     options.patchStickerToolSettings({
                         contentEraserOnlyAnnotations: !options.stickerToolSettings.contentEraserOnlyAnnotations,
                     })
                 }
-                Icon={AnnotationsOnlyFocusedIcon}
-            />
+            >
+                <span aria-hidden="true"><AnnotationsOnlyFocusedIcon class="rectangle-number-icon" /></span>
+            </button>
         </>
     );
 

@@ -104,6 +104,7 @@ pub enum DynamicCapturePixels {
 
 #[derive(Debug)]
 pub struct DynamicCaptureResult {
+    pub(crate) origin: crate::capture_coords::CapturePoint,
     pub pixels: DynamicCapturePixels,
     pub backend: CaptureBackend,
     pub downgraded_from_hdr: bool,
@@ -187,7 +188,7 @@ mod tests {
             logical_height: 960.0,
         };
 
-        let rect = local_logical_capture_rect_to_physical(100, 50, 400, 200, geometry)
+        let rect = local_logical_capture_rect_to_physical(100.0, 50.0, 400.0, 200.0, geometry)
             .expect("capture rect should intersect the selected display");
         assert_eq!(
             rect,

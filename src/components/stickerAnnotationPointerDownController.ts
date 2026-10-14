@@ -1,4 +1,8 @@
 import type { Accessor, Setter } from "solid-js";
+import { sampleBrushMotion } from "../services/stickerBrushDynamics";
+import { hitBezierHandle } from "../services/stickerBezierGeometry";
+import { insertBezierAnchor } from "../services/stickerBezierSubdivision";
+import { resolveShapeAspectRatio } from "../services/rectangleAspectRatio";
 
 import { api } from "../services/api";
 import { ShortcutManager } from "../services/shortcuts";
@@ -32,6 +36,7 @@ import type { createStickerAnnotationPointerRuntime } from "./stickerAnnotationP
 import type { createStickerAnnotationTextController } from "./stickerAnnotationTextController";
 import type {
     ActiveTransformInteraction,
+    ReshapeLineState,
     MoveAxisMode,
     TransformInteractionKind,
     TransformPivotMode,
@@ -58,12 +63,13 @@ interface StickerAnnotationPointerDownOptions {
     effectiveTransformMode: Accessor<StickerTransformMode>;
     setDraftShape: Setter<DraftShape | null>;
     setDraftLine: Setter<DraftLine | null>;
+    setReshapeLine: Setter<ReshapeLineState | null>;
     setTransformInteraction: Setter<ActiveTransformInteraction | null>;
     isSquareConstraintActive: (event?: PointerEvent) => boolean;
     isRegularShapeStepSnapActive: (mode: DraftShape["mode"], event?: PointerEvent) => boolean;
     gizmo: GizmoMetrics;
     pointerRuntime: ReturnType<typeof createStickerAnnotationPointerRuntime>;
-    persistence: Pick<ReturnType<typeof createStickerAnnotationPersistence>, "commitAnnotation">;
+    persistence: Pick<ReturnType<typeof createStickerAnnotationPersistence>, "commitAnnotation" | "commitAnnotationElements">;
     text: Pick<ReturnType<typeof createStickerAnnotationTextController>, "beginPendingTextInput">;
     erase: Pick<
         ReturnType<typeof createStickerAnnotationEraseController>,
@@ -207,6 +213,9 @@ export const createStickerAnnotationPointerDownController = (
             return;
         }
 
+        // preventDefault below suppresses native blur; release stale field focus
+        // so Delete/Backspace is routed to the selected annotation, not that field.
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
         void api.focusOverlayWindow().catch((error) => {
             console.warn("[Otter] Failed to focus overlay for annotation interaction", error);
         });
@@ -274,7 +283,7 @@ export const createStickerAnnotationPointerDownController = (
         }
     };
 
-    const handleCreatePointerDown = async (event: PointerEvent, point: StickerPoint) => {
+    const handleCreatePointerDown = async (event: PointerEvent, point: StickerPoint, hit?: StickerAnnotation) => {
         const activeTool = stickerToolSettings.activeTool;
         event.stopPropagation();
         event.preventDefault();
@@ -283,7 +292,7 @@ export const createStickerAnnotationPointerDownController = (
             await api.focusOverlayWindow().catch((error) => {
                 console.warn("[Otter] Failed to focus overlay for text input", error);
             });
-            options.text.beginPendingTextInput(point);
+            options.text.beginPendingTextInput(point, hit?.type === "text" ? hit : undefined);
             return;
         }
         if (activeTool === "serial") {
@@ -334,15 +343,18 @@ export const createStickerAnnotationPointerDownController = (
                 start: point,
                 current: point,
                 constrainSquare: shouldConstrainSquare,
+                aspectRatio: resolveShapeAspectRatio(activeTool, stickerToolSettings, options.isSquareConstraintActive(event)),
                 snapStep: effectiveSnapStep,
             });
             return;
         }
         if (
             activeTool === "line" ||
+            activeTool === "bezier" ||
             activeTool === "polyline" ||
             activeTool === "arrow" ||
             activeTool === "brush" ||
+            activeTool === "paintbrush" ||
             activeTool === "highlighter" ||
             activeTool === "mosaic" ||
             activeTool === "blur"
@@ -350,10 +362,10 @@ export const createStickerAnnotationPointerDownController = (
             captureHostPointer(event.pointerId);
             options.setDraftLine({
                 mode: activeTool,
-                points: [point],
+                points: [activeTool === "paintbrush" ? sampleBrushMotion(point, event.timeStamp) : point],
                 showArrowHead:
                     activeTool === "arrow" ||
-                    (activeTool === "line" && stickerToolSettings.lineArrowEnabled),
+                    ((activeTool === "line" || activeTool === "bezier") && stickerToolSettings.lineArrowEnabled),
             });
         }
     };
@@ -390,11 +402,25 @@ export const createStickerAnnotationPointerDownController = (
     };
 
     const onPointerDown = async (event: PointerEvent) => {
+        if (event.button !== 0) return;
         if (!options.interactionEnabled() || options.isPointerReleaseInFlight()) return;
         cacheHostBounds();
         const point = toLocalPoint(event);
         const hit = findTopmostAnnotationAtPoint(options.annotationState().elements, point);
         const currentSelectionIds = options.selectedAnnotationIds();
+        // Native overlay input targets the stable layer root, not the SVG circle.
+        // Resolve control handles here as well as the ordinary browser SVG handler.
+        if (stickerToolSettings.domain === "existing" && options.effectiveTransformMode() === "select" && currentSelectionIds.length === 1) {
+            const selected = options.annotationState().elements.find((item) => item.id === currentSelectionIds[0]);
+            const handle = selected?.type === "bezier" ? hitBezierHandle(selected.points, point) : undefined;
+            if (handle && selected) {
+                event.stopPropagation();
+                event.preventDefault();
+                captureHostPointer(event.pointerId);
+                options.setReshapeLine({ annotationId: selected.id, handle, current: point, original: selected });
+                return;
+            }
+        }
         if (stickerToolSettings.activeTool === "color-picker") {
             event.stopPropagation();
             event.preventDefault();
@@ -405,7 +431,7 @@ export const createStickerAnnotationPointerDownController = (
                 await handleExistingPointerDown(event, point, hit, currentSelectionIds);
                 return;
             case "create":
-                await handleCreatePointerDown(event, point);
+                await handleCreatePointerDown(event, point, hit);
                 return;
             case "sticker":
                 if (stickerToolSettings.activeCanvasTool === "idle") {
@@ -417,17 +443,26 @@ export const createStickerAnnotationPointerDownController = (
     };
 
     const onDoubleClick = async (event: MouseEvent) => {
-        if (!options.interactionEnabled() || options.isPointerReleaseInFlight()) return;
+        if (!options.interactionEnabled()) return;
         const point = toLocalPoint(event as PointerEvent);
         const hit = findTopmostAnnotationAtPoint(options.annotationState().elements, point);
-        if (!hit || (hit.type !== "text" && hit.type !== "serial")) return;
+        if (hit?.type === "bezier" && stickerToolSettings.domain === "existing" && options.effectiveTransformMode() === "select") {
+            event.stopPropagation();
+            event.preventDefault();
+            const points = insertBezierAnchor(hit.points, point);
+            if (points.length === hit.points.length) return;
+            await options.persistence.commitAnnotationElements(options.annotationState().elements.map((item) => item.id === hit.id ? { ...hit, points } : item));
+            uiActions.setSelectedStickerAnnotation(hit.id);
+            return;
+        }
+        if (options.isPointerReleaseInFlight() || !hit || (hit.type !== "text" && hit.type !== "serial")) return;
 
         event.stopPropagation();
         event.preventDefault();
         await api.focusOverlayWindow().catch((error) => {
             console.warn("[Otter] Failed to focus overlay for text edit", error);
         });
-        options.text.beginPendingTextInput({ x: hit.x, y: hit.y }, hit);
+        options.text.beginPendingTextInput(point, hit);
     };
 
     return { beginDirectTransform, onDoubleClick, onPointerDown };

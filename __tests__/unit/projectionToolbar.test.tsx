@@ -5,6 +5,7 @@ import { graphStore } from "../../src/store/graphStore";
 import { projectionDialog, closeProjectionDialog } from "../../src/store/qrProjectionStore";
 import { stickerToolSettings, uiActions } from "../../src/store/uiStore";
 import { projectionUnit } from "../fixtures/qrProjection";
+import { patchProjection } from "../../src/services/qrProjectionSession";
 
 vi.mock("../../src/services/syncService", () => ({ syncService: {
     updateBackendRects: vi.fn().mockResolvedValue(undefined), performWorkflowSync: vi.fn().mockResolvedValue(undefined),
@@ -25,50 +26,49 @@ beforeEach(() => {
 });
 afterEach(() => { dispose(); graphStore.actions.replaceUnits([]); document.body.replaceChildren(); vi.clearAllMocks(); vi.unstubAllGlobals(); });
 
-it("opens projection as a secondary icon tab, without creating an invitation or mutating crop mode", () => {
+it("mounts projection under settings instead of the main toolbar without mutating crop mode", () => {
     expect(button("裁剪工具").classList.contains("otter-toolbar-button--active")).toBe(true);
-    expect(button("投射贴图").textContent).toBe("");
-    expect(button("投射贴图").querySelector("svg")).not.toBeNull();
-    button("投射贴图").click();
-    expect(document.querySelector('[aria-label="投射二级设置"]')).not.toBeNull();
-    expect(document.querySelectorAll(".otter-toolbar-button--active")).toHaveLength(1);
-    expect(button("投射贴图").getAttribute("aria-pressed")).toBe("true");
+    expect(button("投射贴图")).toBeNull();
+    button("贴图设置").click();
+    expect(document.querySelector('[aria-label="投射设置"]')).not.toBeNull();
+    expect(document.querySelector('.sticker-settings-stack')?.children).toHaveLength(2);
     expect(projectionDialog()).toBeUndefined();
     expect(stickerToolSettings.activeCanvasTool).toBe("crop");
-    expect(document.querySelector('[aria-label="生成投射链接"]')).toBeNull();
-    button("生成投射二维码").click();
+    button("投射").click();
+    expect(button("导出二维码").disabled).toBe(true);
+    patchProjection("receiver", undefined);
+    button("导出二维码").click();
     expect(projectionDialog()).toEqual({ unitId: "receiver", shareAction: "qr" });
 });
 
 it("switches to receive controls with read-only flow and persisted source information", () => {
-    button("切换投射方向").click();
-    const receive = [...document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')].find((item) => item.textContent === "被投射")!;
-    receive.click();
-    expect(document.querySelector('[aria-label="被投射二级设置"]')).not.toBeNull();
-    const flow = document.querySelector<HTMLElement>('[aria-label="数据流向：单向修改"]')!;
-    expect(flow.tagName).toBe("SPAN");
-    expect(flow.getAttribute("aria-haspopup")).toBeNull();
-    expect(flow.textContent).not.toContain("▾");
-    flow.click();
+    button("贴图设置").click();
+    expect(button("被投射").getAttribute("aria-selected")).toBe("true");
+    expect(button("单向修改").disabled).toBe(true);
+    expect(button("双向修改").disabled).toBe(true);
     expect(document.querySelector('[aria-label="投射数据流向选项"]')).toBeNull();
-    expect(document.querySelector('[aria-label="投射来源：PC3 - CODE"]')).not.toBeNull();
-    expect(button("二维码导入")).toBeNull();
-    expect(button("链接导入")).toBeNull();
+    expect(document.querySelector('.projection-settings-source code')?.textContent).toBe(graphStore.units[0].data.qrProjection?.envelope.projectionId);
     expect(button("管理投射关联")).toBeNull();
-    button("导入投射").click();
-    expect(projectionDialog()).toEqual({ invitationText: "", importKind: "combined", anchorUnitId: "receiver" });
+    button("导入二维码").click();
+    expect(projectionDialog()).toEqual({ invitationText: "", importKind: "qr", anchorUnitId: "receiver" });
+    button("导入链接").click();
+    expect(projectionDialog()).toEqual({ invitationText: "", importKind: "link", anchorUnitId: "receiver" });
 });
 
-it("restores the ordinary secondary toolbar when choosing another editing tool", () => {
-    button("投射贴图").click();
+it("closes settings when choosing another editing tool", () => {
+    button("贴图设置").click();
     button("橡皮擦工具").click();
-    expect(document.querySelector('[aria-label="投射二级设置"]')).toBeNull();
+    expect(document.querySelector('[aria-label="投射设置"]')).toBeNull();
     expect(stickerToolSettings.activeCanvasTool).toBe("content-eraser");
 });
-it("leaves projection when reselecting the same underlying tool", () => {
-    button("投射贴图").click();
-    button("裁剪工具").click();
-    expect(document.querySelector('[aria-label="投射二级设置"]')).toBeNull();
-    expect(button("投射贴图").getAttribute("aria-pressed")).toBe("false");
-    expect(button("裁剪工具").classList.contains("otter-toolbar-button--active")).toBe(true);
+it("keeps the source ID while unlink is pending and clears only after acknowledgement", () => {
+    button("贴图设置").click();
+    const id = graphStore.units[0].data.qrProjection!.envelope.projectionId;
+    button("退出被投射").click();
+    expect(graphStore.units[0].data.qrProjection!.stopPending).toBe(true);
+    expect(document.querySelector('.projection-settings-source code')?.textContent).toBe(id);
+    expect(button("退出被投射").disabled).toBe(true);
+    patchProjection("receiver", undefined);
+    expect(document.querySelector('.projection-settings-source code')?.textContent).toBe("-");
+    expect(button("复制来源 ID").disabled).toBe(true);
 });

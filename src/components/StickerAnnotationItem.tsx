@@ -1,4 +1,6 @@
 import { Match, Switch, type Accessor, type Component, type JSX } from "solid-js";
+import { getBezierRenderGeometry } from "../services/stickerBezierGeometry";
+import { FreehandStroke } from "./FreehandStroke";
 
 import {
     buildPolygonPoints,
@@ -160,13 +162,15 @@ const renderEffectAnnotation = (
 
 const renderLineAnnotation = (line: StickerLineAnnotation) => {
     const points = sanitizeStickerPoints(line.points);
-    const strokeWidth = sanitizeStrokeWidth(line.style.width || 2);
-    const path = renderArrowShaftPath(
+    const strokeWidth = sanitizeStrokeWidth(line.style.width, 0);
+    if (line.type === "brush") return <FreehandStroke points={points} strokeStyle={{ ...line.style, width: strokeWidth }} />;
+    const curve = line.type === "bezier" ? getBezierRenderGeometry(points, strokeWidth, line.showArrowHead) : null;
+    const path = curve ? curve.path : renderArrowShaftPath(
         points,
         strokeWidth,
         line.type === "arrow",
     );
-    const arrowHead = resolveArrowHead(
+    const arrowHead = curve ? curve.head : resolveArrowHead(
         points,
         strokeWidth,
         line.type === "arrow",

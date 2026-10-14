@@ -10,7 +10,7 @@ import { api } from "../services/api";
 import { syncService } from "../services/syncService";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import { graphStore } from "../store/graphStore";
-import { setLayoutTick } from "../store/uiStore";
+import { FitImageFrameButton } from "./FitImageFrameButton";
 import { NodeExecutionConfig, Unit } from "../types/unit";
 
 interface UnitParamsExpandedSettingsProps {
@@ -24,10 +24,6 @@ interface UnitParamsExpandedSettingsProps {
 /** Owns execution controls and their registered floating-panel geometry. */
 export const UnitParamsExpandedSettings: Component<UnitParamsExpandedSettingsProps> = (props) => {
     let settingsPanelRef: HTMLDivElement | undefined;
-    let disposed = false;
-    let resizeGeneration = 0;
-    let activeResizeImage: HTMLImageElement | undefined;
-    let layoutTimerId: number | undefined;
     const acceptsUpstreamStickerEditPropagation = () =>
         props.unit.data.stickerEditPropagation?.acceptUpstream ?? true;
     const setAcceptsUpstreamStickerEditPropagation = (acceptUpstream: boolean) => {
@@ -77,76 +73,6 @@ export const UnitParamsExpandedSettings: Component<UnitParamsExpandedSettingsPro
             removeRect(`exec-settings-${unit.id}`);
         }
     });
-    onCleanup(() => {
-        disposed = true;
-        resizeGeneration += 1;
-        if (activeResizeImage) {
-            activeResizeImage.onload = null;
-            activeResizeImage.onerror = null;
-            activeResizeImage = undefined;
-        }
-        if (layoutTimerId !== undefined) {
-            window.clearTimeout(layoutTimerId);
-            layoutTimerId = undefined;
-        }
-    });
-
-    const resizeUnitToImage = () => {
-        const src = props.displaySrc;
-        if (!src) return;
-        const unitId = props.unit.id;
-        const unitWidth = props.unit.w;
-        const unitHeight = props.unit.h;
-        const generation = ++resizeGeneration;
-        if (activeResizeImage) {
-            activeResizeImage.onload = null;
-            activeResizeImage.onerror = null;
-        }
-        const image = new Image();
-        activeResizeImage = image;
-        const isCurrentRequest = () =>
-            !disposed &&
-            generation === resizeGeneration &&
-            props.expanded &&
-            props.unit.id === unitId &&
-            props.displaySrc === src;
-        const isCurrentGeometry = () =>
-            isCurrentRequest() && props.unit.w === unitWidth && props.unit.h === unitHeight;
-        image.onload = () => {
-            if (!isCurrentGeometry()) return;
-            const imageWidth = image.naturalWidth || image.width;
-            const imageHeight = image.naturalHeight || image.height;
-            if (
-                !Number.isFinite(imageWidth) ||
-                !Number.isFinite(imageHeight) ||
-                imageWidth <= 0 ||
-                imageHeight <= 0 ||
-                !Number.isFinite(unitWidth) ||
-                !Number.isFinite(unitHeight) ||
-                unitWidth <= 0 ||
-                unitHeight <= 0
-            ) {
-                return;
-            }
-            const aspect = imageWidth / imageHeight;
-            const nodeAspect = unitWidth / unitHeight;
-            let width = unitWidth;
-            let height = unitHeight;
-            if (aspect > nodeAspect) height = unitWidth / aspect;
-            else width = unitHeight * aspect;
-            props.onParamChange(PARAM_ui_resize, { w: width, h: height });
-            activeResizeImage = undefined;
-            if (layoutTimerId !== undefined) window.clearTimeout(layoutTimerId);
-            layoutTimerId = window.setTimeout(() => {
-                layoutTimerId = undefined;
-                if (isCurrentRequest()) setLayoutTick((tick) => tick + 1);
-            }, 50);
-        };
-        image.onerror = () => {
-            if (generation === resizeGeneration) activeResizeImage = undefined;
-        };
-        image.src = src;
-    };
 
     return (
         <Show when={props.expanded}>
@@ -224,22 +150,11 @@ export const UnitParamsExpandedSettings: Component<UnitParamsExpandedSettingsPro
                     </Show>
                 </Show>
 
-                <div class="otter-separator h-px w-full my-2" />
-                <button
-                    class={`otter-terminal-btn w-full flex items-center justify-center gap-2 h-7 text-[11px] font-medium transition-all ${props.displaySrc ? "cursor-pointer" : "cursor-not-allowed opacity-40"}`}
-                    onMouseDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        resizeUnitToImage();
-                    }}
-                    disabled={!props.displaySrc}
-                    title={props.displaySrc ? "适配图片比例" : "暂无图片内容"}
-                >
-                    <svg class={`w-3.5 h-3.5 ${props.displaySrc ? "opacity-70" : "opacity-30"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M16 20h2a2 2 0 012-2v-2M4 16v2a2 2 0 002 2h2M9 10h6v4H9z" />
-                    </svg>
-                    合拢外框
-                </button>
+                <Show when={props.unit.type !== "sticker"}>
+                    <div class="otter-separator h-px w-full my-2" />
+                    <FitImageFrameButton legacy unit={props.unit} displaySrc={props.displaySrc} enabled={props.expanded}
+                        onFit={(size) => props.onParamChange(PARAM_ui_resize, size)} />
+                </Show>
             </div>
         </Show>
     );

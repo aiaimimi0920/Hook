@@ -8,6 +8,7 @@ import {
 import { clampOptional, normalizePrecision } from "../../../utils/math";
 
 interface NumberControlProps {
+  compact?: boolean;
   id: string;
   label: string;
   widget: "slider" | "number";
@@ -39,7 +40,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
 
   const fallbackValue = () => finiteOr(props.default, props.min ?? 0);
   const currentValue = () => clampOptional(finiteOr(props.value, fallbackValue()), props.min, props.max);
-  const sliderMin = () => finiteOr(props.min, 0);
+  const sliderMin = () => finiteOr(props.min, props.compact ? Math.min(0, currentValue()) : 0);
   const sliderMax = () => {
     const fallbackMax = Math.max(sliderMin() + effectiveStep(), currentValue(), 100);
     const nextMax = finiteOr(props.max, fallbackMax);
@@ -202,6 +203,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
   const label = (
     <label
       class="otter-param-label font-medium text-[11px] truncate cursor-context-menu"
+      title={props.label}
       style={{ "min-width": "70px", "max-width": "104px" }}
       onContextMenu={(event) => props.onContextMenu(event)}
     >
@@ -211,7 +213,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
 
   const stepper = (
     <div class="otter-param-stepper flex items-center shrink-0 overflow-hidden rounded border">
-      <button
+      <Show when={!props.compact}><button
         type="button"
         data-param-step-down
         disabled={props.isDisabled}
@@ -223,10 +225,11 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
         }}
       >
         -
-      </button>
+      </button></Show>
       <input
         type="number"
         data-param-number-input
+        aria-label={props.label}
         min={props.min}
         max={props.max}
         step={props.step ?? "any"}
@@ -268,7 +271,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
           props.onContextMenu(event);
         }}
       />
-      <button
+      <Show when={!props.compact}><button
         type="button"
         data-param-step-up
         disabled={props.isDisabled}
@@ -280,14 +283,14 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
         }}
       >
         +
-      </button>
+      </button></Show>
     </div>
   );
 
   return (
-    <div class="w-full min-w-0" onPointerDown={(event) => event.stopPropagation()}>
+    <div class="w-full min-w-0" classList={{ "unit-compact-number": props.compact }} onPointerDown={(event) => event.stopPropagation()}>
       <Show
-        when={props.widget === "slider"}
+        when={props.widget === "slider" || props.compact}
         fallback={
           <div data-param-number-layout class="flex items-center justify-between gap-2 w-full min-w-0 min-h-6">
             {label}

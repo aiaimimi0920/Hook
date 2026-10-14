@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createStickerAnnotationTextController } from "../../src/components/stickerAnnotationTextController";
 import { createEmptyAnnotationState } from "../../src/services/stickerEditing";
+import { stickerToolSettings, uiActions } from "../../src/store/uiStore";
 
 afterEach(() => {
     vi.useRealTimers();
@@ -23,31 +24,55 @@ const createController = () => {
 };
 
 describe("sticker annotation text controller", () => {
+    it("keeps size 999 when starting and committing a new text annotation", async () => {
+        const previous = stickerToolSettings.textSize;
+        const commitAnnotation = vi.fn(async () => undefined);
+        let dispose = () => {};
+        try {
+            uiActions.patchStickerToolSettings({ textSize: 999 });
+            const controller = createRoot((cleanup) => {
+                dispose = cleanup;
+                return createStickerAnnotationTextController({
+                    width: () => 2000, height: () => 2000,
+                    annotationState: createEmptyAnnotationState,
+                    commitAnnotation, patchUnitData: vi.fn(async () => undefined), rememberCurrentState: vi.fn(),
+                });
+            });
+            controller.beginPendingTextInput({ x: 20, y: 1000 });
+            expect(controller.pendingTextInput()?.fontSize).toBe(999);
+            controller.setPendingTextInput((current) => current ? { ...current, value: "大字" } : current);
+            await controller.commitPendingTextInput();
+            expect(commitAnnotation).toHaveBeenCalledWith(expect.objectContaining({ fontSize: 999, text: "大字" }));
+        } finally {
+            dispose();
+            uiActions.patchStickerToolSettings({ textSize: previous });
+        }
+    });
     it("cancels the deferred input focus when its reactive owner is disposed", () => {
         vi.useFakeTimers();
         const focus = vi.fn();
-        const select = vi.fn();
+        const setSelectionRange = vi.fn();
 
         createRoot((dispose) => {
             const { controller } = createController();
-            controller.setPendingTextInputRef({ focus, select } as unknown as HTMLInputElement);
+            controller.setPendingTextInputRef({ focus, setSelectionRange } as unknown as HTMLInputElement);
             controller.beginPendingTextInput({ x: 20, y: 30 });
             dispose();
         });
 
         vi.runAllTimers();
         expect(focus).not.toHaveBeenCalled();
-        expect(select).not.toHaveBeenCalled();
+        expect(setSelectionRange).not.toHaveBeenCalled();
     });
 
     it("keeps only the latest deferred focus request during rapid re-entry", () => {
         vi.useFakeTimers();
         const focus = vi.fn();
-        const select = vi.fn();
+        const setSelectionRange = vi.fn();
 
         createRoot((dispose) => {
             const { controller } = createController();
-            controller.setPendingTextInputRef({ focus, select } as unknown as HTMLInputElement);
+            controller.setPendingTextInputRef({ focus, setSelectionRange } as unknown as HTMLInputElement);
             controller.beginPendingTextInput({ x: 20, y: 30 });
             controller.beginPendingTextInput({ x: 40, y: 50 });
             vi.runAllTimers();
@@ -55,7 +80,7 @@ describe("sticker annotation text controller", () => {
         });
 
         expect(focus).toHaveBeenCalledTimes(1);
-        expect(select).toHaveBeenCalledTimes(1);
+        expect(setSelectionRange).toHaveBeenCalledTimes(1);
     });
 
     it("refreshes native overlay interactivity after a committed text edit", async () => {

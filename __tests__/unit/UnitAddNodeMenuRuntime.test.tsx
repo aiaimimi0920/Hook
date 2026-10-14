@@ -118,6 +118,18 @@ describe("UnitAddNodeMenu compact search and scrolling", () => {
     vi.restoreAllMocks();
   });
 
+  it("keeps compact Art buttons accessible and highlights synthetic pointer hover", () => {
+    const dispose = renderMenu();
+    const button = document.querySelector('[data-add-art-id="color-transfer"]') as HTMLButtonElement;
+    expect(button.title).toBe("Color Transfer");
+    expect(button.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+    button.dispatchEvent(new Event("pointerover", { bubbles: true }));
+    expect(button.getAttribute("data-toolbar-hover")).toBe("true");
+    button.dispatchEvent(new Event("pointerout", { bubbles: true }));
+    expect(button.hasAttribute("data-toolbar-hover")).toBe(false);
+    dispose();
+  });
+
   it("removes the menu title and Art descriptions while filtering by a partial name", async () => {
     const dispose = renderMenu();
     const search = document.querySelector("[data-add-art-search]") as HTMLInputElement | null;

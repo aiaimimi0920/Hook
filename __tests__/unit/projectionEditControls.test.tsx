@@ -67,3 +67,19 @@ it("keeps receiver direction read-only and offers explicit local/remote conflict
     await vi.waitFor(() => expect(resolveProjectionEditConflict).toHaveBeenCalledWith("receiver", false));
     expect(setProjectionEditMode).not.toHaveBeenCalled();
 });
+
+it("renders mutually exclusive inline flow buttons and waits for the source acknowledgement", async () => {
+    graphStore.actions.replaceUnits([projectionUnit()]);
+    setProjectionEditStatuses("source", { mode: "one_way", revision: 1, pending: false, conflicts: 0 });
+    dispose = render(() => <ProjectionEditControls unitId="source" direction="send" inline />, document.body);
+    const one = document.querySelector<HTMLButtonElement>('[aria-label="单向修改"]')!;
+    const two = document.querySelector<HTMLButtonElement>('[aria-label="双向修改"]')!;
+    one.click(); expect(setProjectionEditMode).not.toHaveBeenCalled();
+    two.click(); await vi.waitFor(() => expect(setProjectionEditMode).toHaveBeenCalledWith("source", "two_way"));
+    expect(one.getAttribute("aria-pressed")).toBe("true");
+    expect(two.getAttribute("aria-pressed")).toBe("false");
+    setProjectionEditStatuses("source", { mode: "two_way", revision: 2, pending: false, conflicts: 0 });
+    expect(one.getAttribute("aria-pressed")).toBe("false");
+    expect(two.getAttribute("aria-pressed")).toBe("true");
+    expect(rects()).toHaveLength(0);
+});

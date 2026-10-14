@@ -29,7 +29,7 @@ export type ShapeCreateTool = Extract<
 >;
 export type LabelCreateTool = Extract<StickerCreateTool, "text" | "serial">;
 export type EffectCreateTool = Extract<StickerCreateTool, "mosaic" | "blur">;
-export type TopStripCreateTool = ShapeCreateTool | "line" | "brush" | LabelCreateTool | EffectCreateTool;
+export type TopStripCreateTool = ShapeCreateTool | "line" | "bezier" | "brush" | "paintbrush" | LabelCreateTool | EffectCreateTool;
 export type HistoryActionMode = "undo" | "redo";
 
 export interface TransformModeOption {
@@ -72,8 +72,16 @@ export const shapeToolOptions: CreateToolOption<ShapeCreateTool>[] = [
     { mode: "shape-polygon", label: "多边形", Icon: PolygonToolIcon },
 ];
 
-export const lineToolOptions: CreateToolOption<"line">[] = [
+export const BezierToolIcon: Component<TopStripIconProps> = (props) => (
+    <svg class={props.class} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 18C3 3 21 21 21 6M3 18V6m18 0v12" />
+        <circle cx="3" cy="4" r="2" /><circle cx="21" cy="20" r="2" />
+    </svg>
+);
+
+export const lineToolOptions: CreateToolOption<"line" | "bezier">[] = [
     { mode: "line", label: "直线", Icon: LineToolIcon },
+    { mode: "bezier", label: "贝塞尔曲线", Icon: BezierToolIcon },
 ];
 
 export const labelToolOptions: CreateToolOption<LabelCreateTool>[] = [

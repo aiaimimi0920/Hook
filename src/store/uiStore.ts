@@ -115,7 +115,7 @@ export const [startPos, setStartPos] = createSignal<{x: number, y: number} | nul
 export const [selectionRect, setSelectionRect] = createSignal<{x: number, y: number, w: number, h: number} | null>(null);
 export const [preciseRect, setPreciseRect] = createSignal<{x: number, y: number, w: number, h: number} | null>(null);
 // Clean View Mode (Hides UI overlay)
-export const [isCleanView, setIsCleanView] = createSignal(false);
+export { isCleanView, setIsCleanView } from "./unitChromeState";
 export const [activeStickerEditTargetId, setActiveStickerEditTargetId] = createSignal<string | null>(null);
 export const [selectedStickerAnnotationId, setSelectedStickerAnnotationId] = createSignal<string | null>(null);
 export const [selectedStickerAnnotationIds, setSelectedStickerAnnotationIds] = createStore<string[]>([]);

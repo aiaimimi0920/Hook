@@ -1,9 +1,11 @@
 import { Component, createMemo, Show } from "solid-js";
 import { graphStore } from "../store/graphStore";
-import { isCleanView, layoutTick, multiDragPositions, unitUiState } from "../store/uiStore";
+import { isCleanView, layoutTick, multiDragPositions, selectedUnitIds, unitUiState } from "../store/uiStore";
 import { portOffsets } from "../services/uiRegistry";
 import { calculatePortY } from "../utils/graphUtils";
+import { unitOutlineOutset } from "./UnitSelectionBorder";
 import type { Link, Unit } from "../types/unit";
+import { unitLinkVisible } from "../services/unitLinkVisibility";
 
 type LinkPaths = { body: string | null; dashed: string | null };
 
@@ -20,7 +22,7 @@ export const CanvasGraphLink: Component<{
         const link = props.link;
         const source = link && props.unitById.get(link.fromUnitId);
         const target = link && props.unitById.get(link.toUnitId);
-        if (!link || !source || !target) return { body: null, dashed: null };
+        if (!link || !source || !target || !unitLinkVisible(source, target)) return { body: null, dashed: null };
 
         layoutTick();
         const dragPositions = multiDragPositions();
@@ -29,8 +31,8 @@ export const CanvasGraphLink: Component<{
         const toX = dragPositions?.[target.id]?.x ?? target.x;
         const toY = dragPositions?.[target.id]?.y ?? target.y;
         const capabilities = graphStore.capabilities;
-        const bodyX1 = fromX + source.w + (source.data.minified ? 4 : 6);
-        const bodyX2 = toX - (target.data.minified ? 4 : 6);
+        const bodyX1 = fromX + source.w + (source.data.minified ? 4 : unitOutlineOutset(selectedUnitIds.includes(source.id)));
+        const bodyX2 = toX - (target.data.minified ? 4 : unitOutlineOutset(selectedUnitIds.includes(target.id)));
         const bodyY1 = calculatePortY(source, link.fromPortId, false, capabilities, fromY);
         const bodyY2 = calculatePortY(target, link.toPortId, true, capabilities, toY);
         const cleanView = isCleanView();
@@ -40,9 +42,13 @@ export const CanvasGraphLink: Component<{
         const offsets = portOffsets();
         const fromPort = showFrom ? offsets[source.id]?.[link.fromPortId] : undefined;
         const toPort = showTo ? offsets[target.id]?.[link.toPortId] : undefined;
+        const sourceAnchor = !source.data.minified && (showFrom || selectedUnitIds.includes(source.id)) ? offsets[source.id]?.[link.fromPortId] : undefined;
+        const targetAnchor = !target.data.minified && (showTo || selectedUnitIds.includes(target.id)) ? offsets[target.id]?.[link.toPortId] : undefined;
 
         return {
-            body: cleanView ? null : curve(bodyX1, bodyY1, bodyX2, bodyY2),
+            body: cleanView ? null : curve(sourceAnchor ? fromX + sourceAnchor.x : bodyX1,
+                sourceAnchor ? fromY + sourceAnchor.y : bodyY1, targetAnchor ? toX + targetAnchor.x : bodyX2,
+                targetAnchor ? toY + targetAnchor.y : bodyY2),
             dashed: showDashed ? curve(
                 fromPort ? fromX + fromPort.x : bodyX1,
                 fromPort ? fromY + fromPort.y : bodyY1,
@@ -62,7 +68,7 @@ export const CanvasGraphLink: Component<{
                 <path
                     d={paths().body!}
                     fill="none"
-                    stroke="var(--theme-text-muted)"
+                    stroke="var(--theme-signal)"
                     stroke-width="2"
                     stroke-dasharray="none"
                     marker-end="url(#arrowhead)"
@@ -72,7 +78,7 @@ export const CanvasGraphLink: Component<{
                 <path
                     d={paths().dashed!}
                     fill="none"
-                    stroke="var(--theme-text-muted)"
+                    stroke="var(--theme-signal)"
                     stroke-width="2"
                     stroke-dasharray="5,5"
                     marker-end="url(#arrowhead)"

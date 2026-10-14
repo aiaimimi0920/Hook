@@ -15,9 +15,13 @@ describe("stickerToolbarModel existing-node property tool resolution", () => {
         expect(resolveSelectedExistingNodePropertyTool("sticker", "serial", 1)).toBeNull();
     });
 
-    it("keeps non-text selections out of the existing-node property bar", () => {
+    it("exposes compact line properties while keeping unsupported selections out", () => {
         expect(resolveSelectedExistingNodePropertyTool("existing", "rect", 1)).toBeNull();
-        expect(resolveSelectedExistingNodePropertyTool("existing", "line", 1)).toBeNull();
+        expect(resolveSelectedExistingNodePropertyTool("existing", "line", 1)).toBe("selected-line");
+        expect(resolveSelectedExistingNodePropertyTool("existing", "arrow", 1)).toBe("selected-line");
+        expect(resolveSelectedExistingNodePropertyTool("existing", "bezier", 1)).toBe("selected-bezier");
+        expect(resolveSelectedExistingNodePropertyTool("existing", "bezier", 2)).toBeNull();
+        expect(resolveSelectedExistingNodePropertyTool("create", "bezier", 1)).toBeNull();
         expect(resolveSelectedExistingNodePropertyTool("existing", null, 1)).toBeNull();
     });
 });

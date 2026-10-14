@@ -1,5 +1,19 @@
 # Otter Features and Manual Regression Matrix
 
+## Text and numbering properties
+
+With the text tool active, a single click on the topmost text annotation reopens its existing content instead of creating another annotation. The edit preserves its ID, position, font, size and style. Enter/blur commits, Escape cancels, unchanged text creates no history entry, and content changes support undo/redo. Empty space still starts a new text annotation; serial annotations keep their existing interaction.
+
+Creation and selected-annotation properties use the compact drawing toolbar shell, aligned to the main toolbar with viewport avoidance. Text orders color, size, font; numbering orders fill, foreground, radius, font. Check alpha checkerboards and a diagonal mark at zero alpha, 8–999 integer inputs, increment/decrement and arrow keys, Enter/blur commit, Escape cancellation, font scrolling and viewport clipping. Selected edits preserve creation defaults and use the existing undo history. Numbering foreground still controls both the border and digit; this UI does not introduce separate colors or new typography options.
+
+## Pencil and paintbrush
+
+The pencil dropdown enables an independent natural paintbrush. Check compact color/size/opacity/smoothing fields, independent numeric profiles, equal-width pencil versus speed-sensitive, lightly softened brush rendering, a single-click dab, cancelled strokes, one history entry per stroke, undo/redo, and rasterization consistency. Legacy pencil and highlighter annotations retain their rendering. Native pressure and cross-Loom object editing are not claimed; rasterize natural brush strokes before using the existing remote edit protocol. See [freehand editing](FREEHAND_EDITING.md).
+
+## Bézier path editing
+
+Use the line-tool dropdown to create a Bézier path. Double-click a curve to insert an anchor without changing its shape; drag either endpoint's `+` handle to extend. Right-click a white anchor and choose “删除节点” to merge adjacent segments or trim the first/last segment. Deletion may change the local curve shape; at least one segment remains. Yellow tangent handles cannot be deleted separately. Check insertion, both-end extension/deletion, disabled deletion on the final segment, menu dismissal, undo/redo, and rasterization. See [curve editing](BEZIER_EDITING.md).
+
 Local Loom Art/extension integration is native-only and enabled by default;
 `HOOK_ENABLE_LOOM_HOOK=0` disables it. In browser preview, verify that local UI/session work
 still functions, no Loom request/push WebSocket is opened, and Art execution
@@ -7,6 +21,8 @@ finishes with a local unsupported error rather than uploading images or inventin
 a result. A native paired-version runtime is required for real integration.
 
 Projection target dropdowns use count-free device/group/user icons with chevrons.
+Receive placeholders use a gray background. The checkable tray “自启动” item controls current-user Windows login startup; re-enable it after moving the portable executable.
+The tray's “接收投射” creates a blank sticker and opens the shared QR/link import panel inside it; acceptance fills the same sticker. Both receiver import buttons open this same tabbed panel with the requested method selected. Tray shortcut hints use the configured bindings and a separate aligned native menu column.
 Available targets show one ID and checkbox per row; checking starts projection,
 unchecking cancels it. Per-row markers distinguish pending, success and failure;
 success requires receiver display or a confirmed remote unlink. Retry failed

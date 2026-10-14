@@ -324,7 +324,7 @@ fn remove_corrupted_settings_source_if_unchanged(
 }
 
 #[cfg(target_os = "windows")]
-fn replace_file(temp_path: &Path, target_path: &Path) -> Result<(), String> {
+pub(crate) fn replace_file(temp_path: &Path, target_path: &Path) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::{
         MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
@@ -357,7 +357,7 @@ fn replace_file(temp_path: &Path, target_path: &Path) -> Result<(), String> {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn replace_file(temp_path: &Path, target_path: &Path) -> Result<(), String> {
+pub(crate) fn replace_file(temp_path: &Path, target_path: &Path) -> Result<(), String> {
     std::fs::rename(temp_path, target_path)
         .map_err(|error| format!("Failed to atomically replace app settings: {error}"))
 }

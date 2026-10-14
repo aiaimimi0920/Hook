@@ -10,6 +10,7 @@ pub(super) struct CapturePlan {
     pub(super) display: Display,
     pub(super) display_id: scap_targets::DisplayId,
     pub(super) crop: D3D11_BOX,
+    pub(super) origin: crate::capture_coords::CapturePoint,
     pub(super) physical_origin_x: i32,
     pub(super) physical_origin_y: i32,
 }
@@ -90,22 +91,27 @@ pub(super) fn select_capture_display_geometry_index(
 }
 
 pub(super) fn local_logical_capture_rect_to_physical(
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
     geometry: CaptureDisplayGeometry,
 ) -> Option<LocalPhysicalCaptureRect> {
-    if w == 0 || h == 0 || geometry.logical_width <= 0.0 || geometry.logical_height <= 0.0 {
+    if ![x, y, w, h].iter().all(|v| v.is_finite())
+        || w <= 0.0
+        || h <= 0.0
+        || geometry.logical_width <= 0.0
+        || geometry.logical_height <= 0.0
+    {
         return None;
     }
 
     let scale_x = geometry.physical_width as f64 / geometry.logical_width;
     let scale_y = geometry.physical_height as f64 / geometry.logical_height;
-    let left = (x as f64 * scale_x).floor();
-    let top = (y as f64 * scale_y).floor();
-    let right = (left + w as f64 * scale_x).ceil();
-    let bottom = (top + h as f64 * scale_y).ceil();
+    let left = crate::capture_coords::physical_edge(x * scale_x).floor();
+    let top = crate::capture_coords::physical_edge(y * scale_y).floor();
+    let right = crate::capture_coords::physical_edge((x + w) * scale_x).ceil();
+    let bottom = crate::capture_coords::physical_edge((y + h) * scale_y).ceil();
     let left = left.max(0.0).min(geometry.physical_width as f64) as u32;
     let top = top.max(0.0).min(geometry.physical_height as f64) as u32;
     let right = right.max(left as f64).min(geometry.physical_width as f64) as u32;
@@ -144,12 +150,13 @@ pub(super) fn capture_display_for_metrics(
 }
 
 pub(super) fn capture_plan(
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    x: impl Into<f64>,
+    y: impl Into<f64>,
+    w: impl Into<f64>,
+    h: impl Into<f64>,
     display_metrics: Option<CaptureWindowMetrics>,
 ) -> anyhow::Result<CapturePlan> {
+    let (x, y, w, h) = (x.into(), y.into(), w.into(), h.into());
     let verbose_log = capture_area_verbose_logging_enabled();
     if verbose_log {
         crate::append_runtime_log_line(&format!(
@@ -196,6 +203,10 @@ pub(super) fn capture_plan(
         display,
         display_id,
         crop,
+        origin: crate::capture_coords::CapturePoint {
+            x: physical_rect.left as f64 * geometry.logical_width / geometry.physical_width as f64,
+            y: physical_rect.top as f64 * geometry.logical_height / geometry.physical_height as f64,
+        },
         physical_origin_x: geometry.physical_origin_x,
         physical_origin_y: geometry.physical_origin_y,
     })
@@ -204,6 +215,107 @@ pub(super) fn capture_plan(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn geometry(scale: f64) -> CaptureDisplayGeometry {
+        CaptureDisplayGeometry {
+            physical_origin_x: -2560,
+            physical_origin_y: -200,
+            physical_width: 2560,
+            physical_height: 1440,
+            logical_width: 2560.0 / scale,
+            logical_height: 1440.0 / scale,
+        }
+    }
+
+    #[test]
+    fn preserves_native_pixel_edges_across_fractional_dpi_round_trips() {
+        for scale in [1.0, 1.25, 1.5, 1.75, 2.0] {
+            for left in [1, 101, 1023, 2001] {
+                let crop = local_logical_capture_rect_to_physical(
+                    left as f64 / scale,
+                    103.0 / scale,
+                    301.0 / scale,
+                    207.0 / scale,
+                    geometry(scale),
+                )
+                .unwrap();
+                assert_eq!(
+                    crop,
+                    LocalPhysicalCaptureRect {
+                        left,
+                        top: 103,
+                        right: left + 301,
+                        bottom: 310
+                    }
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn desktop_and_window_use_identical_far_edges() {
+        use super::super::wgc_session::window_surface_crop;
+        use windows::Win32::Foundation::RECT;
+        for scale in [1.25, 1.5, 1.75] {
+            let geometry = geometry(scale);
+            let metrics = CaptureWindowMetrics {
+                physical_origin_x: -2560.0,
+                physical_origin_y: -200.0,
+                scale_factor: scale,
+                logical_width: geometry.logical_width,
+                logical_height: geometry.logical_height,
+            };
+            let desktop =
+                local_logical_capture_rect_to_physical(1.0, 1.0, 2.0, 2.0, geometry).unwrap();
+            let window = window_surface_crop(
+                1.0,
+                1.0,
+                2.0,
+                2.0,
+                metrics,
+                RECT {
+                    left: -2560,
+                    top: -200,
+                    right: 0,
+                    bottom: 1240,
+                },
+                2560,
+                1440,
+            )
+            .unwrap();
+            assert_eq!(
+                (desktop.left, desktop.top, desktop.right, desktop.bottom),
+                (window.left, window.top, window.right, window.bottom)
+            );
+        }
+    }
+
+    #[test]
+    fn clips_to_display_and_rejects_invalid_regions() {
+        let geometry = geometry(1.5);
+        let crop = local_logical_capture_rect_to_physical(-1.0, -1.0, 3.0, 3.0, geometry).unwrap();
+        assert_eq!(
+            crop,
+            LocalPhysicalCaptureRect {
+                left: 0,
+                top: 0,
+                right: 3,
+                bottom: 3
+            }
+        );
+        let crop =
+            local_logical_capture_rect_to_physical(1706.0, 959.0, 10.0, 10.0, geometry).unwrap();
+        assert_eq!((crop.right, crop.bottom), (2560, 1440));
+        for (x, w) in [
+            (f64::NAN, 1.0),
+            (0.0, f64::INFINITY),
+            (0.0, -1.0),
+            (0.0, 0.0),
+            (2000.0, 1.0),
+        ] {
+            assert!(local_logical_capture_rect_to_physical(x, 0.0, w, 1.0, geometry).is_none());
+        }
+    }
 
     #[test]
     fn selects_the_display_matching_negative_origin_and_mixed_dpi_metrics() {

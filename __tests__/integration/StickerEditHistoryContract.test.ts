@@ -42,7 +42,8 @@ describe("Otter sticker edit history contract", () => {
         expect(topStripRenderSource).toContain("撤销");
         expect(topStripRenderSource).toContain("重做");
         expect(topStripEditActionsSource).toContain("historyActionOptions");
-        expect(topStripSource).toContain("currentHistoryAction");
+        expect(topStripEditActionsSource).toContain("props.onHistoryAction(item.mode)");
+        expect(topStripSource).toContain("onHistoryAction={(mode) => void runHistoryAction(mode)}");
         expect(topStripSource).toContain("undoStickerHistory");
         expect(topStripSource).toContain("redoStickerHistory");
 

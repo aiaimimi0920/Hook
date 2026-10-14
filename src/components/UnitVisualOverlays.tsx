@@ -77,20 +77,4 @@ export const UnitVisualOverlays: Component<UnitVisualOverlaysProps> = (props) =>
     );
 };
 
-interface UnitSelectionBorderProps {
-    isSelected: boolean;
-    opacity: number;
-}
-
-export const UnitSelectionBorder: Component<UnitSelectionBorderProps> = (props) => (
-    <div
-        class="selection-border"
-        style={{
-            inset: props.isSelected ? "-2px" : "-1px",
-            border: props.isSelected
-                ? "2px solid white"
-                : `1px solid rgba(255,255,255,${Math.max(0.2, props.opacity)})`,
-            "pointer-events": "none",
-        }}
-    />
-);
+export { UnitSelectionBorder } from "./UnitSelectionBorder";

@@ -108,7 +108,17 @@ export function useDraggable() {
         }
     };
 
+    const hasCrossedDragThreshold = (snapshot: PendingDragPointer) => {
+        if (hasMoved) return true;
+        const start = activeDragId ? dragStartPositions[activeDragId] : undefined;
+        if (!start || Math.hypot(snapshot.clientX - dragOffset.x - start.x,
+            snapshot.clientY - dragOffset.y - start.y) <= 3) return false;
+        hasMoved = true;
+        return true;
+    };
+
     const applyImmediateDragVisual = (snapshot: PendingDragPointer) => {
+        if (!hasCrossedDragThreshold(snapshot)) return;
         if (snapshot.alignment || snapshot.cascade) return;
         const primaryId = activeDragId;
         if (!primaryId) return;
@@ -230,17 +240,7 @@ export function useDraggable() {
         lastDragFrameAt = applyStartedAt;
         dragFrameCount += 1;
 
-        // Threshold check for "Click" vs "Drag"
-        if (!hasMoved) {
-            const start = dragStartPositions[primaryId];
-            if (start) {
-                const dx = snapshot.clientX - dragOffset.x;
-                const dy = snapshot.clientY - dragOffset.y;
-                if (Math.hypot(dx - start.x, dy - start.y) > 3) {
-                    hasMoved = true;
-                }
-            }
-        }
+        if (!hasCrossedDragThreshold(snapshot)) return;
 
         let dx = snapshot.clientX - dragOffset.x;
         let dy = snapshot.clientY - dragOffset.y;
@@ -412,7 +412,7 @@ export function useDraggable() {
              for (const unitId of gpuWarmDragIds) {
                  beginStickerGpuWarmDrag(unitId);
              }
-             prepareDragVisualFastPath();
+             // Do not promote toolbar followers or move them for click-sized pointer noise.
              setMultiDragPositions(null);
              startDragWatchdog();
         }

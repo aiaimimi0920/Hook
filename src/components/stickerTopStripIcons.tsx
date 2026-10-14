@@ -5,8 +5,8 @@ export interface TopStripIconProps {
 }
 
 export const SelectModeIcon: Component<TopStripIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M6 3.5V19l4.2-3.8 3.1 5.3 2.5-1.5-3.1-5.3 5.8-.6L6 3.5Z" fill="currentColor" stroke="none" />
+    <svg class={props.class} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+        <path d="M5 3v17l5-6h9L5 3Z" />
     </svg>
 );
 
@@ -27,8 +27,8 @@ export const MoveModeIcon: Component<TopStripIconProps> = (props) => (
 
 export const RotateModeIcon: Component<TopStripIconProps> = (props) => (
     <svg class={props.class} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M19 10a7 7 0 1 0 1 4" />
-        <path d="M20 4v6h-6" />
+        <path d="M20 7A8 8 0 0 0 7 5L3 9M3 4v5h5" />
+        <path d="M4 17a8 8 0 0 0 13 2l4-4m0 5v-5h-5" />
     </svg>
 );
 
@@ -38,10 +38,6 @@ export const ScaleModeIcon: Component<TopStripIconProps> = (props) => (
         <path d="M4 16v4h4" />
         <path d="m15 9 5-5" />
         <path d="M16 4h4v4" />
-        <path d="m9 9-5-5" />
-        <path d="M4 8V4h4" />
-        <path d="m15 15 5 5" />
-        <path d="M20 16v4h-4" />
     </svg>
 );
 
@@ -81,12 +77,12 @@ export const BrushToolIcon: Component<TopStripIconProps> = (props) => (
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        stroke-width="1.8"
+        stroke-width="1.35"
         stroke-linecap="round"
         stroke-linejoin="round"
     >
-        <path d="M15.2 4.2 19.8 8.8 9.6 19l-4.4.8.8-4.4L15.2 4.2Z" />
-        <path d="M8 15.8c-1.4.3-3 1.4-3 3.4" />
+        <path d="m18.5 3.5 2 2L6 20l-3 1 1-3L18.5 3.5Z" />
+        <path d="m16.5 5.5 2 2M4 18l2 2" />
     </svg>
 );
 
@@ -100,9 +96,9 @@ export const TextToolIcon: Component<TopStripIconProps> = (props) => (
         stroke-linecap="round"
         stroke-linejoin="round"
     >
-        <path d="M5 6h14" />
-        <path d="M12 6v12" />
-        <path d="M8 18h8" />
+        <path d="M5 8V5h14v3" />
+        <path d="M12 5v14" />
+        <path d="M9 19h6" />
     </svg>
 );
 
@@ -117,17 +113,17 @@ export const SerialToolIcon: Component<TopStripIconProps> = (props) => (
         stroke-linejoin="round"
     >
         <circle cx="12" cy="12" r="7.5" />
-        <path d="M10.2 9.2h1.9v5.6" />
-        <path d="M9.7 14.8h3.2" />
+        <path d="m10 10 2-2v8" />
+        <path d="M10 16h4" />
     </svg>
 );
 
 export const MosaicToolIcon: Component<TopStripIconProps> = (props) => (
     <svg class={props.class} viewBox="0 0 24 24" fill="currentColor">
-        <rect x="5" y="5" width="5" height="5" rx="0.8" />
-        <rect x="11.5" y="5" width="7.5" height="5" rx="0.8" />
-        <rect x="5" y="11.5" width="5" height="7.5" rx="0.8" />
-        <rect x="11.5" y="11.5" width="7.5" height="7.5" rx="0.8" />
+        <rect x="3" y="3" width="8" height="8" fill-opacity="0.35" />
+        <rect x="13" y="3" width="8" height="8" />
+        <rect x="3" y="13" width="8" height="8" />
+        <rect x="13" y="13" width="8" height="8" fill-opacity="0.35" />
     </svg>
 );
 
@@ -140,11 +136,7 @@ export const BlurToolIcon: Component<TopStripIconProps> = (props) => (
         stroke-width="1.8"
         stroke-linecap="round"
     >
-        <circle cx="12" cy="12" r="3.3" />
-        <path d="M5 12h2" />
-        <path d="M17 12h2" />
-        <path d="M12 5v2" />
-        <path d="M12 17v2" />
+        <path d="M12 2C10 6 5 11 5 15a7 7 0 0 0 14 0c0-4-5-9-7-13Z" fill="currentColor" stroke="none" />
     </svg>
 );
 
@@ -158,8 +150,9 @@ export const EraserToolIcon: Component<TopStripIconProps> = (props) => (
         stroke-linecap="round"
         stroke-linejoin="round"
     >
-        <path d="M8.5 5h6l4 4-7.5 7.5H6.5L4 14l4.5-9Z" />
-        <path d="M11.5 16.5H19" />
+        <path d="m14 3 7 7-10 10H7l-5-5L14 3Z" />
+        <path d="m14 3 7 7-5 5-7-7 5-5Z" fill="currentColor" />
+        <path d="M11 20h10" />
     </svg>
 );
 
@@ -173,10 +166,8 @@ export const CropToolIcon: Component<TopStripIconProps> = (props) => (
         stroke-linecap="round"
         stroke-linejoin="round"
     >
-        <path d="M7 4.5v10.8a2.2 2.2 0 0 0 2.2 2.2H20" />
-        <path d="M4.5 7H15a2 2 0 0 1 2 2v10.5" />
-        <path d="M10 12.5h6.5" />
-        <path d="M12.5 10v5" />
+        <path d="M6 2v16h16" />
+        <path d="M2 6h16v16" />
     </svg>
 );
 
@@ -190,8 +181,8 @@ export const UndoToolIcon: Component<TopStripIconProps> = (props) => (
         stroke-linecap="round"
         stroke-linejoin="round"
     >
-        <path d="M9 7H5v4" />
-        <path d="M5 11a8 8 0 1 1 2.4 5.7" />
+        <path d="m8 5-5 5 5 5" />
+        <path d="M3 10h10a5 5 0 0 1 0 10" />
     </svg>
 );
 
@@ -205,8 +196,8 @@ export const RedoToolIcon: Component<TopStripIconProps> = (props) => (
         stroke-linecap="round"
         stroke-linejoin="round"
     >
-        <path d="M15 7h4v4" />
-        <path d="M19 11a8 8 0 1 0-2.4 5.7" />
+        <path d="m16 5 5 5-5 5" />
+        <path d="M21 10H11a5 5 0 0 0 0 10" />
     </svg>
 );
 
@@ -220,11 +211,8 @@ export const RasterizeSelectedToolIcon: Component<TopStripIconProps> = (props) =
         stroke-linecap="round"
         stroke-linejoin="round"
     >
-        <rect x="4.5" y="5" width="8" height="8" rx="1.2" />
-        <path d="M15.5 7.5h4" />
-        <path d="M15.5 11h4" />
-        <path d="M6.8 15.8h10.4" />
-        <path d="M8.2 18.8h7.6" />
+        <path d="M12 3v8m-4-4 4 4 4-4" />
+        <path d="m3 12 9 5 9-5" />
     </svg>
 );
 
@@ -238,10 +226,10 @@ export const RasterizeAllToolIcon: Component<TopStripIconProps> = (props) => (
         stroke-linecap="round"
         stroke-linejoin="round"
     >
-        <rect x="4.5" y="5" width="6.5" height="6.5" rx="1.1" />
-        <rect x="13" y="5" width="6.5" height="6.5" rx="1.1" />
-        <rect x="4.5" y="13.5" width="6.5" height="6.5" rx="1.1" />
-        <rect x="13" y="13.5" width="6.5" height="6.5" rx="1.1" />
+        <path d="M12 3v8m-4-4 4 4 4-4" />
+        <path d="m3 10 9 5 9-5" />
+        <path d="m3 14 9 5 9-5" />
+        <path d="m3 18 9 5 9-5" />
     </svg>
 );
 

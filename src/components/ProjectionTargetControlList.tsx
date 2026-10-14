@@ -11,7 +11,12 @@ export const ProjectionTargetControlList = (props: { rows: ProjectionTargetRow[]
             createEffect(() => { checkbox.indeterminate = !!row().mixed; });
             return <div class="otter-toolbar-menu-item flex min-h-8 items-center gap-2 px-2 py-1" data-projection-target={row().id}>
                 <label class="flex min-w-0 flex-1 items-center justify-between gap-3" title={row().title}>
-                    <span class="min-w-0 truncate">{row().id}</span>
+                    <span class="flex min-w-0 flex-1 flex-col">
+                        <span class="truncate">{row().title}</span><small class="truncate text-[var(--theme-text-muted)]">{row().id}</small>
+                    </span>
+                    <small class="shrink-0 text-[var(--theme-text-muted)]">{row().status.phase === "pending" ? "处理中"
+                        : row().status.phase === "error" ? "异常" : row().checked && row().status.phase === "success" ? "投射中"
+                        : row().disabled && !props.busy ? "不可用" : "已连接"}</small>
                     <input ref={(el) => { checkbox = el; }} type="checkbox" class="h-3.5 w-3.5 shrink-0 accent-[var(--theme-signal)]"
                         aria-label={`${row().id} 投射开关`} checked={row().checked} aria-checked={row().mixed ? "mixed" : row().checked}
                         disabled={row().disabled} onChange={(event) => row().change(event.currentTarget.checked)} />

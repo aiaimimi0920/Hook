@@ -59,12 +59,25 @@ it("displays and copies the same versioned link without generating a QR or a sec
     const copy = vi.spyOn(api, "copyTextToClipboard").mockResolvedValue(true);
     container = document.createElement("div"); document.body.append(container);
     dispose = render(() => <QrProjectionSender unitId={source.id} retry={vi.fn()} shareAction="link" />, container);
-    const text = container.querySelector("textarea")!.value;
+    const text = container.querySelector<HTMLInputElement>('input[aria-label="投射链接"]')!.value;
     expect(parseProjectionInvitation(text)).toEqual(source.data.qrProjection!.envelope);
     button("复制链接").click();
     await vi.waitFor(() => expect(copy).toHaveBeenCalledWith(text));
     expect(requestProjection).not.toHaveBeenCalled(); expect(projectionCode).not.toHaveBeenCalled();
     copy.mockRestore();
+});
+
+it("shows only the QR image in QR export, without a link field or copy action", async () => {
+    const source = projectionUnit(); source.data.qrProjection!.linked = false;
+    source.data.qrProjection!.envelope.expiresAtMs = Date.now() + 60_000;
+    graphStore.units.splice(0, graphStore.units.length, source);
+    vi.mocked(projectionCode).mockResolvedValue("data:image/png;base64,QR");
+    container = document.createElement("div"); document.body.append(container);
+    dispose = render(() => <QrProjectionSender unitId={source.id} retry={vi.fn()} shareAction="qr" />, container);
+    await vi.waitFor(() => expect(container.querySelector('img[alt="投射邀请二维码"]')).not.toBeNull());
+    expect(container.querySelector("input, textarea, button")).toBeNull();
+    expect(container.textContent).not.toContain("hook://");
+    expect(requestProjection).not.toHaveBeenCalled();
 });
 
 it("requires the local Loom account before creating a new invitation and refreshes after login", async () => {
@@ -195,7 +208,7 @@ it("keeps saved shared associations pinned without re-reading account or configu
     expect(projectionContext).not.toHaveBeenCalled();
     expect(projectionAccountContext).not.toHaveBeenCalled();
 });
-it("shows only the QR and selectable invitation link in compact sharing mode", async () => {
+it("never exposes a copyable invitation link in compact QR sharing mode", async () => {
     const source = projectionUnit(); source.data.qrProjection!.linked = false;
     source.data.qrProjection!.envelope.expiresAtMs = Date.now() + 60_000;
     graphStore.units.splice(0, graphStore.units.length, source);
@@ -205,10 +218,8 @@ it("shows only the QR and selectable invitation link in compact sharing mode", a
     dispose = render(() => <QrProjectionSender unitId={source.id} retry={vi.fn()} shareAction="qr" />, container);
     await vi.waitFor(() => expect(container.querySelector("img")?.getAttribute("src")).toContain("data:image/svg+xml"));
     expect(container.querySelectorAll("button, p")).toHaveLength(0);
-    const input = container.querySelector<HTMLInputElement>('input[aria-label="投射链接"]')!;
-    expect(parseProjectionInvitation(input.value)).toEqual(source.data.qrProjection!.envelope);
-    input.click();
-    await vi.waitFor(() => expect(copy).toHaveBeenCalledWith(input.value));
-    expect(input.selectionEnd).toBe(input.value.length);
+    expect(container.querySelector("input, textarea")).toBeNull();
+    expect(copy).not.toHaveBeenCalled();
     expect(requestProjection).not.toHaveBeenCalled();
+    copy.mockRestore();
 });

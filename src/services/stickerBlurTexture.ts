@@ -13,8 +13,8 @@ interface BlurTextureEntry {
     url: string | null;
 }
 
-// Only mounted overlays retain textures. Identical committed/draft brushes share
-// the same raster; the last owner releases both pending work and the blob URL.
+// Draft -> committed replacement happens within one task. Retain a zero-owner
+// entry until the microtask checkpoint so the replacement can take the same raster.
 const textures = new Map<string, BlurTextureEntry>();
 let reservedPixels = 0;
 
@@ -23,11 +23,11 @@ export const acquireStickerBlurTexture = (
     width: number,
     height: number,
     radius: number,
-): { ready: Promise<string | null>; release: () => void } => {
+): { url: string | null; ready: Promise<string | null>; release: () => void } => {
     const w = Math.ceil(width);
     const h = Math.ceil(height);
     const pixels = w * h;
-    const unavailable = () => ({ ready: Promise.resolve(null), release: () => undefined });
+    const unavailable = () => ({ url: null, ready: Promise.resolve(null), release: () => undefined });
     if (!source || ![width, height, radius].every(Number.isFinite) ||
         width <= 0 || height <= 0 || radius <= 0 || radius > 256 ||
         w > 8192 || h > 8192 || pixels > MAX_TEXTURE_PIXELS) return unavailable();
@@ -105,17 +105,21 @@ export const acquireStickerBlurTexture = (
     retained.users += 1;
     let released = false;
     return {
+        url: retained.url,
         ready: retained.promise,
         release: () => {
             if (released) return;
             released = true;
             retained.users -= 1;
             if (retained.users > 0) return;
-            textures.delete(key);
-            reservedPixels -= retained.pixels;
-            retained.cancel();
-            if (retained.url) URL.revokeObjectURL(retained.url);
-            retained.url = null;
+            queueMicrotask(() => {
+                if (retained.users > 0 || textures.get(key) !== retained) return;
+                textures.delete(key);
+                reservedPixels -= retained.pixels;
+                retained.cancel();
+                if (retained.url) URL.revokeObjectURL(retained.url);
+                retained.url = null;
+            });
         },
     };
 };

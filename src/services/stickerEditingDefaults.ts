@@ -32,6 +32,7 @@ export const createDefaultStickerColorState = (): StickerColorState => ({
 
 export const createDefaultStickerToolProfiles = (): StickerCreateToolProfiles => ({
     "shape-rect": {
+        shapeAspectRatio: "1:1",
         strokeWidth: 3,
         shapeCornerRadius: 0,
         shapeConstrainSquare: false,
@@ -39,6 +40,7 @@ export const createDefaultStickerToolProfiles = (): StickerCreateToolProfiles =>
         shapeStrokeDashPattern: "solid",
     },
     "shape-round-rect": {
+        shapeAspectRatio: "1:1",
         strokeWidth: 3,
         shapeCornerRadius: 0,
         shapeConstrainSquare: false,
@@ -46,6 +48,7 @@ export const createDefaultStickerToolProfiles = (): StickerCreateToolProfiles =>
         shapeStrokeDashPattern: "solid",
     },
     "shape-ellipse": {
+        shapeAspectRatio: "1:1",
         strokeWidth: 3,
         shapeConstrainSquare: false,
         shapeSnapStep: 0,
@@ -76,12 +79,19 @@ export const createDefaultStickerToolProfiles = (): StickerCreateToolProfiles =>
         strokeWidth: 3,
         shapeStrokeDashPattern: "solid",
     },
+    bezier: {
+        strokeWidth: 3,
+        shapeStrokeDashPattern: "solid",
+        lineArrowEnabled: false,
+    },
     arrow: {
         strokeWidth: 3,
         shapeStrokeDashPattern: "solid",
         lineAngleSnap: false,
     },
     brush: {
+        brushOpacity: 1,
+        brushSmoothing: 0,
         strokeWidth: 3,
         shapeSnapStep: 0,
         shapeStrokeDashPattern: "solid",
@@ -93,6 +103,7 @@ export const createDefaultStickerToolProfiles = (): StickerCreateToolProfiles =>
         shapeStrokeDashPattern: "solid",
         brushHighlighterEnabled: true,
     },
+    paintbrush: { strokeWidth: 16, brushOpacity: 1, brushSmoothing: 50 },
     text: {
         textSize: 16,
         textFontFamily: "微软雅黑",
@@ -112,6 +123,7 @@ export const createDefaultStickerToolProfiles = (): StickerCreateToolProfiles =>
 });
 
 export const createDefaultStickerToolSettings = (): StickerToolSettings => ({
+    brushSmoothing: 0,
     domain: "existing",
     mode: "select",
     transformMode: "select",
@@ -132,6 +144,7 @@ export const createDefaultStickerToolSettings = (): StickerToolSettings => ({
     lineStrokeColor: "#ef4444",
     shapeCornerRadius: 0,
     shapeConstrainSquare: false,
+    shapeAspectRatio: "1:1",
     shapeSnapStep: 0,
     shapeStrokeDashPattern: "solid",
     polygonSides: 6,

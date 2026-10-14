@@ -1,10 +1,8 @@
 import { For, Show, createEffect, createMemo, createSignal, type Component } from "solid-js";
 
 import { extensionCommandRouter } from "../services/extensionCommandRouter";
-import {
-    extensionPresentationStore,
-    visibleExtensionToolbarSlots,
-} from "../services/extensionPresentationStore";
+import { extensionPresentationStore } from "../services/extensionPresentationStore";
+import { visibleStickerExtensionToolbarSlots } from "../services/stickerExtensionToolbar";
 import { ChevronDownCornerIcon } from "./stickerTopStripIcons";
 import {
     toolbarButtonLeftBorderClass,
@@ -27,7 +25,7 @@ interface ExtensionToolbarItemsProps {
 /** Renders only generic menu contributions; plugin IDs never enter product UI code. */
 export const ExtensionToolbarItems: Component<ExtensionToolbarItemsProps> = (props) => {
     const [openSlotId, setOpenSlotId] = createSignal<string>();
-    const slots = createMemo(() => visibleExtensionToolbarSlots(extensionPresentationStore.toolbarItems()).slice(0, 8));
+    const slots = createMemo(() => visibleStickerExtensionToolbarSlots(extensionPresentationStore.toolbarItems()).slice(0, 8));
     createEffect(() => {
         if (!props.open) setOpenSlotId(undefined);
     });
@@ -42,7 +40,7 @@ export const ExtensionToolbarItems: Component<ExtensionToolbarItemsProps> = (pro
                 <Show when={slot.grouped} fallback={(
                     <button
                         type="button"
-                        class={`${toolbarButtonLeftBorderClass} otter-toolbar-idle w-[50px]`}
+                        class={`${toolbarButtonLeftBorderClass} otter-toolbar-idle`}
                         aria-label={slot.items[0].title}
                         title={slot.items[0].available()
                             ? slot.items[0].title
@@ -59,7 +57,7 @@ export const ExtensionToolbarItems: Component<ExtensionToolbarItemsProps> = (pro
                         </span>
                     </button>
                 )}>
-                    <div class="relative h-[50px] w-[50px]" onPointerDown={(event) => event.stopPropagation()}>
+                    <div class="relative h-7 w-7" onPointerDown={(event) => event.stopPropagation()}>
                         <button
                             type="button"
                             class={toolbarButtonLeftBorderClass}

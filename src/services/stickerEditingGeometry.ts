@@ -30,6 +30,7 @@ export const clampShapeRectToStickerBounds = (
     bounds: { w: number; h: number },
     lockAspect = false,
     snapStep?: number,
+    aspectRatio = 1,
 ) => {
     const quantizeMagnitude = (value: number, max: number) => {
         if (!snapStep) {
@@ -70,11 +71,13 @@ export const clampShapeRectToStickerBounds = (
     const directionY = deltaY >= 0 ? 1 : -1;
     const availableX = directionX > 0 ? bounds.w - safeStart.x : safeStart.x;
     const availableY = directionY > 0 ? bounds.h - safeStart.y : safeStart.y;
-    const requestedSide = Math.max(Math.abs(deltaX), Math.abs(deltaY));
-    const side = quantizeMagnitude(requestedSide, Math.min(availableX, availableY));
+    const ratio = Number.isFinite(aspectRatio) && aspectRatio > 0 ? aspectRatio : 1;
+    const requestedHeight = Math.max(Math.abs(deltaX) / ratio, Math.abs(deltaY));
+    // 到达贴图边界时整体缩小，避免单独截断一条边破坏比例。
+    const height = quantizeMagnitude(requestedHeight, Math.min(availableX / ratio, availableY));
     const constrainedCurrent = {
-        x: safeStart.x + directionX * side,
-        y: safeStart.y + directionY * side,
+        x: safeStart.x + directionX * height * ratio,
+        y: safeStart.y + directionY * height,
     };
 
     return {

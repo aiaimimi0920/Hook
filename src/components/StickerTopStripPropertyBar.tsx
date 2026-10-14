@@ -1,10 +1,15 @@
-import { Show, createMemo, createSignal, type Component } from "solid-js";
+import { Show, createMemo, createSignal, onCleanup, type Component } from "solid-js";
 import { Portal } from "solid-js/web";
 
 import { ColorPicker } from "./ColorPicker";
-import {
-    TextIcon,
-} from "./stickerTopStripPropertyBarIcons";
+import { RectanglePropertyFields } from "./RectanglePropertyFields";
+import { LinePropertyFields } from "./LinePropertyFields";
+import { BrushPropertyFields } from "./BrushPropertyFields";
+import { createSelectedLineProperties } from "./stickerSelectedLineProperties";
+import { createRectanglePropertyPlacement } from "./rectanglePropertyPlacement";
+import { createStickerTopStripHover } from "./stickerTopStripHover";
+import "../styles/rectangle-properties.css";
+import { TextToolIcon } from "./stickerTopStripIcons";
 import { createStickerTopStripPropertyBarFields } from "./stickerTopStripPropertyBarFields";
 import {
     createStickerTopStripPropertyBarSections,
@@ -44,6 +49,7 @@ import type { StickerToolSettings } from "../types/stickerEditing";
 interface StickerTopStripPropertyBarProps {
     unitId: string;
     tool: StickerTopStripPropertyTool;
+    anchorFrame?: { left: number; top: number; width: number; height: number };
 }
 
 const iconShellClass =
@@ -60,6 +66,9 @@ const dashOptions: Array<{ key: "solid" | "dash-1" | "dash-2"; label: string; ti
 ];
 
 export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarProps> = (props) => {
+    let propertyRef: HTMLDivElement | undefined;
+    const hover = createStickerTopStripHover();
+    onCleanup(hover.clear);
     const [numericDrafts, setNumericDrafts] = createSignal<Partial<Record<NumericToolSettingKey, string>>>({});
     const [activeColorSlot, setActiveColorSlot] = createSignal<ShapeColorSettingKey | null>(null);
     const [selectedExistingColorRole, setSelectedExistingColorRole] = createSignal<SelectedExistingColorRole | null>(null);
@@ -74,8 +83,15 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
             props.tool === "shape-triangle" ||
             props.tool === "shape-polygon",
     );
-    const isLineTool = createMemo(() => props.tool === "line" || props.tool === "arrow");
-    const isBrushTool = createMemo(() => props.tool === "brush" || props.tool === "highlighter");
+    const isSelectedLine = () => props.tool === "selected-line" || props.tool === "selected-bezier";
+    const selectedLine = createSelectedLineProperties(() => props.unitId, isSelectedLine);
+    const isLineTool = createMemo(() => props.tool === "line" || props.tool === "arrow" || props.tool === "bezier" || isSelectedLine());
+    const isFreehandTool = () => props.tool === "brush" || props.tool === "paintbrush";
+    const isCompactDrawingTool = () => isShapeTool() || isLineTool() || isFreehandTool()
+        || ["text", "serial", "selected-text", "selected-serial", "mosaic", "blur", "content-eraser"].includes(props.tool);
+    createRectanglePropertyPlacement({ panel: () => propertyRef, enabled: isCompactDrawingTool,
+        frame: () => [props.anchorFrame, props.tool], unitId: () => props.unitId });
+    const isBrushTool = createMemo(() => props.tool === "highlighter");
     const isTextTool = createMemo(() => props.tool === "text");
     const isSerialTool = createMemo(() => props.tool === "serial");
     const isEffectTool = createMemo(() => props.tool === "mosaic" || props.tool === "blur");
@@ -206,7 +222,7 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
     const openColorPicker = (slot: ShapeColorSettingKey, button: HTMLButtonElement) => {
         const rect = button.getBoundingClientRect();
         closeDropdownMenu();
-        setPickerInitialColor(null);
+        setPickerInitialColor(isSelectedLine() ? selectedLine.values()?.lineStrokeColor ?? null : null);
         setSelectedExistingColorRole(null);
         setActiveColorSlot(slot);
         setColorPickerAnchor({ x: rect.left, y: rect.top, width: rect.width, height: rect.height });
@@ -228,6 +244,7 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
     const patchShapeColor = (key: ShapeColorSettingKey, color: string) => {
         const normalized = normalizeStickerPaletteColor(color);
         if (!normalized) return;
+        if (isSelectedLine()) { selectedLine.patch({ lineStrokeColor: normalized }); return; }
         uiActions.patchStickerToolSettings({ [key]: normalized } as Partial<StickerToolSettings>);
     };
 
@@ -250,6 +267,7 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
         PropertyDropdownPortal,
     } = createPropertyDropdownController({
         unitId: () => props.unitId,
+        constrainToViewport: isCompactDrawingTool,
         focusOverlayWindow: () => api.focusOverlayWindow(),
     });
 
@@ -271,7 +289,7 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
         compactInputClass,
         stickerToolSettings,
         availableFontFamilies,
-        fontIcon: TextIcon,
+        fontIcon: TextToolIcon,
         focusOverlayWindow: () => api.focusOverlayWindow(),
         openColorPicker,
         getNumericValue,
@@ -284,8 +302,6 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
         loadInstalledFontsOnDemand,
     });
     const {
-        renderShapeFields,
-        renderLineFields,
         renderBrushFields,
         renderTextFields,
         renderSelectedTextFields,
@@ -319,6 +335,7 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
         setSelectedSerialRadiusDraft,
         commitSelectedSerialRadiusDraft,
         openSelectedExistingColorPicker,
+        openColorPicker,
         applySelectedAnnotationFontFamilyChange,
         patchStickerToolSettings: (patch) => uiActions.patchStickerToolSettings(patch),
         applyCropFlip,
@@ -347,7 +364,11 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
     return (
         <>
             <div
-                class="otter-property-strip pointer-events-auto flex h-[40px] items-center gap-1.5 overflow-hidden border-b px-1.5"
+                ref={(element) => { propertyRef = element; }}
+                class={isCompactDrawingTool() ? "otter-rectangle-properties pointer-events-auto"
+                    : "otter-property-strip pointer-events-auto flex h-[40px] items-center gap-1.5 overflow-hidden border-b px-1.5"}
+                onPointerOver={(event) => { if (isCompactDrawingTool()) hover.over(event); }}
+                onPointerOut={hover.out}
                 onPointerDown={(event) => {
                     event.stopPropagation();
                     void api.focusOverlayWindow();
@@ -357,9 +378,17 @@ export const StickerTopStripPropertyBar: Component<StickerTopStripPropertyBarPro
                     void api.focusOverlayWindow();
                 }}
             >
-                <Show when={isShapeTool()}>{renderShapeFields()}</Show>
-                <Show when={isLineTool()}>{renderLineFields()}</Show>
+                <Show when={isShapeTool()}>
+                    <RectanglePropertyFields tool={props.tool} strokeSlot={shapeStrokeColorSlot()} fillSlot={shapeFillColorSlot()!}
+                        openColorPicker={openColorPicker} DashField={MiniDashField} />
+                </Show>
+                <Show when={isLineTool()}>
+                    <LinePropertyFields bezier={props.tool === "bezier" || props.tool === "selected-bezier"}
+                        selected={isSelectedLine()} values={selectedLine.values()} onPatch={isSelectedLine() ? selectedLine.patch : undefined}
+                        openColorPicker={openColorPicker} DashField={MiniDashField} />
+                </Show>
                 <Show when={isBrushTool()}>{renderBrushFields()}</Show>
+                <Show when={isFreehandTool()}><BrushPropertyFields paintbrush={props.tool === "paintbrush"} openColorPicker={openColorPicker} /></Show>
                 <Show when={isTextTool()}>{renderTextFields()}</Show>
                 <Show when={props.tool === "selected-text"}>{renderSelectedTextFields()}</Show>
                 <Show when={isSerialTool()}>{renderSerialFields()}</Show>

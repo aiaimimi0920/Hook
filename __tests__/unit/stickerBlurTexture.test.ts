@@ -36,8 +36,9 @@ describe("shared sticker blur raster lifetime", () => {
         });
         vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((callback) => { blobCallback = callback; });
     });
-    afterEach(() => {
+    afterEach(async () => {
         releases.splice(0).forEach((release) => release());
+        await Promise.resolve();
         vi.restoreAllMocks();
         vi.unstubAllGlobals();
         vi.useRealTimers();
@@ -59,6 +60,7 @@ describe("shared sticker blur raster lifetime", () => {
         first.release(); first.release();
         expect(URL.revokeObjectURL).not.toHaveBeenCalled();
         second.release();
+        await Promise.resolve();
         expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith("blob:blur");
     });
 
@@ -125,7 +127,22 @@ describe("shared sticker blur raster lifetime", () => {
         acquire("data:large2", 4096, 4096);
         expect(await acquire("data:overflow").ready).toBeNull();
         first.release();
+        await Promise.resolve();
         acquire("data:after-release");
         expect(TestImage.instances).toHaveLength(3);
+    });
+
+    it("hands a ready draft texture to the committed overlay without reloading or revoking it", async () => {
+        const draft = acquire();
+        TestImage.instances[0].onload!(); blobCallback(new Blob());
+        await draft.ready;
+        draft.release();
+        const committed = acquire();
+        expect(committed.url).toBe("blob:blur");
+        await Promise.resolve();
+        expect(TestImage.instances).toHaveLength(1);
+        expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+        committed.release(); await Promise.resolve();
+        expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith("blob:blur");
     });
 });

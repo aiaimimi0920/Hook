@@ -1,0 +1,32 @@
+# 全局 Loom 连接
+
+贴图设置栏的 Loom 行在所有贴图间共享状态：未连接为 `-`，经设备认证与 Loom 批准
+后显示 Loom 唯一 ID，按钮变为“断连”。长 ID 按栏宽省略，悬浮显示完整 ID。
+
+连接弹窗与投射弹窗共享单实例 slot，位于贴图中心并限制在屏幕范围内。支持局域网
+公开目标、最近 20 个成功目标的历史记录，以及手输 IP / 主机名和端口。远程使用
+HTTPS 与现有证书信任；本机回环地址可使用 HTTP，不接受用户名密码 URL 或路径。
+
+选中目标先通过 HTTP 核对身份，必要时输入密码。等待批准时仍是未连接；只有服务端
+核对批准 receipt 与真实设备签名 session 并建立 30 秒租约后，才显示已连接。
+每 5 秒续租，授权撤销、网络失败或租约过期后恢复未连接。关闭弹窗不取消连接，
+等待时可重新打开弹窗取消。已连接时先断连，再选择另一目标。
+
+密码、receipt、私钥和 session token 不进入历史文件或状态 DTO。原生 owner 的
+generation 防止旧任务覆盖新状态，退出 latch 阻止应用退出后重新发起连接。
+若在申请到达服务端但 receipt 未返回前取消，服务端申请最多保留 5 分钟后过期；
+已经激活的连接在进程退出或崩溃后最多保留 30 秒，不会永久显示在线。
+
+此功能建立共享的 Loom 连接控制关系。既有本机 Art / 扩展 bridge 及其业务路由
+保持不变，不因新租约自动开放远程执行或共享内存。远程业务通道的完整迁移是
+独立协议工作，不能用“已连接”宣称所有本机专用能力可在另一台机器执行。
+
+## 定向验证
+
+- `node node_modules/vitest/vitest.mjs run __tests__/unit/loomConnection.test.tsx`
+- `cargo test --manifest-path src-tauri/Cargo.toml --lib loom_connection --locked --offline`
+- 两端签名联调：设置 `OTTER_LOOM_CONNECTION_SMOKE_EXE` 为新编译 Loom daemon 的
+  绝对路径，设置 `TEMP` / `TMP` 到独立临时目录，然后运行上一条命令并追加
+  `-- --include-ignored --nocapture`。测试只管理自己创建的 daemon 子进程。
+
+上述检查不能代替实际贴图弹窗、物理网络发现与用户手动验收。

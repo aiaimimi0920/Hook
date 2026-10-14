@@ -108,15 +108,19 @@ pub(super) fn windows_capture_settings(rect: Option<D3D11_BOX>) -> Settings {
 }
 
 pub(super) fn window_surface_crop(
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    x: impl Into<f64>,
+    y: impl Into<f64>,
+    w: impl Into<f64>,
+    h: impl Into<f64>,
     display_metrics: CaptureWindowMetrics,
     bounds: RECT,
     surface_width: u32,
     surface_height: u32,
 ) -> Option<D3D11_BOX> {
+    let (x, y, w, h) = (x.into(), y.into(), w.into(), h.into());
+    if ![x, y, w, h].iter().all(|v| v.is_finite()) || w <= 0.0 || h <= 0.0 {
+        return None;
+    }
     let scale = display_metrics
         .scale_factor
         .is_finite()
@@ -130,16 +134,16 @@ pub(super) fn window_surface_crop(
     // Match display_selection's physical capture contract: the selection
     // origin is floored and its far edge is ceiled. Using round() here shifts
     // protected surfaces by a pixel at fractional DPI scales.
-    let crop_left = (selection_left - bounds.left as f64)
+    let crop_left = crate::capture_coords::physical_edge(selection_left - bounds.left as f64)
         .floor()
         .clamp(0.0, surface_width as f64) as u32;
-    let crop_top = (selection_top - bounds.top as f64)
+    let crop_top = crate::capture_coords::physical_edge(selection_top - bounds.top as f64)
         .floor()
         .clamp(0.0, surface_height as f64) as u32;
-    let crop_right = (selection_right - bounds.left as f64)
+    let crop_right = crate::capture_coords::physical_edge(selection_right - bounds.left as f64)
         .ceil()
         .clamp(0.0, surface_width as f64) as u32;
-    let crop_bottom = (selection_bottom - bounds.top as f64)
+    let crop_bottom = crate::capture_coords::physical_edge(selection_bottom - bounds.top as f64)
         .ceil()
         .clamp(0.0, surface_height as f64) as u32;
     (crop_right > crop_left && crop_bottom > crop_top).then_some(D3D11_BOX {
@@ -161,12 +165,12 @@ pub(super) fn window_surface_crop(
 /// therefore avoids sampling the application behind it.
 pub(super) fn try_fast_capture_window(
     capture_window_id: &str,
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
     display_metrics: CaptureWindowMetrics,
-) -> Option<RgbImage> {
+) -> Option<(RgbImage, crate::capture_coords::CapturePoint)> {
     use std::sync::mpsc::sync_channel;
 
     let diag = capture_area_verbose_logging_enabled();
@@ -330,7 +334,15 @@ pub(super) fn try_fast_capture_window(
             image.height()
         );
     }
-    Some(image)
+    Some((
+        image,
+        crate::capture_coords::CapturePoint {
+            x: (bounds.left as f64 + crop.left as f64 - display_metrics.physical_origin_x)
+                / display_metrics.scale_factor,
+            y: (bounds.top as f64 + crop.top as f64 - display_metrics.physical_origin_y)
+                / display_metrics.scale_factor,
+        },
+    ))
 }
 
 pub(super) fn wgc_fast_path_mode() -> String {

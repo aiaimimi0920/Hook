@@ -43,7 +43,7 @@ const ocrRendererFallback = (unit: Unit, attachment: UnitAttachment): ExtensionV
 export const visualSourceIsCurrent = (
     unit: Unit,
     attachment: UnitAttachment,
-    descriptor: ExtensionVisualDescriptor,
+    descriptor: Pick<ExtensionVisualDescriptor, "sourceContext">,
 ): boolean => {
     if (!descriptor.sourceContext) return true;
     const payload = record(attachment.payload);

@@ -32,6 +32,7 @@ export const createUnitParamsPortRegistryController = (getUnitId: () => string) 
                 pendingRegistrations.get(portName) !== registration ||
                 !element.isConnected
             ) return;
+            if (element.closest(".hide-collapsed-endpoints:not(.is-expanded)")) return;
             const unitElement = element.closest(".unit-container");
             if (!unitElement) return;
             const portRect = element.getBoundingClientRect();

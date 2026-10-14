@@ -10,6 +10,7 @@ import {
   stickerToolSettings,
 } from "../store/uiStore";
 import { Unit, Link, NodeExecutionConfig } from "../types/unit";
+import { hideCollapsedUnitEndpoints, unitEndpointsVisible } from "../store/unitChromeState";
 import { ArtCapability } from "../services/protocol";
 import { computeStickerWheelResizeFrame } from "../services/stickerEditing";
 import { UnitAddNodeMenu } from "./UnitAddNodeMenu";
@@ -36,6 +37,7 @@ import { createUnitNativeStickerDragController } from "./unitNativeStickerDragCo
 import { UnitStickerImageContent } from "./UnitStickerImageContent";
 import { UnitSurfaceContent } from "./UnitSurfaceContent";
 import { UnitSelectionBorder, UnitVisualOverlays } from "./UnitVisualOverlays";
+import { unitOutlineOutset } from "./UnitSelectionBorder";
 import { UnitEnhancementNotices } from "./UnitEnhancementNotices";
 import { createUnitPortRegistryController } from "./unitPortRegistryController";
 import { createUnitImageModel } from "./unitImageModel";
@@ -251,6 +253,7 @@ export const UnitView: Component<Props> = (props) => {
       element: unitElement,
   });
   createUnitPortRegistryController({
+      visible: () => unitEndpointsVisible(props.showParams, props.unit.data.hideCollapsedEndpoints),
       unit: liveUnit,
       inputs: getInputs,
       outputs: getOutputs,
@@ -334,10 +337,11 @@ export const UnitView: Component<Props> = (props) => {
     >
         <UnitNativeStickerDragPreview preview={nativeStickerDrag.preview()} />
         <UnitPorts
+            outlineOutset={unitOutlineOutset(props.isSelected)}
             unit={props.unit}
             capability={props.capability}
             portsLayer={props.portsLayer}
-            isCleanView={isCleanView()}
+            isCleanView={hideCollapsedUnitEndpoints(props.unit.data.hideCollapsedEndpoints) || (!isMinified() && (props.isSelected || props.showParams))}
 
             x={props.unit.x}
             y={props.unit.y}
@@ -462,16 +466,21 @@ export const UnitView: Component<Props> = (props) => {
                 </Suspense>
             </Show>
             <Show when={showSelectionBorder()}>
-                <UnitSelectionBorder isSelected={props.isSelected} opacity={image.opacity()} />
+                <UnitSelectionBorder isSelected={props.isSelected} opacity={image.opacity()}
+                    editingFrame={props.isSelected && activeStickerEditTargetId() === props.unit.id
+                        ? { unitId: props.unit.id, x: props.unit.x, y: props.unit.y, w: props.unit.w, h: props.unit.h }
+                        : undefined} />
             </Show>
         </Show>
 
         {/* === INTERACTION LAYER (Floating panels, outside of cropped visual) === */}
 
         {/* Unit Params Panel (Handling Inputs, Outputs, Params, Header) */}
-        <Show when={props.showParams}>
+        <Show when={!isMinified() && (props.isSelected || props.showParams)}>
              <Suspense>
                  <UnitParamsPanel
+                     outlineOutset={isCleanView() ? 0 : unitOutlineOutset(props.isSelected)}
+                     expanded={props.showParams}
                      unit={props.unit}
                      params={props.params}
                      execConfig={props.execConfig}

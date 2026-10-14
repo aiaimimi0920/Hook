@@ -32,6 +32,7 @@ const MAX_MAPPED_SURFACE_BYTES: usize = 512 * 1024 * 1024;
 /// pixels captured from the desktop outside the protected window.
 pub(super) struct ProtectedSurfaceCapture {
     pub image: RgbImage,
+    pub origin: crate::capture_coords::CapturePoint,
     pub offset_x: u32,
     pub offset_y: u32,
 }
@@ -74,22 +75,22 @@ pub fn window_display_affinity(capture_window_id: &str) -> Option<u32> {
 
 pub(super) fn try_capture_protected_window(
     capture_window_id: &str,
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
     display_metrics: CaptureWindowMetrics,
-) -> Option<RgbImage> {
+) -> Option<(RgbImage, crate::capture_coords::CapturePoint)> {
     try_capture_protected_window_region(capture_window_id, x, y, w, h, display_metrics)
-        .map(|capture| capture.image)
+        .map(|capture| (capture.image, capture.origin))
 }
 
 pub(super) fn try_capture_protected_window_region(
     capture_window_id: &str,
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
     display_metrics: CaptureWindowMetrics,
 ) -> Option<ProtectedSurfaceCapture> {
     let hwnd = parse_window_id(capture_window_id)?;
@@ -124,10 +125,10 @@ pub(super) fn try_capture_protected_window_region(
 
 fn capture_protected_surface(
     hwnd: HWND,
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
     display_metrics: CaptureWindowMetrics,
 ) -> anyhow::Result<ProtectedSurfaceCapture> {
     if !unsafe { IsWindowVisible(hwnd) }.as_bool() || unsafe { IsIconic(hwnd) }.as_bool() {
@@ -201,8 +202,10 @@ fn capture_protected_surface(
     // Use the same floor-at-origin rule as display_selection's desktop crop.
     // Rounding the logical origin independently makes a protected surface move
     // by one pixel relative to the desktop at fractional DPI scales.
-    let selection_left = display_metrics.physical_origin_x as f64 + (x as f64 * scale).floor();
-    let selection_top = display_metrics.physical_origin_y as f64 + (y as f64 * scale).floor();
+    let selection_left =
+        display_metrics.physical_origin_x + crate::capture_coords::physical_edge(x * scale).floor();
+    let selection_top =
+        display_metrics.physical_origin_y + crate::capture_coords::physical_edge(y * scale).floor();
     let offset_x = (bounds.left as f64 - selection_left)
         .max(0.0)
         .floor()
@@ -246,6 +249,10 @@ fn capture_protected_surface(
     unsafe { context.Unmap(&staging_texture, 0) };
     Ok(ProtectedSurfaceCapture {
         image: image?,
+        origin: crate::capture_coords::CapturePoint {
+            x: (bounds.left as f64 + crop.left as f64 - display_metrics.physical_origin_x) / scale,
+            y: (bounds.top as f64 + crop.top as f64 - display_metrics.physical_origin_y) / scale,
+        },
         offset_x,
         offset_y,
     })
@@ -357,10 +364,10 @@ mod tests {
         let height = u32::try_from(bounds.bottom - bounds.top).expect("height should fit u32");
         let capture = capture_protected_surface(
             hwnd,
-            bounds.left,
-            bounds.top,
-            width,
-            height,
+            bounds.left.into(),
+            bounds.top.into(),
+            width.into(),
+            height.into(),
             CaptureWindowMetrics {
                 physical_origin_x: 0.0,
                 physical_origin_y: 0.0,

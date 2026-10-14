@@ -17,7 +17,7 @@ let host: HTMLDivElement;
 let dispose: () => void;
 const button = (label: string) => [...host.querySelectorAll("button")].find((item) => item.textContent === label)!;
 const enterLink = (value = projectionInvitationLink(projectionEnvelope())) => {
-    button("投射链接").click();
+    button("链接").click();
     const input = host.querySelector("textarea")!;
     input.value = value;
     input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -33,8 +33,20 @@ beforeEach(() => {
 });
 afterEach(() => { dispose(); host.remove(); vi.resetAllMocks(); });
 
+it.each(["qr", "link"] as const)("opens %s in the shared tab panel and supports keyboard switching", (kind) => {
+    dispose();
+    dispose = render(() => <QrProjectionReceiver initialText="" importKind={kind} />, host);
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(2);
+    const selected = host.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')!;
+    expect(selected.textContent).toBe(kind === "qr" ? "二维码" : "链接");
+    selected.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(host.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe(kind === "qr" ? "链接" : "二维码");
+    expect(host.querySelector("textarea") !== null).toBe(kind === "qr");
+    expect(requestProjection).not.toHaveBeenCalled();
+});
+
 it("imports a link only on confirmation and accepts the freshly inspected revision", async () => {
-    expect(button("二维码图片")).toBeDefined();
+    expect(button("二维码")).toBeDefined();
     expect(button("导入").disabled).toBe(true);
     enterLink();
     expect(host.textContent).toContain("https://loom.example.test");
@@ -79,7 +91,7 @@ it("switching to link input aborts pending QR decoding and ignores its late resu
     vi.mocked(importProjectionQr).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
     chooseImage();
     const signal = vi.mocked(importProjectionQr).mock.calls[0][1]!;
-    button("投射链接").click();
+    button("链接").click();
     expect(signal.aborted).toBe(true);
     resolve(JSON.stringify(projectionEnvelope()));
     await Promise.resolve();

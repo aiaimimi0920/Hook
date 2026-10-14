@@ -68,7 +68,8 @@ describe("sticker style controls", () => {
         expect(normalizeStickerPaletteColor("not-a-color")).toBeNull();
 
         const withCustom = addStickerPaletteColor(["#ffffff"], "#ABCDEF");
-        expect(withCustom).toEqual(["#ffffff", "#abcdef"]);
+        expect(withCustom).toEqual(["#abcdef", "#ffffff"]);
+        expect(addStickerPaletteColor(withCustom, "#123456")).toEqual(["#123456", "#abcdef", "#ffffff"]);
         expect(addStickerPaletteColor(withCustom, "#abcdef")).toEqual(withCustom);
         expect(removeStickerPaletteColor(withCustom, "#abcdef")).toEqual(["#ffffff"]);
         expect(removeStickerPaletteColor(withCustom, "#ffffff")).toEqual(["#abcdef"]);

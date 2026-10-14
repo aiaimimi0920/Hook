@@ -77,6 +77,8 @@ export type MiniDropdownFieldComponent = Component<{
 
 export type MiniDashFieldComponent = Component<{
     title: string;
+    value?: StickerToolSettings["shapeStrokeDashPattern"];
+    onChange?: (value: StickerToolSettings["shapeStrokeDashPattern"]) => void;
 }>;
 
 export type MiniFontFieldComponent = Component<{
@@ -368,14 +370,15 @@ export const createStickerTopStripPropertyBarFields = (
         <MiniDropdownField
             id={`${options.unitId()}-dash-pattern`}
             title={fieldProps.title}
-            value={options.stickerToolSettings.shapeStrokeDashPattern}
+            value={fieldProps.value ?? options.stickerToolSettings.shapeStrokeDashPattern}
             options={options.dashOptions.map((option) => ({
                 value: option.key,
                 label: option.label,
                 title: option.title,
             }))}
             onChange={(value) => {
-                options.patchStickerToolSettings({
+                if (fieldProps.onChange) fieldProps.onChange(value as "solid" | "dash-1" | "dash-2");
+                else options.patchStickerToolSettings({
                     shapeStrokeDashPattern: value as "solid" | "dash-1" | "dash-2",
                 });
                 options.closeDropdownMenu();

@@ -1,4 +1,4 @@
-import { createSignal, For, onCleanup, Show } from "solid-js";
+import { createSignal, For, onCleanup, Show, untrack } from "solid-js";
 import type { ProjectionEnvelope, ProjectionResponse } from "../types/qrProjection";
 import { graphStore } from "../store/graphStore";
 import { closeProjectionDialog, type ProjectionImportKind } from "../store/qrProjectionStore";
@@ -12,9 +12,9 @@ import { ProjectionReceiveSettings } from "./ProjectionReceiveSettings";
 import { ProjectionQrFileInput } from "./ProjectionQrFileInput";
 import { MAX_PROJECTION_INVITATION_TEXT } from "../services/projectionInvitationLink";
 
-export const QrProjectionReceiver = (props: { initialText: string; importKind?: ProjectionImportKind }) => {
-    const combined = () => props.importKind === "combined";
-    const [method, setMethod] = createSignal<"qr" | "link">("qr");
+export const QrProjectionReceiver = (props: { initialText: string; importKind?: ProjectionImportKind; receiverUnitId?: string }) => {
+    const combined = () => !!props.importKind;
+    const [method, setMethod] = createSignal<"qr" | "link">(untrack(() => props.importKind === "link" ? "link" : "qr"));
     const inputKind = () => combined() ? method() : props.importKind;
     const [text, setText] = createSignal(props.initialText);
     const [envelope, setEnvelope] = createSignal<ProjectionEnvelope>();
@@ -22,11 +22,12 @@ export const QrProjectionReceiver = (props: { initialText: string; importKind?: 
     const [busy, setBusy] = createSignal(false);
     const [error, setError] = createSignal("");
     const [acceptanceStarted, setAcceptanceStarted] = createSignal(false);
-    const receiverUnitId = crypto.randomUUID();
+    const receiverUnitId = untrack(() => props.receiverUnitId) ?? crypto.randomUUID();
     const generation = projectionWorkspaceGeneration();
     let alive = true;
     let attached = false;
-    const valid = () => alive && projectionWorkspaceGeneration() === generation;
+    const valid = () => alive && projectionWorkspaceGeneration() === generation
+        && (!props.receiverUnitId || graphStore.units.some((unit) => unit.id === receiverUnitId && !unit.data.qrProjection));
     const cleanupAttempt = () => {
         const invitation = envelope();
         if (acceptanceStarted() && !attached && invitation) {
@@ -58,7 +59,7 @@ export const QrProjectionReceiver = (props: { initialText: string; importKind?: 
             const response = await requestProjection({ kind: "accept", envelope: invitation, expectedRevision: inspected.revision,
                 expectedDigest: inspected.digest, receiverUnitId, confirmed: true });
             if (!valid()) { cleanupAttempt(); return; }
-            attachProjectionReceiver(receiverUnitId, response);
+            attachProjectionReceiver(receiverUnitId, response, !!props.receiverUnitId);
             attached = true;
             closeProjectionDialog();
         } catch (reason) {
@@ -74,15 +75,26 @@ export const QrProjectionReceiver = (props: { initialText: string; importKind?: 
     return <>
         <Show when={!props.importKind}><ProjectionReceiveSettings /></Show>
         <Show when={combined()}>
-            <div class="flex flex-wrap gap-2" role="group" aria-label="投射导入方式">
+            <div class="qr-projection-import-tabs" role="tablist" aria-label="投射导入方式"
+                onKeyDown={(event) => {
+                    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                    event.preventDefault();
+                    const kind = event.key === "Home" ? "qr" : event.key === "End" ? "link" : method() === "qr" ? "link" : "qr";
+                    const tab = event.currentTarget.querySelector<HTMLButtonElement>(`[data-import-tab="${kind}"]`);
+                    if (tab && !tab.disabled) { tab.click(); tab.focus(); }
+                }}>
                 <For each={["qr", "link"] as const}>{(kind) => <button type="button" class="otter-terminal-btn"
-                    aria-pressed={method() === kind} disabled={busy() || acceptanceStarted()}
+                    role="tab" id={`projection-import-tab-${kind}`} data-import-tab={kind}
+                    aria-selected={method() === kind} aria-controls="projection-import-panel"
+                    tabIndex={method() === kind ? 0 : -1} disabled={busy() || acceptanceStarted()}
                     onClick={() => {
                         if (method() === kind) return;
                         setMethod(kind); setText(""); setEnvelope(undefined); setPreview(undefined); setError("");
-                    }}>{kind === "qr" ? "二维码图片" : "投射链接"}</button>}</For>
+                    }}>{kind === "qr" ? "二维码" : "链接"}</button>}</For>
             </div>
         </Show>
+        <div classList={{ "qr-projection-import-panel": combined() }} role={combined() ? "tabpanel" : undefined}
+            id="projection-import-panel" aria-labelledby={combined() ? `projection-import-tab-${method()}` : undefined}>
         <Show when={inputKind() !== "link"}><ProjectionQrFileInput compact={combined()} disabled={busy() || acceptanceStarted()}
             preparing={() => { setText(""); setEnvelope(undefined); setPreview(undefined); setError(""); }}
             imported={(value) => { setText(value); parse(value); }} /></Show>
@@ -100,6 +112,7 @@ export const QrProjectionReceiver = (props: { initialText: string; importKind?: 
                 }} />
         </label>
         </Show>
+        </div>
         <Show when={!combined() && !acceptanceStarted()}><button type="button" class="otter-terminal-btn" disabled={busy() || !text().trim()} onClick={() => parse()}>读取邀请</button></Show>
         <Show when={!combined() && !envelope() && inputKind() !== "link"}>
             <For each={recognizedProjectionInvitations(graphStore.units)}>{(invitation, index) =>

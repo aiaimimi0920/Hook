@@ -54,14 +54,16 @@ export const addCaptureUnit = async (
     scrollAxis?: LongCaptureAxis,
 ) => {
     const dpr = window.devicePixelRatio || 1;
-    const cssW = response.width / dpr;
-    const cssH = response.height / dpr;
+    // Native crop bounds, not the requested selection, own the final pixel-aligned placement.
+    const actual = response.captureRect;
+    const cssW = actual?.w ?? response.width / dpr;
+    const cssH = actual?.h ?? response.height / dpr;
 
     const newUnit: Unit = {
         id: crypto.randomUUID(),
         type: "sticker",
-        x: origin.x,
-        y: origin.y,
+        x: actual?.x ?? origin.x,
+        y: actual?.y ?? origin.y,
         w: cssW,
         h: cssH,
         params: {},

@@ -1,11 +1,13 @@
 import { Show, type Component, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
+import "../styles/sticker-edit-strip.css";
 
 import {
     resolveSelectedExistingNodePropertyTool,
     resolveStickerTopStripPropertyTool,
 } from "./stickerToolbarModel";
 import { StickerTopStripPropertyBar } from "./StickerTopStripPropertyBar";
+import { StickerSettings } from "./StickerSettings";
 import {
     isEffectTool,
     isLabelTool,
@@ -18,16 +20,16 @@ import {
 } from "./stickerTopStripCatalog";
 import { StickerTopStripCreateTools } from "./StickerTopStripCreateTools";
 import { StickerTopStripEditActions } from "./StickerTopStripEditActions";
+import { StickerTopStripTextActions } from "./StickerTopStripTextActions";
 import { StickerTopStripSurfaceView } from "./StickerTopStripSurfaceView";
 import { ExtensionToolbarItems } from "./ExtensionToolbarItems";
-import {
-    extensionPresentationStore,
-    visibleExtensionToolbarSlots,
-} from "../services/extensionPresentationStore";
+import { extensionPresentationStore } from "../services/extensionPresentationStore";
+import { visibleStickerExtensionToolbarSlots } from "../services/stickerExtensionToolbar";
 import { type TopStripOpenMenu } from "./stickerTopStripChrome";
-import { ProjectionToolbar, createProjectionToolbarState } from "./ProjectionToolbar";
-import { ProjectionPropertyBar } from "./ProjectionPropertyBar";
 import { buildStickerTopStripInteractiveRect } from "./stickerTopStripInteractiveRect";
+import { syncOpenToolbarMenuRect } from "./stickerTopStripMenuPosition";
+import { createStickerTopStripHover } from "./stickerTopStripHover";
+import { installStickerTopStripLongPress } from "./stickerTopStripLongPress";
 import {
     computeStickerTopStripLayout,
 } from "../services/stickerTopStripLayout";
@@ -82,18 +84,20 @@ const getViewportSize = () => {
 export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
     const [viewport, setViewport] = createSignal(getViewportSize());
     const [openMenu, setOpenMenu] = createSignal<TopStripOpenMenu>(null);
-    const { direction: projectionDirection, setDirection: setProjectionDirection,
-        tab: projectionTab, setTab: setProjectionTab } = createProjectionToolbarState(() => props.unitId);
+    const toolbarHover = createStickerTopStripHover();
     const [currentShapeTool, setCurrentShapeTool] = createSignal<ShapeCreateTool>("shape-rect");
+    const [currentLineTool, setCurrentLineTool] = createSignal<"line" | "bezier">(stickerToolSettings.activeTool === "bezier" ? "bezier" : "line");
+    const [currentBrushTool, setCurrentBrushTool] = createSignal<"brush" | "paintbrush">(stickerToolSettings.activeTool === "paintbrush" ? "paintbrush" : "brush");
     const [currentLabelTool, setCurrentLabelTool] = createSignal<LabelCreateTool>("text");
     const [currentEffectTool, setCurrentEffectTool] = createSignal<EffectCreateTool>("mosaic");
-    const [currentHistoryAction, setCurrentHistoryAction] = createSignal<HistoryActionMode>("undo");
     const [currentRasterizeScope, setCurrentRasterizeScope] = createSignal<StickerRasterizeScope>("selected");
     const [historyActionPending, setHistoryActionPending] = createSignal(false);
     const [rasterizeActionPending, setRasterizeActionPending] = createSignal(false);
     const historyActionGate = createSingleFlightAction(setHistoryActionPending);
     const rasterizeActionGate = createSingleFlightAction(setRasterizeActionPending);
     let stripRef: HTMLDivElement | undefined;
+    let mainBarRef: HTMLDivElement | undefined;
+    let disposeLongPress: (() => void) | undefined;
     let dragFollowerRegistration: { unitId: string; element: HTMLDivElement } | null = null;
     const openMenuRectId = () => `sticker-top-strip-menu-${props.unitId}`;
     let openMenuRectSyncRafIds: number[] = [];
@@ -114,28 +118,6 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
     };
 
     createEffect(syncDragFollowerRegistration);
-
-    const syncOpenToolbarMenuRect = (
-        menu: TopStripOpenMenu,
-        menuRectId: string,
-        stripElement: HTMLDivElement | undefined,
-    ) => {
-        if (!menu || !stripElement) return false;
-        const menuElement = stripElement.querySelector<HTMLElement>("[data-top-strip-menu='true']");
-        if (!menuElement) return false;
-
-        const bounds = menuElement.getBoundingClientRect();
-        addOrUpdateRect({
-            id: menuRectId,
-            x: bounds.left,
-            y: bounds.top,
-            width: bounds.width,
-            height: bounds.height,
-            name: "STICKER_TOP_STRIP_MENU",
-        });
-        syncTopStripBackendRects();
-        return true;
-    };
 
     const cancelOpenToolbarMenuRectSync = () => {
         for (const rafId of openMenuRectSyncRafIds) {
@@ -172,20 +154,11 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
 
     createEffect(() => {
         const activeTool = stickerToolSettings.activeTool;
-        if (!isShapeTool(activeTool)) return;
-        setCurrentShapeTool(activeTool);
-    });
-
-    createEffect(() => {
-        const activeTool = stickerToolSettings.activeTool;
-        if (!isLabelTool(activeTool)) return;
-        setCurrentLabelTool(activeTool);
-    });
-
-    createEffect(() => {
-        const activeTool = stickerToolSettings.activeTool;
-        if (!isEffectTool(activeTool)) return;
-        setCurrentEffectTool(activeTool);
+        if (isShapeTool(activeTool)) setCurrentShapeTool(activeTool);
+        if (isLabelTool(activeTool)) setCurrentLabelTool(activeTool);
+        if (isEffectTool(activeTool)) setCurrentEffectTool(activeTool);
+        if (activeTool === "line" || activeTool === "bezier") setCurrentLineTool(activeTool);
+        if (activeTool === "brush" || activeTool === "paintbrush") setCurrentBrushTool(activeTool);
     });
 
     createEffect(() => {
@@ -202,6 +175,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
         if (typeof window === "undefined") return;
         // Capture the registration owned by this effect so cleanup removes its original rect.
         const initialMenu = openMenu();
+        layout();
 
         if (!initialMenu) {
             cancelOpenToolbarMenuRectSync();
@@ -227,12 +201,12 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
         () => stickerToolSettings.domain === "create" && isShapeTool(stickerToolSettings.activeTool),
     );
     const isLineSelected = createMemo(
-        () => stickerToolSettings.domain === "create" && stickerToolSettings.activeTool === "line",
+        () => stickerToolSettings.domain === "create" && (stickerToolSettings.activeTool === "line" || stickerToolSettings.activeTool === "bezier"),
     );
     const isBrushSelected = createMemo(
         () =>
             stickerToolSettings.domain === "create" &&
-            (stickerToolSettings.activeTool === "brush" || stickerToolSettings.activeTool === "highlighter"),
+            (stickerToolSettings.activeTool === "brush" || stickerToolSettings.activeTool === "paintbrush" || stickerToolSettings.activeTool === "highlighter"),
     );
     const isLabelSelected = createMemo(
         () => stickerToolSettings.domain === "create" && isLabelTool(stickerToolSettings.activeTool),
@@ -249,9 +223,6 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
     const historyState = createMemo(() => stickerEditHistories[props.unitId]);
     const canUndo = createMemo(() => (historyState()?.past?.length || 0) > 0);
     const canRedo = createMemo(() => (historyState()?.future?.length || 0) > 0);
-    const isHistoryEnabled = createMemo(
-        () => !historyActionPending() && (currentHistoryAction() === "undo" ? canUndo() : canRedo()),
-    );
     const currentUnit = createMemo(() => graphStore.units.find((item) => item.id === props.unitId));
     const selectedAnnotationIds = createMemo(() => {
         if (selectedStickerAnnotationIds.length > 0) {
@@ -280,7 +251,7 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
         );
         return tool;
     });
-    const extensionToolbarSlots = createMemo(() => visibleExtensionToolbarSlots(
+    const extensionToolbarSlots = createMemo(() => visibleStickerExtensionToolbarSlots(
         extensionPresentationStore.toolbarItems(),
     ));
     const layout = createMemo(() =>
@@ -293,8 +264,8 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
             },
             viewport().width,
             viewport().height,
-            !!projectionTab() || !!propertyBarTool(),
-            extensionToolbarSlots().length,
+            !!propertyBarTool(),
+            extensionToolbarSlots().length + (props.supportsBitmapTools !== false || props.isArt ? 1 : 0),
         ),
     );
     const draggingThisSticker = createMemo(() => draggingStickerId() === props.unitId);
@@ -316,13 +287,12 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
     };
 
     const applyTransformMode = (mode: StickerTransformMode) => {
-        setProjectionTab(undefined);
         uiActions.setStickerTransformMode(mode);
         setOpenMenu(null);
     };
 
     const applyCreateTool = (mode: TopStripCreateTool) => {
-        setProjectionTab(undefined);
+        if (mode === "bezier" || mode === "line") uiActions.setSelectedStickerAnnotation(null);
         if (isShapeTool(mode)) {
             setCurrentShapeTool(mode);
         }
@@ -337,7 +307,6 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
     };
 
     const applyTopStripTool = (mode: TopStripCreateTool | TopStripCanvasTool) => {
-        setProjectionTab(undefined);
         if (mode === "content-eraser" || mode === "crop") {
             uiActions.setStickerEditMode(mode);
             setOpenMenu(null);
@@ -439,6 +408,8 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
     });
 
     onCleanup(() => {
+        toolbarHover.clear();
+        disposeLongPress?.();
         historyActionGate.dispose();
         rasterizeActionGate.dispose();
         removeRect(`sticker-top-strip-${props.unitId}`);
@@ -451,15 +422,44 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
         syncTopStripBackendRects();
     });
 
+    const editActions = (section: "control" | "canvas") => (
+        <StickerTopStripEditActions
+            section={section}
+            openMenu={openMenu()}
+            supportsBitmapTools={props.supportsBitmapTools !== false}
+            isArt={props.isArt === true}
+            isEraserSelected={isEraserSelected()}
+            isCropSelected={isCropSelected()}
+            canUndo={!historyActionPending() && canUndo()}
+            canRedo={!historyActionPending() && canRedo()}
+            currentRasterizeScope={currentRasterizeScope()}
+            isRasterizeEnabled={isRasterizeEnabled()}
+            canRasterizeSelected={!rasterizeActionPending() && canRasterizeSelected()}
+            canRasterizeAll={!rasterizeActionPending() && canRasterizeAll()}
+            onToggleMenu={toggleMenu}
+            onCanvasTool={applyTopStripTool}
+            onHistoryAction={(mode) => void runHistoryAction(mode)}
+            onRasterize={(scope) => void runRasterizeAction(scope)}
+            onSelectRasterizeScope={(scope) => {
+                setCurrentRasterizeScope(scope);
+                setOpenMenu(null);
+            }}
+        />
+    );
+
     return (
-        <Portal>
+        <Portal ref={() => {
+            // Portal 的 ref 在插入真实文档后执行，子元素的 ref 则可能仍在模板文档中。
+            disposeLongPress?.();
+            if (mainBarRef) disposeLongPress = installStickerTopStripLongPress(mainBarRef);
+        }}>
             <div
                 ref={(element) => {
                     stripRef = element;
                     syncDragFollowerRegistration();
                 }}
                 data-otter-drag-follow-unit-id={props.unitId}
-                class="otter-terminal-shell otter-terminal-shell--strong pointer-events-none fixed z-[1210] box-border"
+                class="pointer-events-none fixed z-[1210] box-border"
                 style={{
                     left: `${layout().container.left}px`,
                     top: `${layout().container.top}px`,
@@ -467,62 +467,49 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                     height: `${layout().container.height}px`,
                 }}
             >
-                <Show when={projectionTab()} fallback={<Show when={propertyBarTool()}>
-                    {(tool) => <StickerTopStripPropertyBar unitId={props.unitId} tool={tool()} />}
-                </Show>}>
-                    {(mode) => <ProjectionPropertyBar unitId={props.unitId} mode={mode()} />}
+                <Show when={propertyBarTool()} keyed>
+                    {(tool) => <StickerTopStripPropertyBar unitId={props.unitId} tool={tool} anchorFrame={layout().mainBar} />}
                 </Show>
 
                 <div
-                    class="pointer-events-auto flex flex-wrap content-start items-stretch [&>*]:shrink-0"
+                    class="otter-edit-strip pointer-events-auto flex flex-wrap content-start items-stretch [&>*]:shrink-0"
+                    ref={(element) => { mainBarRef = element; }}
+                    role="toolbar"
+                    aria-label="贴图编辑"
+                    onPointerOver={toolbarHover.over}
+                    onPointerOut={toolbarHover.out}
                     style={{
+                        width: `${layout().mainBar.width}px`,
                         height: `${layout().mainBar.height}px`,
                     }}
                     onMouseDown={(event) => event.stopPropagation()}
                 >
+                    <StickerSettings unitId={props.unitId} x={props.x} y={props.y} width={props.stickerWidth} height={props.stickerHeight}
+                        available={props.supportsBitmapTools !== false || props.isArt === true}
+                        onOpen={() => setOpenMenu(null)} />
                     <StickerTopStripCreateTools
+                        controlActions={<>
+                            {editActions("control")}
+                            <StickerTopStripTextActions unitId={props.unitId} onActivate={() => setOpenMenu(null)} />
+                        </>}
+                        canvasActions={editActions("canvas")}
                         openMenu={openMenu()}
                         currentTransformMode={currentTransformMode()}
                         currentShapeTool={currentShapeTool()}
+                        currentLineTool={currentLineTool()}
+                        currentBrushTool={currentBrushTool()}
                         currentLabelTool={currentLabelTool()}
                         currentEffectTool={currentEffectTool()}
-                        isModeSelected={!projectionTab() && isModeSelected()}
-                        isShapeSelected={!projectionTab() && isShapeSelected()}
-                        isLineSelected={!projectionTab() && isLineSelected()}
-                        isBrushSelected={!projectionTab() && isBrushSelected()}
-                        isLabelSelected={!projectionTab() && isLabelSelected()}
-                        isEffectSelected={!projectionTab() && isEffectSelected()}
+                        isModeSelected={isModeSelected()}
+                        isShapeSelected={isShapeSelected()}
+                        isLineSelected={isLineSelected()}
+                        isBrushSelected={isBrushSelected()}
+                        isLabelSelected={isLabelSelected()}
+                        isEffectSelected={isEffectSelected()}
                         supportsBitmapTools={props.supportsBitmapTools !== false}
                         onToggleMenu={toggleMenu}
                         onTransformMode={applyTransformMode}
                         onCreateTool={applyCreateTool}
-                    />
-                    <StickerTopStripEditActions
-                        openMenu={openMenu()}
-                        supportsBitmapTools={props.supportsBitmapTools !== false}
-                        isArt={props.isArt === true}
-                        isEraserSelected={!projectionTab() && isEraserSelected()}
-                        isCropSelected={!projectionTab() && isCropSelected()}
-                        currentHistoryAction={currentHistoryAction()}
-                        isHistoryEnabled={isHistoryEnabled()}
-                        canUndo={!historyActionPending() && canUndo()}
-                        canRedo={!historyActionPending() && canRedo()}
-                        currentRasterizeScope={currentRasterizeScope()}
-                        isRasterizeEnabled={isRasterizeEnabled()}
-                        canRasterizeSelected={!rasterizeActionPending() && canRasterizeSelected()}
-                        canRasterizeAll={!rasterizeActionPending() && canRasterizeAll()}
-                        onToggleMenu={toggleMenu}
-                        onCanvasTool={applyTopStripTool}
-                        onHistoryAction={(mode) => void runHistoryAction(mode)}
-                        onSelectHistoryAction={(mode) => {
-                            setCurrentHistoryAction(mode);
-                            setOpenMenu(null);
-                        }}
-                        onRasterize={(scope) => void runRasterizeAction(scope)}
-                        onSelectRasterizeScope={(scope) => {
-                            setCurrentRasterizeScope(scope);
-                            setOpenMenu(null);
-                        }}
                     />
                     <StickerTopStripSurfaceView
                         isArt={props.isArt === true}
@@ -535,10 +522,6 @@ export const StickerTopStrip: Component<StickerTopStripProps> = (props) => {
                             setOpenMenu(null);
                         }}
                     />
-                    <ProjectionToolbar mode={projectionDirection()} active={!!projectionTab()} menuOpen={openMenu() === "projection"}
-                        toggleMenu={() => toggleMenu("projection")}
-                        selectMode={(mode) => { setProjectionDirection(mode); setProjectionTab(mode); setOpenMenu(null); }}
-                        activate={() => { setOpenMenu(null); setProjectionTab((current) => current ? undefined : projectionDirection()); }} />
                     <ExtensionToolbarItems
                         open={openMenu() === "extension"}
                         onOpenChange={(open) => setOpenMenu(open ? "extension" : null)}

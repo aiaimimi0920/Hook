@@ -1,0 +1,91 @@
+/* 图形、笔触、文本、序号和图像效果共用紧凑属性条。 */
+.otter-rectangle-properties {
+  --rectangle-surface: var(--neuro-surface);
+  --rectangle-control: color-mix(in srgb, var(--theme-control) 94%, var(--theme-text));
+  position: relative;
+  z-index: 1220;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: max-content;
+  height: 38px;
+  /* 保留原属性行的占位高度，避免主编辑栏和贴图的接缝发生位移。 */
+  margin-bottom: 2px;
+  padding: 4px 5px;
+  border: 1px solid color-mix(in srgb, var(--neuro-surface) 88%, white);
+  border-radius: 9px;
+  background: var(--rectangle-surface);
+  color: var(--theme-text-secondary);
+  box-shadow: none;
+}
+.otter-rectangle-properties.rectangle-properties-scroll {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.otter-rectangle-properties > button,
+.otter-rectangle-properties .rectangle-ratio-field,
+.otter-rectangle-properties .rectangle-number {
+  box-sizing: border-box;
+  flex-shrink: 0;
+  height: 28px;
+  border: 2px solid transparent;
+  border-radius: 5px;
+  background: var(--rectangle-control);
+  background-clip: padding-box;
+  color: inherit;
+}
+.otter-rectangle-properties button:is(:hover, [data-toolbar-hover="true"]) {
+  background: color-mix(in srgb, var(--rectangle-control) 82%, var(--theme-text));
+  color: var(--theme-text);
+}
+.otter-rectangle-properties button[aria-pressed="true"] { color: var(--theme-signal); }
+.otter-rectangle-properties button:focus-visible,
+.otter-rectangle-properties input:focus-visible { outline: 1px solid var(--theme-signal); outline-offset: -2px; }
+.rectangle-color { position: relative; width: 28px; overflow: hidden; }
+.rectangle-swatch {
+  position: absolute;
+  inset: 2px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: repeating-conic-gradient(#737381 0% 25%, #33333f 0% 50%) 0 0 / 8px 8px;
+}
+.rectangle-swatch-color { position: absolute; inset: 0; box-sizing: border-box; border-radius: inherit; }
+.rectangle-transparent-mark { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; pointer-events: none; }
+.rectangle-stroke-swatch::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 1px;
+  background: var(--rectangle-control);
+}
+.rectangle-ratio-field { display: flex; align-items: center; width: 103px; padding: 0; }
+.rectangle-ratio-field > button { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 15px; height: 24px; border: 0; border-radius: 4px; background: transparent; color: inherit; }
+.rectangle-ratio-field > button svg { width: 13.5px; height: 13.5px; }
+.rectangle-ratio-number { display: flex; align-items: center; flex-shrink: 0; width: 39px; }
+.rectangle-ratio-number-leading { flex-direction: row-reverse; }
+.rectangle-ratio-number-leading .rectangle-steppers { margin-left: 0; }
+.rectangle-constraint { display: flex; align-items: center; justify-content: center; width: 28px; }
+.rectangle-ratio-field input { box-sizing: border-box; width: 26px; min-width: 0; height: 20px; padding: 0; border: 0; background: transparent; color: inherit; font-size: 12px; text-align: center; outline: none; }
+.rectangle-ratio-colon { flex-shrink: 0; width: 6px; text-align: center; font-size: 12px; }
+.otter-rectangle-properties .rectangle-ratio-enabled { color: var(--theme-signal); }
+.rectangle-ratio-field input[aria-invalid="true"] { color: #ef4444; }
+.rectangle-number { display: flex; align-items: center; width: 40px; padding-left: 2px; }
+.rectangle-number.rectangle-number-with-icon { width: 60px; }
+.rectangle-number-icon { flex-shrink: 0; width: 13.5px; height: 13.5px; }
+.rectangle-number input { width: 26px; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; font-size: 12px; text-align: right; outline: none; }
+.rectangle-steppers { display: flex; flex-direction: column; width: 13px; height: 24px; margin-left: auto; }
+.rectangle-steppers button { display: flex; align-items: center; justify-content: center; width: 13px; height: 12px; border: 0; border-radius: 2px; background: transparent; color: var(--theme-text-muted); }
+.rectangle-steppers svg { width: 7px; height: 5px; fill: currentColor; }
+.otter-rectangle-properties [data-top-strip-popup-trigger] { width: 42px; padding: 0 5px; }
+.otter-rectangle-properties [data-top-strip-popup-trigger] span { font-size: 12px; }
+.text-serial-font { display: flex; flex-shrink: 0; }
+.otter-rectangle-properties .text-serial-font > button {
+  box-sizing: border-box; width: 132px; height: 28px; padding: 0 5px;
+  border: 2px solid transparent; border-radius: 5px;
+  background: var(--rectangle-control); background-clip: padding-box; color: inherit;
+}
+.text-serial-font .otter-property-icon { width: 13.5px; height: 13.5px; }
+.otter-rectangle-properties .text-serial-font > button:is(:hover, [data-toolbar-hover="true"]) {
+  background: color-mix(in srgb, var(--rectangle-control) 82%, var(--theme-text)); color: var(--theme-text);
+}

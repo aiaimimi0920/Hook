@@ -13,7 +13,8 @@ describe("UnitParamsPanel grouped scrolling contract", () => {
         expect(source).toContain("data-param-group");
         expect(source).toContain("data-param-group-header");
         expect(source).toContain("param-scroll-container");
-        expect(source).toContain('"max-height": "min(560px, calc(100vh - 96px))"');
+        expect(panelSource).toContain('class="unit-tab-properties"');
+        expect(panelSource).toContain('observeUnitTabGeometry');
         expect(source).toContain('"overflow-y": "auto"');
         expect(source).toContain('"max-height": "min(360px, calc(100vh - 300px))"');
     });
@@ -74,7 +75,7 @@ describe("UnitParamsPanel grouped scrolling contract", () => {
         expect(controlSource).not.toContain('type="range"');
     });
 
-    it("lays slider params out in two rows so the range track fits the narrow floating panel", () => {
+    it("keeps the slider hooks available for compact single-track capsule layout", () => {
         const controlSource = readFileSync(
             resolve(process.cwd(), "src", "components", "params", "controls", "NumberControl.tsx"),
             "utf8",
@@ -85,6 +86,9 @@ describe("UnitParamsPanel grouped scrolling contract", () => {
         expect(controlSource).toContain("data-param-slider-row");
         expect(controlSource).toContain('class="w-full min-w-0"');
         expect(controlSource).not.toContain("min-w-[72px]");
+        const css = readFileSync(resolve(process.cwd(), "src/styles/unit-tab-properties.css"), "utf8");
+        expect(css).toContain("[data-param-value-row] { display: contents; }");
+        expect(css).toContain("[data-param-slider-layout] { display: flex; flex-direction: row;");
     });
 
     it("keeps in-flight slider values local and guards image hover previews against stale params", () => {

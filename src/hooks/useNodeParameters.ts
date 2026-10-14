@@ -89,6 +89,7 @@ export function useNodeParameters() {
                     break;
                 case EXEC_upstreamDriven:
                     graphStore.setUnitExecConfig(unitId, "triggerMode", "upstreamDriven", value);
+                    graphStore.setUnitExecConfig(unitId, "propagation", "listenUpstream", value);
                     break;
                 case EXEC_paramDriven:
                     graphStore.setUnitExecConfig(unitId, "triggerMode", "paramDriven", value);

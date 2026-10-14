@@ -57,7 +57,8 @@
 .qr-projection-dialog .otter-terminal-btn[aria-pressed="true"] { border-color: var(--theme-signal); }
 .qr-projection-dialog footer { padding: 14px 20px; border-top: 1px solid var(--theme-border); color: var(--theme-text-secondary); font-size: 12px; line-height: 1.6; }
 .qr-projection-backdrop--share { background: transparent; padding: 0; }
-.qr-projection-dialog--share { position: fixed; width: min(312px, calc(100vw - 16px)); max-height: calc(100vh - 16px); }
+.qr-projection-dialog--share { position: fixed; width: min(312px, calc(100vw - 16px)); max-height: calc(100vh - 16px); box-shadow: none; border: 1px solid var(--theme-border); border-radius: 9px; background: #0a0d12; }
+.qr-projection-dialog--share .otter-terminal-btn { min-height: 28px; padding: 4px 8px; border-radius: 4px; background: #20262d; }
 .qr-projection-dialog--share header { justify-content: flex-end; padding: 4px; border: 0; }
 .qr-projection-dialog--share header .otter-terminal-btn { min-height: 28px; width: 28px; padding: 0; font-size: 20px; }
 .qr-projection-dialog--share .qr-projection-content { padding: 0 12px 12px; gap: 10px; }
@@ -65,6 +66,12 @@
 .qr-projection-dialog--import .qr-projection-content { padding: 0 8px 8px; gap: 8px; min-width: 0; }
 .qr-projection-dialog--import .otter-terminal-btn { min-height: 28px; padding: 4px 8px; }
 .qr-projection-dialog--import .qr-projection-field textarea { min-height: 48px; max-height: 96px; padding: 6px; }
+.qr-projection-import-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.qr-projection-import-tabs .otter-terminal-btn[aria-selected="true"] {
+    color: var(--theme-signal); border-color: var(--theme-signal);
+    background: color-mix(in srgb, var(--theme-signal) 12%, var(--neuro-panel));
+}
+.qr-projection-import-panel { display: grid; align-content: start; gap: 8px; min-height: 64px; min-width: 0; }
 .qr-projection-share-link {
     width: 100%; min-width: 0; box-sizing: border-box; padding: 8px;
     color: var(--theme-text); background: var(--neuro-surface);

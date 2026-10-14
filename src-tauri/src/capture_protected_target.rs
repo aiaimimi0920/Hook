@@ -62,10 +62,10 @@ where
 
 #[cfg(target_os = "windows")]
 pub(crate) fn overlapping_protected_window(
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
     display_metrics: CaptureWindowMetrics,
 ) -> Option<ResolvedProtectedWindow> {
     let selection_left = x as f64;

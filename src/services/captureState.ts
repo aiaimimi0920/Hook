@@ -37,6 +37,7 @@ export interface CaptureWindowClickState {
 }
 
 export interface ManualLongCaptureFrame {
+    captureRect?: CaptureRect;
     base64: string;
     width: number;
     height: number;

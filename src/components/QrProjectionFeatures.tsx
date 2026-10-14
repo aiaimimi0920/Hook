@@ -2,7 +2,8 @@ import { createEffect, onCleanup, onMount, Show, untrack } from "solid-js";
 import { unwrap } from "solid-js/store";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { graphStore } from "../store/graphStore";
-import { openProjectionReceiver, projectionDialog, setProjectionStatuses } from "../store/qrProjectionStore";
+import { projectionDialog, setProjectionStatuses } from "../store/qrProjectionStore";
+import { openTrayProjectionReceiver } from "../services/projectionReceivePlaceholder";
 import { isTauriRuntimeAvailable } from "../services/apiTransport";
 import { requestProjection, unlinkProjection } from "../services/qrProjectionApi";
 import { onProjectionUnitRemoved, projectionWorkspaceGeneration } from "../services/qrProjectionLifecycle";
@@ -44,7 +45,7 @@ export const QrProjectionFeatures = () => {
     });
     onMount(() => {
         if (!isTauriRuntimeAvailable()) return;
-        void listen("trigger-receive-projection", () => openProjectionReceiver()).then((stop) => {
+        void listen("trigger-receive-projection", openTrayProjectionReceiver).then((stop) => {
             if (disposed) stop(); else unlisten = stop;
         }).catch(() => undefined);
     });

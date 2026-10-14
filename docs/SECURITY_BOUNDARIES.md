@@ -113,11 +113,10 @@ Startup capability refresh and extension registrations obey the same gate as
 direct native connection attempts. Local capture and standalone session restore
 do not need to connect to Loom.
 
-Opening `otter.exe` directly uses authenticated local discovery. Local test packages
-retain `otter-with-loom.cmd` as an optional compatibility entry point; it supplies
-the enabled default only when unset and preserves explicit disable. It neither
-persists environment settings nor disables discovery authentication or capability
-grants. Restart Otter for environment changes to take effect. Browser preview stays
+Opening `otter.exe` directly uses authenticated local discovery; no separate launcher
+is required. The enabled default preserves explicit disable and does not bypass
+discovery authentication or capability grants.
+Restart Otter for environment changes to take effect. Browser preview stays
 disconnected, and a missing native boot profile does not grant connection authority.
 
 Native code accepts only the descriptor's canonical loopback WSS endpoint,

@@ -1,4 +1,7 @@
 import { Show, type Accessor, type Component } from "solid-js";
+import { getBezierRenderGeometry } from "../services/stickerBezierGeometry";
+import { smoothFreehandPoints, freehandOpacity } from "../services/stickerPaintbrushGeometry";
+import { FreehandDraftStroke, isFreehandDraft } from "./FreehandDraftStroke";
 
 import {
     buildPolygonPoints,
@@ -21,7 +24,6 @@ import {
     resolveArrowHead,
 } from "./stickerAnnotationRenderGeometry";
 import {
-    sanitizeContentEraserSize,
     sanitizeEffectBrushSize,
     sanitizeEffectStrength,
     sanitizePolygonSides,
@@ -50,7 +52,6 @@ interface StickerAnnotationDraftOverlaysProps {
     draftEffectMode: "mosaic" | "blur" | null;
     draftEffectPathData: Accessor<string>;
     draftLine: DraftLine | null;
-    liveErasePreviewVisible: boolean;
     draftShapeRect: DraftRect | null;
     draftShapeMode?: DraftShape["mode"];
     draftShapeMeasurement: MeasurementBadge | null;
@@ -109,35 +110,37 @@ export const StickerAnnotationDraftOverlays: Component<StickerAnnotationDraftOve
             )}
         </Show>
 
-        <Show when={props.draftEffectMode ? null : props.draftLine} keyed>
+        <Show when={!props.draftEffectMode && isFreehandDraft(props.draftLine)}>
+            <FreehandDraftStroke draft={props.draftLine} />
+        </Show>
+        <Show when={props.draftEffectMode || isFreehandDraft(props.draftLine) ? null : props.draftLine} keyed>
             {(draft) => {
-                const points = sanitizeStickerPoints(draft.points);
-                const strokeColor = draft.mode === "content-eraser"
-                    ? "rgba(255,255,255,0.85)"
-                    : getLineStrokeColor(draft.mode);
-                const strokeWidth = draft.mode === "content-eraser"
-                    ? sanitizeContentEraserSize(stickerToolSettings.contentEraserSize)
-                    : sanitizeStrokeWidth(stickerToolSettings.strokeWidth);
-                const hidesLiveEraseDraft =
-                    draft.mode === "content-eraser" && props.liveErasePreviewVisible;
+                const points = draft.mode === "brush" && stickerToolSettings.brushHighlighterEnabled
+                    ? smoothFreehandPoints(sanitizeStickerPoints(draft.points), stickerToolSettings.brushSmoothing)
+                    : sanitizeStickerPoints(draft.points);
+                const strokeColor = getLineStrokeColor(draft.mode);
+                const strokeWidth = sanitizeStrokeWidth(stickerToolSettings.strokeWidth);
                 const previewDashArray =
                     draft.mode === "line" ||
+                    draft.mode === "bezier" ||
                     draft.mode === "arrow" ||
                     (draft.mode === "brush" && !stickerToolSettings.brushHighlighterEnabled)
                         ? getStrokeDashArray(stickerToolSettings.shapeStrokeDashPattern)
                         : undefined;
                 const isHighlighterDraft = isHighlighterLineMode(draft.mode);
-                const arrowHead = draft.showArrowHead
+                const curve = draft.mode === "bezier" ? getBezierRenderGeometry(points, strokeWidth, draft.showArrowHead) : null;
+                const arrowHead = curve ? curve.head : draft.showArrowHead
                     ? resolveArrowHead(points, strokeWidth, true)
                     : null;
                 return (
                     <g>
-                        <Show when={!hidesLiveEraseDraft}>
+                        {/* Erasing is shown by its canvas, never a white placeholder while decoding. */}
+                        <Show when={draft.mode !== "content-eraser"}>
                             <Show
                                 when={isHighlighterDraft}
                                 fallback={
                                     <path
-                                        d={renderArrowShaftPath(
+                                        d={curve ? curve.path : renderArrowShaftPath(
                                             points,
                                             strokeWidth,
                                             !!draft.showArrowHead,
@@ -152,7 +155,7 @@ export const StickerAnnotationDraftOverlays: Component<StickerAnnotationDraftOve
                                     />
                                 }
                             >
-                                <g opacity={HIGHLIGHTER_LAYER_OPACITY}>
+                                <g opacity={HIGHLIGHTER_LAYER_OPACITY * (draft.mode === "brush" ? freehandOpacity(stickerToolSettings.brushOpacity) : 1)}>
                                     <path
                                         d={renderArrowShaftPath(points, strokeWidth, false)}
                                         stroke={strokeColor}

@@ -9,7 +9,7 @@ import { ProjectionIcon, type ProjectionDirection } from "./ProjectionToolbar";
 import { ProjectionTargetPopover } from "./ProjectionTargetPopover";
 
 /** Compact flow selection; exceptional edit failures retain their own native popup. */
-export const ProjectionEditControls = (props: { unitId: string; direction: ProjectionDirection }) => {
+export const ProjectionEditControls = (props: { unitId: string; direction: ProjectionDirection; inline?: boolean }) => {
     const unit = () => graphStore.units.find((unit) => unit.id === props.unitId);
     const status = () => projectionEditStatuses[props.unitId];
     const mode = () => status()?.mode ?? "one_way";
@@ -41,6 +41,7 @@ export const ProjectionEditControls = (props: { unitId: string; direction: Proje
     };
     const label = () => `数据流向：${mode() === "two_way" ? "双向修改" : "单向修改"}`;
     return <>
+        <Show when={props.inline} fallback={<>
         <Show when={source()} fallback={<span class="flex h-8 w-9 shrink-0 cursor-default items-center justify-center text-[var(--theme-text-muted)]"
             role="img" aria-label={label()} title={`${label()}（由投射端设置）`}>
             <ProjectionIcon kind={mode() === "two_way" ? "flow-two" : "flow"} />
@@ -66,6 +67,17 @@ export const ProjectionEditControls = (props: { unitId: string; direction: Proje
                 </button>}</For>
             </div>
         </ProjectionTargetPopover>}</Show>
+        </>}>
+            <For each={["one_way", "two_way"] as const}>{(value) => <button type="button"
+                aria-label={value === "two_way" ? "双向修改" : "单向修改"} aria-pressed={mode() === value}
+                title={!source() ? `${label()}（由投射端设置）` : !supported() ? "当前投射不支持共享标注" : value === "two_way" ? "双向修改" : "单向修改"}
+                disabled={!source() || busy() || !!status()?.pending || !supported()} aria-busy={busy() || !!status()?.pending}
+                onClick={() => { if (value !== mode()) { const id = props.unitId; void run(() => setProjectionEditMode(id, value)); } }}>
+                <span style={{ transform: props.direction === "receive" && value === "one_way" ? "scaleX(-1)" : undefined }}>
+                    <ProjectionIcon kind={value === "two_way" ? "flow-two" : "flow"} />
+                </span>
+            </button>}</For>
+        </Show>
         <Show when={status()?.conflicts || error()}>
             <button type="button" class="otter-terminal-btn h-8 w-9 shrink-0" aria-label="编辑需要处理" title="编辑需要处理"
                 aria-haspopup="dialog" aria-expanded={!!issueAnchor()} onClick={(event) => { setAnchor(undefined); setIssueAnchor(issueAnchor() ? undefined : event.currentTarget); }}>!</button>

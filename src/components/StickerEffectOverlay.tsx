@@ -87,15 +87,15 @@ const BlurPatternDefs: Component<{
 }> = (props) => {
     const [texture, setTexture] = createSignal<string | null>(null);
     createEffect(() => {
-        setTexture(null);
         const lease = acquireStickerBlurTexture(props.imageSrc, props.imageW, props.imageH, props.blurRadius);
+        setTexture(lease.url);
         let active = true;
         void lease.ready.then((url) => { if (active) setTexture(url); });
         onCleanup(() => { active = false; lease.release(); });
     });
     return (
     <defs>
-        <Show when={!texture()}><filter id={props.filterId} x="-20%" y="-20%" width="140%" height="140%">
+        <Show when={!texture()}><filter id={props.filterId} x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
             <feGaussianBlur stdDeviation={props.blurRadius} />
         </filter></Show>
         <pattern
@@ -135,7 +135,8 @@ const EffectStrokeBrush: Component<{
     draft?: boolean;
 }> = (props) => {
     const isMosaic = createMemo(() => props.effectType === "mosaic");
-    const opacity = createMemo(() => (props.draft ? 0.95 : 1));
+    // Blur must not reveal extra sharp source pixels while the pointer is down.
+    const opacity = createMemo(() => (props.draft && isMosaic() ? 0.95 : 1));
     const mosaicPatternId = createMemo(() => `${props.idSeed}-mosaic-pattern`);
     const blurFilterId = createMemo(() => `${props.idSeed}-blur-filter`);
     const blurPatternId = createMemo(() => `${props.idSeed}-blur-pattern`);

@@ -1,0 +1,30 @@
+.projection-settings { gap: 2px; }
+.projection-settings button {
+  display: grid; place-items: center; min-width: 0; height: 24px; padding: 3px;
+}
+.projection-settings button svg { width: 18px; height: 18px; }
+.projection-settings-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.projection-settings-tabs button { height: 28px; }
+.projection-settings-row, .projection-settings-flow, .projection-settings-source, .projection-settings-targets {
+  display: flex; align-items: center; gap: 2px; min-height: 28px; min-width: 0;
+  padding: 0 3px; border-radius: 4px; background: var(--theme-control);
+}
+.projection-settings-row > button, .projection-settings-flow > button { flex: 1; }
+.projection-settings-label { display: grid; place-items: center; width: 13.5px; flex-shrink: 0; }
+.projection-settings-label > svg { width: 13.5px; height: 13.5px; }
+.projection-settings-source code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; text-align: right; user-select: text; }
+.projection-settings-source button { width: 22px; flex-shrink: 0; }
+.projection-settings-source button svg { width: 15px; height: 15px; }
+.projection-settings-targets > button { display: flex; flex: 1; align-items: center; justify-content: center; gap: 2px; padding: 2px; }
+.projection-settings-targets > button svg { width: 14px; height: 14px; flex-shrink: 0; }
+.projection-settings-targets > button span { font-size: 10px; font-variant-numeric: tabular-nums; }
+.projection-settings-notice { font-size: 10px; overflow-wrap: anywhere; color: var(--theme-signal); }
+.otter-toolbar-menu.projection-target-dialog { box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 9px; box-shadow: none; background: #0a0d12; }
+.projection-target-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; flex-shrink: 0; }
+.projection-target-tabs button, .projection-target-footer button { height: 28px; border: 0; border-radius: 4px; background: #20262d; padding: 4px 8px; }
+.projection-target-tabs button { display: flex; align-items: center; justify-content: center; gap: 4px; }
+.projection-target-tabs svg { width: 15px; height: 15px; }
+.projection-target-tabs [aria-selected="true"] { color: var(--theme-signal); background: color-mix(in srgb, var(--theme-signal) 12%, #20262d); }
+.projection-target-tabs button:hover, .projection-target-footer button:hover { background: color-mix(in srgb, #20262d 82%, var(--theme-text)); }
+.projection-target-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.projection-target-footer { display: flex; justify-content: flex-end; gap: 4px; flex-shrink: 0; }

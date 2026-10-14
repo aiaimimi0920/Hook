@@ -1,8 +1,10 @@
 import { graphStore } from "../store/graphStore";
-import { linkingState, setLinkingState, setMousePos, setIsSelecting, setHoveringLink } from "../store/uiStore";
+import { linkingState, setLinkingState, setMousePos, setIsSelecting, setHoveringLink, selectedUnitIds, unitUiState, multiDragPositions, isCleanView } from "../store/uiStore";
 import { syncService } from "../services/syncService";
 import { calculatePortY } from "../utils/graphUtils";
 import { showUnitFailureNotice } from "../services/unitFailureNotice";
+import { portOffsets } from "../services/uiRegistry";
+import { unitOutlineOutset } from "../components/UnitSelectionBorder";
 
 interface UseLinkingOptions {
     onLinkCreated?: (sourceUnitId: string, targetUnitId: string, targetPortId: string) => void;
@@ -35,8 +37,14 @@ export function useLinking(options: UseLinkingOptions = {}) {
             if (sourceUnit) {
                 console.log("Re-linking (Moving) from input:", portId, "Source:", sourceUnit.id);
 
-                const startX = sourceUnit.x + sourceUnit.w + (sourceUnit.data.minified ? 0 : 6);
-                const startY = calculatePortY(sourceUnit, link.fromPortId, false, graphStore.capabilities);
+                const position = multiDragPositions()?.[sourceUnit.id] ?? sourceUnit;
+                const selected = selectedUnitIds.includes(sourceUnit.id);
+                const offset = !sourceUnit.data.minified && (selected || unitUiState[sourceUnit.id]?.showParams)
+                    ? portOffsets()[sourceUnit.id]?.[link.fromPortId] : undefined;
+                const outset = sourceUnit.data.minified ? 4 : isCleanView() ? 0 : unitOutlineOutset(selected);
+                const startX = position.x + (offset?.x ?? sourceUnit.w + outset);
+                const startY = offset ? position.y + offset.y
+                    : calculatePortY(sourceUnit, link.fromPortId, false, graphStore.capabilities, position.y);
 
                 // 2. Remove existing link using Action
                 graphStore.actions.removeLink(link.id);

@@ -85,6 +85,7 @@ export interface UnitData {
     showTranslated?: boolean;
 
     // Visibility Control
+    hideCollapsedEndpoints?: boolean; // Tab expansion always reveals the endpoint controls.
     portVisibility?: Record<string, boolean>; // Key: specific port name, Value: true (visible) / false. Default if missing = true? or false?
     // Let's assume default is TRUE (show all), and we use this to hide specific ones.
 

@@ -29,9 +29,8 @@ default. Set `HOOK_ENABLE_LOOM_HOOK=0` to disable integration. Browser preview s
 not connect anonymously to Loom or execute real Arts. See [security boundaries](docs/SECURITY_BOUNDARIES.md#authenticated-native-local-bridge).
 
 Start Loom and open `otter.exe` directly for OCR/translation and other installed
-extensions. Without Loom, local capture and editing remain available. The optional
-`otter-with-loom.cmd` compatibility launcher preserves an explicit opt-out and
-does not change user or machine environment variables.
+extensions. Without Loom, local capture and editing remain available; no separate
+Loom integration launcher is required.
 Select an image sticker: `Ctrl+4` reruns OCR, `Alt+4` toggles OCR, `Ctrl+5` reruns
 translation, and `Alt+5` toggles translation (missing results are created first).
 The corresponding Loom capabilities must be installed, enabled, and authorized.
@@ -53,14 +52,19 @@ Self-hosted private-CA HTTPS Loom can use [origin-scoped process trust](docs/SEC
 for HTTP and media WSS, without changing Windows roots or device-pairing rules.
 This configuration support is not direct-LAN two-machine acceptance evidence.
 
-The projection secondary toolbar uses device/group checkboxes to start or cancel
+Projection now lives below the sticker settings panel, with send/receive icon tabs.
+Receive placeholders use a gray background. The tray's checkable “自启动” item above Quit controls Windows login startup for the current user, using the executable path at enable time; re-enable after moving the portable application.
+The tray's “接收投射” action creates a blank sticker and opens the same QR import dialog inside it; successful import fills that sticker. Tray shortcut hints follow the current configuration in a separate aligned column.
+The fixed 320×280 target dialog uses device/group checkboxes to start or cancel
 projection directly, with per-row pending/success/failure markers and safe retry.
 Success follows receiver display or remote cancellation acknowledgement.
-The receive toolbar displays data flow as a read-only indicator. Its single import
-compact, sticker-anchored dialog accepts a QR PNG or projection link without explanatory
+The receive tab displays both mutually exclusive flow buttons as read-only indicators.
+Its QR and link import buttons open the same compact, sticker-anchored dialog with switchable QR/link tabs, also reused by tray reception, without explanatory
 labels and receives content after an explicit
 Import action; the sender identifier remains visible without a revision button.
-Count-free device/group/user icons open dropdowns; target rows show IDs and checkboxes. Long target
+Device/group/user icons show confirmed counts and open the corresponding dialog tab;
+tab switching preserves its size. The source projection ID can be copied or unlinked,
+and remains visible until remote unlink acknowledgement. Long target
 and font lists support wheel scrolling and draggable scrollbars in the overlay.
 The user dropdown reports the unavailable account service. This UI increment has
 focused and browser coverage. Isolated candidates have also passed PC1/PC3
@@ -150,7 +154,11 @@ Actual executable/process SHA binding is external; these counters are not displa
 - crop, erase, border, corner radius, opacity, rotate, flip, and beautify tools;
 - text, numbering, shapes, lines, arrows, brush, highlighter, mosaic, and blur
   annotations;
+- compact text/numbering properties share transparent color swatches, font selection, and 8–999 size/radius steppers for creation and selected annotations;
+- with the text tool active, click an existing text annotation to edit its content; click empty space to create another text annotation;
 - geometry-aware annotation selection instead of bounding-box-only hit testing;
+- compact pencil/paintbrush properties with independent size, opacity and smoothing; natural speed-sensitive, lightly softened brush strokes support undo/redo and rasterization ([freehand editing](docs/FREEHAND_EDITING.md));
+- editable multi-segment Bézier paths: double-click to insert anchors, drag endpoint `+` handles to extend, and right-click white anchors to delete them with undo/redo; see [curve editing](docs/BEZIER_EDITING.md);
 - recycle bin, reference library, groups, history, undo, and redo;
 - Unicode-safe naming for visible save, clipboard, and drag-export files;
 - fast minified/full-view switching through cached composite previews;

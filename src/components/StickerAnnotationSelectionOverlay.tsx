@@ -1,6 +1,9 @@
 import { For, Show, type Component, type Setter } from "solid-js";
+import { bezierHandles, bezierExtensionHandles, bezierGuidePath, bezierPath } from "../services/stickerBezierGeometry";
+import { paintbrushPath } from "../services/stickerPaintbrushGeometry";
 
 import { getAnnotationBounds } from "../services/stickerGeometry";
+import { getTextLineMetrics, TEXT_FRAME_PADDING } from "../services/stickerTextGeometry";
 import type {
     StickerAnnotation,
     StickerEffectAnnotation,
@@ -61,12 +64,12 @@ const getBoundsHandlePoints = (bounds: { x: number; y: number; w: number; h: num
     { handle: "se" as const, x: bounds.x + bounds.w, y: bounds.y + bounds.h },
 ];
 
-const SelectionBoundsRect: Component<{ bounds: { x: number; y: number; w: number; h: number } }> = (props) => (
+const SelectionBoundsRect: Component<{ bounds: { x: number; y: number; w: number; h: number }; verticalPadding?: number; horizontalPadding?: number }> = (props) => (
     <rect
-        x={props.bounds.x - 4}
-        y={props.bounds.y - 4}
-        width={props.bounds.w + 8}
-        height={props.bounds.h + 8}
+        x={props.bounds.x - (props.horizontalPadding ?? TEXT_FRAME_PADDING)}
+        y={props.bounds.y - (props.verticalPadding ?? TEXT_FRAME_PADDING)}
+        width={props.bounds.w + (props.horizontalPadding ?? TEXT_FRAME_PADDING) * 2}
+        height={props.bounds.h + (props.verticalPadding ?? TEXT_FRAME_PADDING) * 2}
         rx={8}
         ry={8}
         fill="none"
@@ -77,6 +80,7 @@ const SelectionBoundsRect: Component<{ bounds: { x: number; y: number; w: number
 );
 
 const lineHandlePoints = (annotation: StickerLineAnnotation) => {
+    if (annotation.type === "bezier") return [...bezierHandles(annotation.points), ...bezierExtensionHandles(annotation.points)];
     if (annotation.points.length < 2) return [];
     return [
         { handle: "start" as const, point: annotation.points[0] },
@@ -97,26 +101,36 @@ export const StickerAnnotationSelectionOverlay: Component<StickerAnnotationSelec
                             return (
                                 <g>
                                     <path
-                                        d={renderLinePath(value.points)}
+                                        d={value.style.brushTip === "tapered" ? paintbrushPath(value.points, value.style.width, value.style.brushWeights) : value.type === "bezier" ? bezierPath(value.points) : renderLinePath(value.points)}
                                         stroke="rgba(255,255,255,0.9)"
-                                        stroke-width={(value.style.width || 2) + 6}
+                                        stroke-width={value.style.brushTip === "tapered" ? 2 : (value.style.width || 2) + 6}
                                         stroke-linecap="round"
                                         stroke-linejoin="round"
-                                        fill="none"
+                                        fill={value.style.brushTip === "tapered" ? "white" : "none"}
                                         opacity={0.25}
+                                        style={{ "pointer-events": "none" }}
                                     />
-                                    <Show when={props.transformMode === "select" && (value.type === "line" || value.type === "arrow" || value.type === "polyline")}>
+                                    <Show when={value.type === "bezier" && props.transformMode === "select"}>
+                                        <path d={bezierGuidePath(value.points)}
+                                            fill="none" stroke="var(--theme-signal, #d9ff38)" stroke-width="1" stroke-dasharray="4 3" style={{ "pointer-events": "none" }} />
+                                    </Show>
+                                    <Show when={props.transformMode === "select" && (value.type === "line" || value.type === "arrow" || value.type === "polyline" || value.type === "bezier")}>
                                         <For each={lineHandlePoints(value as StickerLineAnnotation)}>
                                             {(handle) => (
+                                                <g>
                                                 <circle
+                                                    data-bezier-handle={value.type === "bezier" && !handle.handle.startsWith("extend") ? handle.handle : undefined}
+                                                    data-bezier-extend={handle.handle.startsWith("extend") ? handle.handle : undefined}
+                                                    aria-label={handle.handle.startsWith("extend") ? (handle.handle === "extend-start" ? "从起点延长曲线" : "从终点延长曲线") : value.type === "bezier" ? `贝塞尔${handle.handle.startsWith("node:") ? "节点" + Number(handle.handle.split(":")[1]) / 3 : handle.handle === "start" ? "起点" : handle.handle === "end" ? "终点" : "控制点" + (handle.handle === "control1" ? 1 : handle.handle === "control2" ? 2 : handle.handle.split(":")[1])}` : undefined}
                                                     cx={handle.point.x}
                                                     cy={handle.point.y}
-                                                    r="5"
-                                                    fill="#ffffff"
+                                                    r={handle.handle.startsWith("extend") ? 8 : 5}
+                                                    fill={handle.handle.startsWith("extend") ? "#0e1218" : handle.handle.startsWith("control") ? "var(--theme-signal, #d9ff38)" : "#ffffff"}
                                                     stroke="rgba(15,23,42,0.95)"
                                                     stroke-width="1.5"
                                                     style={{ cursor: "move" }}
                                                     onPointerDown={(event) => {
+                                                        if (event.button !== 0) return;
                                                         event.stopPropagation();
                                                         event.preventDefault();
                                                         props.captureHostPointer(event.pointerId);
@@ -129,6 +143,11 @@ export const StickerAnnotationSelectionOverlay: Component<StickerAnnotationSelec
                                                         });
                                                     }}
                                                 />
+                                                <Show when={handle.handle.startsWith("extend")}>
+                                                    <path d={`M ${handle.point.x - 4} ${handle.point.y} h8 M ${handle.point.x} ${handle.point.y - 4} v8`}
+                                                        stroke="var(--theme-signal, #d9ff38)" stroke-width="1.5" style={{ "pointer-events": "none" }} />
+                                                </Show>
+                                                </g>
                                             )}
                                         </For>
                                     </Show>
@@ -178,7 +197,8 @@ export const StickerAnnotationSelectionOverlay: Component<StickerAnnotationSelec
                         const bounds = getAnnotationBounds(textAnnotation);
                         return (
                             <g>
-                                <SelectionBoundsRect bounds={bounds} />
+                                <SelectionBoundsRect bounds={bounds} verticalPadding={textAnnotation.type === "text" ? 0 : undefined}
+                                    horizontalPadding={textAnnotation.type === "text" ? getTextLineMetrics(textAnnotation.fontSize ?? 18, textAnnotation.fontFamily).sidePadding : undefined} />
                                 <Show when={props.transformMode === "select"}>
                                     <For each={getBoundsHandlePoints(bounds)}>
                                         {(handle) => (

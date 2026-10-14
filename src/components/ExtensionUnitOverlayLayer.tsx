@@ -13,6 +13,8 @@ import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import type { Unit } from "../types/unit";
 import type { UnitAttachment } from "../types/unitExtension";
 import { DeclarativeSurface } from "./DeclarativeSurface";
+import { stickerToolSettings } from "../store/uiStore";
+import { copyOverlayText, supportsOverlayTextCopy } from "./extensionOverlayTextCopy";
 import "./ExtensionUnitOverlayLayer.css";
 
 interface Props {
@@ -41,11 +43,15 @@ const rectId = (unitId: string, descriptorId: string, attachmentId: string) =>
     `EXTENSION_OVERLAY_${unitId}_${descriptorId}_${attachmentId}`;
 
 const ExtensionSurfaceHost: Component<SurfaceHostProps> = (props) => {
+    const localCopy = () => supportsOverlayTextCopy(props.attachment)
+        && (!props.editorOwnsPointerInput || stickerToolSettings.mode === "select");
+    const passthrough = () => props.editorOwnsPointerInput && !localCopy();
+    const interactive = () => !props.isMinified && !passthrough() && (localCopy() || Boolean(props.descriptor.commandId));
     onCleanup(registerExtensionSurfaceInstance());
     createEffect(() => {
         const id = rectId(props.unit.id, props.descriptor.id, props.attachment.attachmentId);
         const bounds = clippedBounds(props.unit, props.descriptor.bounds);
-        if (!props.isMinified && !props.editorOwnsPointerInput && props.descriptor.commandId && bounds) {
+        if (interactive() && bounds) {
             addOrUpdateRect({
                 id,
                 x: props.unit.x + bounds.x,
@@ -86,7 +92,7 @@ const ExtensionSurfaceHost: Component<SurfaceHostProps> = (props) => {
             top: `${bounds.y}px`,
             width: `${bounds.width}px`,
             height: `${bounds.height}px`,
-            "pointer-events": props.editorOwnsPointerInput ? "none" : "auto",
+            "pointer-events": passthrough() || localCopy() ? "none" : "auto",
         } : { display: "none" };
     };
     const onEvent = (event: SurfaceEvent) => {
@@ -111,15 +117,23 @@ const ExtensionSurfaceHost: Component<SurfaceHostProps> = (props) => {
     return (
         <div
             class="extension-unit-surface"
-            data-editor-pointer-passthrough={props.editorOwnsPointerInput ? "true" : "false"}
+            data-editor-pointer-passthrough={passthrough() ? "true" : "false"}
+            data-local-text-copy={localCopy() ? "true" : "false"}
+            ref={(element) => {
+                const onClick = (event: MouseEvent) => {
+                    if (interactive() && localCopy()) copyOverlayText(event, props.unit.id);
+                };
+                element.addEventListener("click", onClick, true);
+                onCleanup(() => element.removeEventListener("click", onClick, true));
+            }}
             style={style()}
         >
             <DeclarativeSurface
                 unitId={props.unit.id}
                 snapshot={snapshot()}
                 generation={props.descriptor.generation}
-                interactive={!props.isMinified && !props.editorOwnsPointerInput && Boolean(props.descriptor.commandId)}
-                pointerPassthrough={props.editorOwnsPointerInput}
+                interactive={interactive()}
+                pointerPassthrough={passthrough()}
                 onActivate={props.onActivate}
                 onEvent={onEvent}
             />

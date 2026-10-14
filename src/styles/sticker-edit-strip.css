@@ -1,0 +1,221 @@
+/* Ctrl+E chrome only: property panels retain their existing presentation. */
+.otter-edit-strip {
+  --edit-strip-frame: color-mix(in srgb, var(--neuro-surface) 88%, white);
+  --edit-strip-button-surface: color-mix(in srgb, var(--theme-control) 94%, var(--theme-text));
+  box-sizing: border-box;
+  padding: 4px 5px;
+  background: var(--neuro-surface);
+  border: 1px solid var(--edit-strip-frame);
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.otter-edit-strip .otter-toolbar-button {
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  border-radius: 5px;
+  background: var(--edit-strip-button-surface);
+  background-clip: padding-box;
+  color: var(--theme-text-secondary);
+}
+
+.otter-edit-strip .otter-toolbar-button > svg {
+  width: 22.5px;
+  height: 22.5px;
+  flex-shrink: 0;
+}
+
+.otter-edit-strip .otter-toolbar-button:is(:hover, [data-toolbar-hover="true"]):not(:disabled) {
+  background-color: color-mix(in srgb, var(--edit-strip-button-surface) 94%, var(--theme-text));
+  color: var(--theme-text);
+}
+
+.otter-edit-strip .otter-toolbar-button--active {
+  background-color: color-mix(in srgb, var(--theme-signal) 12%, var(--edit-strip-button-surface));
+  outline: 1px solid var(--theme-signal);
+  outline-offset: -3px;
+  color: var(--theme-signal);
+}
+
+.otter-edit-strip .otter-toolbar-button:disabled {
+  color: var(--theme-text-muted);
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.otter-edit-strip .otter-toolbar-button:disabled > svg {
+  opacity: 0.4;
+}
+
+.otter-edit-strip button:focus-visible {
+  outline: 2px solid var(--theme-signal);
+  outline-offset: -2px;
+}
+
+.otter-edit-strip .otter-toolbar-corner-toggle {
+  background: transparent;
+  border-radius: 2px;
+  color: var(--theme-text-secondary);
+}
+
+.otter-edit-strip .otter-toolbar-corner-toggle:is(:hover, [data-toolbar-hover="true"]),
+.otter-edit-strip .otter-toolbar-button--active + .otter-toolbar-corner-toggle {
+  color: var(--theme-signal);
+}
+
+.otter-edit-strip .otter-toolbar-corner-toggle svg {
+  width: 12px;
+  height: 12px;
+}
+
+.otter-edit-strip-divider {
+  position: relative;
+  width: 8px;
+  height: 28px;
+  background: linear-gradient(var(--edit-strip-frame), var(--edit-strip-frame)) center / 1px 12px no-repeat;
+}
+
+.otter-edit-strip-divider::before,
+.otter-edit-strip-divider::after {
+  content: "";
+  position: absolute;
+  left: 1px;
+  width: 6px;
+  height: 3px;
+  background: var(--edit-strip-frame);
+  pointer-events: none;
+}
+
+.otter-edit-strip-divider::before {
+  /* Keep a 3px clear gap to the shell's inner edge, with no alpha overlap. */
+  top: -1px;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.otter-edit-strip-divider::after {
+  bottom: -1px;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.otter-edit-strip .otter-toolbar-menu {
+  --edit-strip-menu-surface: color-mix(in srgb, var(--neuro-panel) 96%, var(--theme-text));
+  left: 0;
+  width: max-content;
+  min-width: 88px;
+  margin-top: 12px;
+  padding: 2px 0;
+  background: var(--edit-strip-menu-surface);
+  border: 1px solid var(--edit-strip-frame);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+/* The rotated corner replaces the top edge visually, rather than stacking two triangles. */
+.otter-edit-strip .otter-toolbar-menu::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: var(--edit-strip-menu-pointer-x, 13px);
+  width: 8px;
+  height: 8px;
+  background: var(--edit-strip-menu-surface);
+  border-top: 1px solid var(--edit-strip-frame);
+  border-left: 1px solid var(--edit-strip-frame);
+  transform: translateX(-50%) rotate(45deg);
+  pointer-events: none;
+}
+
+.otter-edit-strip .otter-toolbar-menu--above::before {
+  top: auto;
+  bottom: -5px;
+  transform: translateX(-50%) rotate(225deg);
+}
+
+.otter-edit-strip .otter-toolbar-menu--scroll::before {
+  display: none;
+}
+
+.otter-edit-strip .otter-toolbar-menu-item {
+  position: relative;
+  height: 20px;
+  gap: 5px;
+  padding: 0 8px;
+  border-left-width: 2px;
+  border-radius: 0;
+  white-space: nowrap;
+}
+
+.otter-edit-strip .otter-toolbar-menu-item > svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.otter-edit-strip .otter-toolbar-menu-item:is(:hover, [data-toolbar-hover="true"]):not(:disabled) {
+  background: color-mix(in srgb, var(--edit-strip-menu-surface) 82%, var(--theme-text));
+  color: var(--theme-text);
+}
+
+.otter-edit-strip .otter-toolbar-menu-item:disabled:is(:hover, [data-toolbar-hover="true"]) {
+  background: transparent;
+  color: var(--theme-text-secondary);
+  cursor: not-allowed;
+}
+
+.otter-edit-strip .otter-toolbar-menu-item--active,
+.otter-edit-strip .otter-toolbar-menu-item[aria-checked="true"] {
+  border-left-color: var(--theme-signal);
+  background: color-mix(in srgb, var(--theme-signal) 14%, var(--edit-strip-menu-surface));
+  color: var(--theme-signal);
+}
+
+.otter-edit-strip .otter-toolbar-menu-item--active:is(:hover, [data-toolbar-hover="true"]):not(:disabled),
+.otter-edit-strip .otter-toolbar-menu-item[aria-checked="true"]:is(:hover, [data-toolbar-hover="true"]):not(:disabled) {
+  background: color-mix(in srgb, var(--theme-signal) 25%, var(--edit-strip-menu-surface));
+  color: var(--theme-signal);
+}
+
+/* Mode choices use a quiet inset selection and a separate shortcut column. */
+.otter-edit-strip .otter-mode-menu {
+  min-width: 96px;
+  padding: 3px;
+  border-radius: 6px;
+}
+
+.otter-edit-strip .otter-mode-menu .otter-toolbar-menu-item {
+  padding: 0 5px;
+  border-left: 0;
+  border-radius: 3px;
+}
+
+.otter-edit-strip .otter-mode-menu .otter-toolbar-menu-item--active {
+  background: var(--edit-strip-button-surface);
+}
+
+.otter-edit-strip .otter-mode-menu .otter-toolbar-menu-item:is(:hover, [data-toolbar-hover="true"]):not(:disabled) {
+  background: color-mix(in srgb, var(--edit-strip-button-surface) 82%, var(--theme-text));
+}
+
+.otter-edit-strip .otter-mode-menu .otter-toolbar-menu-item > svg {
+  color: var(--theme-text-muted);
+}
+
+.otter-edit-strip .otter-mode-menu .otter-toolbar-menu-item--active > svg,
+.otter-edit-strip .otter-mode-menu .otter-toolbar-menu-item:is(:hover, [data-toolbar-hover="true"]):not(:disabled) > svg {
+  color: var(--theme-text);
+}
+
+.otter-edit-strip .otter-mode-menu .otter-toolbar-shortcut {
+  min-width: 12px;
+  text-align: right;
+  color: color-mix(in srgb, var(--theme-text-muted) 65%, var(--edit-strip-menu-surface));
+}
+
+.otter-edit-strip .otter-mode-menu .otter-toolbar-menu-item:is(:hover, [data-toolbar-hover="true"]):not(:disabled) .otter-toolbar-shortcut {
+  color: var(--theme-text);
+}
+
+.otter-edit-strip .otter-mode-menu .otter-toolbar-menu-item--active .otter-toolbar-shortcut,
+.otter-edit-strip .otter-mode-menu .otter-toolbar-menu-item--active:is(:hover, [data-toolbar-hover="true"]):not(:disabled) .otter-toolbar-shortcut {
+  color: var(--theme-signal);
+}

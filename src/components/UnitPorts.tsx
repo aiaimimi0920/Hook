@@ -4,12 +4,18 @@ import { Portal } from "solid-js/web";
 import { Unit } from "../types/unit";
 import { ArtCapability } from "../services/protocol";
 import { logger } from "../services/logger";
+import { propertyType, UnitPropertyTypeIcon } from "./UnitPropertyTypeIcon";
+import { createUnitPortGesture } from "./unitPortGesture";
+import { requestUnitPropertyDisclosure } from "../store/unitPropertyDisclosure";
+import { linkingState } from "../store/uiStore";
+import "../styles/unit-tab-properties.css";
 import {
   registerDragFollowerElement,
   unregisterDragFollowerElement,
 } from "../services/dragFollowerRegistry";
 
 interface UnitPortsProps {
+  outlineOutset?: number;
   unit: Unit;
   capability?: ArtCapability;
   portsLayer?: HTMLElement;
@@ -27,6 +33,7 @@ interface UnitPortsProps {
 }
 
 export const UnitPorts: Component<UnitPortsProps> = (props) => {
+  const gesture = createUnitPortGesture();
   let wrapperRef: HTMLDivElement | undefined;
   let dragFollowerRegistration: { unitId: string; element: HTMLDivElement } | null = null;
 
@@ -123,7 +130,7 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
                     <div
                         class={`absolute top-0 bottom-0 pointer-events-auto flex flex-col justify-start gap-3`}
                         style={{
-                            left: isMinified() ? "-8px" : "-18px",
+                            left: isMinified() ? "-8px" : `${-12 - (props.outlineOutset ?? 1)}px`,
                             "padding-top": isMinified() ? "0" : "24px" ,
                             width: "24px", // Always allocate width
                             height: "100%",
@@ -132,10 +139,11 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
                         <For each={getVisibleInputs()}>
                             {(port, i) => (
                                 <div
-                                    class="otter-panel-port rounded-full transition-all cursor-pointer relative group/port hover:scale-110"
+                                    class="unit-property-node-port cursor-pointer relative"
                                     data-port-name={port.name}
                                     data-node-port="true"
                                     style={{
+                                        "clip-path": isMinified() ? undefined : "inset(0 50% 0 0)",
                                         "width": isMinified() ? "8px" : "24px",
                                         "height": isMinified() ? "8px" : "24px",
                                         "flex-shrink": 0, // Prevent squashing
@@ -145,18 +153,17 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
                                             "top": `calc(${((i() + 0.5) / getInputs().length) * 100}% - 4px)`
                                         } : {})
                                     }}
-                                    onMouseDown={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        if (props.onLinkMove) props.onLinkMove(port.name, e);
-                                    }}
+                                    onMouseDown={(e) => gesture(e, {
+                                        click: () => requestUnitPropertyDisclosure(props.unit.id, port.name, "input"),
+                                        drag: (_center, move) => props.onLinkMove?.(port.name, move),
+                                    })}
                                     onMouseUp={(e) => {
                                         e.stopPropagation();
                                         // Explicitly notify parent to complete the link
                                         logger.debug("UnitView: Input Port MouseUp -> onLinkDrop", port.name);
-                                        props.onLinkDrop(port.name);
+                                        if (linkingState().isLinking) props.onLinkDrop(port.name);
                                     }}
-                                />
+                                ><UnitPropertyTypeIcon type={propertyType(port.type)} /></div>
                             )}
                         </For>
                     </div>
@@ -165,7 +172,7 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
                     <div
                         class={`absolute top-0 bottom-0 pointer-events-auto flex flex-col justify-start items-end gap-3`}
                         style={{
-                            right: isMinified() ? "-8px" : "-18px",
+                            right: isMinified() ? "-8px" : `${-12 - (props.outlineOutset ?? 1)}px`,
                             "padding-top": isMinified() ? "0" : "24px",
                             width: "24px",
                             height: "100%"
@@ -174,11 +181,12 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
                         <For each={getVisibleOutputs()}>
                             {(port, i) => (
                                 <div
-                                    class="otter-panel-port rounded-full transition-all cursor-cell relative group/port hover:scale-110"
+                                    class="unit-property-node-port cursor-cell relative"
                                     data-port-name={port.name}
                                     data-node-port="true"
                                     title={port.label || "Output"}
                                     style={{
+                                        "clip-path": isMinified() ? undefined : "inset(0 0 0 50%)",
                                         "width": isMinified() ? "8px" : "24px",
                                         "height": isMinified() ? "8px" : "24px",
                                         "flex-shrink": 0, // Prevent squashing
@@ -187,13 +195,11 @@ export const UnitPorts: Component<UnitPortsProps> = (props) => {
                                             "top": `calc(${((i() + 0.5) / getOutputs().length) * 100}% - 4px)`
                                         } : {})
                                     }}
-                                    onMouseDown={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        logger.debug("Link Start from Output", port.name);
-                                        props.onLinkStart(port.name, e.clientX, e.clientY);
-                                    }}
-                                />
+                                    onMouseDown={(e) => gesture(e, {
+                                        click: () => requestUnitPropertyDisclosure(props.unit.id, port.name, "output"),
+                                        drag: (center) => props.onLinkStart(port.name, center.x, center.y),
+                                    })}
+                                ><UnitPropertyTypeIcon type={propertyType(port.type)} /></div>
                             )}
                         </For>
                     </div>

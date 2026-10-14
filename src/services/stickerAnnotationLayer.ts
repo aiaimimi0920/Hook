@@ -7,6 +7,7 @@ import {
     drawAnnotation,
 } from "./stickerAnnotationDrawing";
 import { HIGHLIGHTER_LAYER_OPACITY } from "./stickerEditing";
+import { freehandOpacity } from "./stickerPaintbrushGeometry";
 
 export const drawAnnotationsWithHighlighterLayer = (
     context: CanvasRenderingContext2D,
@@ -24,8 +25,7 @@ export const drawAnnotationsWithHighlighterLayer = (
         (annotation): annotation is StickerLineAnnotation => annotation.type === "highlighter",
     );
 
-    // Draw every highlighter at full opacity, then blit the layer once so
-    // overlaps never compound alpha and live/export behavior stays aligned.
+    // Preserve the shared wash ceiling while allowing each stroke to be lighter.
     if (highlighters.length > 0 && layerWidth > 0 && layerHeight > 0) {
         const layer = document.createElement("canvas");
         layer.width = Math.max(1, Math.round(layerWidth * coordinateScale.x));
@@ -39,7 +39,7 @@ export const drawAnnotationsWithHighlighterLayer = (
                 drawStrokePath(layerContext, highlighter.points, {
                     color: highlighter.style.color,
                     width: highlighter.style.width,
-                    opacity: 1,
+                    opacity: freehandOpacity((highlighter.style.opacity ?? HIGHLIGHTER_LAYER_OPACITY) / HIGHLIGHTER_LAYER_OPACITY),
                 });
             }
             context.save();

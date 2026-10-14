@@ -3,13 +3,11 @@ import type { Accessor } from "solid-js";
 import { graphStore } from "../store/graphStore";
 import {
     activeStickerEditTargetId,
-    isCleanView,
     isSelecting,
     longCaptureSession,
     selectedStickerAnnotationId,
     selectedStickerAnnotationIds,
     selectedStickerId,
-    setIsCleanView,
     stickerToolSettings,
     enhancementNotices,
     uiActions,
@@ -24,6 +22,7 @@ import type { ArtCapability } from "../services/protocol";
 import { syncService } from "../services/syncService";
 import { toggleSelectedStickerToolbar } from "../services/stickerToolbarShortcutRouting";
 import { useShortcuts } from "./useShortcuts";
+import { cycleUnitChromeMode } from "../store/unitChromeState";
 import { commitLiveCaptureUnitFrame } from "../services/liveCaptureUnit";
 import type { LiveSnapshotActionResult } from "../services/liveCaptureSnapshotAction";
 
@@ -148,7 +147,8 @@ export function useAppShortcutController(dependencies: AppShortcutControllerDepe
             },
             onToggleCleanView: () => {
                 logger.debug("Toggle Clean View Mode");
-                setIsCleanView(!isCleanView());
+                cycleUnitChromeMode();
+                dependencies.scheduleOverlayHitTestRefresh();
             },
             onTransformSelect: () => {
                 if (selectedStickerId()) uiActions.setStickerTransformMode("select");

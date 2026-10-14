@@ -1,3 +1,4 @@
+import { moveBezierHandle } from "./stickerBezierGeometry";
 import { unwrap } from "solid-js/store";
 import type { StickerAnnotation, StickerPoint } from "../types/stickerEditing";
 import type { LineEndpointHandle, ResizeHandle } from "./stickerGeometryTypes";
@@ -34,6 +35,7 @@ export const translateAnnotation = <T extends StickerAnnotation>(
             };
         case "line":
         case "polyline":
+        case "bezier":
         case "arrow":
         case "brush":
         case "highlighter":
@@ -127,6 +129,9 @@ export const moveLineEndpoint = <T extends StickerAnnotation>(
     handle: LineEndpointHandle,
     point: StickerPoint,
 ): T => {
+    if (annotation.type === "bezier") {
+        return { ...annotation, points: moveBezierHandle(annotation.points, handle, point) };
+    }
     if (
         !(
             annotation.type === "line" ||

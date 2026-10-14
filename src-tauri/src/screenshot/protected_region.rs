@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Context};
 use image::RgbImage;
 
-use super::dispatch::capture_area_with_profile;
+use super::dispatch::capture_sdr_from_plan;
+use super::display_selection::capture_plan;
 use super::dwm_shared_surface::try_capture_protected_window_region;
 use super::{CaptureBackend, CaptureWorkloadProfile, DynamicCapturePixels, DynamicCaptureResult};
 use crate::capture_coords::CaptureWindowMetrics;
@@ -17,13 +18,17 @@ use crate::capture_windows::CaptureWindowTarget;
 /// missing protected surface is an error rather than a partial screenshot.
 pub(crate) fn capture_region_with_protected_window(
     capture_window_id: &str,
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
     display_metrics: CaptureWindowMetrics,
     occluding_windows: &[CaptureWindowTarget],
 ) -> anyhow::Result<DynamicCaptureResult> {
+    let plan = capture_plan(x, y, w, h, Some(display_metrics))?;
+    let (x, y) = (plan.origin.x, plan.origin.y);
+    let w = (plan.crop.right - plan.crop.left) as f64 / display_metrics.scale_factor;
+    let h = (plan.crop.bottom - plan.crop.top) as f64 / display_metrics.scale_factor;
     let protected =
         try_capture_protected_window_region(capture_window_id, x, y, w, h, display_metrics)
             .ok_or_else(|| {
@@ -33,7 +38,7 @@ pub(crate) fn capture_region_with_protected_window(
     // clients rotate or temporarily release their shared DWM handle when a
     // display capture session is opened; sampling it first avoids that race.
     let mut background =
-        capture_area_with_profile(x, y, w, h, CaptureWorkloadProfile::StandardRegion)?;
+        capture_sdr_from_plan(&plan, CaptureWorkloadProfile::StandardRegion)?.image;
     let occlusion_rects =
         occlusion_rects_for_targets(x, y, display_metrics, &background, occluding_windows);
     paste_protected_surface(
@@ -54,6 +59,7 @@ pub(crate) fn capture_region_with_protected_window(
         occlusion_rects.len()
     ));
     Ok(DynamicCaptureResult {
+        origin: plan.origin,
         pixels: DynamicCapturePixels::Sdr(background),
         backend: CaptureBackend::DwmSharedSurface,
         downgraded_from_hdr: false,
@@ -98,8 +104,8 @@ fn paste_protected_surface(
 }
 
 fn occlusion_rects_for_targets(
-    x: i32,
-    y: i32,
+    x: f64,
+    y: f64,
     display_metrics: CaptureWindowMetrics,
     destination: &RgbImage,
     targets: &[CaptureWindowTarget],
@@ -110,8 +116,8 @@ fn occlusion_rects_for_targets(
         .then_some(display_metrics.scale_factor)
         .filter(|scale| *scale > 0.0)
         .unwrap_or(1.0);
-    let selection_left = (x as f64 * scale).floor();
-    let selection_top = (y as f64 * scale).floor();
+    let selection_left = crate::capture_coords::physical_edge(x * scale).floor();
+    let selection_top = crate::capture_coords::physical_edge(y * scale).floor();
     let width = destination.width();
     let height = destination.height();
     targets
@@ -222,10 +228,10 @@ mod tests {
             .unwrap_or_default();
         let result = super::super::protected_region::capture_region_with_protected_window(
             &hwnd,
-            x,
-            y,
-            w,
-            h,
+            x.into(),
+            y.into(),
+            w.into(),
+            h.into(),
             metrics,
             &occluding_windows,
         )

@@ -18,6 +18,7 @@ import {
 } from "../../src/store/uiStore";
 import { updatePortOffset } from "../../src/services/uiRegistry";
 import type { Link, Unit } from "../../src/types/unit";
+import { setUnitChromeMode } from "../../src/store/unitChromeState";
 
 const unit = (id: string, x = 0, y = 0): Unit => ({
     id, type: "sticker", x, y, w: 100, h: 80,
@@ -32,7 +33,7 @@ const setPanel = (id: string, showParams: boolean) =>
 let container: HTMLDivElement;
 let dispose: (() => void) | undefined;
 const paths = () => Array.from(container.querySelectorAll<SVGPathElement>(
-    'path[stroke="var(--theme-text-muted)"]',
+    'path[stroke="var(--theme-signal)"]',
 ));
 const mount = () => { dispose = render(() => <CanvasLinks />, container); };
 
@@ -61,22 +62,62 @@ afterEach(() => {
 });
 
 describe("CanvasLinks DOM ownership", () => {
+    it("hides reference lines with endpoints in both global hidden modes and restores after Tab expansion", () => {
+        mount();
+        expect(paths()).toHaveLength(1);
+        for (const mode of ["border", "none"] as const) {
+            setUnitChromeMode(mode);
+            expect(paths()).toHaveLength(0);
+            setPanel("from", true);
+            expect(paths()).toHaveLength(0);
+            setPanel("to", true);
+            expect(paths().length).toBeGreaterThan(0);
+            setPanel("from", false); setPanel("to", false);
+            expect(paths()).toHaveLength(0);
+        }
+        setUnitChromeMode("all");
+        expect(paths()).toHaveLength(1);
+    });
+
+    it("honors per-unit endpoint visibility for completed links, highlights and drag previews", () => {
+        graphStore.setUnitParams("from", { image: "to" });
+        setSelectedStickerId("from");
+        setHoveringLink({ sourceUnitId: "from", targetUnitId: "to" });
+        setLinkingState({ isLinking: true, sourceUnitId: "from", sourceParamId: "output_image", startX: 111, startY: 56 });
+        mount();
+        expect(container.querySelectorAll("path, line, rect").length).toBeGreaterThan(0);
+        graphStore.setUnits(0, "data", "hideCollapsedEndpoints", true);
+        expect(container.querySelectorAll("path, line, rect")).toHaveLength(0);
+        setPanel("from", true);
+        expect(container.querySelectorAll("path, line, rect").length).toBeGreaterThan(0);
+        setPanel("from", false);
+        expect(container.querySelectorAll("path, line, rect")).toHaveLength(0);
+        graphStore.setUnits(0, "data", "hideCollapsedEndpoints", false);
+        expect(container.querySelectorAll("path, line, rect").length).toBeGreaterThan(0);
+    });
+    it("uses theme signal yellow for the drag preview, completed connection and arrowhead", () => {
+        setLinkingState({ isLinking: true, sourceUnitId: "from", sourceParamId: "output_image", startX: 111, startY: 56 });
+        mount();
+        expect(paths()).toHaveLength(2);
+        expect(paths()[0].getAttribute("d")).toMatch(/^M 111 56 C /);
+        expect(container.querySelector("marker polygon")?.getAttribute("fill")).toBe("var(--theme-signal)");
+    });
     it("updates dragged, committed, resized, and minified geometry on the same path", () => {
         mount();
         const body = paths()[0];
-        expect(body.getAttribute("d")).toBe("M 116 56 C 166 56, 244 136, 294 136");
+        expect(body.getAttribute("d")).toBe("M 111 56 C 161 56, 249 136, 299 136");
         setMultiDragPositions({ from: { x: 40, y: 60 } });
         expect(paths()[0]).toBe(body);
-        expect(body.getAttribute("d")).toBe("M 146 96 C 196 96, 244 136, 294 136");
+        expect(body.getAttribute("d")).toBe("M 141 96 C 191 96, 249 136, 299 136");
         batch(() => {
             graphStore.setUnits(0, { x: 50, y: 70, w: 120 });
             setMultiDragPositions(null);
         });
         expect(paths()[0]).toBe(body);
-        expect(body.getAttribute("d")).toBe("M 176 106 C 226 106, 244 136, 294 136");
+        expect(body.getAttribute("d")).toBe("M 171 106 C 221 106, 249 136, 299 136");
         graphStore.setUnits(0, "data", "minified", true);
         expect(paths()[0]).toBe(body);
-        expect(body.getAttribute("d")).toBe("M 174 110 C 224 110, 244 136, 294 136");
+        expect(body.getAttribute("d")).toBe("M 174 110 C 224 110, 249 136, 299 136");
         setLayoutTick((tick) => tick + 1);
         expect(paths()[0]).toBe(body);
     });
@@ -91,7 +132,7 @@ describe("CanvasLinks DOM ownership", () => {
         updatePortOffset("from", "output_image", { x: 150, y: 90 });
         expect(paths()[0]).toBe(body);
         expect(paths()[1]).toBe(dashed);
-        expect(dashed.getAttribute("d")).toBe("M 160 110 C 210 110, 244 136, 294 136");
+        expect(dashed.getAttribute("d")).toBe("M 160 110 C 210 110, 249 136, 299 136");
         setIsCleanView(true);
         expect(paths()).toHaveLength(0);
         setPanel("to", true);
@@ -123,13 +164,13 @@ describe("CanvasLinks DOM ownership", () => {
         }]);
         mount();
         const body = paths()[0];
-        expect(body.getAttribute("d")).toBe("M 116 92 C 166 92, 244 136, 294 136");
+        expect(body.getAttribute("d")).toBe("M 111 92 C 161 92, 249 136, 299 136");
         graphStore.setCapabilities(0, "outputs", [secondary, primary]);
         expect(paths()[0]).toBe(body);
-        expect(body.getAttribute("d")).toBe("M 116 56 C 166 56, 244 136, 294 136");
+        expect(body.getAttribute("d")).toBe("M 111 56 C 161 56, 249 136, 299 136");
         graphStore.setLinks(0, "fromPortId", "primary");
         expect(paths()[0]).toBe(body);
-        expect(body.getAttribute("d")).toBe("M 116 92 C 166 92, 244 136, 294 136");
+        expect(body.getAttribute("d")).toBe("M 111 92 C 161 92, 249 136, 299 136");
     });
 
     it("retains keyed paths on link replacement/reorder and cleans removed endpoints", () => {
@@ -142,7 +183,7 @@ describe("CanvasLinks DOM ownership", () => {
         expect(paths()[1]).toBe(first);
         graphStore.setLinks(1, "toUnitId", "third");
         expect(paths()[1]).toBe(first);
-        expect(first.getAttribute("d")).toContain("494 236");
+        expect(first.getAttribute("d")).toContain("499 236");
         graphStore.setLinks((previous) => [previous[1]]);
         expect(paths()).toHaveLength(1);
         expect(paths()[0]).toBe(first);
@@ -151,7 +192,7 @@ describe("CanvasLinks DOM ownership", () => {
         expect(paths()).toHaveLength(0);
         graphStore.setUnits((previous) => [...previous, unit("third", 600, 300)]);
         expect(paths()).toHaveLength(1);
-        expect(paths()[0].getAttribute("d")).toContain("594 336");
+        expect(paths()[0].getAttribute("d")).toContain("599 336");
         dispose?.();
         dispose = undefined;
         expect(container.querySelector("svg")).toBeNull();
@@ -186,7 +227,7 @@ describe("CanvasLinks DOM ownership", () => {
         expect(mutations.filter((mutation) => mutation.type === "childList")).toHaveLength(0);
         expect(mutations).toHaveLength(120);
         expect(mutations.every((mutation) => mutation.target === original[0] && mutation.attributeName === "d")).toBe(true);
-        expect(original[0].getAttribute("d")).toBe("M 226 156 C 276 156, 84 36, 134 36");
+        expect(original[0].getAttribute("d")).toBe("M 221 156 C 271 156, 89 36, 139 36");
         expect(elapsedMs).toBeLessThan(5_000);
     });
 });

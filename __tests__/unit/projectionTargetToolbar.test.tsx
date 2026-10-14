@@ -70,12 +70,19 @@ afterEach(() => {
     vi.resetAllMocks(); vi.unstubAllGlobals();
 });
 
-it("removes send/result buttons and keeps three count-free target dropdowns", () => {
+it("shows confirmed counts and keeps all three tabs in one fixed size dialog", () => {
     expect(document.querySelector('button[aria-label^="投射到"]')).toBeNull();
     expect(button("投射结果与关联")).toBeNull();
     for (const label of ["选择投射设备", "选择投射设备组", "选择投射用户"]) {
-        expect(button(label).textContent).toBe("");
-        expect(button(label).querySelectorAll("svg")).toHaveLength(2);
+        expect(button(label).textContent).toBe("0");
+        expect(button(label).querySelectorAll("svg")).toHaveLength(1);
+    }
+    const dialog = document.querySelector<HTMLElement>('[aria-label="投射目标"]')!;
+    expect(dialog.style.width).toBe("320px"); expect(dialog.style.height).toBe("280px");
+    for (const tab of dialog.querySelectorAll<HTMLButtonElement>('[role="tab"]')) {
+        tab.click();
+        expect(document.querySelector('[aria-label="投射目标"]')).toBe(dialog);
+        expect(dialog.style.width).toBe("320px"); expect(dialog.style.height).toBe("280px");
     }
     button("选择投射用户").click();
     expect(document.body.textContent).toContain("用户投射尚未开放");
@@ -87,10 +94,12 @@ it("starts on check but shows success only after displayed acknowledgement", asy
     expect(createProjectionWithRecovery).toHaveBeenCalledTimes(1);
     expect(bindings()).toHaveLength(1); expect(box().checked).toBe(true);
     expect(marker().dataset.phase).toBe("pending");
+    expect(button("选择投射设备").textContent).toBe("0");
     setProjectionStatuses(statusKey(), { phase: "connected", delivery: { targetDeviceId: "pc2", status: "accepted" } });
     expect(marker().dataset.phase).toBe("pending");
     setProjectionStatuses(statusKey(), { phase: "connected", delivery: { targetDeviceId: "pc2", status: "displayed" } });
     expect(marker().dataset.phase).toBe("success");
+    expect(button("选择投射设备").textContent).toBe("1");
     expect(box()).toBe(input);
 });
 

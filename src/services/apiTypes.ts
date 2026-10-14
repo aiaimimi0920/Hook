@@ -17,6 +17,7 @@ export interface PinRect {
 }
 
 export interface CaptureResponse {
+    captureRect?: { x: number; y: number; w: number; h: number };
     base64: string;
     width: number;
     height: number;

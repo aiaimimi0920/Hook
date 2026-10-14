@@ -1,7 +1,7 @@
 /** Shared value types for sticker geometry owners and the stable facade. */
 export type ResizeHandle = "nw" | "ne" | "sw" | "se";
 
-export type LineEndpointHandle = "start" | "end";
+export type LineEndpointHandle = "start" | "end" | "control1" | "control2" | `node:${number}` | `control:${number}` | "extend-start" | "extend-end";
 
 export interface ShapeBox {
     x: number;

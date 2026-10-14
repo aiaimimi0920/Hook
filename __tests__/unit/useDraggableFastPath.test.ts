@@ -80,6 +80,46 @@ describe("useDraggable compositor fast path", () => {
     vi.restoreAllMocks();
   });
 
+  it("keeps toolbar and property followers unchanged throughout click-sized pointer noise", async () => {
+    graphStore.setUnits([unit()]);
+    const followers = [document.createElement("div"), document.createElement("div")];
+    for (const follower of followers) {
+      follower.style.transitionProperty = "opacity";
+      document.body.append(follower);
+      registerDragFollowerElement("sticker-fast-path", follower);
+    }
+    const draggable = createDraggable();
+    const click = vi.fn();
+    draggable.startDrag(new MouseEvent("mousedown", { clientX: 110, clientY: 220 }), "sticker-fast-path", click);
+    for (const [x, y] of [[110, 220], [111.5, 220.5], [109, 222], [113, 220]]) {
+      draggable.handleDragMove(new MouseEvent("mousemove", { clientX: x, clientY: y }));
+      for (const follower of followers) {
+        expect(follower.style.transform).toBe("");
+        expect(follower.style.willChange).toBe("");
+        expect(follower.style.transitionProperty).toBe("opacity");
+      }
+    }
+    await draggable.handleDragEnd();
+    expect(click).toHaveBeenCalledExactlyOnceWith("sticker-fast-path");
+    expect(graphStore.units[0]?.x).toBe(100);
+    expect(graphStore.units[0]?.y).toBe(200);
+  });
+
+  it("starts the immediate visual path when later pointer input crosses the threshold", async () => {
+    graphStore.setUnits([unit()]);
+    const follower = document.createElement("div"); document.body.append(follower);
+    registerDragFollowerElement("sticker-fast-path", follower);
+    const draggable = createDraggable(); const click = vi.fn();
+    draggable.startDrag(new MouseEvent("mousedown", { clientX: 110, clientY: 220 }), "sticker-fast-path", click);
+    draggable.handleDragMove(new MouseEvent("mousemove", { clientX: 111, clientY: 221 }));
+    draggable.handleDragMove(new MouseEvent("mousemove", { clientX: 115, clientY: 226 }));
+    expect(follower.style.transform).toBe("translate3d(5px, 6px, 0)");
+    await draggable.handleDragEnd();
+    expect(click).not.toHaveBeenCalled();
+    expect(graphStore.units[0]?.x).toBe(105);
+    expect(graphStore.units[0]?.y).toBe(206);
+  });
+
   it("moves follower elements directly and avoids reactive drag-position work when there are no links", async () => {
     graphStore.setUnits([unit()]);
 
@@ -94,8 +134,8 @@ describe("useDraggable compositor fast path", () => {
     const querySelectorAll = vi.spyOn(document, "querySelectorAll");
     draggable.startDrag(new MouseEvent("mousedown", { clientX: 110, clientY: 220 }), "sticker-fast-path");
     expect(querySelectorAll).not.toHaveBeenCalled();
-    expect(follower.style.willChange).toBe("transform");
-    expect(follower.style.transitionProperty).toBe("none");
+    expect(follower.style.willChange).toBe("");
+    expect(follower.style.transitionProperty).toBe("opacity");
     draggable.handleDragMove(new MouseEvent("mousemove", { clientX: 130, clientY: 250 }));
 
     expect(follower.style.transform).toBe("translate3d(20px, 30px, 0)");
@@ -195,7 +235,7 @@ describe("useDraggable compositor fast path", () => {
 
     const draggable = createDraggable();
     draggable.startDrag(new MouseEvent("mousedown", { clientX: 110, clientY: 220 }), "sticker-fast-path");
-    expect(follower.style.willChange).toBe("transform");
+    expect(follower.style.willChange).toBe("opacity, transform");
     draggable.handleDragMove(new MouseEvent("mousemove", { clientX: 130, clientY: 250 }));
     await draggable.handleDragEnd();
 

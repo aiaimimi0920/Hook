@@ -59,9 +59,15 @@ export function createProjectionReceiverUnit(id: string, response: ProjectionRes
     };
 }
 
-export function attachProjectionReceiver(id: string, response: ProjectionResponse): void {
-    if (graphStore.units.some((unit) => unit.id === id)) throw new Error("projection_invalid_response");
-    graphStore.actions.addUnit(createProjectionReceiverUnit(id, response, { width: window.innerWidth, height: window.innerHeight }));
+export function attachProjectionReceiver(id: string, response: ProjectionResponse, replacePlaceholder = false): void {
+    const existing = graphStore.units.find((unit) => unit.id === id);
+    if (replacePlaceholder ? !existing || existing.type !== "sticker" || !!existing.data.qrProjection : !!existing) {
+        throw new Error("projection_invalid_response");
+    }
+    const received = createProjectionReceiverUnit(id, response, { width: window.innerWidth, height: window.innerHeight });
+    if (replacePlaceholder) {
+        patchProjection(id, received.data.qrProjection, response.snapshot!.imageBase64);
+    } else graphStore.actions.addUnit(received);
     selectionActions.set([id]);
     void syncService.updateBackendRects();
     void syncService.performWorkflowSync();

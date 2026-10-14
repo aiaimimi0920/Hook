@@ -4,6 +4,8 @@ import { getCapabilityInputsForPorts } from "../services/artPorts";
 import { ArtCapability, ArtPortDefinition } from "../services/protocol";
 import { graphStore } from "../store/graphStore";
 import { Unit } from "../types/unit";
+import { UnitPropertyCapsule } from "./UnitPropertyCapsule";
+import { propertyType } from "./UnitPropertyTypeIcon";
 
 export type UnitParamsPanelPort = ArtPortDefinition & { description?: string };
 
@@ -54,6 +56,8 @@ export const getUnitParamsPanelOutputs = (
 };
 
 interface UnitParamsPortRowsProps {
+    side?: "input" | "output";
+    expanded?: boolean;
     unit: Unit;
     params: Record<string, unknown>;
     capability?: ArtCapability;
@@ -161,37 +165,18 @@ export const UnitParamsPortRows: Component<UnitParamsPortRowsProps> = (props) =>
 
     return (
         <>
-            <Show when={inputs().length > 0}>
-                <div class="flex-shrink-0 flex flex-col gap-2 p-4 pb-2 relative">
+            <Show when={props.side !== "output" && inputs().length > 0}>
+                <div class="unit-tab-port-rows">
                     <For each={inputs()}>
                         {(input) => {
                             const isDisabled = () => props.params[input.name] === DISABLED_PREFIX;
                             return (
-                                <div class="flex items-center gap-3 w-full h-6 relative group" style={isDisabled() ? { opacity: 0.5 } : {}}>
+                                <UnitPropertyCapsule unitId={props.unit.id} name={input.name} label={input.label || input.name} type={propertyType(input.type)} side="input"
+                                    expanded={props.expanded !== false} disabled={isDisabled()} hidden={!isPortVisible(input.name)}
+                                    register={props.registerPanelPort} onLinkMove={props.onLinkMove} onLinkDrop={props.onLinkDrop} onToggleDisable={props.toggleParamDisabled}>
                                     <Show when={isDisabled()}>
                                         <div class="otter-port-disabled-line absolute top-1/2 left-0 right-0 h-[2px] z-[60] pointer-events-none" />
                                     </Show>
-                                    <div
-                                        class="otter-panel-port absolute w-6 h-6 rounded-full cursor-pointer hover:scale-110 transition-transform z-[50]"
-                                        style={{ left: "-27px" }}
-                                        data-port-type="input"
-                                        data-port-name={input.name}
-                                        data-panel-port="true"
-                                        ref={(element) => props.registerPanelPort(element, input.name)}
-                                        onMouseDown={(event) => {
-                                            event.stopPropagation();
-                                            props.onLinkMove?.(input.name, event);
-                                        }}
-                                        onMouseUp={(event) => {
-                                            event.stopPropagation();
-                                            props.onLinkDrop(input.name);
-                                        }}
-                                        onContextMenu={(event) => {
-                                            event.preventDefault();
-                                            event.stopPropagation();
-                                            props.toggleParamDisabled(input.name);
-                                        }}
-                                    />
                                     <span
                                         class="font-bold text-[11px] truncate relative z-10 drop-shadow-md cursor-context-menu"
                                         style={{ color: "var(--theme-text)", "max-width": "120px" }}
@@ -244,42 +229,25 @@ export const UnitParamsPortRows: Component<UnitParamsPortRowsProps> = (props) =>
                                             </label>
                                         </div>
                                     </Show>
-                                </div>
+                                </UnitPropertyCapsule>
                             );
                         }}
                     </For>
-                    <div class="otter-separator h-px my-1" />
                 </div>
             </Show>
 
-            <Show when={outputs().length > 0}>
-                <div class="flex-shrink-0 flex flex-col gap-2 p-4 pt-0 pb-2 relative">
+            <Show when={props.side !== "input" && outputs().length > 0}>
+                <div class="unit-tab-port-rows">
                     <For each={outputs()}>
                         {(output) => {
                             const isDisabled = () => props.params[output.name] === DISABLED_PREFIX;
                             return (
-                                <div class="flex items-center justify-end gap-3 w-full h-6 relative group" style={isDisabled() ? { opacity: 0.5 } : {}}>
+                                <UnitPropertyCapsule unitId={props.unit.id} name={output.name} label={output.label || output.name} type={propertyType(output.type)} side="output"
+                                    expanded={props.expanded !== false} disabled={isDisabled()} hidden={!isPortVisible(output.name)}
+                                    register={props.registerPanelPort} onLinkStart={props.onLinkStart} onToggleDisable={props.toggleParamDisabled}>
                                     <Show when={isDisabled()}>
                                         <div class="otter-port-disabled-line absolute top-1/2 left-0 right-0 h-[2px] z-[60] pointer-events-none" />
                                     </Show>
-                                    <div
-                                        class="otter-panel-port absolute w-6 h-6 rounded-full cursor-cell hover:scale-110 transition-transform z-[50]"
-                                        style={{ right: "-27px" }}
-                                        data-port-type="output"
-                                        data-port-name={output.name}
-                                        data-panel-port="true"
-                                        ref={(element) => props.registerPanelPort(element, output.name)}
-                                        onMouseDown={(event) => {
-                                            if (event.button !== 0) return;
-                                            event.stopPropagation();
-                                            props.onLinkStart(output.name, event.clientX, event.clientY);
-                                        }}
-                                        onContextMenu={(event) => {
-                                            event.preventDefault();
-                                            event.stopPropagation();
-                                            props.toggleParamDisabled(output.name);
-                                        }}
-                                    />
                                     <button
                                         class={`otter-port-visibility w-4 h-4 flex items-center justify-center transition-colors mr-1 ${isPortVisible(output.name) ? "" : "otter-port-visibility--hidden"}`}
                                         onClick={(event) => {
@@ -302,11 +270,10 @@ export const UnitParamsPortRows: Component<UnitParamsPortRowsProps> = (props) =>
                                     >
                                         {output.label || output.name}
                                     </span>
-                                </div>
+                                </UnitPropertyCapsule>
                             );
                         }}
                     </For>
-                    <div class="otter-separator h-px my-1" />
                 </div>
             </Show>
         </>

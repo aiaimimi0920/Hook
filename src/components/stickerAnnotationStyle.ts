@@ -44,9 +44,9 @@ export const getDraftShapePreviewStrokeWidth = (mode?: DraftShape["mode"]) =>
     mode === "crop" ? 4 : sanitizeStrokeWidth(stickerToolSettings.strokeWidth);
 
 export const getLineStrokeColor = (mode: DraftLine["mode"]) =>
-    mode === "line" || mode === "arrow"
+    mode === "line" || mode === "arrow" || mode === "bezier"
         ? stickerToolSettings.lineStrokeColor
-        : mode === "brush" || mode === "highlighter"
+        : mode === "brush" || mode === "paintbrush" || mode === "highlighter"
           ? stickerToolSettings.brushColor
           : getEffectiveStickerColor(stickerColorState);
 

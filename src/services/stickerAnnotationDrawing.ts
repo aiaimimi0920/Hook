@@ -1,3 +1,5 @@
+import { drawBezierAnnotation } from "./stickerBezierDrawing";
+import { drawPaintbrush } from "./stickerPaintbrushGeometry";
 /** Per-annotation canvas drawing and effect masking for sticker exports. */
 import type {
     StickerAnnotation,
@@ -175,12 +177,19 @@ export const drawAnnotation = (
             context.restore();
             return;
         }
+        case "bezier":
+            drawBezierAnnotation(context, annotation);
+            return;
         case "line":
         case "polyline":
         case "brush":
         case "highlighter":
         case "arrow": {
             const line = annotation as StickerLineAnnotation;
+            if (line.type === "brush" && line.style.brushTip === "tapered") {
+                drawPaintbrush(context, line.points, line.style);
+                return;
+            }
             drawStrokePath(context, line.points, line.style);
             if (annotation.type === "arrow") {
                 drawArrowHead(context, line);

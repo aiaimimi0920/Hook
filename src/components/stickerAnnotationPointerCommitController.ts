@@ -1,4 +1,8 @@
+import { createBezierPoints, isCubicBezier } from "../services/stickerBezierGeometry";
+import { brushWeights, sampleBrushMotion } from "../services/stickerBrushDynamics";
+import { appendFreehandPoint, smoothFreehandPoints, freehandOpacity } from "../services/stickerPaintbrushGeometry";
 import { batch, type Accessor, type Setter } from "solid-js";
+import { resolveShapeAspectRatio } from "../services/rectangleAspectRatio";
 import { buildStickerCropEdit } from "../services/stickerCropEdits";
 
 import { graphStore } from "../store/graphStore";
@@ -169,14 +173,16 @@ export const createStickerAnnotationPointerCommitController = (
                         ? stickerToolSettings.shapeSnapStep
                         : options.isRegularShapeStepSnapActive(prev.mode, event) ? 10 : undefined;
                     const bounds = { w: options.width(), h: options.height() };
+                    const aspectRatio = resolveShapeAspectRatio(prev.mode, stickerToolSettings, options.isSquareConstraintActive(event));
                     const clampedRect = constrainSquare
-                        ? clampShapeRectToStickerBounds(prev.start, nextPoint, bounds, true, effectiveSnapStep)
+                        ? clampShapeRectToStickerBounds(prev.start, nextPoint, bounds, true, effectiveSnapStep, aspectRatio)
                         : isRegularShapeMode(prev.mode)
                           ? clampShapeRectToStickerBounds(prev.start, nextPoint, bounds, false, effectiveSnapStep)
                           : clampCropRectToStickerBounds(prev.start, nextPoint, bounds);
                     return {
                         ...prev,
                         constrainSquare,
+                        aspectRatio,
                         snapStep: effectiveSnapStep,
                         current: {
                             x: prev.start.x <= nextPoint.x
@@ -195,11 +201,16 @@ export const createStickerAnnotationPointerCommitController = (
 
         if (options.draftLine()) {
             const currentDraft = options.draftLine();
-            const point = toLocalPoint(event);
+            const localPoint = toLocalPoint(event);
+            const point = currentDraft?.mode === "paintbrush" ? sampleBrushMotion(localPoint, event.timeStamp, currentDraft.points.at(-1)) : localPoint;
             const shouldRenderDraftAsStraightSegment = (mode: DraftLine["mode"]) =>
                 mode === "line" || mode === "arrow" || isStraightLineAngleLockActive(mode, event);
             const lineAngleSnapToggleActive = (mode: DraftLine["mode"]) =>
                 (mode === "line" || mode === "arrow") && stickerToolSettings.lineAngleSnap;
+            if (currentDraft?.mode === "bezier") {
+                options.setDraftLine({ ...currentDraft, points: createBezierPoints(currentDraft.points[0], point) });
+                return;
+            }
             if (currentDraft?.mode === "content-eraser") {
                 const lastPoint = appendLiveErasePoint(point);
                 if (!liveErasePreviewVisible()) {
@@ -216,7 +227,7 @@ export const createStickerAnnotationPointerCommitController = (
                               ...prev,
                               points: [
                                   prev.points[0],
-                                  constrainLinearToolEndpoint(prev.points[0], point, {
+                                  { ...point, ...constrainLinearToolEndpoint(prev.points[0], point, {
                                       lockAngle:
                                           isStraightLineAngleLockActive(prev.mode, event) ||
                                           lineAngleSnapToggleActive(prev.mode),
@@ -224,12 +235,12 @@ export const createStickerAnnotationPointerCommitController = (
                                           ? 45
                                           : 5,
                                       snapStep: isStraightLineStepSnapActive(prev.mode, event) ? 10 : undefined,
-                                  }),
+                                  }) },
                               ],
                           }
                         : {
                               ...prev,
-                              points: [
+                              points: prev.mode === "brush" || prev.mode === "paintbrush" ? appendFreehandPoint(prev.points, point, prev.mode === "paintbrush") : [
                                   ...prev.points,
                                   isStraightLineStepSnapActive(prev.mode, event)
                                       ? constrainLinearToolEndpoint(prev.points[0], point, { snapStep: 10 })
@@ -263,6 +274,13 @@ export const createStickerAnnotationPointerCommitController = (
                 transform.kind === "move" && imperativeMovePoint
                     ? { ...transform, currentPoint: imperativeMovePoint }
                     : transform;
+            if (committedTransform.kind === "move" && committedTransform.currentPoint.x === committedTransform.startPoint.x
+                && committedTransform.currentPoint.y === committedTransform.startPoint.y) {
+                clearImperativeMovePreview();
+                options.setTransformInteraction(null);
+                uiActions.setSelectedStickerAnnotations(transform.annotationIds);
+                return;
+            }
             try {
                 const commit = commitAnnotationElements(
                     buildTransformPreviewAnnotations(
@@ -350,11 +368,30 @@ export const createStickerAnnotationPointerCommitController = (
 
         if (!line) return;
         const allowsSinglePoint =
-            line.mode === "content-eraser" || line.mode === "mosaic" || line.mode === "blur";
+            line.mode === "content-eraser" || line.mode === "mosaic" || line.mode === "blur" || line.mode === "brush" || line.mode === "paintbrush";
         const committedPoints = sanitizeStickerPoints(
             line.mode === "content-eraser" ? contentEraserPoints : line.points,
         );
         if (committedPoints.length < (allowsSinglePoint ? 1 : 2)) return;
+        if (line.mode === "bezier") {
+            if (!isCubicBezier(committedPoints) || Math.hypot(
+                committedPoints[3].x - committedPoints[0].x, committedPoints[3].y - committedPoints[0].y,
+            ) < 2) return;
+            const id = crypto.randomUUID();
+            await commitAnnotation({
+                id, type: "bezier", points: committedPoints,
+                zIndex: options.annotationState().elements.length + 1,
+                showArrowHead: !!line.showArrowHead,
+                style: {
+                    color: getLineStrokeColor(line.mode),
+                    width: sanitizeStrokeWidth(stickerToolSettings.strokeWidth, 0),
+                    opacity: 1, dashPattern: stickerToolSettings.shapeStrokeDashPattern,
+                },
+            });
+            uiActions.setStickerEditMode("select");
+            uiActions.setSelectedStickerAnnotation(id);
+            return;
+        }
         if (line.mode === "content-eraser") {
             const activeErase = await finishActiveLiveErase();
             if (activeErase) {
@@ -438,28 +475,30 @@ export const createStickerAnnotationPointerCommitController = (
                     : line.mode === "polyline"
                       ? "polyline"
                       : "brush";
-        const supportsDashPattern = type === "line" || type === "arrow" || type === "brush";
         await commitAnnotation({
             id: crypto.randomUUID(),
             type,
             zIndex: options.annotationState().elements.length + 1,
-            points: committedPoints,
+            points: (line.mode === "brush" || line.mode === "paintbrush")
+                ? smoothFreehandPoints(committedPoints, stickerToolSettings.brushSmoothing, line.mode === "paintbrush") : committedPoints,
             style: {
                 color: getLineStrokeColor(line.mode),
                 width: sanitizeStrokeWidth(
                     stickerToolSettings.strokeWidth,
                     type === "brush" || type === "highlighter" ? 1 : 0,
                 ),
-                opacity: isHighlighterLineMode(line.mode) ? HIGHLIGHTER_LAYER_OPACITY : 1,
-                dashPattern: supportsDashPattern ? stickerToolSettings.shapeStrokeDashPattern : undefined,
+                opacity: isHighlighterLineMode(line.mode) ? HIGHLIGHTER_LAYER_OPACITY * (line.mode === "brush" ? freehandOpacity(stickerToolSettings.brushOpacity) : 1) : type === "brush" ? freehandOpacity(stickerToolSettings.brushOpacity) : 1,
+                ...(line.mode === "paintbrush" ? { brushTip: "tapered" as const, brushWeights: brushWeights(line.points) } : {}),
+                dashPattern: ["line", "arrow", "brush"].includes(type) && line.mode !== "paintbrush" ? stickerToolSettings.shapeStrokeDashPattern : undefined,
             },
         });
     };
 
     // Pointerup and pointercancel may both arrive for one native gesture. Keep
     // the async persistence path single-flight so a draft cannot commit twice.
-    const onPointerUp = async () => {
+    const onPointerUp = async (event?: PointerEvent) => {
         if (pointerReleaseInFlight) return;
+        if (event && (options.draftLine()?.mode === "brush" || options.draftLine()?.mode === "paintbrush")) onPointerMove(event);
         pointerReleaseInFlight = true;
         try {
             await commitPointerRelease();
@@ -468,9 +507,21 @@ export const createStickerAnnotationPointerCommitController = (
         }
     };
 
+    const onPointerCancel = async () => {
+        const draftMode = options.draftLine()?.mode;
+        if (draftMode === "bezier" || draftMode === "brush" || draftMode === "paintbrush" || options.reshapeLine()?.original.type === "bezier") {
+            options.setDraftLine(null);
+            options.setReshapeLine(null);
+            releaseHostPointer();
+            return;
+        }
+        await onPointerUp();
+    };
+
     return {
         isPointerReleaseInFlight: () => pointerReleaseInFlight,
         onPointerMove,
+        onPointerCancel,
         onPointerUp,
     };
 };

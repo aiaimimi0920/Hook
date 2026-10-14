@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { createRoot } from "solid-js";
+import { createRoot, createSignal } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Unit } from "../../src/types/unit";
 
@@ -28,6 +28,22 @@ const unit: Unit = {
 };
 
 describe("unit port registry controller", () => {
+    it("removes hidden endpoint hit rectangles and restores them on expansion", () => {
+        const [visible, setVisible] = createSignal(true);
+        let dispose!: () => void;
+        createRoot(cleanup => {
+            dispose = cleanup;
+            createUnitPortRegistryController({ unit: () => unit, inputs: () => [{ name: "image" }],
+                outputs: () => [{ name: "output_image" }], element: () => undefined, visible });
+        });
+        expect(registry.addOrUpdateRect).toHaveBeenCalledTimes(2);
+        setVisible(false);
+        expect(registry.removeRect).toHaveBeenCalledWith("port-in-port-unit-0");
+        expect(registry.removeRect).toHaveBeenCalledWith("port-out-port-unit-0");
+        setVisible(true);
+        expect(registry.addOrUpdateRect).toHaveBeenCalledTimes(4);
+        dispose();
+    });
     beforeEach(() => {
         vi.useFakeTimers();
         vi.clearAllMocks();

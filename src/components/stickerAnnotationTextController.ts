@@ -1,6 +1,8 @@
 import { createComputed, createMemo, createSignal, onCleanup, type Accessor } from "solid-js";
 
 import { updateTextAnnotationById } from "../services/stickerAnnotationMutations";
+import { findTextCaretOffset } from "../services/stickerTextCaret";
+import { measureTextWidth, getTextLineMetrics, TEXT_FRAME_PADDING } from "../services/stickerTextGeometry";
 import { stickerToolSettings, uiActions } from "../store/uiStore";
 import type {
     StickerAnnotation,
@@ -81,24 +83,31 @@ export const createStickerAnnotationTextController = (
     const pendingTextInputStyle = createMemo(() => {
         const draft = pendingTextInput();
         if (!draft) return {};
-        const width = Math.max(160, options.width() - draft.x);
-        const height = Math.max(24, draft.fontSize + 8);
-        const left = Math.min(Math.max(0, draft.x), Math.max(0, options.width() - width));
-        const top = Math.min(
-            Math.max(0, draft.y - draft.fontSize),
-            Math.max(0, options.height() - height),
-        );
+        // The transparent input and SVG preview must share the same origin.
+        // Limit only empty space; capping typed content scrolls the caret away from the SVG.
+        const contentWidth = measureTextWidth(draft.value, draft.fontSize, "500", draft.fontFamily);
+        const line = getTextLineMetrics(draft.fontSize, draft.fontFamily);
+        const padding = line.sidePadding;
+        const left = draft.x - padding;
+        const initialWidth = draft.annotationId ? 0
+            : Math.min(Math.max(1, options.width() - left), draft.fontSize * 8 + padding * 2);
+        const width = Math.max(initialWidth, contentWidth + padding * 2);
+        const height = line.height;
+        const top = draft.y - line.baselineOffset - height / 2;
         return {
             left: `${left}px`,
             top: `${top}px`,
             width: `${width}px`,
             height: `${height}px`,
+            "box-sizing": "border-box" as const,
+            padding: `${TEXT_FRAME_PADDING - 1}px ${padding - 1}px`,
+            "text-align": "left" as const,
             color: "transparent",
             "caret-color": draft.color,
             "font-size": `${draft.fontSize}px`,
             "font-family": `"${draft.fontFamily}", "Segoe UI", ui-sans-serif, system-ui, sans-serif`,
             "font-weight": 500,
-            "line-height": `${draft.fontSize}px`,
+            "line-height": `${line.height - TEXT_FRAME_PADDING * 2}px`,
         };
     });
 
@@ -121,25 +130,30 @@ export const createStickerAnnotationTextController = (
     };
 
     const beginPendingTextInput = (point: StickerPoint, existing?: StickerTextAnnotation) => {
+        const fontSize = sanitizeTextSize(existing?.fontSize ?? stickerToolSettings.textSize);
+        const fontFamily = resolveTextAnnotationFontFamily(existing);
+        const line = getTextLineMetrics(fontSize, fontFamily);
         setPendingTextInput({
             annotationId: existing?.id,
-            x: existing?.x ?? point.x,
-            y: existing?.y ?? point.y,
+            x: existing?.x ?? point.x + line.sidePadding,
+            y: existing?.y ?? point.y + line.baselineOffset,
             value: existing?.text ?? "",
-            fontSize: sanitizeTextSize(existing?.fontSize ?? stickerToolSettings.textSize),
+            fontSize,
             color: existing?.style.color ?? stickerToolSettings.textColor,
-            fontFamily: resolveTextAnnotationFontFamily(existing),
+            fontFamily,
         });
         uiActions.setSelectedStickerAnnotation(existing?.id ?? null);
+        const caret = existing
+            ? findTextCaretOffset(existing.text, point.x - existing.x, fontSize, fontFamily) : 0;
         clearPendingTextFocusTimer();
         pendingTextFocusTimer = setTimeout(() => {
             pendingTextFocusTimer = undefined;
             pendingTextInputRef?.focus();
-            pendingTextInputRef?.select();
+            pendingTextInputRef?.setSelectionRange(caret, caret);
         }, 0);
     };
 
-    const commitPendingTextInput = async () => {
+    const commitPendingTextInput = async (selectCommitted = true) => {
         const draft = pendingTextInput();
         if (!draft) return;
 
@@ -153,11 +167,12 @@ export const createStickerAnnotationTextController = (
         if (draft.annotationId) {
             const existing = getPendingTextExistingAnnotation(draft);
             if (!existing || existing.text === text) {
-                uiActions.setSelectedStickerAnnotation(draft.annotationId);
+                if (selectCommitted) uiActions.setSelectedStickerAnnotation(draft.annotationId);
                 await refreshOverlayInteractivity();
                 return;
             }
             options.rememberCurrentState();
+            if (selectCommitted) uiActions.setSelectedStickerAnnotation(draft.annotationId);
             await options.patchUnitData({
                 annotationState: updateTextAnnotationById(
                     options.annotationState(),
@@ -165,7 +180,6 @@ export const createStickerAnnotationTextController = (
                     text,
                 ),
             }, { propagateEdit: true });
-            uiActions.setSelectedStickerAnnotation(draft.annotationId);
             await refreshOverlayInteractivity();
             return;
         }
@@ -185,10 +199,31 @@ export const createStickerAnnotationTextController = (
                 opacity: 1,
             },
         };
+        if (selectCommitted) uiActions.setSelectedStickerAnnotation(annotation.id);
         await options.commitAnnotation(annotation);
-        uiActions.setSelectedStickerAnnotation(annotation.id);
         await refreshOverlayInteractivity();
     };
+
+    // Tool buttons can prevent the browser's default blur. Commit in capture
+    // before their handlers cancel drafts, without taking selection back later.
+    const commitOnExit = () => {
+        void commitPendingTextInput(false).catch((error) => {
+            console.error("[Otter] Failed to commit text on focus exit", error);
+        });
+    };
+    const handleOutsideInput = (event: Event) => {
+        if (pendingTextInput() && event.target !== pendingTextInputRef) commitOnExit();
+    };
+    if (typeof window !== "undefined") {
+        window.addEventListener("pointerdown", handleOutsideInput, true);
+        window.addEventListener("focusin", handleOutsideInput, true);
+        window.addEventListener("blur", commitOnExit);
+        onCleanup(() => {
+            window.removeEventListener("pointerdown", handleOutsideInput, true);
+            window.removeEventListener("focusin", handleOutsideInput, true);
+            window.removeEventListener("blur", commitOnExit);
+        });
+    }
 
     const handlePendingTextInputKeyDown = (
         event: KeyboardEvent & { currentTarget: HTMLInputElement },
@@ -207,6 +242,7 @@ export const createStickerAnnotationTextController = (
     return {
         beginPendingTextInput,
         commitPendingTextInput,
+        commitOnExit,
         getPendingTextExistingAnnotation,
         handlePendingTextInputKeyDown,
         pendingTextInput,

@@ -26,7 +26,7 @@ export const StickerTopStripSurfaceView: Component<StickerTopStripSurfaceViewPro
     return (
         <Show when={props.isArt}>
             <div
-                class="relative h-[50px] w-[50px]"
+                class="relative h-7 w-7"
                 data-art-view-selector="true"
                 onPointerDown={(event) => event.stopPropagation()}
             >

@@ -1,3 +1,5 @@
+import { getBezierRenderGeometry } from "./stickerBezierGeometry";
+import { hitPaintbrush } from "./stickerPaintbrushGeometry";
 import type { StickerAnnotation, StickerPoint } from "../types/stickerEditing";
 import { buildArrowHeadPolygon, getArrowShaftPoints } from "./stickerArrowGeometry";
 import { getAnnotationBounds } from "./stickerAnnotationBounds";
@@ -212,11 +214,17 @@ export const annotationContainsPoint = (
                 h: metrics.height + tolerance * 2,
             });
         }
+        case "bezier": {
+            const { shaft, head } = getBezierRenderGeometry(annotation.points, annotation.style.width, annotation.showArrowHead);
+            return isPointNearSegments(point, shaft, tolerance + Math.max(1, annotation.style.width) / 2)
+                || !!(head && (isPointInPolygon(point, head) || isPointNearSegments(point, head, tolerance, true)));
+        }
         case "line":
         case "polyline":
         case "arrow":
         case "brush":
         case "highlighter": {
+            if (annotation.type === "brush" && annotation.style.brushTip === "tapered") return hitPaintbrush(annotation.points, annotation.style.width, point, tolerance, annotation.style.brushWeights);
             const threshold = tolerance + Math.max(1, annotation.style.width) / 2;
             const shaftPoints = annotation.type === "arrow"
                 ? getArrowShaftPoints(annotation.points, {

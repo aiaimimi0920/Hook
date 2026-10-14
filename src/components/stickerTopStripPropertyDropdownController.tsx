@@ -27,6 +27,7 @@ interface OpenMiniDropdownMenu {
 interface CreatePropertyDropdownControllerOptions {
     unitId: Accessor<string>;
     focusOverlayWindow: () => Promise<void>;
+    constrainToViewport?: Accessor<boolean>;
 }
 
 /** Owns dropdown portal geometry, global listeners, and deferred font discovery. */
@@ -67,6 +68,16 @@ export const createPropertyDropdownController = (options: CreatePropertyDropdown
         dropdownElement: HTMLDivElement | undefined,
     ) => {
         if (!menu || !dropdownElement) return false;
+        if (options.constrainToViewport?.()) {
+            const width = document.documentElement.clientWidth || window.innerWidth;
+            const height = document.documentElement.clientHeight || window.innerHeight;
+            dropdownElement.style.maxWidth = `${Math.max(0, width - 8)}px`;
+            const size = dropdownElement.getBoundingClientRect();
+            const below = menu.anchor.y + menu.anchor.height + 4;
+            const top = below + size.height <= height - 4 ? below : menu.anchor.y - size.height - 4;
+            dropdownElement.style.left = `${Math.max(4, Math.min(menu.anchor.x, width - size.width - 4))}px`;
+            dropdownElement.style.top = `${Math.max(4, Math.min(top, height - size.height - 4))}px`;
+        }
         const bounds = dropdownElement.getBoundingClientRect();
         const nextBounds = { left: bounds.left, top: bounds.top, width: bounds.width, height: bounds.height };
         if (
@@ -194,7 +205,8 @@ export const createPropertyDropdownController = (options: CreatePropertyDropdown
                         onWheel={(event) => event.stopPropagation()}
                     >
                         <OverlayMenuScrollArea label="字体与属性选项滚动条"
-                            maxHeight={`max(28px, min(220px, calc(100vh - ${menu().anchor.y + menu().anchor.height + 16}px)))`}>
+                            maxHeight={options.constrainToViewport?.() ? "min(220px, calc(100vh - 16px))"
+                                : `max(28px, min(220px, calc(100vh - ${menu().anchor.y + menu().anchor.height + 16}px)))`}>
                             <div class="py-1"><For each={menu().options}>
                                 {(option) => (
                                     <button

@@ -30,6 +30,7 @@ mod file_naming;
 mod long_capture;
 mod loom_bridge_client;
 mod loom_config;
+mod loom_connection;
 pub mod loom_connector;
 mod loom_otter;
 mod loom_tls;
@@ -417,6 +418,10 @@ include!("native/voice_commands.rs");
 include!("native/rdev_input_listener.rs");
 
 include!("native/app_setup.rs");
+include!("native/tray_shortcuts.rs");
+#[path = "native/autostart.rs"]
+mod autostart;
+include!("native/tray_autostart.rs");
 
 #[cfg(test)]
 mod bridge_csp;

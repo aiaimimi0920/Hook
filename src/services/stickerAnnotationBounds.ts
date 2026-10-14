@@ -1,3 +1,4 @@
+import { getBezierRenderGeometry } from "./stickerBezierGeometry";
 import type { StickerAnnotation, StickerPoint } from "../types/stickerEditing";
 import { buildArrowHeadPolygon } from "./stickerArrowGeometry";
 import {
@@ -58,6 +59,11 @@ export const getAnnotationBounds = (annotation: StickerAnnotation): AnnotationBo
                 metrics.height,
                 annotation.rotation,
             );
+        }
+        case "bezier": {
+            const geometry = getBezierRenderGeometry(annotation.points, annotation.style.width, annotation.showArrowHead);
+            return getPointCloudBounds([...geometry.samples, ...(geometry.head ?? [])], Math.max(1, annotation.style.width) / 2 + 0.25)
+                ?? { x: 0, y: 0, w: 0, h: 0 };
         }
         case "line":
         case "polyline":

@@ -100,7 +100,7 @@ const rotateAnnotationAroundPivot = (
 
     const lineAnnotation = annotation as Extract<
         StickerAnnotation,
-        { type: "line" | "polyline" | "arrow" | "brush" | "highlighter" }
+        { type: "line" | "bezier" | "polyline" | "arrow" | "brush" | "highlighter" }
     >;
     return {
         ...lineAnnotation,
@@ -208,7 +208,7 @@ const scaleAnnotationAroundPivot = (
 
     const lineAnnotation = annotation as Extract<
         StickerAnnotation,
-        { type: "line" | "polyline" | "arrow" | "brush" | "highlighter" }
+        { type: "line" | "bezier" | "polyline" | "arrow" | "brush" | "highlighter" }
     >;
     return {
         ...lineAnnotation,

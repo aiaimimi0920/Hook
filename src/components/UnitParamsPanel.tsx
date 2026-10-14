@@ -3,22 +3,23 @@ import { Component, Show, createEffect, createMemo, createSignal, onCleanup } fr
 import { Unit, Link, NodeExecutionConfig } from "../types/unit";
 import { ArtCapability, ArtParam } from "../services/protocol";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
-import { UnitActionsMenu } from "./UnitActionsMenu";
+import { UnitPropertyCapsule } from "./UnitPropertyCapsule";
+import { paramPropertyType } from "./UnitPropertyTypeIcon";
+import { UnitNodeSettingsStrip } from "./UnitNodeSettingsStrip";
+import { hideCollapsedUnitEndpoints } from "../store/unitChromeState";
+import { observeUnitTabGeometry } from "./unitTabGeometry";
+import "../styles/unit-tab-properties.css";
 import { UnitLivePublication } from "./UnitLivePublication";
 import { UnitLiveViewer } from "./UnitLiveViewer";
 import { supportsSurface } from "../services/artCapabilities";
-import { openProjection } from "../store/qrProjectionStore";
 import { UnitParamControl } from "./params/UnitParamControl";
 import { UnitParamsCandidateResults } from "./UnitParamsCandidateResults";
 import {
-    getUnitParamsPanelInputs,
     UnitParamsPortRows,
 } from "./UnitParamsPortRows";
 import { UnitParamsScrollRegion } from "./UnitParamsScrollRegion";
-import { UnitParamsExpandedSettings } from "./UnitParamsExpandedSettings";
 import { createUnitParamsPortRegistryController } from "./unitParamsPortRegistryController";
 import { graphStore } from "../store/graphStore";
-import { normalizeImageSourceForDisplay } from "../services/imageSource";
 import { resolveEffectiveNodeParams } from "../services/graphImageResolution";
 import { api } from "../services/api";
 import {
@@ -27,11 +28,11 @@ import {
 } from "../services/artParamTextValue";
 import {
     DISABLED_PREFIX,
-    EXEC_expanded,
-    EXEC_manualTrigger,
 } from "../constants";
 
 interface UnitParamsPanelProps {
+  outlineOutset?: number;
+  expanded?: boolean;
   unit: Unit;
   params: Record<string, any>; // Reactive
   execConfig?: NodeExecutionConfig;
@@ -82,7 +83,6 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
       return val ?? defaultVal;
   };
 
-  const getInputs = () => getUnitParamsPanelInputs(props.unit, props.capability);
   const derivedParams = () => {
       if (isArt()) return props.capability?.params?.filter((param) => !param.secret) || [];
       return [];
@@ -94,32 +94,6 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
       return typeof value === "string" && value.startsWith("data:") ? value : null;
   });
 
-  const displaySrc = () => {
-      let resolvedSrc: string | undefined;
-      if (!isArt()) {
-          const isImageDisabled = props.unit.params["image"] === DISABLED_PREFIX;
-          if (!isImageDisabled) {
-              const imageInput = getInputs().find(i => i.name === 'image');
-              if (imageInput && props.connectedLinks) {
-                   const link = props.connectedLinks.find(l => l.toPortId === imageInput.name);
-                   if (link && props.resolveUnitImage) {
-                       const src = props.resolveUnitImage(link.fromUnitId);
-                       if (src) {
-                           resolvedSrc = src;
-                       }
-                   }
-              }
-              const path = props.params.image_path;
-              if (path && path.startsWith("data:")) {
-                  resolvedSrc = path;
-              }
-          }
-      }
-      if (!resolvedSrc) {
-          resolvedSrc = props.unit.data.previewSrc || props.unit.data.src || "";
-      }
-      return normalizeImageSourceForDisplay(resolvedSrc) || "";
-  };
   const toggleParamDisabled = (paramId: string) => {
       const currentVal = props.params[paramId];
       const isCurrentlyDisabled = currentVal === DISABLED_PREFIX;
@@ -187,7 +161,11 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
   };
 
   const renderParamControl = (param: ArtParam) => (
+      <UnitPropertyCapsule unitId={props.unit.id} name={param.id} label={param.label} type={paramPropertyType(param)} side="input"
+          expanded={props.expanded !== false} linked={isParamLinked(param.id)} disabled={props.params[param.id] === DISABLED_PREFIX}
+          register={registerPanelPort} onLinkMove={props.onLinkMove} onLinkDrop={props.onLinkDrop} onToggleDisable={toggleParamDisabled}>
       <UnitParamControl
+          hidePort
           param={param}
           value={getParamValue(param.id, param.default)}
           isDisabled={props.params[param.id] === DISABLED_PREFIX || isParamLinked(param.id)}
@@ -199,10 +177,10 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
           onLinkDrop={props.onLinkDrop}
           onLinkMove={props.onLinkMove}
           onLinkHover={props.onLinkHover}
-          registerLinkTarget={(el) => registerPanelPort(el, param.id)}
           onEditStart={() => openTextEditor(param)}
           onPreview={(id, active) => setHoveringParam(active ? id : null)}
       />
+      </UnitPropertyCapsule>
   );
 
   const registerPanelPort = portRegistry.register;
@@ -230,39 +208,13 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
       setTempText(formatArtParamTextValue(param, getParamValue(id, param.default)));
   });
 
-  // Rect Registration for Panel
+  // Geometry follows individual controls and scrolling instead of a fixed panel box.
   createEffect(() => {
-       const u = props.unit;
-       // 1. Params Panel (Bottom Center)
-       const updateParamsRect = () => {
-           if (paramContainerRef && paramContainerRef.isConnected) {
-               const rect = paramContainerRef.getBoundingClientRect();
-               const scale = rect.width > 0 ? rect.width / 250 : 1;
-               const worldHeight = rect.height / scale;
-
-               addOrUpdateRect({
-                   id: `params-${u.id}`,
-                   x: u.x + (u.w / 2) - (250 / 2) - 50,
-                   y: u.y + u.h + 12,
-                   width: 250 + 100,
-                   height: worldHeight,
-                   name: "PARAMS_PANEL"
-               });
-           }
-       };
-
-       updateParamsRect();
-       let observer: ResizeObserver | null = null;
-       if (paramContainerRef) {
-           observer = new ResizeObserver(() => {
-               updateParamsRect();
-           });
-           observer.observe(paramContainerRef);
-       }
-       onCleanup(() => {
-           observer?.disconnect();
-           removeRect(`params-${u.id}`);
-       });
+       void props.unit.x; void props.unit.y; void props.unit.w; void props.unit.h;
+       void props.outlineOutset;
+       if (!paramContainerRef) return;
+       const geometry = observeUnitTabGeometry(paramContainerRef, () => props.unit);
+       onCleanup(geometry.dispose);
   });
 
 
@@ -294,22 +246,9 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
     <div
         ref={(el) => { paramContainerRef = el; }}
         id={`params-panel-${props.unit.id}`}
-        class="absolute flex flex-col z-[100] pointer-events-auto"
-        style={{
-            position: "absolute",
-            left: "50%",
-            "margin-left": "-125px",
-            top: "100%",
-            "margin-top": "12px",
-            width: "250px",
-            "height": "auto",
-            "max-height": "min(560px, calc(100vh - 96px))",
-            "overflow": "visible",
-            "background": "transparent",
-            "padding": "0",
-            "z-index": 100,
-            "pointer-events": "auto"
-        }}
+        class="unit-tab-properties"
+        style={{ "--unit-outline-outset": `${props.outlineOutset ?? 0}px` }}
+        classList={{ "is-expanded": props.expanded !== false, "hide-collapsed-endpoints": hideCollapsedUnitEndpoints(props.unit.data.hideCollapsedEndpoints) }}
         onPointerDown={focusOverlayFromPointerEvent}
         onMouseDown={focusOverlayFromPointerEvent}
         onMouseUp={(e) => e.stopPropagation()}
@@ -317,40 +256,9 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
         onDblClick={(e) => e.stopPropagation()}
         onContextMenu={(e) => e.stopPropagation()}
     >
-        {/* Background */}
-        <div
-            class="otter-terminal-shell otter-terminal-shell--strong absolute inset-0 z-[-5] pointer-events-none"
-        />
-
-        <UnitActionsMenu
-            unitId={props.unit.id}
-            isArt={props.unit.type === 'art'}
-            label={props.capability?.label}
-            expanded={props.execConfig?.__expanded ?? false}
-            onToggleExpand={() => {
-                const currentExpanded = props.execConfig?.__expanded ?? false;
-                props.onParamChange(EXEC_expanded, !currentExpanded);
-            }}
-            onManualTrigger={() => {
-                props.onParamChange(EXEC_manualTrigger, Date.now());
-            }}
-        />
-
-        <Show when={isArt()}>
-            <UnitParamsCandidateResults
-                unit={props.unit}
-                params={props.params}
-                onParamChange={props.onParamChange}
-            />
-        </Show>
-
-        <UnitLivePublication unitId={props.unit.id} />
-        <Show when={isArt() && supportsSurface(props.capability)}>
-            <UnitLiveViewer unitId={props.unit.id} />
-        </Show>
-        <button type="button" class="otter-terminal-btn" onClick={() => openProjection(props.unit.id)}>二维码投射</button>
-
+        <div class="unit-tab-rail unit-tab-rail--input">
         <UnitParamsPortRows
+            side="input" expanded={props.expanded !== false}
             unit={props.unit}
             params={props.params}
             capability={props.capability}
@@ -367,15 +275,21 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
             params={derivedParams()}
             renderParamControl={renderParamControl}
         />
+        </div>
+        <div class="unit-tab-rail unit-tab-rail--output">
+            <UnitParamsPortRows side="output" expanded={props.expanded !== false} unit={props.unit} params={props.params}
+                capability={props.capability} onParamChange={props.onParamChange} onLinkStart={props.onLinkStart}
+                onLinkDrop={props.onLinkDrop} onLinkMove={props.onLinkMove} registerPanelPort={registerPanelPort}
+                toggleParamDisabled={toggleParamDisabled} />
+        <Show when={props.expanded !== false}><div class="unit-tab-aux" data-tab-hit-region>
+            <Show when={isArt()}><UnitParamsCandidateResults unit={props.unit} params={props.params} onParamChange={props.onParamChange} /></Show>
+            <UnitLivePublication unitId={props.unit.id} />
+            <Show when={isArt() && supportsSurface(props.capability)}><UnitLiveViewer unitId={props.unit.id} /></Show>
+        </div></Show>
+        </div>
+        <UnitNodeSettingsStrip unit={props.unit} capability={props.capability} execConfig={props.execConfig}
+            expanded={props.expanded !== false} onParamChange={props.onParamChange} />
     </div>
-
-    <UnitParamsExpandedSettings
-        unit={props.unit}
-        expanded={props.execConfig?.__expanded ?? false}
-        execConfig={props.execConfig}
-        displaySrc={displaySrc()}
-        onParamChange={props.onParamChange}
-    />
 
     <Show when={editingTextId()}>
              <div

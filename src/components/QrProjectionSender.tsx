@@ -122,11 +122,13 @@ export const QrProjectionSender = (props: { unitId: string; retry: (id: string) 
     const copy = async () => {
         const saved = link();
         if (!saved) return;
-        const success = await api.copyTextToClipboard(props.shareAction ? projectionInvitationLink(saved.envelope) : JSON.stringify(saved.envelope));
-        if (alive) { setCopied(success); if (!success) setError("复制失败，请重试。"); }
+        try {
+            const success = await api.copyTextToClipboard(props.shareAction ? projectionInvitationLink(saved.envelope) : JSON.stringify(saved.envelope));
+            if (alive) { setCopied(success); if (!success) setError("复制失败，请重试。"); }
+        } catch (reason) { if (alive) setError(projectionError(reason)); }
     };
     return <Show when={unit()} fallback={<p role="status">图块已关闭。</p>}>
-        <Show when={props.shareAction === "qr"} fallback={<>
+        <Show when={props.shareAction === "qr" || props.shareAction === "link"} fallback={<>
         <Show when={!props.shareAction}><p>将此图块的正式图像投射到另一台运行 Otter 的电脑，后续编辑会自动同步。</p></Show>
         <Show when={!link() && !props.shareAction}>
             <div class="qr-projection-actions" role="group" aria-label="投射连接方式">
@@ -175,16 +177,17 @@ export const QrProjectionSender = (props: { unitId: string; retry: (id: string) 
         <Show when={error()}><p role="alert" class="qr-projection-warning">{error()}</p></Show>
         <Show when={!props.shareAction}><button type="button" class="otter-terminal-btn" disabled={busy()} onClick={() => openProjectionReceiver()}>接收其他设备的投射</button></Show>
         </>}>
-            <Show when={link()} fallback={<Show when={!error()}><p role="status">正在生成二维码…</p></Show>}>
+            <Show when={link()} fallback={<Show when={!error()}><p role="status">{props.shareAction === "qr" ? "正在生成二维码…" : "正在生成链接…"}</p></Show>}>
                 {(saved) => <Show when={!saved().offlineTransport && saved().role === "source" && !saved().linked && !saved().stopPending && !saved().stopped && remaining() > 0}
                     fallback={<p role="status">{saved().stopped || saved().stopPending ? "投射已停止" : saved().linked ? "投射已连接" : saved().role === "receiver" ? "接收贴图无法生成邀请" : "邀请已失效"}</p>}>
-                    <Show when={qr()} fallback={<Show when={!error()}><p role="status">正在生成二维码…</p></Show>}>
+                    <Show when={props.shareAction === "qr"}><Show when={qr()} fallback={<Show when={!error()}><p role="status">正在生成二维码…</p></Show>}>
                         {(src) => <img class="qr-projection-code" src={src()} alt="投射邀请二维码" />}
-                    </Show>
-                    <input class="qr-projection-share-link" readOnly value={projectionInvitationLink(saved().envelope)}
+                    </Show></Show>
+                    <Show when={props.shareAction === "link"}><input class="qr-projection-share-link" readOnly value={projectionInvitationLink(saved().envelope)}
                         aria-label={copied() ? "投射链接，已复制" : "投射链接"} title={copied() ? "已复制" : "点击复制链接"}
                         onFocus={(event) => event.currentTarget.select()}
                         onClick={(event) => { event.currentTarget.select(); void copy(); }} />
+                    <button type="button" class="otter-terminal-btn" onClick={() => void copy()}>{copied() ? "已复制" : "复制链接"}</button></Show>
                 </Show>}
             </Show>
             <Show when={error()}><p role="alert" class="qr-projection-warning">{error()}</p></Show>

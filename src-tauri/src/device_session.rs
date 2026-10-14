@@ -6,6 +6,8 @@
 #[cfg(feature = "remote-surface")]
 mod cache;
 #[cfg(feature = "remote-surface")]
+pub(crate) mod connection_identity;
+#[cfg(feature = "remote-surface")]
 mod identity;
 #[cfg(feature = "remote-surface")]
 mod identity_protection;

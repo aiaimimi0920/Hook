@@ -1,0 +1,39 @@
+.sticker-settings-stack {
+  --settings-button: #20262d;
+  --neuro-surface: #0a0d12;
+  position: fixed; z-index: 1220; box-sizing: border-box; width: 125px;
+  display: flex; flex-direction: column; gap: 0; overflow-y: auto; pointer-events: auto;
+  border-radius: 9px; background: var(--neuro-surface);
+  /* 外层仅承接程序焦点；键盘焦点提示由内部控件各自绘制。 */
+  outline: none;
+}
+.sticker-settings-panel {
+  box-sizing: border-box; width: 100%; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 2px; padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--neuro-surface) 88%, white);
+  border-radius: 0; background: var(--neuro-surface); color: var(--theme-text-secondary);
+  box-shadow: none; overflow-y: auto; pointer-events: auto; font-size: 12px;
+}
+.sticker-settings-panel:first-child { border-radius: 9px 9px 0 0; }
+.sticker-settings-panel:last-child { border-radius: 0 0 9px 9px; }
+.sticker-settings-panel + .sticker-settings-panel { border-top: 0; }
+.sticker-settings-actions { display: flex; gap: 1px; }
+.sticker-settings-actions button { display: grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; padding: 4px; }
+.sticker-settings-actions svg { width: 18px; height: 18px; }
+.sticker-settings-number { border: 0; border-radius: 4px; background: var(--theme-control); color: inherit; }
+.sticker-settings-panel button { border: 0; border-radius: 4px; background: var(--settings-button); color: #e2e6eb; cursor: pointer; }
+.sticker-settings-panel button:not(:disabled):is(:hover, [data-toolbar-hover="true"]) { background: color-mix(in srgb, var(--settings-button) 78%, white); color: #fff; }
+.sticker-settings-panel button:not(:disabled):is([aria-selected="true"], [aria-pressed="true"]) { color: var(--theme-signal); background: color-mix(in srgb, var(--theme-signal) 18%, var(--settings-button)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-signal) 45%, transparent); }
+.sticker-settings-panel button:not(:disabled):active { filter: brightness(1.15); }
+.sticker-settings-panel button:disabled { opacity: 1; cursor: not-allowed; background: #101419; color: #59616b; box-shadow: none; }
+.sticker-settings-panel :is(button, input):focus-visible { outline: 1px solid var(--theme-signal); outline-offset: -1px; }
+.sticker-settings-number { display: flex; align-items: center; flex-shrink: 0; height: 28px; min-width: 0; gap: 2px; padding: 0 3px; }
+.sticker-settings-number > svg { flex-shrink: 0; width: 13.5px; height: 13.5px; }
+.sticker-settings-number input { width: 100%; min-width: 0; border: 0; padding: 0; background: transparent; color: inherit; font-size: 12px; text-align: right; }
+.sticker-settings-number > span:not(.rectangle-steppers) { font-size: 10px; color: var(--theme-text-muted); }
+.sticker-settings-number .rectangle-steppers { flex-shrink: 0; }
+.sticker-settings-number .rectangle-steppers { gap: 1px; }
+.sticker-settings-linked { color: var(--theme-text-muted); }
+.sticker-settings-extras { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; margin-top: 2px; padding-top: 4px; border-top: 1px solid var(--theme-control); }
+.sticker-settings-extras button { display: flex; align-items: center; justify-content: center; min-width: 0; gap: 4px; height: 28px; padding: 0 4px; white-space: nowrap; }
+.sticker-settings-extras svg { width: 14px; height: 14px; flex-shrink: 0; }

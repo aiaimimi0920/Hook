@@ -9,6 +9,15 @@
     background: transparent;
 }
 
+/* Only text blocks claim clicks; empty overlay space still reaches the editor. */
+.extension-unit-surface[data-local-text-copy="true"] .declarative-surface {
+    pointer-events: none;
+}
+.extension-unit-surface[data-local-text-copy="true"] .surface-text[data-surface-selectable-text="true"] {
+    pointer-events: auto;
+    cursor: copy;
+}
+
 .extension-unit-surface[data-editor-pointer-passthrough="true"],
 .extension-unit-surface[data-editor-pointer-passthrough="true"] .declarative-surface {
     pointer-events: none;

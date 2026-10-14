@@ -11,6 +11,7 @@ interface UnitPortRegistryControllerOptions {
     inputs: Accessor<NamedPort[]>;
     outputs: Accessor<NamedPort[]>;
     element: Accessor<HTMLDivElement | undefined>;
+    visible?: Accessor<boolean>;
 }
 
 /** Keeps floating-panel anchors and native hit-test port strips synchronized. */
@@ -45,6 +46,7 @@ export const createUnitPortRegistryController = (options: UnitPortRegistryContro
                     options.unit().id !== unitId ||
                     element.closest(".unit-container") !== unitElement
                 ) return;
+                if (element.closest(".hide-collapsed-endpoints:not(.is-expanded)")) return;
                 const portRect = element.getBoundingClientRect();
                 const unitRect = unitElement.getBoundingClientRect();
                 const x = portRect.left + portRect.width / 2 - unitRect.left;
@@ -73,6 +75,7 @@ export const createUnitPortRegistryController = (options: UnitPortRegistryContro
     });
 
     createEffect(() => {
+        if (options.visible?.() === false) return;
         const unit = options.unit();
         const inputs = options.inputs();
         const outputs = options.outputs();

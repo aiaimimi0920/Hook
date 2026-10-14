@@ -6,6 +6,8 @@ import { ArtCapability } from "../services/protocol";
 import { api } from "../services/api";
 import { syncService } from "../services/syncService";
 import { ShortcutManager } from "../services/shortcuts";
+import { createStickerTopStripHover } from "./stickerTopStripHover";
+import "../styles/add-art-menu.css";
 import {
     OVERLAY_GLOBAL_MOUSE_UP_EVENT,
     type OverlaySyntheticMousePayload,
@@ -26,6 +28,8 @@ interface UnitAddNodeMenuProps {
 }
 
 export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
+    const hover = createStickerTopStripHover();
+    onCleanup(hover.clear);
     let menuRootRef: HTMLDivElement | undefined;
     let scrollContainerRef: HTMLDivElement | undefined;
     let scrollTrackRef: HTMLDivElement | undefined;
@@ -398,7 +402,8 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                     }}
                     id={`actions-menu-${props.unit?.id ?? "global"}`}
                     data-otter-drag-follow-unit-id={props.unit?.id}
-                    class="absolute pointer-events-auto"
+                    class="otter-add-art-menu absolute pointer-events-auto"
+                    onPointerOver={hover.over} onPointerOut={hover.out}
                     onPointerDown={(event) => {
                         event.stopPropagation();
                         void api.focusOverlayWindow();
@@ -418,9 +423,10 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                         height: "300px",
                     }}
                 >
-                    <div class="otter-terminal-shell otter-terminal-shell--strong flex h-full w-full flex-col overflow-hidden transition duration-200 ease-out animate-in fade-in zoom-in-95">
-                        <div class="otter-add-art-header flex flex-shrink-0 items-center gap-1.5 border-b p-2">
-                            <div class="relative min-w-0 flex-1">
+                    <div class="otter-terminal-shell otter-add-art-shell">
+                        <div class="otter-add-art-header">
+                            <div class="otter-add-art-search">
+                                <svg class="otter-add-art-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6" /><path d="m15 15 5 5" /></svg>
                                 <input
                                     ref={(el) => { searchInputRef = el; }}
                                     data-add-art-search
@@ -428,7 +434,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                                     value={searchQuery()}
                                     placeholder="搜索 Art"
                                     aria-label="搜索 Art"
-                                    class="otter-terminal-input h-8 w-full px-2.5 pr-8 text-xs"
+                                    class="otter-terminal-input"
                                     onInput={(event) => setSearchQuery(event.currentTarget.value)}
                                     onKeyDown={handleSearchKeyDown}
                                     onFocus={() => void api.focusOverlayWindow()}
@@ -445,12 +451,12 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                                         type="button"
                                         aria-label="清空搜索"
                                         title="清空搜索"
-                                        class="otter-toolbar-button absolute right-1 top-1 flex h-6 w-6 items-center justify-center text-sm"
+                                        class="otter-add-art-clear"
                                         onPointerDown={(event) => event.stopPropagation()}
                                         onMouseDown={(event) => event.stopPropagation()}
                                         onClick={clearSearch}
                                     >
-                                        ×
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17" /></svg>
                                     </button>
                                 </Show>
                             </div>
@@ -459,12 +465,12 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                                 type="button"
                                 aria-label="关闭 Art 菜单"
                                 title="关闭"
-                                class="otter-terminal-btn flex h-8 w-8 flex-none items-center justify-center text-base"
+                                class="otter-add-art-close"
                                 onPointerDown={(event) => event.stopPropagation()}
                                 onMouseDown={(event) => event.stopPropagation()}
                                 onClick={closeMenu}
                             >
-                                ×
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
                             </button>
                         </div>
 
@@ -472,7 +478,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                             <div
                                 ref={(el) => { scrollContainerRef = el; }}
                                 data-add-art-scroll-container
-                                class="otter-add-art-scroll-container flex-1 overflow-y-auto overflow-x-hidden bg-transparent p-2 pr-4"
+                                class="otter-add-art-scroll-container flex-1 overflow-y-auto overflow-x-hidden"
                                 onScroll={syncScrollMetrics}
                                 onWheel={(event) => {
                                     event.preventDefault();
@@ -481,10 +487,10 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                                     setManualScrollTop((scrollContainerRef?.scrollTop ?? 0) + event.deltaY);
                                 }}
                             >
-                                <div class="flex flex-col gap-1.5">
+                                <div class="otter-add-art-list">
                                     <Show when={filteredArts().length > 0} fallback={
-                                        <div class="otter-add-art-empty text-xs font-medium text-center py-8">
-                                            {(props.availableArts?.length ?? 0) > 0 ? "未找到 Art" : "No available arts"}
+                                        <div class="otter-add-art-empty">
+                                            {(props.availableArts?.length ?? 0) > 0 ? "未找到 Art" : "暂无可用 Art"}
                                         </div>
                                     }>
                                         <For each={filteredArts()}>
@@ -492,15 +498,14 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                                                 <button
                                                     data-add-art-id={art.id}
                                                     type="button"
-                                                    class="otter-terminal-list-item group relative overflow-hidden flex items-center w-full px-2.5 py-2 text-sm transition-all cursor-pointer active:scale-[0.98]"
+                                                    class="otter-add-art-item"
+                                                    title={art.label}
                                                     onMouseDown={(event) => beginArtActivation(event, art.id)}
                                                     onMouseUp={(event) => completeArtActivation(event, art.id)}
                                                     onClick={(event) => handleArtClick(event, art.id)}
                                                 >
-                                                    <div class="otter-terminal-icon-tile flex h-7 w-7 items-center justify-center mr-2.5 transition-colors">
-                                                        <span class="text-sm">❖</span>
-                                                    </div>
-                                                    <span class="z-10 min-w-0 flex-1 truncate text-left font-medium">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5" /></svg>
+                                                    <span class="min-w-0 flex-1 truncate text-left">
                                                         {art.label}
                                                     </span>
                                                 </button>
@@ -512,7 +517,7 @@ export const UnitAddNodeMenu: Component<UnitAddNodeMenuProps> = (props) => {
                             <div
                                 ref={(el) => { scrollTrackRef = el; }}
                                 data-add-art-scrollbar-track
-                                class="param-scrollbar-track absolute bottom-2 right-1 top-2"
+                                class="param-scrollbar-track absolute bottom-1 right-1 top-1"
                                 style={{
                                     width: "7px",
                                     opacity: hasScrollableOverflow() ? 1 : 0.25,

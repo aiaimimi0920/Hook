@@ -14,13 +14,13 @@ export const sanitizeCanvasDimension = (value: number) =>
     clampFiniteNumber(value, 1, 1, MAX_CANVAS_DIMENSION);
 
 export const sanitizeStrokeWidth = (value: number, minimum = 0) =>
-    clampFiniteNumber(value, 3, minimum, 96);
+    clampFiniteNumber(value, 3, minimum, 999);
 
 export const sanitizeShapeCornerRadius = (value: number) =>
-    clampFiniteNumber(value, 0, 0, 256);
+    clampFiniteNumber(value, 0, 0, 999);
 
 export const sanitizeShapeSnapStep = (value: number) =>
-    clampFiniteNumber(value, 0, 0, 50);
+    clampFiniteNumber(value, 0, 0, 999);
 
 export const sanitizePolygonSides = (value: number) =>
     Math.round(clampFiniteNumber(value, 6, 3, 12));
@@ -35,10 +35,10 @@ export const sanitizeContentEraserSize = (value: number) =>
     clampFiniteNumber(value, 20, 4, 96);
 
 export const sanitizeTextSize = (value: number) =>
-    clampFiniteNumber(value, 16, 8, 96);
+    clampFiniteNumber(value, 16, 8, 999);
 
 export const sanitizeSerialRadius = (value: number) =>
-    clampFiniteNumber(value, 14, 8, 96);
+    clampFiniteNumber(value, 14, 8, 999);
 
 export const sanitizeRotation = (value: number | undefined) =>
     clampFiniteNumber(value ?? 0, 0, -36_000, 36_000);

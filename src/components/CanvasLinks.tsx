@@ -5,11 +5,11 @@ import {
     mousePos,
     hoveringLink,
     selectedStickerId,
-    multiDragPositions,
-    isCleanView
+    multiDragPositions
 } from "../store/uiStore";
 import { CanvasGraphLink } from "./CanvasGraphLink";
 import type { Unit } from "../types/unit";
+import { unitLinkEndpointVisible, unitLinkVisible } from "../services/unitLinkVisibility";
 
 type OverlayLinkHighlight = {
     source: {
@@ -51,10 +51,6 @@ export const CanvasLinks: Component = () => {
     );
 
     const selectedOverlayLinks = createMemo<OverlayLinkHighlight[]>(() => {
-        if (isCleanView()) {
-            return [];
-        }
-
         const id = selectedStickerId();
         if (!id) {
             return [];
@@ -62,7 +58,7 @@ export const CanvasLinks: Component = () => {
 
         const currentUnitById = unitById();
         const source = currentUnitById.get(id);
-        if (!source) {
+        if (!source || !unitLinkEndpointVisible(source)) {
             return [];
         }
 
@@ -72,7 +68,7 @@ export const CanvasLinks: Component = () => {
         return Object.values(params)
             .filter((value): value is string => typeof value === "string" && value.length > 0 && !value.startsWith("data:"))
             .map((targetId) => currentUnitById.get(targetId))
-            .filter((target): target is NonNullable<typeof target> => !!target)
+            .filter((target): target is NonNullable<typeof target> => !!target && unitLinkVisible(source, target))
             .map((target) => ({
                 source: sourceRect,
                 target: resolveUnitOverlayRect(target, dPositions),
@@ -80,10 +76,6 @@ export const CanvasLinks: Component = () => {
     });
 
     const hoverPreviewLink = createMemo<OverlayLinkHighlight | null>(() => {
-        if (isCleanView()) {
-            return null;
-        }
-
         const { sourceUnitId, targetUnitId } = hoveringLink();
         if (!sourceUnitId || !targetUnitId) {
             return null;
@@ -92,7 +84,7 @@ export const CanvasLinks: Component = () => {
         const currentUnitById = unitById();
         const source = currentUnitById.get(sourceUnitId);
         const target = currentUnitById.get(targetUnitId);
-        if (!source || !target) {
+        if (!source || !target || !unitLinkVisible(source, target)) {
             return null;
         }
 
@@ -111,16 +103,16 @@ export const CanvasLinks: Component = () => {
       >
         <defs>
             <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                <polygon points="0 0, 10 3.5, 0 7" fill="var(--theme-text-muted)" />
+                <polygon points="0 0, 10 3.5, 0 7" fill="var(--theme-signal)" />
             </marker>
         </defs>
 
         {/* DRAG LINKING PREVIEW */}
-        <Show when={linkingState().isLinking}>
+        <Show when={linkingState().isLinking && unitLinkEndpointVisible(unitById().get(linkingState().sourceUnitId ?? ""))}>
              <path
                 d={`M ${linkingState().startX} ${linkingState().startY} C ${linkingState().startX + 50} ${linkingState().startY}, ${mousePos().x - 50} ${mousePos().y}, ${mousePos().x} ${mousePos().y}`}
                 fill="none"
-                stroke="var(--theme-info-text)"
+                stroke="var(--theme-signal)"
                 stroke-width="2"
                 stroke-dasharray="5,5"
                 marker-end="url(#arrowhead)"
@@ -133,7 +125,7 @@ export const CanvasLinks: Component = () => {
         </For>
 
         {/* SELECTED UNIT LINKS OVERLAY */}
-        {/* Only show in Normal View to avoid clutter in Clean View */}
+        {/* Reference highlights follow the same visibility as their endpoints. */}
         <For each={selectedOverlayLinks()}>
             {(link) => (
                 <>

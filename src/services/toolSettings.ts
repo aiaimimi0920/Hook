@@ -6,6 +6,8 @@ import type {
     StickerToolSettings,
 } from "../types/stickerEditing";
 import { createDefaultStickerToolSettings } from "./stickerEditing";
+import { parseRectangleAspectRatio } from "./rectangleAspectRatio";
+import { freehandOpacity, freehandSmoothing } from "./stickerPaintbrushGeometry";
 
 const normalizeFontFamily = (value: unknown, fallback: string) =>
     typeof value === "string" && value.trim().length > 0 ? value.trim() : fallback;
@@ -21,10 +23,12 @@ const STICKER_CREATE_TOOLS = [
     "shape-triangle",
     "shape-polygon",
     "line",
+    "bezier",
     "polyline",
     "arrow",
     "text",
     "brush",
+    "paintbrush",
     "highlighter",
     "serial",
     "mosaic",
@@ -34,10 +38,13 @@ const STICKER_CREATE_TOOLS = [
 ] as const;
 
 const TOOL_PROFILE_SETTING_KEYS = [
+    "brushOpacity",
+    "brushSmoothing",
     "strokeWidth",
     "textSize",
     "shapeCornerRadius",
     "shapeConstrainSquare",
+    "shapeAspectRatio",
     "shapeSnapStep",
     "shapeStrokeDashPattern",
     "polygonSides",
@@ -54,9 +61,9 @@ const TOOL_PROFILE_SETTING_KEYS = [
 
 const TOOL_PROFILE_KEYS_BY_TOOL: Record<StickerCreateTool, readonly StickerToolProfileSettingKey[]> = {
     crop: [],
-    "shape-rect": ["strokeWidth", "shapeCornerRadius", "shapeConstrainSquare", "shapeSnapStep", "shapeStrokeDashPattern"],
-    "shape-round-rect": ["strokeWidth", "shapeCornerRadius", "shapeConstrainSquare", "shapeSnapStep", "shapeStrokeDashPattern"],
-    "shape-ellipse": ["strokeWidth", "shapeConstrainSquare", "shapeSnapStep", "shapeStrokeDashPattern"],
+    "shape-rect": ["strokeWidth", "shapeCornerRadius", "shapeConstrainSquare", "shapeAspectRatio", "shapeSnapStep", "shapeStrokeDashPattern"],
+    "shape-round-rect": ["strokeWidth", "shapeCornerRadius", "shapeConstrainSquare", "shapeAspectRatio", "shapeSnapStep", "shapeStrokeDashPattern"],
+    "shape-ellipse": ["strokeWidth", "shapeConstrainSquare", "shapeAspectRatio", "shapeSnapStep", "shapeStrokeDashPattern"],
     "shape-triangle": ["strokeWidth", "shapeCornerRadius", "shapeConstrainSquare", "shapeSnapStep", "shapeStrokeDashPattern"],
     "shape-polygon": [
         "strokeWidth",
@@ -67,10 +74,12 @@ const TOOL_PROFILE_KEYS_BY_TOOL: Record<StickerCreateTool, readonly StickerToolP
         "polygonSides",
     ],
     line: ["strokeWidth", "shapeStrokeDashPattern", "lineArrowEnabled", "lineAngleSnap"],
+    bezier: ["strokeWidth", "shapeStrokeDashPattern", "lineArrowEnabled"],
     polyline: ["strokeWidth", "shapeStrokeDashPattern"],
     arrow: ["strokeWidth", "shapeStrokeDashPattern", "lineAngleSnap"],
     text: ["textSize", "textFontFamily"],
-    brush: ["strokeWidth", "shapeStrokeDashPattern", "brushHighlighterEnabled"],
+    brush: ["strokeWidth", "shapeStrokeDashPattern", "brushHighlighterEnabled", "brushOpacity", "brushSmoothing"],
+    paintbrush: ["strokeWidth", "brushOpacity", "brushSmoothing"],
     highlighter: ["strokeWidth", "shapeStrokeDashPattern", "brushHighlighterEnabled"],
     serial: ["serialRadius", "serialFontFamily"],
     mosaic: ["effectBrushSize", "mosaicSize"],
@@ -144,6 +153,12 @@ const normalizeToolProfiles = (
         const target = { ...(next[tool] ?? {}) } as Partial<StickerToolProfileSettings>;
         for (const [key, raw] of Object.entries(profile)) {
             if (!isToolProfileSettingKey(key) || raw === undefined) continue;
+            if (key === "brushOpacity") { target.brushOpacity = freehandOpacity(Number(raw)); continue; }
+            if (key === "brushSmoothing") { target.brushSmoothing = freehandSmoothing(Number(raw)); continue; }
+            if (key === "shapeAspectRatio") {
+                target.shapeAspectRatio = parseRectangleAspectRatio(raw)?.text ?? "1:1";
+                continue;
+            }
             if (key === "textFontFamily") {
                 target.textFontFamily = normalizeFontFamily(raw, createDefaultStickerToolSettings().textFontFamily);
                 continue;
@@ -225,6 +240,9 @@ export const normalizeStickerToolSettings = (
         ...defaults,
         ...value,
         ...normalizedModeFields,
+        brushOpacity: freehandOpacity(value?.brushOpacity ?? defaults.brushOpacity),
+        brushSmoothing: freehandSmoothing(value?.brushSmoothing ?? defaults.brushSmoothing),
+        shapeAspectRatio: parseRectangleAspectRatio(value?.shapeAspectRatio)?.text ?? "1:1",
         toolProfiles: normalizeToolProfiles(value?.toolProfiles, cloneDefaultToolProfiles()),
         brushHighlighterEnabled: value?.brushHighlighterEnabled ?? defaults.brushHighlighterEnabled,
         textFontFamily: normalizeFontFamily(value?.textFontFamily, defaults.textFontFamily),

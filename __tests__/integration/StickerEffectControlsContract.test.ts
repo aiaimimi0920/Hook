@@ -6,7 +6,8 @@ const propertyBarSource = readFileSync(resolve(process.cwd(), "src/components/St
 const propertyBarSectionsPath = resolve(process.cwd(), "src/components/stickerTopStripPropertyBarSections.tsx");
 const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
 const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(propertyBarSectionsPath, "utf8") : "";
-const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
+const effectFieldsSource = readFileSync(resolve(process.cwd(), "src/components/EffectPropertyFields.tsx"), "utf8");
+const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}\n${effectFieldsSource}`;
 const pointerCommitSource = readFileSync(
     resolve(process.cwd(), "src/components/stickerAnnotationPointerCommitController.ts"),
     "utf8",
@@ -15,9 +16,9 @@ const effectOverlaySource = readFileSync(resolve(process.cwd(), "src/components/
 
 describe("Otter sticker effect controls contract", () => {
     it("exposes manual blur degree and mosaic unit square width controls that feed effect annotation creation", () => {
-        expect(propertyBarRenderSource).toContain('settingKey="mosaicSize"');
-        expect(propertyBarRenderSource).toContain('settingKey="blurStrength"');
-        expect(propertyBarRenderSource).toContain("MiniNumericField");
+        expect(effectFieldsSource).toContain('setting="mosaicSize"');
+        expect(effectFieldsSource).toContain('setting="blurStrength"');
+        expect(effectFieldsSource).toContain("DrawingNumberField");
 
         expect(pointerCommitSource).toContain("stickerToolSettings.mosaicSize");
         expect(pointerCommitSource).toContain("stickerToolSettings.blurStrength");
@@ -27,7 +28,7 @@ describe("Otter sticker effect controls contract", () => {
         // The mosaic/blur tools are brush-painted: a 笔刷大小 control replaces the
         // old rectangle 外框/边框 width control.
         expect(propertyBarRenderSource).toContain("effectBrushSize");
-        expect(propertyBarRenderSource).toContain('title="笔刷"');
+        expect(propertyBarRenderSource).toContain('title="笔刷大小"');
 
         // Effect annotations are committed from a brush draft line, storing the
         // stroke points + brush width alongside the bounding box.

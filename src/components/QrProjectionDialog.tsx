@@ -7,14 +7,16 @@ import { syncService } from "../services/syncService";
 import { QrProjectionSender } from "./QrProjectionSender";
 import { QrProjectionReceiver } from "./QrProjectionReceiver";
 import { ProjectionBatchSender } from "./ProjectionBatchSender";
+import { claimProjectionPopup } from "../services/projectionPopup";
 import "./QrProjectionDialog.css";
 
 export const QrProjectionDialog = (props: { target: ProjectionDialogTarget; retry: (id: string) => void }) => {
-    const importing = () => props.target.importKind === "combined";
-    const compact = () => importing() || (!!props.target.unitId && props.target.shareAction === "qr");
+    const importing = () => !!props.target.importKind;
+    const compact = () => importing() || (!!props.target.unitId && (props.target.shareAction === "qr" || props.target.shareAction === "link"));
     let dialog: HTMLElement | undefined;
     let closeButton: HTMLButtonElement | undefined;
     onMount(() => {
+        onCleanup(claimProjectionPopup(closeProjectionDialog));
         let mounted = true;
         const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         closeButton?.focus();
@@ -77,7 +79,7 @@ export const QrProjectionDialog = (props: { target: ProjectionDialogTarget; retr
     });
     return <Portal><div class="qr-projection-backdrop" classList={{ "qr-projection-backdrop--share": compact() }} role="presentation">
         <section ref={(el) => { dialog = el; }} class="qr-projection-dialog" classList={{ "qr-projection-dialog--share": compact(), "qr-projection-dialog--import": importing() }} role="dialog"
-            aria-modal={!compact()} aria-label={compact() ? importing() ? "导入投射" : "投射二维码" : undefined} aria-labelledby={compact() ? undefined : "qr-projection-title"}
+            aria-modal={!compact()} aria-label={compact() ? importing() ? "导入投射" : props.target.shareAction === "link" ? "投射链接" : "投射二维码" : undefined} aria-labelledby={compact() ? undefined : "qr-projection-title"}
             data-overlay-synthetic-target="direct" onPointerDown={(event) => event.stopPropagation()}
             onMouseDown={(event) => event.stopPropagation()} onMouseUp={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
@@ -86,7 +88,7 @@ export const QrProjectionDialog = (props: { target: ProjectionDialogTarget; retr
                 : props.target.importKind === "combined" ? "导入投射" : props.target.importKind === "link" ? "链接导入" : props.target.importKind === "qr" ? "二维码导入" : "接收二维码投射"}</h2></Show>
                 <button ref={(el) => { closeButton = el; }} type="button" class="otter-terminal-btn" aria-label="关闭投射面板" title="关闭" onClick={closeProjectionDialog}>{compact() ? "×" : "关闭"}</button></header>
             <div class="qr-projection-content">
-                <Show when={props.target.unitId} fallback={<QrProjectionReceiver initialText={props.target.invitationText ?? ""} importKind={props.target.importKind} />}>
+                <Show when={props.target.unitId} fallback={<QrProjectionReceiver initialText={props.target.invitationText ?? ""} importKind={props.target.importKind} receiverUnitId={props.target.receiverUnitId} />}>
                     {(unitId) => <Show when={props.target.shareAction === "targets"} fallback={<QrProjectionSender unitId={unitId()} retry={props.retry} shareAction={props.target.shareAction} />}>
                         <ProjectionBatchSender unitId={unitId()} retry={props.retry} />
                     </Show>}

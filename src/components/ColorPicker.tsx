@@ -3,6 +3,7 @@ import { Component, createSignal, createEffect, onMount, onCleanup, For, Show, u
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import { syncService } from "../services/syncService";
 import { hexToRgb, hsvToRgb, normalizeHexColor, rgbToHex, rgbToHsv } from "./ColorPicker/colorMath";
+import "../styles/color-picker.css";
 
 const COLOR_PICKER_RECT_ID = "color-picker-popup";
 const COLOR_PICKER_RECT_NAME = "COLOR_PICKER";
@@ -34,6 +35,8 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
     // alpha hex) without the field snapping back to a fallback color.
     const [hexDraft, setHexDraft] = createSignal("");
     const [hexEditing, setHexEditing] = createSignal(false);
+    const [panelHeight, setPanelHeight] = createSignal(320);
+    const [viewport, setViewport] = createSignal({ width: window.innerWidth, height: window.innerHeight });
 
     let svPickerRef: HTMLDivElement | undefined;
     let hueSliderRef: HTMLDivElement | undefined;
@@ -90,6 +93,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
     });
 
     const handleHexInput = (raw: string) => {
+        setHexEditing(true);
         setHexDraft(raw);
         if (isValidHex(raw)) {
             loadColor(raw);
@@ -100,6 +104,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
         if (!svPickerRef) return;
         const rect = svPickerRef.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return;
+        setHexEditing(false);
         const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width));
         const y = Math.max(0, Math.min(event.clientY - rect.top, rect.height));
         setSaturation(x / rect.width);
@@ -110,6 +115,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
         if (!hueSliderRef) return;
         const rect = hueSliderRef.getBoundingClientRect();
         if (rect.width <= 0) return;
+        setHexEditing(false);
         const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width));
         setHue((x / rect.width) * 360);
     };
@@ -117,6 +123,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
     const handleAlphaPick = (event: MouseEvent) => {
         if (!alphaSliderRef) return;
         const rect = alphaSliderRef.getBoundingClientRect();
+        setHexEditing(false);
         const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width));
         setAlpha(rect.width <= 0 ? alpha() : x / rect.width);
     };
@@ -173,10 +180,15 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
 
     const alphaSliderBackground = () => {
         const rgb = hsvToRgb(hue(), saturation(), value());
-        return `linear-gradient(to right, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 1)), linear-gradient(45deg, #9ca3af 25%, transparent 25%), linear-gradient(-45deg, #9ca3af 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #9ca3af 75%), linear-gradient(-45deg, transparent 75%, #9ca3af 75%)`;
+        return `linear-gradient(to right, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 1)), repeating-conic-gradient(#999 0% 25%, #ddd 0% 50%)`;
     };
 
     onMount(() => {
+        const previousFocus = document.activeElement;
+        panelRef?.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
+        onCleanup(() => {
+            if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
+        });
         let svDragging = false;
         let hueDragging = false;
         let alphaDragging = false;
@@ -245,6 +257,12 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                 if (!panelRef) return;
                 const rect = panelRef.getBoundingClientRect();
                 if (rect.width <= 0 || rect.height <= 0) return;
+                if (panelHeight() !== rect.height) {
+                    setPanelHeight(rect.height);
+                    // Height changes can move the panel at a screen edge; register after relocation.
+                    syncRect();
+                    return;
+                }
                 const nextRect = {
                     x: rect.left,
                     y: rect.top,
@@ -272,6 +290,11 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
 
         // Sync after layout settles so getBoundingClientRect reflects final position.
         syncRect();
+        const onResize = () => {
+            setViewport({ width: window.innerWidth, height: window.innerHeight });
+            syncRect();
+        };
+        window.addEventListener("resize", onResize);
 
         let observer: ResizeObserver | undefined;
         if (typeof ResizeObserver !== "undefined" && panelRef) {
@@ -284,6 +307,7 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
                 window.cancelAnimationFrame(rectSyncRaf);
             }
             observer?.disconnect();
+            window.removeEventListener("resize", onResize);
             removeRect(COLOR_PICKER_RECT_ID);
             void syncService.updateBackendRects();
         });
@@ -295,13 +319,13 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
         if (!props.anchorRect) {
             return {};
         }
-        const PICKER_WIDTH = 320;
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
+        const viewportWidth = viewport().width;
+        const viewportHeight = viewport().height;
+        const PICKER_WIDTH = Math.min(248, viewportWidth - 16);
         // Use the panel's real height once mounted; fall back to a generous
         // estimate that covers SV picker + hue + alpha + palette + preview + buttons.
         const PICKER_HEIGHT = Math.min(
-            panelRef?.getBoundingClientRect().height || 480,
+            panelHeight(),
             viewportHeight - 16,
         );
 
@@ -338,236 +362,72 @@ export const ColorPicker: Component<ColorPickerPropsExtended> = (props) => {
     };
 
     return (
-        <div
-            class="fixed inset-0 z-[10001]"
-            onClick={() => props.onClose()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-        >
-            <div
-                ref={(el) => { panelRef = el; }}
-                class="otter-terminal-shell otter-terminal-shell--strong overflow-y-auto p-4"
-                style={{ width: "320px", "max-height": "calc(100vh - 16px)", ...pickerStyle() }}
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-            >
-                <div class="mb-3 flex items-center justify-between">
-                    <span class="text-sm font-semibold">颜色选择器</span>
-                    <button
-                        class="otter-toolbar-button"
-                        onClick={() => props.onClose()}
-                    >
-                        ✕
+        <div class="fixed inset-0 z-[10001] flex items-center justify-center" onClick={() => props.onClose()}
+            onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Escape") { event.preventDefault(); props.onClose(); } }}
+            onPointerDown={(event) => event.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+            <div ref={(element) => { panelRef = element; }} class="otter-color-picker-panel" role="dialog" aria-label="颜色选择器"
+                style={{ ...pickerStyle() }} onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()}>
+                <div ref={(element) => { svPickerRef = element; }} class="otter-color-picker-sv" aria-label="饱和度与明度"
+                    style={{ background: "linear-gradient(to bottom, transparent, black), linear-gradient(to right, white, " + hueGradient() + ")" }}>
+                    <div class="otter-color-picker-sv-handle" style={{ left: saturation() * 100 + "%", top: (1 - value()) * 100 + "%" }} />
+                </div>
+                <div ref={(element) => { hueSliderRef = element; }} class="otter-color-picker-track otter-color-picker-hue" aria-label="色相">
+                    <div class="otter-color-picker-track-handle" style={{ left: hue() / 360 * 100 + "%" }} />
+                </div>
+                <div ref={(element) => { alphaSliderRef = element; }} data-alpha-slider class="otter-color-picker-track otter-color-picker-alpha" aria-label="透明度"
+                    style={{ "background-image": alphaSliderBackground() }}>
+                    <div class="otter-color-picker-track-handle" style={{ left: alpha() * 100 + "%" }} />
+                </div>
+                <div class="otter-color-picker-values">
+                    <button type="button" class="otter-color-picker-preview" aria-label="复制当前颜色 HEX" title="复制 HEX；右键复制 RGB"
+                        onClick={handleCopyHex} onContextMenu={(event) => { event.preventDefault(); handleCopyRgb(); }}>
+                        <span style={{ background: currentColor() }} />
                     </button>
-                </div>
-
-                <div
-                    ref={(el) => { svPickerRef = el; }}
-                    class="otter-color-picker__field relative mb-3 h-48 cursor-crosshair"
-                    style={{
-                        background: `linear-gradient(to bottom, transparent, black), linear-gradient(to right, white, ${hueGradient()})`,
-                    }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                >
-                    <div
-                        class="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 border-2 border-white bg-black/20"
-                        style={{
-                            left: `${saturation() * 100}%`,
-                            top: `${(1 - value()) * 100}%`,
-                            "pointer-events": "none",
-                        }}
-                    />
-                </div>
-
-                <div
-                    ref={(el) => { hueSliderRef = el; }}
-                    class="otter-color-picker__field relative mb-3 h-4 cursor-pointer"
-                    style={{
-                        background: "linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)",
-                    }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                >
-                    <div
-                        class="absolute h-6 w-2 -translate-x-1/2 -translate-y-1/2 border-2 border-white bg-black/30"
-                        style={{
-                            left: `${(hue() / 360) * 100}%`,
-                            top: "50%",
-                            "pointer-events": "none",
-                        }}
-                    />
-                </div>
-
-                <div class="mb-3 flex items-center gap-2">
-                    <span class="otter-param-label text-sm">透明度</span>
-                    <div
-                        ref={(el) => { alphaSliderRef = el; }}
-                        data-alpha-slider
-                        class="otter-color-picker__field relative h-4 flex-1 cursor-pointer"
-                        style={{
-                            background: alphaSliderBackground(),
-                            "background-size": "100% 100%, 8px 8px, 8px 8px, 8px 8px, 8px 8px",
-                            "background-position": "0 0, 0 0, 0 4px, 4px -4px, -4px 0px",
-                        }}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                    >
-                        <div
-                            class="absolute h-6 w-2 -translate-x-1/2 -translate-y-1/2 border-2 border-white bg-black/30"
-                            style={{
-                                left: `${alpha() * 100}%`,
-                                top: "50%",
-                                "pointer-events": "none",
-                            }}
-                        />
-                    </div>
-                    <span class="otter-param-value text-sm">{Math.round(alpha() * 100)}%</span>
-                </div>
-
-                <Show when={props.palette && props.palette.length > 0}>
-                    <div class="mb-3">
-                        <div class="mb-1 flex h-6 items-center justify-between">
-                            <span class="otter-terminal-caption text-xs">调色板</span>
-                            <button
-                                class="otter-terminal-btn otter-terminal-btn--danger px-2 py-0.5 text-xs"
-                                classList={{
-                                    invisible: !(selectedPaletteColor() && isRemovablePaletteColor(selectedPaletteColor()!)),
-                                }}
-                                onClick={handleRemoveSelectedPalette}
-                                onPointerDown={(e) => e.stopPropagation()}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                title="从调色板删除选中颜色"
-                            >
-                                删除
-                            </button>
-                        </div>
-                        <div class="flex flex-wrap gap-1">
-                            <For each={props.palette}>
-                                {(paletteColor) => {
-                                    const normalizedColor = normalizeHexColor(paletteColor);
-                                    const isTransparent = normalizedColor === "transparent";
-                                    const displayColor = isTransparent ? "transparent" : normalizedColor ?? "#ff0000";
-                                    return (
-                                        <button
-                                            class="otter-color-swatch h-6 w-6 overflow-hidden"
-                                            classList={{
-                                                "otter-color-swatch--selected": selectedPaletteColor() === paletteColor,
-                                            }}
-                                            style={{
-                                                background: `linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)`,
-                                                "background-size": "8px 8px",
-                                                "background-position": "0 0, 0 4px, 4px -4px, -4px 0px",
-                                            }}
-                                            title={isTransparent ? "透明" : paletteColor}
-                                            onClick={() => {
-                                                setSelectedPaletteColor(paletteColor);
-                                                if (isTransparent) {
-                                                    // Fully-transparent swatch: keep the hue but drop alpha to 0
-                                                    // so the current color actually becomes transparent.
-                                                    setAlpha(0);
-                                                } else {
-                                                    loadColor(displayColor);
-                                                }
-                                            }}
-                                            onPointerDown={(e) => e.stopPropagation()}
-                                            onMouseDown={(e) => e.stopPropagation()}
-                                        >
-                                            <span
-                                                class="block h-full w-full"
-                                                style={{ background: displayColor }}
-                                            />
-                                        </button>
-                                    );
-                                }}
-                            </For>
-                        </div>
-                    </div>
-                </Show>
-
-                <div class="otter-terminal-caption mb-1 text-xs">当前颜色（可编辑颜色码）</div>
-                <div class="flex items-center gap-3">
-                    <div
-                        class="otter-color-picker__preview h-12 w-12 flex-shrink-0"
-                        style={{
-                            background: `linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)`,
-                            "background-size": "8px 8px",
-                            "background-position": "0 0, 0 4px, 4px -4px, -4px 0px",
-                        }}
-                    >
-                        <div
-                            class="h-full w-full"
-                            style={{ background: currentColor() }}
-                        />
-                    </div>
-                    <div class="flex-1">
-                        <input
-                            type="text"
-                            class="otter-terminal-input w-full px-2 py-1 font-mono text-sm"
-                            placeholder="#RRGGBB 或 #RRGGBBAA"
-                            value={hexDraft()}
-                            onFocus={() => setHexEditing(true)}
-                            onBlur={() => {
-                                setHexEditing(false);
-                                setHexDraft(currentColor());
-                            }}
-                            onInput={(e) => handleHexInput(e.currentTarget.value)}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
-                        />
-                    </div>
-                </div>
-
-                <div class="otter-color-picker__footer sticky bottom-0 mt-3 flex flex-wrap items-center gap-2 pt-2">
-                    <button
-                        class="otter-terminal-btn otter-terminal-btn--success px-3 py-1 text-sm"
-                        onClick={handleApply}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        title="将当前颜色应用到配置"
-                    >
-                        应用颜色
+                    <button type="button" class="otter-color-picker-eyedropper" aria-label="屏幕取色" title="屏幕取色"
+                        disabled={!props.onPickFromScreen} onClick={handlePickFromScreen}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="m15 4 5 5m-7-3 5 5M4 20l1-5L16 4a2.8 2.8 0 0 1 4 4L9 19Z" />
+                        </svg>
                     </button>
-                    <Show when={props.onAddToPalette}>
-                        <button
-                            class="otter-terminal-btn px-3 py-1 text-sm"
-                            onClick={handleAddToPalette}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            title="将当前颜色存入永久调色板"
-                        >
-                            添加到调色板
+                    <input type="text" class="otter-color-picker-hex" aria-label="HEX 颜色" placeholder="#RRGGBB 或 #RRGGBBAA"
+                        value={hexDraft()} onFocus={() => setHexEditing(true)}
+                        onBlur={() => { setHexEditing(false); setHexDraft(currentColor()); }}
+                        onInput={(event) => handleHexInput(event.currentTarget.value)} />
+                    <label class="otter-color-picker-percent">
+                        <input type="number" aria-label="不透明度百分比" min="0" max="100" value={Math.round(alpha() * 100)}
+                            onInput={(event) => { const next = event.currentTarget.valueAsNumber; if (Number.isFinite(next)) setAlpha(Math.max(0, Math.min(100, next)) / 100); }} />
+                        <span>%</span>
+                    </label>
+                </div>
+                <div class="otter-color-picker-palette" role="group" aria-label="调色板" tabIndex={0}
+                    onWheel={(event) => event.stopPropagation()}>
+                    <Show when={props.onAddToPalette}><button type="button" class="otter-color-picker-palette-add" aria-label="添加到调色板" title="添加到调色板" onClick={handleAddToPalette}>+</button></Show>
+                    <For each={props.palette}>{(paletteColor) => {
+                        const normalizedColor = normalizeHexColor(paletteColor);
+                        const isTransparent = normalizedColor === "transparent";
+                        const displayColor = isTransparent ? "transparent" : normalizedColor ?? "#ff0000";
+                        return <div class="otter-color-picker-palette-item"><button type="button" class="otter-color-picker-swatch" title={isTransparent ? "透明" : paletteColor}
+                            aria-label={isTransparent ? "透明" : paletteColor} aria-pressed={selectedPaletteColor() === paletteColor}
+                            onClick={() => { setSelectedPaletteColor(paletteColor); if (isTransparent) setAlpha(0); else loadColor(displayColor); }}
+                            onContextMenu={(event) => { event.preventDefault(); if (isRemovablePaletteColor(paletteColor)) { setSelectedPaletteColor(paletteColor); handleRemoveSelectedPalette(); } }}
+                            onKeyDown={(event) => { if ((event.key === "Delete" || event.key === "Backspace") && isRemovablePaletteColor(paletteColor)) { event.preventDefault(); event.stopPropagation(); setSelectedPaletteColor(paletteColor); handleRemoveSelectedPalette(); } }}>
+                            <span style={{ background: displayColor }} />
                         </button>
-                    </Show>
-                    <Show when={props.onPickFromScreen}>
-                        <button
-                            class="otter-terminal-btn px-3 py-1 text-sm"
-                            onClick={handlePickFromScreen}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            title="从屏幕取色"
-                        >
-                            屏幕取色
-                        </button>
-                    </Show>
-                    <button
-                        class="otter-terminal-btn px-3 py-1 text-sm"
-                        onClick={handleCopyHex}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        title="复制当前颜色的 HEX 颜色码"
-                    >
-                        复制HEX
-                    </button>
-                    <button
-                        class="otter-terminal-btn px-3 py-1 text-sm"
-                        onClick={handleCopyRgb}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        title="复制当前颜色的 RGB 值"
-                    >
-                        复制RGB
+                            <Show when={isRemovablePaletteColor(paletteColor)}>
+                                <button type="button" class="otter-color-picker-swatch-remove" aria-label={"删除颜色 " + paletteColor} title="删除颜色"
+                                    onClick={(event) => { event.stopPropagation(); setSelectedPaletteColor(paletteColor); handleRemoveSelectedPalette(); }}>
+                                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="m3.5 3.5 5 5m0-5-5 5" /></svg>
+                                </button>
+                            </Show>
+                        </div>;
+                    }}</For>
+                </div>
+                <div class="otter-color-picker-actions">
+                    <button type="button" class="otter-color-picker-cancel" aria-label="取消" onClick={() => props.onClose()}>取消</button>
+                    <button type="button" class="otter-color-picker-apply" onClick={handleApply}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
+                        <span>应用</span>
                     </button>
                 </div>
             </div>

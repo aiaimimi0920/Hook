@@ -22,10 +22,12 @@ export type StickerCreateTool =
     | "shape-triangle"
     | "shape-polygon"
     | "line"
+    | "bezier"
     | "polyline"
     | "arrow"
     | "text"
     | "brush"
+    | "paintbrush"
     | "highlighter"
     | "serial"
     | "mosaic"
@@ -43,10 +45,13 @@ export interface StickerColorState {
 }
 
 export interface StickerToolProfileSettings {
+    brushOpacity: number;
+    brushSmoothing: number;
     strokeWidth: number;
     textSize: number;
     shapeCornerRadius: number;
     shapeConstrainSquare: boolean;
+    shapeAspectRatio?: string;
     shapeSnapStep: number;
     shapeStrokeDashPattern: "solid" | "dash-1" | "dash-2";
     polygonSides: number;
@@ -67,6 +72,7 @@ export type StickerCreateToolProfiles = Partial<
 >;
 
 export interface StickerToolSettings {
+    brushSmoothing: number;
     domain: StickerEditingDomain;
     mode: StickerToolMode;
     transformMode: StickerTransformMode;
@@ -87,6 +93,7 @@ export interface StickerToolSettings {
     lineStrokeColor: string;
     shapeCornerRadius: number;
     shapeConstrainSquare: boolean;
+    shapeAspectRatio?: string;
     shapeSnapStep: number;
     shapeStrokeDashPattern: "solid" | "dash-1" | "dash-2";
     polygonSides: number;
@@ -117,6 +124,8 @@ export interface StickerPoint {
 }
 
 export interface StickerStrokeStyle {
+    brushTip?: "tapered";
+    brushWeights?: number[];
     color: string;
     width: number;
     opacity?: number;
@@ -135,6 +144,7 @@ interface StickerAnnotationBase {
         | "triangle"
         | "polygon"
         | "line"
+        | "bezier"
         | "polyline"
         | "arrow"
         | "text"
@@ -159,8 +169,9 @@ export interface StickerShapeAnnotation extends StickerAnnotationBase {
 }
 
 export interface StickerLineAnnotation extends StickerAnnotationBase {
-    type: "line" | "polyline" | "arrow" | "brush" | "highlighter";
+    type: "line" | "bezier" | "polyline" | "arrow" | "brush" | "highlighter";
     points: StickerPoint[];
+    showArrowHead?: boolean;
     style: StickerStrokeStyle;
 }
 

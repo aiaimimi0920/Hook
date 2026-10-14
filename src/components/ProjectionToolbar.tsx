@@ -28,23 +28,30 @@ export const ProjectionIcon = (props: { kind: ProjectionIconKind; class?: string
     <Show when={props.kind === "friends"}><circle cx="9" cy="7" r="3" /><path d="M3 21v-3a6 6 0 0 1 12 0v3M17 4a3 3 0 0 1 0 6m2 4a5 5 0 0 1 2 4v3" /></Show>
 </svg>;
 
+const ProjectionDirectionIcon = (props: { mode: ProjectionDirection; class?: string }) => (
+    <svg class={props.class} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 16H2V3h20v13h-2M8 21h8" />
+        <path d={props.mode === "send" ? "m6 19 6-7 6 7Z" : "m6 12 6 7 6-7Z"} />
+    </svg>
+);
+
 export const ProjectionToolbar = (props: {
     mode: ProjectionDirection; active: boolean; menuOpen: boolean;
     activate: () => void; toggleMenu: () => void; selectMode: (mode: ProjectionDirection) => void;
-}) => <div class="relative h-[50px] w-[50px] shrink-0" onPointerDown={(event) => event.stopPropagation()}>
+}) => <div class="relative h-7 w-7 shrink-0" onPointerDown={(event) => event.stopPropagation()}>
     <button type="button" class={toolbarButtonLeftBorderClass} aria-label={props.mode === "send" ? "投射贴图" : "被投射贴图"}
         title={props.mode === "send" ? "投射" : "被投射"} aria-pressed={props.active}
         classList={{ "otter-toolbar-button--active": props.active, "otter-toolbar-idle": !props.active }} onClick={() => props.activate()}>
-        <ProjectionIcon kind={props.mode} class="h-7 w-7" />
+        <ProjectionDirectionIcon mode={props.mode} class="h-[18px] w-[18px]" />
     </button>
     <button type="button" class={toolbarCornerToggleClass} aria-label="切换投射方向" title="投射 / 被投射"
         aria-expanded={props.menuOpen} aria-haspopup="menu" onClick={() => props.toggleMenu()}>
         <ChevronDownCornerIcon class="h-3 w-3" />
     </button>
-    <Show when={props.menuOpen}><div class={toolbarMenuClass} style={{ left: "auto", right: "0" }} role="menu" aria-label="投射方向" data-top-strip-menu="true">
+    <Show when={props.menuOpen}><div class={toolbarMenuClass} role="menu" aria-label="投射方向" data-top-strip-menu="true">
         <For each={["send", "receive"] as const}>{(mode) => <button type="button" role="menuitemradio"
             aria-checked={props.mode === mode} class={toolbarMenuItemClass} onClick={() => props.selectMode(mode)}>
-            <ProjectionIcon kind={mode} /><span>{mode === "send" ? "投射" : "被投射"}</span>
+            <ProjectionDirectionIcon mode={mode} class="h-3 w-3" /><span>{mode === "send" ? "投射" : "被投射"}</span>
         </button>}</For>
     </div></Show>
 </div>;

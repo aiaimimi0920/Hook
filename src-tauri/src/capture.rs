@@ -51,6 +51,8 @@ pub struct CaptureResponse {
 #[derive(Clone, Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CaptureMetadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) capture_rect: Option<crate::capture_coords::CaptureRect>,
     pub dynamic_range: String,
     pub bit_depth: u8,
     pub color_space: String,
@@ -61,6 +63,7 @@ pub struct CaptureMetadata {
 impl CaptureMetadata {
     pub(crate) fn sdr(capture_backend: impl Into<String>, downgraded_from_hdr: bool) -> Self {
         Self {
+            capture_rect: None,
             dynamic_range: "sdr".to_string(),
             bit_depth: 8,
             color_space: "srgb".to_string(),
@@ -71,6 +74,7 @@ impl CaptureMetadata {
 
     pub(crate) fn hdr(capture_backend: impl Into<String>) -> Self {
         Self {
+            capture_rect: None,
             dynamic_range: "hdr".to_string(),
             bit_depth: 16,
             color_space: "bt2020-pq".to_string(),
@@ -155,6 +159,20 @@ mod tests {
     }
 
     #[test]
+    fn capture_metadata_preserves_fractional_actual_bounds() {
+        let mut metadata = CaptureMetadata::sdr("gdi-sdr", false);
+        metadata.capture_rect = Some(crate::capture_coords::CaptureRect {
+            x: 101.0 / 1.5,
+            y: 103.0 / 1.5,
+            w: 301.0 / 1.5,
+            h: 207.0 / 1.5,
+        });
+        let value = serde_json::to_value(metadata).unwrap();
+        assert_eq!(value["captureRect"]["x"], 101.0 / 1.5);
+        assert_eq!(value["captureRect"]["w"], 301.0 / 1.5);
+    }
+
+    #[test]
     #[ignore = "requires a visible protected window HWND in HOOK_PROTECTED_WINDOW_HWND"]
     fn resolves_a_protected_window_that_only_partially_overlaps_a_region() {
         let expected = crate::brand_env::var("HOOK_PROTECTED_WINDOW_HWND")
@@ -167,7 +185,8 @@ mod tests {
             logical_height: 1440.0,
         };
         assert_eq!(
-            overlapping_protected_window(33, 0, 1000, 1200, metrics).map(|resolved| resolved.id),
+            overlapping_protected_window(33.0, 0.0, 1000.0, 1200.0, metrics)
+                .map(|resolved| resolved.id),
             Some(expected)
         );
     }
@@ -176,13 +195,16 @@ mod tests {
 #[tauri::command]
 pub async fn capture_region(
     window: Window,
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
     composition_overlay_alpha: Option<f32>,
     capture_window_id: Option<String>,
 ) -> Result<CaptureResponse, String> {
+    if ![x, y, w, h].iter().all(|v| v.is_finite()) || w <= 0.0 || h <= 0.0 {
+        return Err("Capture rectangle must be finite and non-empty".to_string());
+    }
     let display_metrics = capture_display_metrics(&window)
         .ok_or_else(|| "Capture display metrics are unavailable".to_string())?;
     crate::append_runtime_log_line(&format!(
@@ -397,7 +419,8 @@ pub async fn capture_region(
             .map_err(|error| error.to_string())?,
         };
         let backend = capture.backend.as_str();
-        match capture.pixels {
+        let origin = capture.origin;
+        let mut response = match capture.pixels {
             screenshot::DynamicCapturePixels::Sdr(mut rgb_image) => {
                 if !capture.overlay_compensated
                     && remove_black_overlay_alpha(&mut rgb_image, composition_overlay_alpha)
@@ -431,7 +454,14 @@ pub async fn capture_region(
                     CaptureMetadata::hdr(backend),
                 )
             }
-        }
+        }?;
+        response.metadata.capture_rect = Some(crate::capture_coords::CaptureRect {
+            x: origin.x,
+            y: origin.y,
+            w: response.width as f64 / display_metrics.scale_factor,
+            h: response.height as f64 / display_metrics.scale_factor,
+        });
+        Ok(response)
     });
 
     let mut handle = handle;

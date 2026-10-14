@@ -175,6 +175,7 @@ pub(crate) fn apply_loom_shortcut_settings(
     settings: &serde_json::Value,
 ) -> Result<(), String> {
     shortcut_config::apply_settings(settings)?;
+    refresh_tray_shortcut_labels(app);
     if let Err(error) = refresh_configured_global_shortcuts(app) {
         append_runtime_log_line(&format!(
             "refresh_configured_global_shortcuts_failed :: {error}"

@@ -246,6 +246,11 @@ pub fn run() {
             reclaim_live_relay_control,
             stop_live_relay_session,
             tea_client::create_tea_ticket,
+            crate::loom_connection::loom_connection_view,
+            crate::loom_connection::loom_connection_probe,
+            crate::loom_connection::loom_connection_discover,
+            crate::loom_connection::loom_connection_connect,
+            crate::loom_connection::loom_connection_disconnect,
             loom_otter::loom_otter_handshake,
             loom_otter::loom_otter_dispatch_action,
             loom_otter::prefetch_shader,
@@ -261,6 +266,7 @@ pub fn run() {
         .expect("error while building tauri application");
     let exit_code = app.run_return(|app_handle, event| match event {
         tauri::RunEvent::ExitRequested { code, .. } => {
+            crate::loom_connection::shutdown();
             loom_otter::shutdown_listener(app_handle);
             extension_bridge_native::shutdown(app_handle);
             record_process_exit_event("tauri_exit_requested", code);
@@ -269,6 +275,7 @@ pub fn run() {
             prepare_for_hook_process_exit("tauri_exit_requested");
         }
         tauri::RunEvent::Exit => {
+            crate::loom_connection::shutdown();
             loom_otter::shutdown_listener(app_handle);
             extension_bridge_native::shutdown(app_handle);
             record_process_exit_event("tauri_exit", None);

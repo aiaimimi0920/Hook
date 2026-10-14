@@ -30,7 +30,6 @@ $versionPreflightScript = Join-Path $otterRoot "scripts\assert-release-version.p
 $fileHashScript = Join-Path $otterRoot "scripts\file-hash.ps1"
 . $fileHashScript
 . (Join-Path $PSScriptRoot "version-identity.ps1")
-. (Join-Path $PSScriptRoot "Write-OtterLoomLauncher.ps1")
 $versionIdentity = Get-OtterVersionIdentity -RepoRoot $otterRoot -PublicRelease:$PublicRelease.IsPresent
 
 function Get-OtterGitText {
@@ -217,13 +216,10 @@ catch {
 }
 
 $provenancePath = Write-OtterBuildProvenance -PublishedExe $publishedExe -GitDirty $sourceGitDirty
-$loomLauncher = Write-OtterLoomLauncher -OtterExe $publishedExe
 Write-Host "[otter-local-build] Built exe:"
 Write-Host "  $publishedExe"
 Write-Host "[otter-local-build] Provenance:"
 Write-Host "  $provenancePath"
-Write-Host "[otter-local-build] Explicit Loom integration launcher:"
-Write-Host "  $loomLauncher"
 if ($UiAccess) {
     Write-Warning "This build embeds a uiAccess manifest, but Windows only honors uiAccess when the binary is digitally signed and installed in a trusted location such as Program Files."
 }
