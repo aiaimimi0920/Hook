@@ -22,6 +22,7 @@ mod capture;
 mod capture_coords;
 mod capture_protected_target;
 mod capture_windows;
+mod clipboard_history;
 mod device_session;
 mod emergency_exit;
 pub mod emergency_watchdog;

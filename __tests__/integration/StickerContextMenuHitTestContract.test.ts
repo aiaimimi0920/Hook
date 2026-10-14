@@ -6,7 +6,7 @@ const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), 
 
 describe("context-menu hit-test contract", () => {
     it("registers the menu overlay rectangle through the shared UI registry path", () => {
-        const layer = readSource("src/components/StickerContextMenuLayer.tsx");
+        const layer = readSource("src/components/stickerContextMenuLayout.ts");
 
         expect(layer).toContain("addOrUpdateRect");
         expect(layer).toContain("removeRect");

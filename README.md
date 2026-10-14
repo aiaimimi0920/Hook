@@ -150,6 +150,14 @@ Actual executable/process SHA binding is external; these counters are not displa
 
 ### Sticker workspace
 
+The sticker context menu's **剪贴板** submenu displays Windows clipboard history
+(images and plain text only), refreshed by system clipboard events. Select an image
+to create a new sticker, or text to add centered, undoable annotations to the target
+sticker. Windows clipboard history must be enabled; Otter does not enable it or
+store a separate clipboard archive.
+Submenus shift vertically or open to the left to remain visible near screen edges;
+the clipboard list supports wheel scrolling and a draggable scrollbar.
+
 - persistent desktop stickers and a focused canvas mode;
 - crop, erase, border, corner radius, opacity, rotate, flip, and beautify tools;
 - text, numbering, shapes, lines, arrows, brush, highlighter, mosaic, and blur

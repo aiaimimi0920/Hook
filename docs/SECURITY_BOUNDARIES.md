@@ -5,6 +5,14 @@ identity, remote-image fetching and native input. Vulnerability reporting remain
 in [SECURITY.md](../SECURITY.md); dependency policy is in
 [DEPENDENCY_SECURITY.md](DEPENDENCY_SECURITY.md).
 
+## Clipboard history
+
+The Windows clipboard-history submenu is read-only and local. System events carry
+no clipboard payload; the open submenu fetches bounded text/image snapshots on a
+blocking worker. Clipboard history is not logged or archived by Otter. Only an
+explicit selection copies content into a persisted sticker. No HTML is rendered,
+file-list paths are not dereferenced, and Windows history settings are not changed.
+
 ## Device identity storage
 
 Windows device private keys use DPAPI-protected schema v2 storage. Legacy schema

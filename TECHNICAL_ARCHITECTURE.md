@@ -146,6 +146,12 @@ sample.
   link previews, GPU warming, and final position commits;
 - `useClipboard.ts` — internal units, system images, file payloads, and cascading
   paste behavior;
+- `clipboard_history.rs` — read-only Windows history and system-event subscriptions,
+  bounded background bitmap decoding and compact thumbnails; no private history archive.
+  `StickerClipboardHistoryPanel.tsx` owns transient menu reads/subscription cleanup;
+  `stickerClipboardPaste.ts` commits explicit selections as new images or undoable text.
+  `stickerContextMenuLayout.ts` owns viewport avoidance and the combined native hit
+  rectangle; clipboard scrolling reuses `OverlayMenuScrollArea` for synthetic input.
 - `useShortcuts.ts` — context-sensitive frontend shortcut dispatch;
 - `useUnitActions.ts` — minify/restore and higher-level unit actions;
 - `useFileDrop.ts`, `useLinking.ts`, `useNodeParameters.ts` — focused intake,

@@ -4,7 +4,6 @@ interface StickerContextMenuPanelProps {
     referenceActionLabel: string;
     onCloseSticker: () => void;
     onSave: () => void;
-    onProjection: () => void;
     onClearRecycleBin: () => void;
     onToggleReference: () => void;
     onClearReferenceLibrary: () => void;
@@ -13,8 +12,8 @@ interface StickerContextMenuPanelProps {
 
 export const StickerContextMenuPanel = (props: StickerContextMenuPanelProps) => {
     const openSubmenuFromEvent = (
-        submenu: Extract<StickerContextSubmenu, "recycleBin" | "referenceLibrary">,
-        event: MouseEvent & { currentTarget: HTMLButtonElement; target: Element },
+        submenu: Exclude<StickerContextSubmenu, "none">,
+        event: Event & { currentTarget: HTMLButtonElement; target: Element },
     ) => {
         const rect = event.currentTarget.getBoundingClientRect();
         props.onOpenSubmenu(submenu, { top: rect.top });
@@ -35,6 +34,14 @@ export const StickerContextMenuPanel = (props: StickerContextMenuPanelProps) => 
                 class="otter-context-menu-item px-3 py-2 text-left"
                 type="button"
                 onMouseEnter={() => props.onOpenSubmenu("none")}
+                onClick={() => props.onSave()}
+            >
+                保存
+            </button>
+            <button
+                class="otter-context-menu-item px-3 py-2 text-left"
+                type="button"
+                onMouseEnter={() => props.onOpenSubmenu("none")}
                 onClick={() => props.onCloseSticker()}
             >
                 关闭
@@ -42,19 +49,8 @@ export const StickerContextMenuPanel = (props: StickerContextMenuPanelProps) => 
             <button
                 class="otter-context-menu-item px-3 py-2 text-left"
                 type="button"
-                onMouseEnter={() => props.onOpenSubmenu("none")}
-                onClick={() => props.onSave()}
-            >
-                保存
-            </button>
-            <button class="otter-context-menu-item px-3 py-2 text-left" type="button"
-                onMouseEnter={() => props.onOpenSubmenu("none")} onClick={() => props.onProjection()}>
-                二维码投射
-            </button>
-            <button
-                class="otter-context-menu-item px-3 py-2 text-left"
-                type="button"
                 onMouseEnter={(event) => openSubmenuFromEvent("recycleBin", event)}
+                data-sticker-submenu="recycleBin"
             >
                 回收站
             </button>
@@ -66,6 +62,7 @@ export const StickerContextMenuPanel = (props: StickerContextMenuPanelProps) => 
             >
                 清空回收站
             </button>
+            <div role="separator" class="mx-3 my-1 border-t border-[var(--neuro-line)]" />
             <button
                 class="otter-context-menu-item px-3 py-2 text-left"
                 type="button"
@@ -78,8 +75,9 @@ export const StickerContextMenuPanel = (props: StickerContextMenuPanelProps) => 
                 class="otter-context-menu-item px-3 py-2 text-left"
                 type="button"
                 onMouseEnter={(event) => openSubmenuFromEvent("referenceLibrary", event)}
+                data-sticker-submenu="referenceLibrary"
             >
-                参考列表
+                收藏夹
             </button>
             <button
                 class="otter-context-menu-item otter-context-menu-item--danger px-3 py-2 text-left"
@@ -87,7 +85,17 @@ export const StickerContextMenuPanel = (props: StickerContextMenuPanelProps) => 
                 onMouseEnter={() => props.onOpenSubmenu("none")}
                 onClick={() => props.onClearReferenceLibrary()}
             >
-                清空参考图
+                清空收藏夹
+            </button>
+            <div role="separator" class="mx-3 my-1 border-t border-[var(--neuro-line)]" />
+            <button
+                class="otter-context-menu-item px-3 py-2 text-left"
+                type="button"
+                onMouseEnter={(event) => openSubmenuFromEvent("clipboard", event)}
+                data-sticker-submenu="clipboard"
+                onFocus={(event) => openSubmenuFromEvent("clipboard", event)}
+            >
+                剪贴板
             </button>
         </div>
     );

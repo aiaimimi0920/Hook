@@ -40,6 +40,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Initialize Shared State
+    #[cfg(target_os = "windows")]
+    match crate::clipboard_history::listen(app.handle().clone()) {
+        Ok(listener) => { app.manage(listener); }
+        Err(_) => append_runtime_log_line("system_clipboard_listener_unavailable"),
+    }
     let hit_map = SharedHitMap::new();
     app.manage(hit_map.clone());
     let capture_input_state = SharedCaptureInputState::new();

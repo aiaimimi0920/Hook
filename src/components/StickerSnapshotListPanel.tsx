@@ -11,6 +11,7 @@ interface StickerSnapshotListPanelProps {
 export const StickerSnapshotListPanel = (props: StickerSnapshotListPanelProps) => (
     <div
         class="otter-context-menu-shell grid w-[236px] grid-cols-3 auto-rows-[72px] gap-[5px] overflow-x-hidden overflow-y-auto p-[5px] min-h-[82px] max-h-[390px]"
+        style={{ "max-height": "min(390px, var(--sticker-menu-max-height, 390px))" }}
         onMouseDown={(event) => event.stopPropagation()}
         onMouseUp={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}

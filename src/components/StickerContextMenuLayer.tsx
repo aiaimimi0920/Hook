@@ -17,18 +17,17 @@ import { stickerContextMenuController } from "../services/stickerContextMenuCont
 import { captureFrozenStickerSnapshot } from "../services/stickerSnapshot";
 import { acceptsSurfaceRelayedKeydown } from "../services/surfaceHostKeydown";
 import { syncService } from "../services/syncService";
-import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import { graphStore } from "../store/graphStore";
 import { selectionActions, uiActions } from "../store/uiStore";
 import { StickerContextMenuPanel } from "./StickerContextMenuPanel";
 import { StickerSnapshotListPanel } from "./StickerSnapshotListPanel";
-import { openProjection } from "../store/qrProjectionStore";
-
-const CONTEXT_MENU_RECT_ID = "sticker-context-menu-root";
-const CONTEXT_MENU_RECT_NAME = "STICKER_CONTEXT_MENU_ROOT";
+import { StickerClipboardHistoryPanel } from "./StickerClipboardHistoryPanel";
+import { createStickerContextMenuLayout } from "./stickerContextMenuLayout";
 
 export const StickerContextMenuLayer = () => {
     let menuRootRef: HTMLDivElement | undefined;
+    let submenuRef: HTMLDivElement | undefined;
+    createStickerContextMenuLayout(() => menuRootRef, () => submenuRef);
 
     const closeMenu = () => {
         stickerContextMenuController.close();
@@ -51,12 +50,12 @@ export const StickerContextMenuLayer = () => {
     const referenceActionLabel = createMemo(() => {
         const target = targetSticker();
         if (!target) {
-            return "设置参考";
+            return "收藏";
         }
 
         return graphStore.referenceLibrary.some((entry) => entry.sourceStickerId === target.id)
-            ? "取消参考"
-            : "设置参考";
+            ? "取消收藏"
+            : "收藏";
     });
 
     const activeSubmenuEntries = createMemo(() => {
@@ -242,49 +241,6 @@ export const StickerContextMenuLayer = () => {
     });
 
     createEffect(() => {
-        if (!stickerContextMenuController.state.isOpen || !menuRootRef) {
-            removeRect(CONTEXT_MENU_RECT_ID);
-            void syncService.updateBackendRects();
-            return;
-        }
-
-        const syncRect = () => {
-            if (!menuRootRef) {
-                return;
-            }
-
-            const rect = menuRootRef.getBoundingClientRect();
-            if (rect.width <= 0 || rect.height <= 0) {
-                return;
-            }
-
-            addOrUpdateRect({
-                id: CONTEXT_MENU_RECT_ID,
-                x: rect.left,
-                y: rect.top,
-                width: rect.width,
-                height: rect.height,
-                name: CONTEXT_MENU_RECT_NAME,
-            });
-            void syncService.updateBackendRects();
-        };
-
-        requestAnimationFrame(syncRect);
-
-        let observer: ResizeObserver | undefined;
-        if (typeof ResizeObserver !== "undefined") {
-            observer = new ResizeObserver(syncRect);
-            observer.observe(menuRootRef);
-        }
-
-        onCleanup(() => {
-            observer?.disconnect();
-            removeRect(CONTEXT_MENU_RECT_ID);
-            void syncService.updateBackendRects();
-        });
-    });
-
-    createEffect(() => {
         if (!stickerContextMenuController.state.isOpen) {
             return;
         }
@@ -317,7 +273,6 @@ export const StickerContextMenuLayer = () => {
                             referenceActionLabel={referenceActionLabel()}
                             onCloseSticker={handleCloseSticker}
                             onSave={() => void handleSave()}
-                            onProjection={() => { const unit = targetSticker(); closeMenu(); if (unit) openProjection(unit.id); }}
                             onClearRecycleBin={handleClearRecycleBin}
                             onToggleReference={handleToggleReference}
                             onClearReferenceLibrary={handleClearReferenceLibrary}
@@ -325,11 +280,11 @@ export const StickerContextMenuLayer = () => {
                         />
                         <Show when={stickerContextMenuController.state.activeSubmenu !== "none"}>
                             <div
-                                style={{
-                                    "margin-top": `${stickerContextMenuController.state.submenuOffsetY}px`,
-                                }}
+                                ref={(el) => { submenuRef = el; }}
+                                class="absolute"
+                                data-sticker-context-submenu
                             >
-                                <StickerSnapshotListPanel
+                                <Show when={stickerContextMenuController.state.activeSubmenu === "clipboard"} fallback={<StickerSnapshotListPanel
                                     entries={activeSubmenuEntries()}
                                     onLeftActivate={(entryId) => {
                                         if (stickerContextMenuController.state.activeSubmenu === "recycleBin") {
@@ -347,7 +302,9 @@ export const StickerContextMenuLayer = () => {
 
                                         handleReferenceRemove(entryId);
                                     }}
-                                />
+                                />}>
+                                    <StickerClipboardHistoryPanel unitId={stickerContextMenuController.state.targetStickerId!} onDone={closeMenu} />
+                                </Show>
                             </div>
                         </Show>
                     </div>

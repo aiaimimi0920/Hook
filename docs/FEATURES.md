@@ -1,5 +1,25 @@
 # Otter Features and Manual Regression Matrix
 
+## System clipboard submenu
+
+The sticker context menu ends with a compact separator and **剪贴板**. Hover or
+focus it to open the scrollable Windows history list. Its custom scrollbar supports
+both wheel and thumb dragging through native overlay input. All sticker submenus
+align with the hovered row when space permits, shift vertically into the viewport,
+and open to the left when the right side cannot fit them. Native hit rectangles
+follow the relocated panels, including asynchronously loaded clipboard entries.
+Only Bitmap and
+Text formats are read; file lists, HTML-only data and other formats are excluded.
+Images create independent stickers without replacing the target; text adds centered
+annotations with undo and existing edit propagation. Multiline text becomes one
+annotation per nonempty line. Check event-driven updates, empty/disabled/denied
+states, selection after scrolling, menu dismissal during image decoding, and cleanup.
+Windows history remains the source of truth; no separate archive or clipboard writes
+are performed. Reads are limited to 25 items, 4 MiB per encoded image, 16 MiB total,
+8192 pixels per image dimension, 64 MiB decode allocation, and 64 KiB/256 lines of text.
+Oversized or unsupported items are skipped. Native Windows acceptance is separate
+from mocked component tests and compilation.
+
 ## Text and numbering properties
 
 With the text tool active, a single click on the topmost text annotation reopens its existing content instead of creating another annotation. The edit preserves its ID, position, font, size and style. Enter/blur commits, Escape cancels, unchanged text creates no history entry, and content changes support undo/redo. Empty space still starts a new text annotation; serial annotations keep their existing interaction.

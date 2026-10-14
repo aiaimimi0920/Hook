@@ -168,7 +168,7 @@ describe("Live snapshot action boundaries", () => {
     });
     it("captures current pixels for both context-menu reference and close", async () => {
         openMenu();
-        clickMenu("设置参考");
+        clickMenu("收藏");
         await vi.waitFor(() => expect(graphStore.referenceLibrary[0]?.snapshot.src).toBe(png));
         menu.openForSticker(id, { x: 10, y: 20 });
         clickMenu("关闭");

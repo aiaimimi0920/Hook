@@ -1,6 +1,6 @@
 import { createStore } from "solid-js/store";
 
-export type StickerContextSubmenu = "none" | "recycleBin" | "referenceLibrary";
+export type StickerContextSubmenu = "none" | "recycleBin" | "referenceLibrary" | "clipboard";
 
 export interface StickerContextMenuState {
     isOpen: boolean;

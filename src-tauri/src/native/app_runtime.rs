@@ -172,6 +172,7 @@ pub fn run() {
             get_cursor_position,
             copy_to_clipboard,
             copy_text_to_clipboard,
+            clipboard_history::read_system_clipboard_history,
             open_external_https_url,
             copy_node_image_to_clipboard,
             copy_sticker_image_to_smart_clipboard,
@@ -266,6 +267,7 @@ pub fn run() {
         .expect("error while building tauri application");
     let exit_code = app.run_return(|app_handle, event| match event {
         tauri::RunEvent::ExitRequested { code, .. } => {
+            crate::clipboard_history::shutdown(app_handle);
             crate::loom_connection::shutdown();
             loom_otter::shutdown_listener(app_handle);
             extension_bridge_native::shutdown(app_handle);
@@ -275,6 +277,7 @@ pub fn run() {
             prepare_for_hook_process_exit("tauri_exit_requested");
         }
         tauri::RunEvent::Exit => {
+            crate::clipboard_history::shutdown(app_handle);
             crate::loom_connection::shutdown();
             loom_otter::shutdown_listener(app_handle);
             extension_bridge_native::shutdown(app_handle);

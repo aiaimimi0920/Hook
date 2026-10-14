@@ -11,7 +11,7 @@ describe("secondary context-menu contract", () => {
         expect(layer).toContain("StickerSnapshotListPanel");
         expect(layer).toContain('"recycleBin"');
         expect(layer).toContain('"referenceLibrary"');
-        expect(layer).toContain("submenuOffsetY");
+        expect(readSource("src/components/stickerContextMenuLayout.ts")).toContain("submenuOffsetY");
     });
 
     it("wires submenu restore and copy behavior through the snapshot library helpers", () => {
@@ -36,7 +36,7 @@ describe("secondary context-menu contract", () => {
         expect(panel).toContain("getBoundingClientRect");
         expect(panel).toContain("props.onOpenSubmenu(submenu, { top: rect.top })");
         expect(layer).toContain("onOpenSubmenu={(submenu, anchor) => stickerContextMenuController.openSubmenu(submenu, anchor)}");
-        expect(layer).toContain('"margin-top": `${stickerContextMenuController.state.submenuOffsetY}px`');
+        expect(readSource("src/components/stickerContextMenuLayout.ts")).toContain("placeStickerSubmenu");
         expect(layer).toContain("gap-0");
     });
 
