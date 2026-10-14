@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createRoot } from "solid-js";
 import { render } from "solid-js/web";
 import { useProjectionTargetControls } from "../../src/hooks/useProjectionTargetControls";
-import { ProjectionPropertyBar } from "../../src/components/ProjectionPropertyBar";
+import { ProjectionTargetToolbar } from "../../src/components/ProjectionTargetToolbar";
 import { graphStore } from "../../src/store/graphStore";
 import { projectionStatuses, setProjectionStatuses } from "../../src/store/qrProjectionStore";
 import { projectionContext, unlinkProjection } from "../../src/services/qrProjectionApi";
@@ -61,7 +61,7 @@ beforeEach(async () => {
     });
     const unit = projectionUnit(); unit.data.qrProjection = undefined;
     graphStore.actions.replaceUnits([unit]);
-    dispose = render(() => <ProjectionPropertyBar unitId="source" mode="send" />, document.body);
+    dispose = render(() => <ProjectionTargetToolbar unitId="source" />, document.body);
     button("选择投射设备").click(); await idle();
 });
 afterEach(() => {
@@ -230,7 +230,7 @@ it("cleans native hit rectangles and restores focus on Escape", () => {
 it("restores a persisted stop and retains its remote identity after a terminal failure", async () => {
     await start(); const binding = bindings()[0]; const key = statusKey();
     box().click(); await idle(); dispose();
-    dispose = render(() => <ProjectionPropertyBar unitId="source" mode="send" />, document.body);
+    dispose = render(() => <ProjectionTargetToolbar unitId="source" />, document.body);
     button("选择投射设备").click(); await idle();
     expect(box().checked).toBe(false); expect(marker().dataset.phase).toBe("pending");
     patchProjection("source", undefined, undefined, projectionBindingKey(binding.link));

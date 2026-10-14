@@ -57,7 +57,7 @@ describe("sticker edit propagation contract", () => {
   });
 
   it("exposes a sticker setting to stop accepting upstream edit propagation", () => {
-    const paramsSource = readSource("src/components/UnitParamsExpandedSettings.tsx");
+    const paramsSource = readSource("src/components/UnitNodeSettingsStrip.tsx");
 
     expect(paramsSource).toContain("接受上级贴图编辑传导");
     expect(paramsSource).toContain("stickerEditPropagation");

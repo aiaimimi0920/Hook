@@ -51,6 +51,5 @@ export {
     buildRoundedPolygonPath,
     buildTrianglePoints,
     MIN_POLYGON_SIDES,
-    toSvgPoints,
     traceRoundedPolygonPath,
 } from "./stickerShapeGeometry";

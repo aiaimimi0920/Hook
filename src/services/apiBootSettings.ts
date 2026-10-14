@@ -6,13 +6,13 @@ import type { ToolSettingsData } from "./apiTypes";
 
 export const bootSettingsApi = {
     getBootProfile: (): Promise<BootProfile> =>
-        safeInvoke("get_boot_profile", undefined, () => defaultBootProfile, false).then(normalizeBootProfile),
+        safeInvoke("get_boot_profile", undefined, () => defaultBootProfile).then(normalizeBootProfile),
 
     loadToolSettings: (): Promise<ToolSettingsData> =>
-        safeInvoke("load_tool_settings", undefined, () => ({ stickerToolSettings: null }), false),
+        safeInvoke("load_tool_settings", undefined, () => ({ stickerToolSettings: null })),
 
     saveToolSettings: (stickerToolSettings: Record<string, unknown>): Promise<void> =>
-        safeInvoke("save_tool_settings", { stickerToolSettings }, () => undefined, false),
+        safeInvoke("save_tool_settings", { stickerToolSettings }, () => undefined),
 
     loadAppSettings: (): Promise<AppSettings> =>
         safeInvoke(
@@ -23,15 +23,14 @@ export const bootSettingsApi = {
                 fileNaming: { ...DEFAULT_APP_SETTINGS.fileNaming },
                 cache: { ...DEFAULT_APP_SETTINGS.cache },
             }),
-            false,
         ),
 
     saveAppSettings: (settings: AppSettings): Promise<AppSettings> =>
-        safeInvoke("save_app_settings", { settings }, () => settings, false),
+        safeInvoke("save_app_settings", { settings }, () => settings),
 
     getLoomShortcutSettings: (): Promise<unknown | null> =>
-        safeInvoke("get_loom_shortcut_settings", undefined, () => null, false),
+        safeInvoke("get_loom_shortcut_settings", undefined, () => null),
 
     getInstalledFonts: (): Promise<string[]> =>
-        safeInvoke("get_installed_fonts", undefined, () => [], false),
+        safeInvoke("get_installed_fonts", undefined, () => []),
 };

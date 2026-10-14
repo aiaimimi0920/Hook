@@ -14,11 +14,6 @@ import { stickerToolSettings } from "../store/uiStore";
 import type { ContentEraserStroke, StickerPoint } from "../types/stickerEditing";
 import type { Unit } from "../types/unit";
 
-interface PatchOptions {
-    propagateEdit?: boolean;
-    markLocalEdit?: boolean;
-}
-
 interface StickerAnnotationEraseControllerOptions {
     host: Accessor<HTMLDivElement | undefined>;
     width: Accessor<number>;
@@ -26,7 +21,6 @@ interface StickerAnnotationEraseControllerOptions {
     unit: Accessor<Unit | undefined>;
     patchUnitData: (
         patch: Partial<Unit["data"]>,
-        options?: PatchOptions,
     ) => Promise<void>;
     rememberCurrentState: (includeImageData?: boolean) => void;
 }
@@ -93,7 +87,7 @@ export const createStickerAnnotationEraseController = (
                     resultHandle: undefined,
                     filePath: undefined,
                     imageEditState: createEmptyImageEditState(),
-                }, { propagateEdit: true });
+                });
                 return true;
             }
 
@@ -110,7 +104,7 @@ export const createStickerAnnotationEraseController = (
                 resultHandle: undefined,
                 filePath: undefined,
                 imageEditState: createEmptyImageEditState(),
-            }, { propagateEdit: true });
+            });
             return true;
         } catch (error) {
             console.error("[Otter] Failed to commit content erase", error);
@@ -226,7 +220,7 @@ export const createStickerAnnotationEraseController = (
                     previewSrc: result.previewSrc,
                     resultHandle: undefined,
                     filePath: undefined,
-                }, { propagateEdit: true });
+                });
             } else {
                 await options.patchUnitData({
                     src: result.baseLayerSrc,
@@ -235,7 +229,7 @@ export const createStickerAnnotationEraseController = (
                     filePath: undefined,
                     rasterizedAnnotationLayerSrc: result.rasterizedAnnotationLayerSrc,
                     imageEditState: createEmptyImageEditState(),
-                }, { propagateEdit: true });
+                });
             }
             return true;
         } finally {

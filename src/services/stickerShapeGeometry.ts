@@ -146,7 +146,3 @@ export const traceRoundedPolygonPath = (
     );
     context.closePath();
 };
-
-/** Serializes vertices for an SVG `points` attribute. */
-export const toSvgPoints = (points: StickerPoint[]): string =>
-    points.map((point) => `${point.x},${point.y}`).join(" ");

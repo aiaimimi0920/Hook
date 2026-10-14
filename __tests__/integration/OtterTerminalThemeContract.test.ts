@@ -38,7 +38,7 @@ describe("hook terminal theme contract", () => {
         const contextMenu = readSource("src/components/StickerContextMenuPanel.tsx");
         const snapshotMenu = readSource("src/components/StickerSnapshotListPanel.tsx");
         const paramsPanel = readSource("src/components/UnitParamsPanel.tsx");
-        const actionsBar = readSource("src/components/UnitActionsMenu.tsx");
+        const actionsBar = readSource("src/components/UnitNodeSettingsStrip.tsx");
         const addNodeMenu = readSource("src/components/UnitAddNodeMenu.tsx");
         const historyPanel = readSource("src/components/HistoryPanel.tsx");
         const groupBar = readSource("src/components/StickerGroupBar.tsx");
@@ -47,7 +47,7 @@ describe("hook terminal theme contract", () => {
         expect(contextMenu).toContain("otter-context-menu-shell");
         expect(snapshotMenu).toContain("otter-context-menu-shell");
         expect(paramsPanel).toContain("otter-terminal-shell");
-        expect(actionsBar).toContain("otter-actions-shell");
+        expect(actionsBar).toContain("unit-node-strip");
         expect(addNodeMenu).toContain("otter-terminal-shell");
         expect(historyPanel).toContain("otter-terminal-shell");
         expect(groupBar).toContain("otter-terminal-shell");
@@ -55,11 +55,11 @@ describe("hook terminal theme contract", () => {
     });
 
     it("removes rounded shell styling and glow-heavy blue-purple accents from tab and shift+1 surfaces", () => {
-        const actionsBar = readSource("src/components/UnitActionsMenu.tsx");
+        const actionsBar = readSource("src/components/UnitNodeSettingsStrip.tsx");
         const addNodeMenu = readSource("src/components/UnitAddNodeMenu.tsx");
         const paramsPanel = [
             readSource("src/components/UnitParamsPanel.tsx"),
-            readSource("src/components/UnitParamsExpandedSettings.tsx"),
+            readSource("src/components/UnitNodeSettingsStrip.tsx"),
         ].join("\n");
 
         expect(actionsBar).not.toContain("bg-blue-500");
@@ -90,11 +90,11 @@ describe("hook terminal theme contract", () => {
     });
 
     it("routes parameter chrome through semantic tokens without purple hardcoding", () => {
-        const paramControl = readSource("src/components/params/UnitParamControl.tsx");
+        const paramControl = readSource("src/components/UnitPropertyCapsule.tsx");
         const numberControl = readSource("src/components/params/controls/NumberControl.tsx");
         const links = readSource("src/components/CanvasLinks.tsx");
 
-        expect(paramControl).toContain("otter-param-link-port");
+        expect(paramControl).toContain("unit-property-anchor");
         expect(numberControl).toContain("otter-param-slider__fill");
         expect(numberControl).not.toMatch(/violet|167,\s*139,\s*250|139,\s*92,\s*246/i);
         expect(links).toContain('stroke="var(--theme-info-text)"');

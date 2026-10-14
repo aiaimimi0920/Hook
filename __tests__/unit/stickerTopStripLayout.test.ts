@@ -7,7 +7,6 @@ import {
     STICKER_TOP_STRIP_SLOT_WIDTH,
     STICKER_TOP_STRIP_MIN_WIDTH,
     computeStickerTopStripLayout,
-    computeStickerTopStripFrame,
 } from "../../src/services/stickerTopStripLayout";
 
 describe("sticker top strip layout", () => {
@@ -41,7 +40,7 @@ describe("sticker top strip layout", () => {
     });
 
     it("anchors above the sticker and left-aligns to the sticker by default", () => {
-        const frame = computeStickerTopStripFrame({ x: 240, y: 220, w: 520, h: 180 }, 1440, 900);
+        const frame = computeStickerTopStripLayout({ x: 240, y: 220, w: 520, h: 180 }, 1440, 900, false).mainBar;
 
         expect(frame.left).toBe(228);
         expect(frame.top).toBe(220 - STICKER_TOP_STRIP_HEIGHT);
@@ -50,7 +49,7 @@ describe("sticker top strip layout", () => {
     });
 
     it("keeps the strip inside the viewport and honors the minimum width", () => {
-        const frame = computeStickerTopStripFrame({ x: -80, y: 260, w: 220, h: 140 }, 800, 600);
+        const frame = computeStickerTopStripLayout({ x: -80, y: 260, w: 220, h: 140 }, 800, 600, false).mainBar;
 
         expect(frame.left).toBe(0);
         expect(frame.width).toBe(STICKER_TOP_STRIP_MIN_WIDTH);
@@ -58,7 +57,7 @@ describe("sticker top strip layout", () => {
     });
 
     it("moves the strip below the sticker when there is no room above", () => {
-        const frame = computeStickerTopStripFrame({ x: 120, y: 20, w: 300, h: 180 }, 900, 720);
+        const frame = computeStickerTopStripLayout({ x: 120, y: 20, w: 300, h: 180 }, 900, 720, false).mainBar;
 
         expect(frame.left).toBe(108);
         expect(frame.top).toBe(20 + 180);
@@ -66,14 +65,14 @@ describe("sticker top strip layout", () => {
     });
 
     it("shifts left when the strip would overflow the right edge", () => {
-        const frame = computeStickerTopStripFrame({ x: 620, y: 260, w: 260, h: 180 }, 900, 720);
+        const frame = computeStickerTopStripLayout({ x: 620, y: 260, w: 260, h: 180 }, 900, 720, false).mainBar;
 
         expect(frame.width).toBe(STICKER_TOP_STRIP_MIN_WIDTH);
         expect(frame.left).toBe(900 - STICKER_TOP_STRIP_MIN_WIDTH);
     });
 
     it("chooses the side with more visible room when neither above nor below fully fits", () => {
-        const frame = computeStickerTopStripFrame({ x: 140, y: 20, w: 500, h: 520 }, 960, 560);
+        const frame = computeStickerTopStripLayout({ x: 140, y: 20, w: 500, h: 520 }, 960, 560, false).mainBar;
 
         expect(frame.left).toBe(128);
         expect(frame.top).toBe(0);

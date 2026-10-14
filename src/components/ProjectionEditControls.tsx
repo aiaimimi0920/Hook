@@ -9,13 +9,12 @@ import { ProjectionIcon, type ProjectionDirection } from "./ProjectionToolbar";
 import { ProjectionTargetPopover } from "./ProjectionTargetPopover";
 
 /** Compact flow selection; exceptional edit failures retain their own native popup. */
-export const ProjectionEditControls = (props: { unitId: string; direction: ProjectionDirection; inline?: boolean }) => {
+export const ProjectionEditControls = (props: { unitId: string; direction: ProjectionDirection }) => {
     const unit = () => graphStore.units.find((unit) => unit.id === props.unitId);
     const status = () => projectionEditStatuses[props.unitId];
     const mode = () => status()?.mode ?? "one_way";
     const source = () => props.direction === "send" && unit()?.data.qrProjection?.role !== "receiver";
     const supported = () => !unit() || projectionAssociations(unit()!).every(({ link }) => link.stopped || link.envelope.protocol === "neuro.qr-projection.v1");
-    const [anchor, setAnchor] = createSignal<HTMLButtonElement>();
     const [issueAnchor, setIssueAnchor] = createSignal<HTMLButtonElement>();
     const [busy, setBusy] = createSignal(false);
     const [failure, setFailure] = createSignal("");
@@ -24,7 +23,7 @@ export const ProjectionEditControls = (props: { unitId: string; direction: Proje
     createEffect(() => {
         const id = props.unitId;
         let current = true;
-        setFailure(""); setAnchor(undefined); setIssueAnchor(undefined);
+        setFailure(""); setIssueAnchor(undefined);
         void projectionEditing.inspect(id).catch((reason: unknown) => { if (current) setFailure(projectionError(reason)); });
         onCleanup(() => { current = false; });
     });
@@ -41,33 +40,6 @@ export const ProjectionEditControls = (props: { unitId: string; direction: Proje
     };
     const label = () => `数据流向：${mode() === "two_way" ? "双向修改" : "单向修改"}`;
     return <>
-        <Show when={props.inline} fallback={<>
-        <Show when={source()} fallback={<span class="flex h-8 w-9 shrink-0 cursor-default items-center justify-center text-[var(--theme-text-muted)]"
-            role="img" aria-label={label()} title={`${label()}（由投射端设置）`}>
-            <ProjectionIcon kind={mode() === "two_way" ? "flow-two" : "flow"} />
-        </span>}>
-        <button type="button" class="otter-terminal-btn relative flex h-8 w-9 shrink-0 items-center justify-center"
-            aria-label={label()} title={label()} aria-busy={busy() || !!status()?.pending}
-            aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={(event) => { setIssueAnchor(undefined); setAnchor(anchor() ? undefined : event.currentTarget); }}>
-            <ProjectionIcon kind={mode() === "two_way" ? "flow-two" : "flow"} />
-            <span aria-hidden="true" class="absolute bottom-0 right-0.5 text-[9px]">▾</span>
-        </button>
-        </Show>
-        <Show when={source() && anchor()}>{(button) => <ProjectionTargetPopover compact anchor={button()} label="投射数据流向" close={() => setAnchor(undefined)}>
-            <div role="group" aria-label="投射数据流向选项">
-                <For each={["one_way", "two_way"] as const}>{(value) => <button type="button"
-                    class="otter-toolbar-menu-item flex h-7 w-full items-center justify-center"
-                    classList={{ "otter-toolbar-menu-item--active": mode() === value }} aria-pressed={mode() === value}
-                    aria-label={value === "two_way" ? "双向修改" : "单向修改"}
-                    title={!source() ? "由投射端设置" : !supported() ? "当前投射不支持共享标注" : value === "two_way" ? "双向修改" : "单向修改"}
-                    disabled={!source() || busy() || !supported()} onClick={() => {
-                        const id = props.unitId; setAnchor(undefined); void run(() => setProjectionEditMode(id, value));
-                    }}>
-                    <ProjectionIcon kind={value === "two_way" ? "flow-two" : "flow"} />
-                </button>}</For>
-            </div>
-        </ProjectionTargetPopover>}</Show>
-        </>}>
             <For each={["one_way", "two_way"] as const}>{(value) => <button type="button"
                 aria-label={value === "two_way" ? "双向修改" : "单向修改"} aria-pressed={mode() === value}
                 title={!source() ? `${label()}（由投射端设置）` : !supported() ? "当前投射不支持共享标注" : value === "two_way" ? "双向修改" : "单向修改"}
@@ -77,10 +49,9 @@ export const ProjectionEditControls = (props: { unitId: string; direction: Proje
                     <ProjectionIcon kind={value === "two_way" ? "flow-two" : "flow"} />
                 </span>
             </button>}</For>
-        </Show>
         <Show when={status()?.conflicts || error()}>
             <button type="button" class="otter-terminal-btn h-8 w-9 shrink-0" aria-label="编辑需要处理" title="编辑需要处理"
-                aria-haspopup="dialog" aria-expanded={!!issueAnchor()} onClick={(event) => { setAnchor(undefined); setIssueAnchor(issueAnchor() ? undefined : event.currentTarget); }}>!</button>
+                aria-haspopup="dialog" aria-expanded={!!issueAnchor()} onClick={(event) => { setIssueAnchor(issueAnchor() ? undefined : event.currentTarget); }}>!</button>
         </Show>
         <Show when={issueAnchor()}>{(button) => <ProjectionTargetPopover anchor={button()} label="投射编辑问题" close={() => setIssueAnchor(undefined)}>
             <Show when={error()}><p class="my-2 break-words" role="alert">{error()}</p></Show>

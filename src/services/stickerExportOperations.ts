@@ -125,5 +125,3 @@ export const renderStickerTransparentAnnotationLayer = async (
 
     return canvas.toDataURL("image/png");
 };
-
-export const renderStickerRasterizedAnnotations = renderStickerTransparentAnnotationLayer;

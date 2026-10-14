@@ -28,7 +28,6 @@ export type SurfaceRuntimeKind =
     | "loom_remote";
 
 export type SurfaceThemeMode = "host" | "custom";
-export type SurfaceSizeClass = "compact" | "medium" | "expanded";
 export type SurfaceInstanceMode = "independent" | "shared";
 
 export interface SurfaceSize {
@@ -87,36 +86,6 @@ export interface SurfaceHostCapabilities {
     input: SurfaceInputCapabilities;
 }
 
-export interface SurfaceHandshake {
-    protocolVersion: typeof SURFACE_PROTOCOL_VERSION;
-    clientId: string;
-    clientVersion: string;
-    platform: string;
-    capabilities: SurfaceHostCapabilities;
-}
-
-export type SurfaceInstancePersistence = "temporary" | "persistent";
-
-export interface SurfaceInstanceDescriptor {
-    instanceId: string;
-    artId: string;
-    artVersion: string;
-    packageDigest: string;
-    stateSchemaVersion: number;
-  persistence: SurfaceInstancePersistence;
-  generation: number;
-  surfaceRevision: number;
-  previewRevision: number;
-  resultRevision: number;
-}
-
-export interface SurfaceAttachmentDescriptor {
-    attachmentId: string;
-    instanceId: string;
-    hookNodeId: string;
-    deviceId: string;
-}
-
 export interface SurfaceNode {
     id: string;
     type: string;
@@ -166,31 +135,6 @@ export type SurfacePortValue =
     | { kind: "value"; value: unknown }
     | { kind: "resource"; resource: SurfaceResourceDescriptor }
     | { kind: "stream"; stream: SurfaceStreamDescriptor };
-
-export type SurfacePortKind =
-    | "boolean"
-    | "integer"
-    | "number"
-    | "string"
-    | "enum"
-    | "object"
-    | "list"
-    | "table"
-    | "image"
-    | "audio"
-    | "video"
-    | "file"
-    | "binary"
-    | "stream";
-
-export interface SurfacePortDefinition {
-    id: string;
-    label: string;
-    type: SurfacePortKind;
-    schema?: unknown;
-    primary?: boolean;
-    required?: boolean;
-}
 
 export interface SurfaceSnapshot {
     protocolVersion: typeof SURFACE_PROTOCOL_VERSION;
@@ -345,45 +289,6 @@ export interface SurfaceActionProgress {
     messageKey?: string;
 }
 
-export interface SurfaceActionInvocation {
-    protocolVersion: typeof SURFACE_PROTOCOL_VERSION;
-    instanceId: string;
-    attachmentId: string;
-    requestId: string;
-    eventId: string;
-    actionId: string;
-    eventClass: SurfaceEventClass;
-    generation: number;
-    baseRevision: number;
-    payload?: unknown;
-    authoritativeState?: unknown;
-}
-
-export interface SurfaceActionPatchUpdate {
-    attachmentId?: string;
-    operations?: SurfacePatchOperation[];
-    statePatch?: unknown;
-    resources?: SurfaceResourceDescriptor[];
-    resourceLeases?: SurfaceResourceLease[];
-}
-
-export interface SurfaceActionPreviewUpdate {
-    portId: string;
-    value: SurfacePortValue;
-}
-
-export interface SurfaceActionResultUpdate {
-    outputs: Record<string, SurfacePortValue>;
-    statePatch?: unknown;
-}
-
-export interface SurfaceActionResponse {
-    protocolVersion: typeof SURFACE_PROTOCOL_VERSION;
-    patches?: SurfaceActionPatchUpdate[];
-    preview?: SurfaceActionPreviewUpdate;
-    result?: SurfaceActionResultUpdate;
-}
-
 export interface SurfacePreviewCommit {
     protocolVersion: typeof SURFACE_PROTOCOL_VERSION;
     instanceId: string;
@@ -430,14 +335,9 @@ export interface SurfaceLifecycleEvent {
 }
 
 const SAFE_IDENTIFIER_PATTERN = /^[A-Za-z0-9._:/-]{1,160}$/;
-const SHA256_RESOURCE_PATTERN = /^sha256:[A-Fa-f0-9]{64}$/;
 
 export const isSafeSurfaceIdentifier = (value: string): boolean =>
     SAFE_IDENTIFIER_PATTERN.test(value);
-
-export const isContentAddressedSurfaceResource = (
-    resource: Pick<SurfaceResourceDescriptor, "resourceId">,
-): boolean => SHA256_RESOURCE_PATTERN.test(resource.resourceId);
 
 export const validateSurfaceNodeIds = (root: SurfaceNode): string[] => {
     const seen = new Set<string>();
@@ -475,10 +375,3 @@ export const canApplySurfacePatch = (
     patch.protocolVersion === SURFACE_PROTOCOL_VERSION &&
     patch.baseRevision === currentRevision &&
     patch.revision > patch.baseRevision;
-
-export const isCurrentSurfaceCommit = (
-    currentGeneration: number,
-    commit: Pick<SurfacePreviewCommit | SurfaceResultCommit, "protocolVersion" | "generation">,
-): boolean =>
-    commit.protocolVersion === SURFACE_PROTOCOL_VERSION &&
-    commit.generation === currentGeneration;

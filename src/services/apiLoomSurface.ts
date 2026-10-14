@@ -13,19 +13,18 @@ export const loomPlanningApi = {
     invokeLoomBrainPlan: (request: LoomBrainPlanRequest): Promise<LoomBrainPlanResult> =>
         safeInvoke("loom_brain_plan", { request }, () => {
             throw new Error("Loom brain planning requires the Tauri desktop runtime");
-        }, false),
+        }),
 };
 
 export const loomProtocolApi = {
     handshake: (request: HandshakeRequest): Promise<HandshakeResponse> =>
-        safeInvoke("loom_otter_handshake", { request }, browserHandshakeFallback, false),
+        safeInvoke("loom_otter_handshake", { request }, browserHandshakeFallback),
 
     dispatchAction: (actionEnum: { action: string; payload: unknown }): Promise<void> =>
         safeInvoke(
             "loom_otter_dispatch_action",
             { action: actionEnum },
             () => browserDispatchActionFallback(actionEnum),
-            false,
         ),
 };
 
@@ -38,6 +37,6 @@ export const loomShaderApi = {
         safeInvoke("prefetch_shader", args, () => ({
             type: "unsupported",
             success: false,
-        }), false),
+        })),
 
 };

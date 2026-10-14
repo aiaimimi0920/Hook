@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSignal } from "solid-js";
 import { render } from "solid-js/web";
 import { UnitPropertyCapsule } from "../../src/components/UnitPropertyCapsule";
-import { NumberControl } from "../../src/components/params/controls/NumberControl";
+import { UnitParamControl } from "../../src/components/params/UnitParamControl";
 import { requestUnitPropertyDisclosure, setUnitPropertyDisclosure } from "../../src/store/unitPropertyDisclosure";
 import { setLinkingState } from "../../src/store/uiStore";
 
@@ -62,9 +62,10 @@ describe("individual property disclosure", () => {
 describe("compact numeric property", () => {
     it.each(["slider", "number"] as const)("uses a slider and editable value without step buttons for %s", widget => {
         const [value, setValue] = createSignal(25);
-        const change = vi.fn((next: number) => setValue(next));
-        dispose = render(() => <NumberControl compact id="amount" label="数值" widget={widget} value={value()}
-            min={-100} max={9999} step={1} isDisabled={false} onChange={change} onContextMenu={vi.fn()} />, document.body);
+        const change = vi.fn((next: number, _final?: boolean) => setValue(next));
+        dispose = render(() => <UnitParamControl
+            param={{ id: "amount", label: "数值", widget, default: 25, min: -100, max: 9999, step: 1 }} value={value()}
+            isDisabled={false} onChange={(_id, next, final) => change(next, final)} onReset={vi.fn()} onToggleDisable={vi.fn()} />, document.body);
         expect(document.querySelector("[data-param-step-up], [data-param-step-down]")).toBeNull();
         const input = document.querySelector<HTMLInputElement>("[data-param-number-input]")!;
         const track = document.querySelector<HTMLElement>("[data-param-slider-track]")!;

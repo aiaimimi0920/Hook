@@ -2,7 +2,6 @@
 import type {
     ContentEraserStroke,
     StickerAnnotationState,
-    StickerGroup,
     StickerImageEditState,
 } from "../types/stickerEditing";
 
@@ -21,13 +20,6 @@ export const createContentEraserStroke = (
 
 export const nextSerialLabel = (annotationState: StickerAnnotationState) =>
     String(Math.max(1, annotationState.serialCounter));
-
-export const createDefaultStickerGroup = (id: string, name: string): StickerGroup => ({
-    id,
-    name,
-    hidden: false,
-    locked: false,
-});
 
 /** Toggles the active-color border without mutating the image-edit state. */
 export const toggleStickerBorder = (

@@ -10,6 +10,5 @@ export const teaApi = {
             () => {
                 throw new Error("Tea ticket creation requires the Tauri desktop runtime");
             },
-            false,
         ),
 };

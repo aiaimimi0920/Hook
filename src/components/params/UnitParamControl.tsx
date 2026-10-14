@@ -1,5 +1,5 @@
 
-import { Component, Match, Switch, Show } from "solid-js";
+import { Component, Match, Switch } from "solid-js";
 import { ArtParam } from "../../services/protocol";
 import { NumberControl } from "./controls/NumberControl";
 import { StringControl } from "./controls/StringControl";
@@ -10,7 +10,6 @@ import { SelectControl } from "./controls/SelectControl";
 import { formatArtParamTextValue } from "../../services/artParamTextValue";
 
 interface UnitParamControlProps {
-  hidePort?: boolean;
   param: ArtParam;
   value: any;
   isDisabled: boolean;
@@ -26,7 +25,6 @@ interface UnitParamControlProps {
   onEditStart?: (id: string) => void;
   onPreview?: (id: string, active: boolean) => void;
   isLinked?: boolean;
-  registerLinkTarget?: (el: HTMLElement) => void;
 }
 
 export const UnitParamControl: Component<UnitParamControlProps> = (props) => {
@@ -44,45 +42,17 @@ export const UnitParamControl: Component<UnitParamControlProps> = (props) => {
       props.onToggleDisable(props.param.id);
   };
 
-  const handleLinkMove = (e: MouseEvent) => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-      e.stopPropagation();
-      props.onLinkMove?.(props.param.id, e);
-  };
-
-  const handleLinkDrop = (e: MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      props.onLinkDrop?.(props.param.id);
-  };
-
   return (
     <div
         class="param-row text-xs relative"
         style={props.isDisabled && !props.isLinked ? { opacity: 0.4 } : {}}
         onContextMenu={handleDisable}
     >
-      <Show when={!props.hidePort}><div
-        class="otter-param-link-port absolute w-4 h-4 rounded-full border shadow-sm cursor-pointer hover:scale-110 transition-transform z-[55]"
-        classList={{ "otter-param-link-port--linked": props.isLinked }}
-        style={{ left: "-13px", top: "50%", transform: "translateY(-50%)" }}
-        data-port-type="input"
-        data-port-name={props.param.id}
-        data-panel-port="true"
-        data-param-link-target
-        ref={(el) => props.registerLinkTarget?.(el)}
-        title={props.isLinked ? "参数已由上游节点驱动；拖动可重新连接" : "拖入上游输出以驱动这个参数"}
-        onMouseDown={handleLinkMove}
-        onMouseUp={handleLinkDrop}
-      /></Show>
       <Switch fallback={<div>Unknown Widget: {props.param.widget}</div>}>
         <Match when={props.param.widget === "slider" || props.param.widget === "number"}>
             <NumberControl
-                compact={props.hidePort}
                 id={props.param.id}
                 label={props.param.label}
-                widget={props.param.widget as "slider" | "number"}
                 value={Number(props.value ?? getDefault() ?? 0)}
                 min={props.param.min}
                 max={props.param.max}

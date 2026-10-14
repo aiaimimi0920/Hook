@@ -207,10 +207,7 @@ impl LongCaptureIncrementalStitcher {
                 self.aggregate_signature_searches += 1;
                 let exact_candidate =
                     find_aggregate_signature_match(&self.aggregate, &current, axis, self.options);
-                (
-                    choose_aggregate_match_candidate(exact_candidate, None, axis),
-                    false,
-                )
+                (exact_candidate, false)
             };
             let Some(candidate) = candidate else {
                 continue;

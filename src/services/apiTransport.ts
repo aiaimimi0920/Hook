@@ -20,13 +20,9 @@ export const safeInvoke = async <T>(
     command: string,
     args: Record<string, unknown> | undefined,
     fallback?: () => T | Promise<T>,
-    warnOnFallback: boolean = true,
 ): Promise<T> => {
     if (!isTauriRuntimeAvailable()) {
         if (fallback) {
-            if (warnOnFallback) {
-                warnBrowserFallback(command);
-            }
             return await fallback();
         }
         throw new Error(`Tauri runtime unavailable for command: ${command}`);

@@ -8,7 +8,7 @@ import { claimProjectionPopup } from "../services/projectionPopup";
 
 /** A viewport-clamped, native-clickable extension of the projection secondary bar. */
 export const ProjectionTargetPopover = (props: {
-    anchor: HTMLButtonElement; label: string; close: () => void; children: JSX.Element; compact?: boolean; list?: boolean;
+    anchor: HTMLButtonElement; label: string; close: () => void; children: JSX.Element; list?: boolean;
     fixedTarget?: boolean; centerFrame?: { x: number; y: number; w: number; h: number };
 }) => {
     const rectId = `projection-target-popover-${createUniqueId()}`;
@@ -22,7 +22,7 @@ export const ProjectionTargetPopover = (props: {
     const close = () => { focusTrigger(); props.close(); };
     const place = () => {
         const anchor = props.anchor.getBoundingClientRect();
-        const width = Math.min(props.fixedTarget ? 320 : props.compact ? 72 : props.list ? 256 : 320, Math.max(1, window.innerWidth - 16));
+        const width = Math.min(props.fixedTarget ? 320 : props.list ? 256 : 320, Math.max(1, window.innerWidth - 16));
         const below = window.innerHeight - anchor.bottom - 12;
         const above = anchor.top - 12;
         const up = below < 160 && above > below;
@@ -88,10 +88,10 @@ export const ProjectionTargetPopover = (props: {
     const focus = (event: MouseEvent | PointerEvent) => { event.stopPropagation(); void api.focusOverlayWindow(); };
     return <Portal><div ref={(el) => { panel = el; }} role="dialog" aria-label={props.label} tabIndex={-1}
         data-top-strip-menu="true" data-top-strip-property-popup="true"
-        class={`otter-toolbar-menu pointer-events-auto fixed z-[1305] overscroll-contain text-xs ${props.list ? "flex flex-col overflow-hidden py-1" : "overflow-y-auto"} ${props.compact ? "py-1" : props.list ? "" : "p-2"} ${props.fixedTarget ? "projection-target-dialog" : ""}`}
+        class={`otter-toolbar-menu pointer-events-auto fixed z-[1305] overscroll-contain text-xs ${props.list ? "flex flex-col overflow-hidden py-1" : "overflow-y-auto"} ${props.list ? "" : "p-2"} ${props.fixedTarget ? "projection-target-dialog" : ""}`}
         onPointerDown={focus} onMouseDown={focus} onPointerMove={(event) => event.stopPropagation()}
         onWheel={(event) => event.stopPropagation()}>
-        {!props.compact && !props.list && <button type="button" class="otter-terminal-btn float-right h-6 w-6" aria-label="关闭投射下拉菜单" onClick={close}>×</button>}
+        {!props.list && <button type="button" class="otter-terminal-btn float-right h-6 w-6" aria-label="关闭投射下拉菜单" onClick={close}>×</button>}
         {props.children}
     </div></Portal>;
 };

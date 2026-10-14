@@ -30,8 +30,7 @@ mod wgc_transient;
 pub use capture_pixels::HdrPqImage;
 #[allow(unused_imports)]
 pub use dispatch::{
-    capture_area, capture_area_with_profile, capture_region_with_dynamic_range,
-    capture_window_with_dynamic_range,
+    capture_area_with_profile, capture_region_with_dynamic_range, capture_window_with_dynamic_range,
 };
 #[cfg(target_os = "windows")]
 pub use dwm_shared_surface::window_display_affinity;

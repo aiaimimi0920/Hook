@@ -1,4 +1,4 @@
-import { Component, Show, createEffect, createSignal, onCleanup } from "solid-js";
+import { Component, createEffect, createSignal, onCleanup } from "solid-js";
 import { api } from "../../../services/api";
 import {
   beginEditableFocusRequest,
@@ -8,10 +8,8 @@ import {
 import { clampOptional, normalizePrecision } from "../../../utils/math";
 
 interface NumberControlProps {
-  compact?: boolean;
   id: string;
   label: string;
-  widget: "slider" | "number";
   value: number;
   min?: number;
   max?: number;
@@ -40,7 +38,7 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
 
   const fallbackValue = () => finiteOr(props.default, props.min ?? 0);
   const currentValue = () => clampOptional(finiteOr(props.value, fallbackValue()), props.min, props.max);
-  const sliderMin = () => finiteOr(props.min, props.compact ? Math.min(0, currentValue()) : 0);
+  const sliderMin = () => finiteOr(props.min, Math.min(0, currentValue()));
   const sliderMax = () => {
     const fallbackMax = Math.max(sliderMin() + effectiveStep(), currentValue(), 100);
     const nextMax = finiteOr(props.max, fallbackMax);
@@ -111,14 +109,6 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
       return;
     }
 
-    setDraftValue(formatNumber(next));
-    props.onChange(next, true);
-  };
-
-  const adjustByStep = (direction: -1 | 1) => {
-    if (props.isDisabled) return;
-    const next = normalizePrecision(clampOptional(currentValue() + effectiveStep() * direction, props.min, props.max));
-    setIsEditing(false);
     setDraftValue(formatNumber(next));
     props.onChange(next, true);
   };
@@ -213,19 +203,6 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
 
   const stepper = (
     <div class="otter-param-stepper flex items-center shrink-0 overflow-hidden rounded border">
-      <Show when={!props.compact}><button
-        type="button"
-        data-param-step-down
-        disabled={props.isDisabled}
-        class="otter-param-stepper__button w-5 h-6 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          adjustByStep(-1);
-        }}
-      >
-        -
-      </button></Show>
       <input
         type="number"
         data-param-number-input
@@ -271,33 +248,11 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
           props.onContextMenu(event);
         }}
       />
-      <Show when={!props.compact}><button
-        type="button"
-        data-param-step-up
-        disabled={props.isDisabled}
-        class="otter-param-stepper__button w-5 h-6 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          adjustByStep(1);
-        }}
-      >
-        +
-      </button></Show>
     </div>
   );
 
   return (
-    <div class="w-full min-w-0" classList={{ "unit-compact-number": props.compact }} onPointerDown={(event) => event.stopPropagation()}>
-      <Show
-        when={props.widget === "slider" || props.compact}
-        fallback={
-          <div data-param-number-layout class="flex items-center justify-between gap-2 w-full min-w-0 min-h-6">
-            {label}
-            {stepper}
-          </div>
-        }
-      >
+    <div class="w-full min-w-0 unit-compact-number" onPointerDown={(event) => event.stopPropagation()}>
         <div data-param-slider-layout class="flex flex-col gap-1.5 w-full min-w-0">
           <div data-param-value-row class="flex items-center justify-between gap-2 w-full min-w-0">
             {label}
@@ -377,7 +332,6 @@ export const NumberControl: Component<NumberControlProps> = (props) => {
             </div>
           </div>
         </div>
-      </Show>
     </div>
   );
 };

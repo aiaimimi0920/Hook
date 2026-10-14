@@ -14,11 +14,6 @@ import type { Unit } from "../types/unit";
 import type { PendingTextInput } from "./stickerAnnotationModel";
 import { sanitizeStrokeWidth, sanitizeTextSize } from "./stickerAnnotationNumericSafety";
 
-interface PatchOptions {
-    propagateEdit?: boolean;
-    markLocalEdit?: boolean;
-}
-
 interface StickerAnnotationTextControllerOptions {
     width: Accessor<number>;
     height: Accessor<number>;
@@ -29,7 +24,6 @@ interface StickerAnnotationTextControllerOptions {
     ) => Promise<void>;
     patchUnitData: (
         patch: Partial<Unit["data"]>,
-        options?: PatchOptions,
     ) => Promise<void>;
     rememberCurrentState: (includeImageData?: boolean) => void;
     refreshOverlayInteractivity?: () => Promise<void>;
@@ -179,7 +173,7 @@ export const createStickerAnnotationTextController = (
                     draft.annotationId,
                     text,
                 ),
-            }, { propagateEdit: true });
+            });
             await refreshOverlayInteractivity();
             return;
         }
@@ -247,7 +241,6 @@ export const createStickerAnnotationTextController = (
         handlePendingTextInputKeyDown,
         pendingTextInput,
         pendingTextInputStyle,
-        resolveTextAnnotationFontFamily,
         setPendingTextInput,
         setPendingTextInputRef: (element: HTMLInputElement) => {
             pendingTextInputRef = element;

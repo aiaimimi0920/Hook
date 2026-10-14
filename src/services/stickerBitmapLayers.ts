@@ -284,36 +284,6 @@ export const applyContentEraseToBaseLayer = async (params: {
     return canvas.toDataURL("image/png");
 };
 
-export const applyLiveContentEraseToStickerLayers = async (params: {
-    baseLayerSrc: string;
-    rasterizedAnnotationLayerSrc?: string;
-    size: StickerBitmapSize;
-    stroke: Pick<ContentEraserStroke, "points" | "color" | "width" | "opacity">;
-}) => {
-    const baseLayerSrc = await applyContentEraseToBaseLayer({
-        baseLayerSrc: params.baseLayerSrc,
-        size: params.size,
-        stroke: params.stroke,
-    });
-
-    const rasterizedAnnotationLayerSrc = params.rasterizedAnnotationLayerSrc
-        ? await eraseRasterizedAnnotationLayer({
-              rasterizedAnnotationLayerSrc: params.rasterizedAnnotationLayerSrc,
-              size: params.size,
-              points: params.stroke.points,
-              width: params.stroke.width,
-          })
-        : undefined;
-
-    const previewSrc = await composeRasterizedStickerPreview(baseLayerSrc, rasterizedAnnotationLayerSrc);
-
-    return {
-        baseLayerSrc,
-        rasterizedAnnotationLayerSrc,
-        previewSrc,
-    };
-};
-
 export const applyRasterizedContentErase = async (params: {
     baseLayerSrc: string;
     rasterizedAnnotationLayerSrc: string;

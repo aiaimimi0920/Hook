@@ -217,6 +217,7 @@ pub(crate) fn shared_client(
     shared_client_with(endpoint, timeout, "default", |builder| builder)
 }
 
+#[cfg(test)]
 pub(crate) fn blocking_client(
     endpoint: &str,
     timeout: Option<Duration>,

@@ -19,6 +19,22 @@ const mount = (view: () => ReturnType<typeof UnitNodeSettingsStrip>) => {
     const host = document.createElement("div"); document.body.append(host); dispose = render(view, host); return host;
 };
 describe("Tab property controls", () => {
+    it("toggles upstream edit propagation on the current sticker settings without changing another unit", () => {
+        graphStore.setUnits([{ ...unit, type: "sticker", data: {} }, { ...unit, id: "other", data: {} }]);
+        const host = mount(() => <UnitNodeSettingsStrip unit={graphStore.units[0]} expanded onParamChange={vi.fn()} />);
+        const toggle = host.querySelector<HTMLButtonElement>('[aria-label="接受上级贴图编辑传导"]')!;
+        expect(toggle.getAttribute("aria-pressed")).toBe("true");
+        toggle.click();
+        expect(graphStore.units[0].data.stickerEditPropagation?.acceptUpstream).toBe(false);
+        expect(graphStore.units[1].data.stickerEditPropagation).toBeUndefined();
+        expect(toggle.getAttribute("aria-pressed")).toBe("false");
+        toggle.click();
+        expect(graphStore.units[0].data.stickerEditPropagation?.acceptUpstream).toBe(true);
+    });
+    it("does not duplicate the sticker fit action in the current Tab panel", () => {
+        const host = mount(() => <UnitNodeSettingsStrip unit={{ ...unit, type: "sticker" }} expanded onParamChange={vi.fn()} />);
+        expect(host.querySelector("button[aria-label='合拢外框']")).toBeNull();
+    });
     it("hides the collapsed triangle in both global hidden modes while Tab remains usable", () => {
         const [expanded, setExpanded] = createSignal(false);
         const host = mount(() => <UnitNodeSettingsStrip unit={unit} expanded={expanded()} onParamChange={vi.fn()} />);

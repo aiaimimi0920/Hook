@@ -254,8 +254,3 @@ pub fn capture_window_with_dynamic_range(
         Err(anyhow!("Only Windows is supported"))
     }
 }
-
-#[allow(dead_code)]
-pub fn capture_area(x: i32, y: i32, w: u32, h: u32) -> anyhow::Result<RgbImage> {
-    capture_area_with_profile(x, y, w, h, CaptureWorkloadProfile::StandardRegion)
-}

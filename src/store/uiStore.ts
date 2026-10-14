@@ -164,16 +164,6 @@ export const [hoveringLink, setHoveringLink] = createSignal<{sourceUnitId: strin
 // Mouse Tracking
 export const [mousePos, setMousePos] = createSignal({ x: 0, y: 0 });
 
-export const [globalAddNodeMenu, setGlobalAddNodeMenu] = createSignal<{
-    visible: boolean;
-    x: number;
-    y: number;
-}>({
-    visible: false,
-    x: 0,
-    y: 0,
-});
-
 export const [enhancementNotices, setEnhancementNotices] = createStore<Record<string, EnhancementNotice[] | undefined>>({});
 
 // Unit-Specific UI State (e.g. Panels open/close)

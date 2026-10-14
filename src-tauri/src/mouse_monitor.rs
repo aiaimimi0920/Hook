@@ -31,11 +31,6 @@ pub fn offset_rects(rects: &[Rect], offset_x: i32, offset_y: i32) -> Vec<Rect> {
         .collect()
 }
 
-#[allow(dead_code)]
-pub fn should_ignore_cursor_events(rects: &[Rect], x: f64, y: f64) -> bool {
-    !rects.iter().any(|rect| rect.contains(x, y))
-}
-
 // Thread-safe container for the list of interactive areas
 #[derive(Clone)]
 pub struct SharedHitMap {
@@ -58,10 +53,10 @@ impl SharedHitMap {
 
 #[cfg(test)]
 mod tests {
-    use super::{offset_rects, should_ignore_cursor_events, Rect};
+    use super::{offset_rects, Rect};
 
     #[test]
-    fn cursor_over_interactive_rect_disables_click_through() {
+    fn rect_contains_interior_cursor() {
         let rects = vec![Rect {
             x: 100,
             y: 200,
@@ -70,11 +65,11 @@ mod tests {
             name: "sticker".to_string(),
         }];
 
-        assert!(!should_ignore_cursor_events(&rects, 250.0, 260.0));
+        assert!(rects[0].contains(250.0, 260.0));
     }
 
     #[test]
-    fn cursor_outside_interactive_rect_keeps_click_through() {
+    fn rect_does_not_contain_outside_cursor() {
         let rects = vec![Rect {
             x: 100,
             y: 200,
@@ -83,7 +78,7 @@ mod tests {
             name: "sticker".to_string(),
         }];
 
-        assert!(should_ignore_cursor_events(&rects, 50.0, 50.0));
+        assert!(!rects[0].contains(50.0, 50.0));
     }
 
     #[test]

@@ -25,17 +25,11 @@ export {
 
 export {
     addStickerPaletteColor,
-    adjustEffectStrength,
-    adjustStickerOpacity,
-    adjustStrokeWidth,
-    adjustTextSize,
     buildSerialAnnotationMetrics,
-    formatRgbColor,
     getEffectiveStickerColor,
     getStickerColorAlpha,
     isTransparentStickerColor,
     normalizeStickerPaletteColor,
-    parseHexColor,
     removeStickerPaletteColor,
 } from "./stickerStyleValues";
 
@@ -52,7 +46,6 @@ export {
 
 export {
     createContentEraserStroke,
-    createDefaultStickerGroup,
     nextSerialLabel,
     toggleStickerBorder,
 } from "./stickerEditingModels";

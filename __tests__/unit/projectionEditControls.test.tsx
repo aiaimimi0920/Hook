@@ -16,7 +16,6 @@ vi.mock("../../src/services/projectionEditSession", async () => {
 vi.mock("../../src/services/syncService", () => ({ syncService: { updateBackendRects: async () => undefined } }));
 let dispose: (() => void) | undefined;
 const textButton = (text: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === text)!;
-const flow = () => document.querySelector<HTMLButtonElement>('button[aria-label^="数据流向"]')!;
 const rects = () => extraRects().filter((rect) => rect.id.startsWith("projection-target-popover-"));
 beforeEach(() => { vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} }); });
 afterEach(() => {
@@ -28,30 +27,24 @@ function mount(role: "source" | "receiver") {
     graphStore.actions.replaceUnits([projectionUnit(role)]);
     setProjectionEditStatuses(role, { mode: "one_way", revision: 1, pending: false, conflicts: 0 });
     dispose = render(() => <ProjectionEditControls unitId={role} direction={role === "source" ? "send" : "receive"} />, document.body);
-    if (role === "source") flow().click();
 }
 
-it("uses the native popup for source mode control and displays the authoritative acknowledgment", async () => {
-    mount("source"); expect(rects()).toHaveLength(1);
-    expect(document.querySelectorAll('[aria-label="投射数据流向选项"] button')).toHaveLength(2);
-    expect(flow().textContent).toBe("▾");
-    expect(document.querySelector('[aria-label="投射数据流向"] p')).toBeNull();
-    document.querySelector<HTMLButtonElement>('[aria-label="双向修改"]')!.click();
-    await vi.waitFor(() => expect(setProjectionEditMode).toHaveBeenCalledWith("source", "two_way"));
-    expect(flow().getAttribute("aria-label")).toBe("数据流向：单向修改");
-    setProjectionEditStatuses("source", { mode: "two_way", revision: 2, pending: false, conflicts: 0 });
-    expect(flow().getAttribute("aria-label")).toBe("数据流向：双向修改");
-    expect(rects()).toHaveLength(0);
-    flow().click();
-    const trigger = flow();
+it("cleans up the native issue popup and restores focus on Escape", () => {
+    mount("source");
+    setProjectionEditStatuses("source", { mode: "one_way", revision: 1, pending: false, conflicts: 1 });
+    const trigger = document.querySelector<HTMLButtonElement>('[aria-label="编辑需要处理"]')!;
+    trigger.click();
+    expect(rects()).toHaveLength(1);
+    expect(document.querySelector('[aria-label="投射编辑问题"]')).not.toBeNull();
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     expect(rects()).toHaveLength(0); expect(document.activeElement).toBe(trigger);
 });
 
 it("keeps receiver direction read-only and offers explicit local/remote conflict choices", async () => {
     mount("receiver");
-    expect(flow()).toBeNull();
-    const indicator = document.querySelector<HTMLElement>('[role="img"][aria-label="数据流向：单向修改"]')!;
+    const indicator = document.querySelector<HTMLButtonElement>('[aria-label="双向修改"]')!;
+    expect(indicator.disabled).toBe(true);
+    expect(document.querySelector<HTMLButtonElement>('[aria-label="单向修改"]')!.disabled).toBe(true);
     indicator.click();
     expect(rects()).toHaveLength(0);
     expect(document.querySelector('[aria-label="投射数据流向选项"]')).toBeNull();
@@ -60,7 +53,7 @@ it("keeps receiver direction read-only and offers explicit local/remote conflict
     expect(document.querySelector('[aria-label="投射数据流向"]')).toBeNull();
     expect(textButton("保留本地修改并提交").disabled).toBe(true);
     setProjectionEditStatuses("receiver", { mode: "two_way", revision: 4, pending: false, conflicts: 1, error: "projection_edit_object_conflict" });
-    expect(indicator.getAttribute("aria-label")).toBe("数据流向：双向修改");
+    expect(indicator.getAttribute("aria-pressed")).toBe("true");
     textButton("保留本地修改并提交").click();
     await vi.waitFor(() => expect(resolveProjectionEditConflict).toHaveBeenCalledWith("receiver", true));
     textButton("采用远端版本").click();
@@ -71,7 +64,7 @@ it("keeps receiver direction read-only and offers explicit local/remote conflict
 it("renders mutually exclusive inline flow buttons and waits for the source acknowledgement", async () => {
     graphStore.actions.replaceUnits([projectionUnit()]);
     setProjectionEditStatuses("source", { mode: "one_way", revision: 1, pending: false, conflicts: 0 });
-    dispose = render(() => <ProjectionEditControls unitId="source" direction="send" inline />, document.body);
+    dispose = render(() => <ProjectionEditControls unitId="source" direction="send" />, document.body);
     const one = document.querySelector<HTMLButtonElement>('[aria-label="单向修改"]')!;
     const two = document.querySelector<HTMLButtonElement>('[aria-label="双向修改"]')!;
     one.click(); expect(setProjectionEditMode).not.toHaveBeenCalled();

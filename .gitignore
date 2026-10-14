@@ -1,26 +1,66 @@
-node_modules
-dist
-.vinxi
-.output
-.runtime
-.tmp/
-artifacts/
+# 安装依赖与前端构建产物，不忽略锁文件和生成器源码。
+node_modules/
+/dist/
+/.vinxi/
+/.output/
+/.vite/
+*.tsbuildinfo
+
+# Cargo 构建目录，包括独立验证时使用的替代 target。
+/target/
+/target-*/
+/target_*/
+/src-tauri/target/
+/src-tauri/target-*/
+/src-tauri/target_*/
+/src-tauri/crates/*/target/
+/src-tauri/crates/*/target-*/
+/src-tauri/crates/*/target_*/
+# Tauri 生成的 schema 由 src-tauri/.gitignore 管理。
+
+# 本地运行状态、测试证据与打包结果。
+/.runtime/
+/.tmp/
+/tmp/
+/tmp-*
+/artifacts/
 /output/
 /release/
-.memsearch/
-.playwright-cli/
+/coverage/
+/test-results/
+/playwright-report/
+/blob-report/
+/otter.exe
+/otter-*.exe
 *.log
-tmp-*
-tmp/
-src-tauri/target
-/target/
-src-tauri/crates/*/target/
-src-tauri/target-codex-verify
-src-tauri/target-test-sync
+
+# 本地搜索、代码图谱与浏览器自动化状态，不依赖用户全局 Git 配置。
+/.memsearch/
+/graphify-out/
+/.playwright-cli/
+
+# Python 辅助脚本的环境和缓存。
+/.venv/
+/venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+
+# 私有环境配置；显式保留可提交的无秘密示例和模板。
+/.env
+/.env.*
+!/.env.example
+!/.env.*.example
+!/.env.sample
+!/.env.template
+
+# 编辑器、操作系统和补丁临时文件。
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+Desktop.ini
 *.orig
 *.rej
 *.swp

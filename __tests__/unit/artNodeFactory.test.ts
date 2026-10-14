@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { buildStandaloneArtNodeUnit, buildUnitPortsFromCapability } from "../../src/services/artNodeFactory";
 import type { ArtCapability } from "../../src/services/protocol";
 

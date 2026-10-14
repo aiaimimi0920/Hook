@@ -143,8 +143,7 @@
 
 .otter-panel-caption,
 .otter-candidate-index,
-.otter-param-group-count,
-.otter-locally-edited {
+.otter-param-group-count {
   color: var(--theme-text-muted);
 }
 
@@ -275,14 +274,6 @@
 .otter-toolbar-shortcut,
 .otter-property-icon {
   color: var(--theme-text-muted);
-}
-
-.otter-actions-separator {
-  background: var(--theme-line);
-}
-
-.otter-actions-border {
-  border-color: var(--theme-border);
 }
 
 .otter-image-thumb {

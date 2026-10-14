@@ -19,7 +19,7 @@ describe("plugin Art capability boundary", () => {
     const productionFiles = [
       "src/app.tsx",
       "src/components/UnitParamsCandidateResults.tsx",
-      "src/components/UnitParamsExpandedSettings.tsx",
+      "src/components/UnitNodeSettingsStrip.tsx",
       "src/components/UnitParamsPanel.tsx",
       "src/components/UnitParamsPortRows.tsx",
       "src/components/UnitParamsScrollRegion.tsx",

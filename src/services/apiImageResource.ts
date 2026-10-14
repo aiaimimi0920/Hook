@@ -15,22 +15,15 @@ export const imageResourceApi = {
         "release_art_shared_memory",
         { nodeId, executionRequestId, generation, handles },
         () => undefined,
-        false,
     ),
 
     getCursorPosition: (): Promise<{ x: number; y: number }> =>
-        safeInvoke("get_cursor_position", undefined, () => ({ x: 0, y: 0 }), false),
+        safeInvoke("get_cursor_position", undefined, () => ({ x: 0, y: 0 })),
     pickScreenColorAt: (x: number, y: number): Promise<ScreenColorSample> =>
         safeInvoke("pick_screen_color_at", { x, y }, () => ({
             hex: "#000000",
             rgb: { r: 0, g: 0, b: 0 },
-        }), false),
-    pickScreenColorAtCursor: (): Promise<ScreenColorSample> =>
-        safeInvoke("pick_screen_color_at_cursor", undefined, () => ({
-            hex: "#000000",
-            rgb: { r: 0, g: 0, b: 0 },
-        }), false),
-
+        })),
     readImageFromPath: (path: string): Promise<string> =>
         safeInvoke("read_image_from_path", { path }),
     cacheRemoteImageAsset: (url: string, referer?: string): Promise<string> =>
@@ -46,7 +39,6 @@ export const imageResourceApi = {
             () => {
                 throw new Error("Native sticker file drag requires the Tauri desktop runtime");
             },
-            false,
         ),
 
     beginStickerNativeFileDragFromPath: (
@@ -59,7 +51,6 @@ export const imageResourceApi = {
             () => {
                 throw new Error("Native sticker file drag from path requires the Tauri desktop runtime");
             },
-            false,
         ),
 
     saveStickerDragExport: (
@@ -74,7 +65,6 @@ export const imageResourceApi = {
             () => {
                 throw new Error("Shift drag export requires the Tauri desktop runtime");
             },
-            false,
         ),
 
     saveStickerDragExportFromPath: (
@@ -89,7 +79,6 @@ export const imageResourceApi = {
             () => {
                 throw new Error("Shift drag export from path requires the Tauri desktop runtime");
             },
-            false,
         ),
 
     saveStickerImage: (base64: string, fileNamingContext?: FileNamingContext): Promise<string> =>
@@ -107,19 +96,10 @@ export const imageResourceApi = {
             fileNamingContext,
         }),
     openImageForEdit: (): Promise<string | null> =>
-        safeInvoke("open_image_for_edit", undefined, () => null, false),
+        safeInvoke("open_image_for_edit", undefined, () => null),
     readClipboardImage: (): Promise<string | null> =>
-        safeInvoke("read_clipboard_image", undefined, () => null, false),
+        safeInvoke("read_clipboard_image", undefined, () => null),
 
-    copyNodeImageToClipboard: (base64: string, fileNamingContext?: FileNamingContext): Promise<string> =>
-        safeInvoke(
-            "copy_node_image_to_clipboard",
-            { base64Image: base64, fileNamingContext },
-            () => "browser-preview",
-            false,
-        ),
-    copyToClipboard: (base64: string): Promise<void> =>
-        safeInvoke("copy_to_clipboard", { base64Image: base64 }, () => undefined, false),
     copyTextToClipboard: async (text: string): Promise<boolean> => {
         if (!text.trim()) return false;
         try {
@@ -143,6 +123,5 @@ export const imageResourceApi = {
             "copy_sticker_image_to_smart_clipboard",
             { base64Image: base64, fileNamingContext },
             () => "browser-preview",
-            false,
         ),
 };

@@ -14,11 +14,6 @@ export const removeAnnotationsByIds = (
     };
 };
 
-export const removeAnnotationById = (
-    state: StickerAnnotationState,
-    annotationId: string,
-): StickerAnnotationState => removeAnnotationsByIds(state, [annotationId]);
-
 export const updateTextAnnotationById = (
     state: StickerAnnotationState,
     annotationId: string,

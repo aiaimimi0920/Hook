@@ -67,36 +67,6 @@ export const removeStickerPaletteColor = (palette: string[], color: string) => {
     return palette.filter((item) => item !== normalized);
 };
 
-export const parseHexColor = (hex: string): { r: number; g: number; b: number } | undefined => {
-    const normalized = hex.trim().replace(/^#/, "");
-    if (!/^[0-9a-fA-F]{6}$/.test(normalized) && !/^[0-9a-fA-F]{8}$/.test(normalized)) {
-        return undefined;
-    }
-
-    return {
-        r: Number.parseInt(normalized.slice(0, 2), 16),
-        g: Number.parseInt(normalized.slice(2, 4), 16),
-        b: Number.parseInt(normalized.slice(4, 6), 16),
-    };
-};
-
-export const formatRgbColor = (rgb: { r: number; g: number; b: number }) =>
-    `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
-
-export const adjustStickerOpacity = (current: number, delta: number, min = 0, max = 1) => {
-    const next = Math.min(max, Math.max(min, current + delta));
-    return Math.round(next * 10) / 10;
-};
-
-export const adjustStrokeWidth = (current: number, delta: number, min = 0, max = 16) =>
-    Math.min(max, Math.max(min, current + delta));
-
-export const adjustTextSize = (current: number, delta: number, min = 10, max = 48) =>
-    Math.min(max, Math.max(min, current + delta));
-
-export const adjustEffectStrength = (current: number, delta: number, min = 2, max = 64) =>
-    Math.min(max, Math.max(min, current + delta));
-
 export const buildSerialAnnotationMetrics = (radius: number) => {
     const finiteRadius = Number.isFinite(radius) ? radius : 14;
     const safeRadius = Math.min(999, Math.max(8, Math.round(finiteRadius)));

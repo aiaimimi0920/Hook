@@ -62,16 +62,16 @@ describe("UnitParamsPanel grouped scrolling contract", () => {
             "utf8",
         );
 
-        expect(dispatcherSource).toContain('widget={props.param.widget as "slider" | "number"}');
-        expect(controlSource).toContain('props.widget === "slider"');
+        expect(dispatcherSource).toContain('props.param.widget === "slider" || props.param.widget === "number"');
+        expect(dispatcherSource).toContain('<NumberControl');
         expect(controlSource).toContain('data-param-slider-track');
         expect(controlSource).toContain('data-param-slider-thumb');
         expect(controlSource).toContain('startSliderDrag');
         expect(controlSource).toContain('onMouseDown={startSliderDrag}');
         expect(controlSource).not.toContain('pointer-events-none');
         expect(controlSource).toContain('data-param-number-input');
-        expect(controlSource).toContain('data-param-step-down');
-        expect(controlSource).toContain('data-param-step-up');
+        expect(controlSource).not.toContain('data-param-step-down');
+        expect(controlSource).not.toContain('data-param-step-up');
         expect(controlSource).not.toContain('type="range"');
     });
 

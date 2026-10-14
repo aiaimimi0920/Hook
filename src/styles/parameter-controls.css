@@ -27,28 +27,9 @@
   color: var(--theme-on-signal);
 }
 
-.otter-param-link-port {
-  border-color: color-mix(in srgb, var(--theme-info) 40%, var(--theme-border));
-  background: color-mix(in srgb, var(--theme-info) 58%, var(--theme-control));
-}
-
-.otter-param-link-port--linked {
-  border-color: color-mix(in srgb, var(--theme-signal) 80%, var(--theme-border));
-  background: var(--theme-signal);
-}
-
 .otter-param-stepper {
   border-color: var(--theme-border);
   background: color-mix(in srgb, var(--theme-text) 5%, transparent);
-  color: var(--theme-text);
-}
-
-.otter-param-stepper__button {
-  color: var(--theme-text-secondary);
-}
-
-.otter-param-stepper__button:hover:not(:disabled) {
-  background: var(--theme-hover);
   color: var(--theme-text);
 }
 

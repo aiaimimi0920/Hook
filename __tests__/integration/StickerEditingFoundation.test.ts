@@ -8,7 +8,6 @@ import {
     computeRestoredCropFrame,
     createContentEraserStroke,
     createDefaultStickerColorState,
-    createDefaultStickerGroup,
     createDefaultStickerToolSettings,
     createEmptyAnnotationState,
     createEmptyImageEditState,
@@ -83,11 +82,11 @@ describe("Otter sticker foundation helpers", () => {
     });
 
     it("supports group creation, update, hide/lock toggles, and removal", () => {
-        const initial = [createDefaultStickerGroup("g-1", "Alpha")];
+        const initial = [{ id: "g-1", name: "Alpha", hidden: false, locked: false }];
         const updated = upsertStickerGroup(initial, { id: "g-1", name: "Beta", hidden: false, locked: false });
         expect(updated).toEqual([{ id: "g-1", name: "Beta", hidden: false, locked: false }]);
 
-        const appended = upsertStickerGroup(updated, createDefaultStickerGroup("g-2", "Gamma"));
+        const appended = upsertStickerGroup(updated, { id: "g-2", name: "Gamma", hidden: false, locked: false });
         expect(appended).toHaveLength(2);
 
         const hidden = toggleStickerGroupHidden(appended, "g-2");

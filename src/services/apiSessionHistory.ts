@@ -16,7 +16,7 @@ import { sessionAssetReferences } from "./sessionAssetReferences";
 
 export const sessionHistoryApi = {
     loadSession: (): Promise<SessionData> =>
-        safeInvoke("load_session", undefined, loadBrowserPreviewSession, false),
+        safeInvoke("load_session", undefined, loadBrowserPreviewSession),
 
     saveSession: (
         stickers: SessionSticker[],
@@ -50,12 +50,11 @@ export const sessionHistoryApi = {
                     undefined,
                     expectedDocumentRevision,
                 ),
-            false,
         )),
 
     loadHistory: (): Promise<{ colors: unknown[]; screenshots: unknown[] }> =>
-        safeInvoke("load_history", undefined, () => ({ colors: [], screenshots: [] }), false),
+        safeInvoke("load_history", undefined, () => ({ colors: [], screenshots: [] })),
 
     saveHistory: (colors: unknown[], screenshots: unknown[]): Promise<void> =>
-        safeInvoke("save_history", { colors, screenshots }, () => undefined, false),
+        safeInvoke("save_history", { colors, screenshots }, () => undefined),
 };

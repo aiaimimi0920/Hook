@@ -329,7 +329,7 @@ export const createStickerAnnotationPointerCommitController = (
                 const crop = buildStickerCropEdit(unit, rect);
                 await batch(() => {
                     graphStore.actions.updateUnit(options.unitId(), crop.frame);
-                    return patchUnitData(crop.data, { propagateEdit: true });
+                    return patchUnitData(crop.data);
                 });
                 return;
             }

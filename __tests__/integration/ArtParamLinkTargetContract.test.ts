@@ -12,8 +12,10 @@ describe("Art parameter link target contract", () => {
         expect(source).toContain("onLinkDrop?:");
         expect(source).toContain("onLinkMove?:");
         expect(source).toContain("isLinked?:");
-        expect(source).toContain("data-param-link-target");
-        expect(source).toContain("data-port-name={props.param.id}");
+        const capsule = readFileSync(resolve(process.cwd(), "src/components/UnitPropertyCapsule.tsx"), "utf8");
+        expect(capsule).toContain("data-port-type={props.side}");
+        expect(capsule).toContain("data-port-name={props.name}");
+        expect(capsule).toContain("props.register(element, props.name)");
         expect(source).toContain("props.onLinkDrop?.(props.param.id)");
         expect(source).toContain("props.onLinkMove?.(props.param.id, e)");
     });
@@ -22,7 +24,7 @@ describe("Art parameter link target contract", () => {
         const source = readFileSync(resolve(process.cwd(), "src", "components", "UnitParamsPanel.tsx"), "utf8");
 
         expect(source).toContain("isParamLinked");
-        expect(source).toContain("<UnitPropertyCapsule name={param.id}");
+        expect(source).toContain("<UnitPropertyCapsule unitId={props.unit.id} name={param.id}");
         expect(source).toContain("register={registerPanelPort}");
         expect(source).toContain("onLinkDrop={props.onLinkDrop}");
         expect(source).toContain("onLinkMove={props.onLinkMove}");

@@ -4,12 +4,9 @@ import {
     DECLARATIVE_SURFACE_NODE_TYPES,
     SURFACE_PROTOCOL_VERSION,
     canApplySurfacePatch,
-    isContentAddressedSurfaceResource,
-    isCurrentSurfaceCommit,
     validateSurfaceNodeIds,
     type SurfaceNode,
     type SurfacePatch,
-    type SurfaceResultCommit,
 } from "../../src/services/surfaceProtocol";
 import { otterSurfaceHostCapabilities } from "../../src/services/surfaceHostCapabilities";
 
@@ -42,31 +39,6 @@ describe("Surface protocol", () => {
         expect(canApplySurfacePatch(4, patch)).toBe(true);
         expect(canApplySurfacePatch(3, patch)).toBe(false);
         expect(canApplySurfacePatch(5, { ...patch, revision: 4 })).toBe(false);
-    });
-
-    it("keeps formal commits scoped to the active generation", () => {
-        const commit: SurfaceResultCommit = {
-            protocolVersion: SURFACE_PROTOCOL_VERSION,
-            instanceId: "instance:compress",
-            requestId: "request:7",
-            generation: 7,
-            resultRevision: 11,
-            outputs: {
-                output_size: { kind: "value", value: 128 },
-            },
-        };
-
-        expect(isCurrentSurfaceCommit(7, commit)).toBe(true);
-        expect(isCurrentSurfaceCommit(8, commit)).toBe(false);
-    });
-
-    it("accepts only immutable sha256 resource ids", () => {
-        expect(isContentAddressedSurfaceResource({
-            resourceId: `sha256:${"a".repeat(64)}`,
-        })).toBe(true);
-        expect(isContentAddressedSurfaceResource({
-            resourceId: "file:C:/private/image.png",
-        })).toBe(false);
     });
 
     it("advertises the declarative and sandboxed JavaScript runtimes implemented by Otter", () => {

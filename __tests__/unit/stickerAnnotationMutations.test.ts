@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-    removeAnnotationById,
     removeAnnotationsByIds,
     updateTextAnnotationFontFamilyById,
     updateTextAnnotationById,
@@ -36,7 +35,7 @@ const makeState = (): StickerAnnotationState => ({
 describe("stickerAnnotationMutations", () => {
     it("removes the requested annotation without mutating the original state", () => {
         const state = makeState();
-        const next = removeAnnotationById(state, "shape-1");
+        const next = removeAnnotationsByIds(state, ["shape-1"]);
 
         expect(next.elements.map((item) => item.id)).toEqual(["text-1"]);
         expect(state.elements.map((item) => item.id)).toEqual(["text-1", "shape-1"]);

@@ -24,7 +24,7 @@ export const ProjectionSettings = (props: { unitId: string; frame: ProjectionSet
         </div>
         <div class="projection-settings-flow" role="group" aria-label="数据流通格式">
             <span class="projection-settings-label" title="数据流通格式"><ProjectionSettingsIcon kind="flow" /></span>
-            <ProjectionEditControls unitId={props.unitId} direction={mode()} inline />
+            <ProjectionEditControls unitId={props.unitId} direction={mode()} />
         </div>
         <Show when={mode() === "send"} fallback={<ProjectionReceiverActions unitId={props.unitId} />}>
             <div class="projection-settings-row" role="group" aria-label="导出投射">

@@ -3,9 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
     TRANSPARENT_STICKER_COLOR,
     addStickerPaletteColor,
-    adjustStickerOpacity,
-    adjustStrokeWidth,
-    adjustTextSize,
     buildSerialAnnotationMetrics,
     createDefaultStickerColorState,
     createDefaultStickerToolProfiles,
@@ -16,13 +13,6 @@ import {
 import { normalizeStickerToolSettings } from "../../src/services/toolSettings";
 
 describe("sticker style controls", () => {
-    it("adjusts stroke width in predictable one-pixel steps and allows zero-width borders", () => {
-        expect(adjustStrokeWidth(3, -1)).toBe(2);
-        expect(adjustStrokeWidth(1, -1)).toBe(0);
-        expect(adjustStrokeWidth(0, -1)).toBe(0);
-        expect(adjustStrokeWidth(15, 2)).toBe(16);
-    });
-
     it("keeps each shape/line tool's stroke and fill colors independent while sharing one palette", () => {
         expect(createDefaultStickerToolSettings()).toMatchObject({
             rectStrokeColor: "#ef4444",
@@ -73,18 +63,6 @@ describe("sticker style controls", () => {
         expect(addStickerPaletteColor(withCustom, "#abcdef")).toEqual(withCustom);
         expect(removeStickerPaletteColor(withCustom, "#abcdef")).toEqual(["#ffffff"]);
         expect(removeStickerPaletteColor(withCustom, "#ffffff")).toEqual(["#abcdef"]);
-    });
-
-    it("adjusts text size in predictable two-pixel steps with sane bounds", () => {
-        expect(adjustTextSize(16, -2)).toBe(14);
-        expect(adjustTextSize(10, -2)).toBe(10);
-        expect(adjustTextSize(48, 4)).toBe(48);
-    });
-
-    it("allows sticker opacity steppers to reduce all the way to zero", () => {
-        expect(adjustStickerOpacity(0.2, -0.1)).toBe(0.1);
-        expect(adjustStickerOpacity(0.1, -0.1)).toBe(0);
-        expect(adjustStickerOpacity(0, -0.1)).toBe(0);
     });
 
     it("derives serial digit and border size from the configured radius", () => {

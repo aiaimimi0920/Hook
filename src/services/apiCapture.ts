@@ -31,42 +31,10 @@ export const captureApi = {
     },
 
     listCaptureWindowTargets: (): Promise<CaptureWindowTarget[]> =>
-        safeInvoke("list_capture_window_targets", undefined, () => [], false),
+        safeInvoke("list_capture_window_targets", undefined, () => []),
 
     getCaptureCursorPosition: (): Promise<{ x: number; y: number }> =>
-        safeInvoke("get_capture_cursor_position", undefined, () => ({ x: 0, y: 0 }), false),
-
-    captureVerticalLongRegion: (
-        x: number,
-        y: number,
-        w: number,
-        h: number,
-        options?: {
-            maxFrames?: number;
-            scrollDelta?: number;
-            settleMs?: number;
-            overlapScan?: number;
-        },
-    ): Promise<CaptureResponse> =>
-        safeInvoke("capture_vertical_long_region", {
-            x,
-            y,
-            w,
-            h,
-            maxFrames: options?.maxFrames,
-            scrollDelta: options?.scrollDelta,
-            settleMs: options?.settleMs,
-            overlapScan: options?.overlapScan,
-        }),
-
-    stitchVerticalLongCaptureFrames: (
-        frames: string[],
-        options?: { overlapScan?: number },
-    ): Promise<CaptureResponse> =>
-        safeInvoke("stitch_vertical_long_capture_frames", {
-            frames,
-            overlapScan: options?.overlapScan,
-        }),
+        safeInvoke("get_capture_cursor_position", undefined, () => ({ x: 0, y: 0 })),
 
     analyzeLongCapturePair: (
         previous: string,

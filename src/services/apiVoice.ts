@@ -22,11 +22,10 @@ export const voiceApi = {
             "get_voice_settings_summary",
             undefined,
             () => ({ ...DEFAULT_VOICE_SETTINGS_SUMMARY }),
-            false,
         ),
 
     captureTalkVoiceOnce: (request: TalkVoiceCaptureRequest = {}): Promise<TalkVoiceCaptureResult> =>
         safeInvoke("talk_capture_voice_once", { request }, () => {
             throw new Error("Talk voice capture requires the Tauri desktop runtime");
-        }, false),
+        }),
 };

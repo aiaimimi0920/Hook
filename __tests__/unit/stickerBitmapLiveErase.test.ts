@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-    applyLiveContentEraseToStickerLayers,
+    applyRasterizedContentErase,
     createLiveStickerEraseSession,
 } from "../../src/services/stickerBitmapLayers";
 
@@ -74,7 +74,7 @@ describe("stickerBitmapLayers live erase", () => {
         }
         vi.stubGlobal("Image", FakeImage);
 
-        const result = await applyLiveContentEraseToStickerLayers({
+        const result = await applyRasterizedContentErase({
             baseLayerSrc: "data:image/png;base64,BASE",
             rasterizedAnnotationLayerSrc: "data:image/png;base64,LAYER",
             size: { w: 100, h: 80 },

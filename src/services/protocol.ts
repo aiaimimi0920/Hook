@@ -97,40 +97,6 @@ export interface HandshakeResponse {
     sessionId: string;
 }
 
-export interface OtterResponse<T = unknown> {
-    protocolVersion: "loom.hook.v1";
-    requestId: string;
-    status: "accepted" | "running" | "cancel_requested" | "cancelled" | "succeeded" | "failed";
-    data: T;
-    error?: { code: string; message: string; detail?: string };
-}
-
-export type OtterArtPortValue =
-    | { kind: "value"; value: unknown }
-    | { kind: "inline_resource"; mime: string; dataBase64: string; width?: number; height?: number }
-    | { kind: "shared_memory"; handle: string; size: number; width: number; height: number; format: "rgba8" }
-    | { kind: "resource"; resource: Record<string, unknown> };
-
-export interface OtterArtPreviewCommit {
-    protocolVersion: "loom.hook.v1";
-    requestId: string;
-    nodeId: string;
-    generation: number;
-    previewRevision: number;
-    portId: string;
-    value: OtterArtPortValue;
-}
-
-export interface OtterArtResultCommit {
-    protocolVersion: "loom.hook.v1";
-    requestId: string;
-    nodeId: string;
-    generation: number;
-    resultRevision: number;
-    outputs: Record<string, OtterArtPortValue>;
-    candidates?: ArtResultCandidateMetadata;
-}
-
 export interface ArtResultCandidate {
     index: number;
     title?: string;

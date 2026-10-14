@@ -9,6 +9,5 @@ export { renderStickerCompositeWithAnnotations } from "./stickerCompositeRendere
 export {
     renderStickerBaseLayer,
     renderStickerComposite,
-    renderStickerRasterizedAnnotations,
     renderStickerTransparentAnnotationLayer,
 } from "./stickerExportOperations";

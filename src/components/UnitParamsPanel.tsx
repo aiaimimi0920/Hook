@@ -165,7 +165,6 @@ export const UnitParamsPanel: Component<UnitParamsPanelProps> = (props) => {
           expanded={props.expanded !== false} linked={isParamLinked(param.id)} disabled={props.params[param.id] === DISABLED_PREFIX}
           register={registerPanelPort} onLinkMove={props.onLinkMove} onLinkDrop={props.onLinkDrop} onToggleDisable={toggleParamDisabled}>
       <UnitParamControl
-          hidePort
           param={param}
           value={getParamValue(param.id, param.default)}
           isDisabled={props.params[param.id] === DISABLED_PREFIX || isParamLinked(param.id)}

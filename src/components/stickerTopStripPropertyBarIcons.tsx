@@ -61,13 +61,6 @@ export const ArrowHeadIcon: Component<MiniIconProps> = (props) => (
     </svg>
 );
 
-export const BrushIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M10.5 3.5 13 6l-5.5 5.5-2.5.5.5-2.5L10.5 3.5Z" />
-        <path d="M5.5 10.5c-.7.2-1.5.8-1.5 1.8" />
-    </svg>
-);
-
 export const HighlighterGlowIcon: Component<MiniIconProps> = (props) => (
     <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
         <path d="M8 3.2v2" />
@@ -75,14 +68,6 @@ export const HighlighterGlowIcon: Component<MiniIconProps> = (props) => (
         <path d="M12.8 8h-2" />
         <path d="M5.8 9.6 9.6 5.8 12.2 8.4 8.4 12.2H5.6Z" />
         <path d="M4.2 12.6h4.2" />
-    </svg>
-);
-
-export const TextIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 4h10" />
-        <path d="M8 4v8" />
-        <path d="M5.5 12h5" />
     </svg>
 );
 
@@ -103,30 +88,6 @@ export const PolygonSidesIcon: Component<MiniIconProps> = (props) => (
         <circle cx="8" cy="13.5" r="0.6" fill="currentColor" stroke="none" />
         <circle cx="3.5" cy="11" r="0.6" fill="currentColor" stroke="none" />
         <circle cx="3.5" cy="5" r="0.6" fill="currentColor" stroke="none" />
-    </svg>
-);
-
-export const BlurIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
-        <circle cx="8" cy="8" r="2.3" />
-        <path d="M3 8h1.2M11.8 8H13" />
-        <path d="M8 3v1.2M8 11.8V13" />
-    </svg>
-);
-
-export const MosaicIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="currentColor">
-        <rect x="3" y="3" width="4" height="4" rx="0.5" />
-        <rect x="8.5" y="3" width="4.5" height="4" rx="0.5" />
-        <rect x="3" y="8.5" width="4" height="4.5" rx="0.5" />
-        <rect x="8.5" y="8.5" width="4.5" height="4.5" rx="0.5" />
-    </svg>
-);
-
-export const EraserIcon: Component<MiniIconProps> = (props) => (
-    <svg class={props.class} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M6.2 4.2h4.2l2.1 2.1-5.4 5.5H3.9L2.5 10.4 6.2 4.2Z" />
-        <path d="M8 11.8h4.5" />
     </svg>
 );
 

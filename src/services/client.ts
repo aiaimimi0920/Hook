@@ -2,7 +2,7 @@ import { api } from "./api";
 
 import { listen } from "@tauri-apps/api/event";
 import { logger } from "./logger";
-import { HandshakeRequest, HandshakeResponse, TransportMode, ArtDelivery, ArtCapability } from "./protocol";
+import { HandshakeRequest, HandshakeResponse, ArtDelivery } from "./protocol";
 import { normalizeArtCapabilities } from "./artCapabilityNormalization";
 import type {
     SurfaceActionAck,
@@ -78,10 +78,6 @@ export interface SurfaceResourceDelivery {
 }
 
 export class LoomOtterClient {
-    private sessionId: string | null = null;
-    private negotiatedTransport: TransportMode | null = null;
-    private capabilities: ArtCapability[] = [];
-
     async connect(): Promise<HandshakeResponse> {
         logger.debug("[LoomOtterClient] Connecting...");
         const req: HandshakeRequest = {
@@ -108,9 +104,6 @@ export class LoomOtterClient {
             };
 
             logger.debug("[LoomOtterClient] Handshake Success:", res);
-            this.sessionId = res.sessionId;
-            this.negotiatedTransport = res.transport;
-            this.capabilities = res.capabilities.artDefinitions;
             return res;
         } catch (e) {
             console.error("[LoomOtterClient] Handshake Failed:", e);

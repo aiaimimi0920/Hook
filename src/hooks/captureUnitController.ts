@@ -11,7 +11,7 @@ import { createThumbnailDataUrl } from "../services/historyModel";
 import { syncService } from "../services/syncService";
 import { graphStore } from "../store/graphStore";
 import {
-    captureMode,
+    type captureMode,
     selectionActions,
     uiActions,
 } from "../store/uiStore";
@@ -50,7 +50,7 @@ export const addCaptureUnit = async (
     response: ManualLongCaptureFrame,
     rect: CaptureRect,
     origin: { x: number; y: number },
-    mode = captureMode(),
+    mode: ReturnType<typeof captureMode>,
     scrollAxis?: LongCaptureAxis,
 ) => {
     const dpr = window.devicePixelRatio || 1;

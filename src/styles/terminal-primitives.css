@@ -154,30 +154,6 @@
   text-transform: uppercase;
 }
 
-.otter-actions-shell {
-  background: var(--theme-panel);
-  border-bottom: 1px solid var(--theme-line);
-  color: var(--theme-text);
-}
-
-.otter-actions-shell__title {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border: 1px solid var(--theme-border-strong);
-  background: var(--theme-hover-strong);
-  color: var(--theme-signal-text);
-}
-
-.otter-actions-shell__dot {
-  width: 6px;
-  height: 6px;
-  background: var(--theme-signal);
-  display: inline-block;
-  flex-shrink: 0;
-}
-
 .otter-toolbar-button {
   background: transparent;
   color: var(--theme-text-secondary);

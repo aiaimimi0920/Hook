@@ -20,7 +20,6 @@ describe("NumberControl runtime behavior", () => {
         <NumberControl
           id="count"
           label="Count"
-          widget="number"
           value={1}
           min={1}
           max={10}
@@ -57,7 +56,6 @@ describe("NumberControl runtime behavior", () => {
         <NumberControl
           id="count"
           label="Count"
-          widget="number"
           value={1}
           min={1}
           max={10}
@@ -96,7 +94,6 @@ describe("NumberControl runtime behavior", () => {
         <NumberControl
           id="strength"
           label="Strength"
-          widget="slider"
           value={10}
           min={0}
           max={100}
@@ -171,7 +168,6 @@ describe("NumberControl runtime behavior", () => {
         <NumberControl
           id="strength"
           label="Strength"
-          widget="slider"
           value={10}
           min={0}
           max={100}
@@ -238,7 +234,6 @@ describe("NumberControl runtime behavior", () => {
         <NumberControl
           id="strength"
           label="Strength"
-          widget="slider"
           value={10}
           min={0}
           max={100}
@@ -286,7 +281,6 @@ describe("NumberControl runtime behavior", () => {
           <NumberControl
             id="strength"
             label="Strength"
-            widget="slider"
             value={10}
             min={0}
             max={100}
@@ -361,7 +355,6 @@ describe("NumberControl runtime behavior", () => {
         <NumberControl
           id="hue_shift"
           label="Hue Shift"
-          widget="slider"
           value={0}
           min={-100}
           max={100}

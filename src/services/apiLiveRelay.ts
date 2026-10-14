@@ -23,7 +23,6 @@ export const liveRelayApi = {
             "get_live_network_capabilities",
             {},
             () => unavailableLiveNetworkReport,
-            false,
         )),
 
     getLiveExtensionCapabilities: async (): Promise<LiveExtensionCapabilityReport> =>
@@ -31,7 +30,6 @@ export const liveRelayApi = {
             "get_live_extension_capabilities",
             {},
             () => unavailableLiveExtensionReport,
-            false,
         )),
 
     publishLiveCaptureToLoom: (request: {
