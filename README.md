@@ -1,6 +1,6 @@
 <p align="center"><img src="./src-tauri/icons/otter-icon.svg" width="80" height="80" alt="Otter capture icon"></p>
 <h1 align="center">Otter</h1>
-<p align="center"><strong>Capture it. Pin it. Make it yours.</strong><br>A distinctive desktop workflow system that lets you create effects by connecting nodes.</p>
+<p align="center"><strong>Capture it. Pin it. Make it yours.</strong><br>Connect nodes. Create effects. Turn your desktop into a creative workspace.</p>
 <p align="center">
   <a href="https://github.com/aiaimimi0920/Otter/releases">Download</a> ·
   <a href="#get-started">Get started</a> ·

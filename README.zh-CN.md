@@ -1,6 +1,6 @@
 <p align="center"><img src="./src-tauri/icons/otter-icon.svg" width="80" height="80" alt="Otter 截图图标"></p>
 <h1 align="center">Otter</h1>
-<p align="center"><strong>截下画面，留在桌面，改成你想要的样子。</strong><br>独特的桌面工作流机制，让你可以通过连线完成效果制作</p>
+<p align="center"><strong>截下画面，留在桌面，改成你想要的样子。</strong><br>连接节点，生成效果。让桌面成为你的创作工作台。</p>
 <p align="center">
   <a href="https://github.com/aiaimimi0920/Otter/releases">下载</a> ·
   <a href="#快速开始">快速开始</a> ·
