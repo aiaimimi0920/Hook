@@ -32,12 +32,12 @@ explore more possibilities for the images you capture.
 
 ## Features
 
-- **Capture what you need.** Region and window screenshots, long captures, live captures and a screen color picker.
-- **Keep it on your desktop.** Persistent stickers, a focused canvas, groups, a reference library and history.
-- **Make the image yours.** Crop, erase, rotate and annotate with text, arrows, shapes, brushes, blur and mosaic; undo and redo your edits.
-- **Work with live content.** Capture a program region into a live sticker; supported source windows allow interaction. Compatibility and resource limits apply.
-- **Add local capabilities.** OCR, translation and Art workflows through installed, enabled and authorized Loom capabilities.
-- **Project to another device.** Image projection and LiveRelay through paired Loom connections, with receiver controls and server authorization.
+- **Capture the view you want.** Take region, window and long screenshots, and pick colors from the screen.
+- **Pin images to your desktop.** Keep references in view and organize your material with groups, the library and history.
+- **Annotate freely and keep editing.** Crop, erase and rotate; add text, arrows and shapes; hide information with blur and mosaic.
+- **Keep pinned images live.** Turn a window or part of the screen into a live pinned view to follow changing content and interact with supported source windows.
+- **Connect nodes and combine effects.** Use Loom's OCR, translation and Art capabilities, connecting nodes to build your own processing flows.
+- **Project your view to other devices.** Send images or live views to connected, paired devices for viewing and collaboration across screens.
 
 [**Full features →**](./docs/FEATURES.md)
 
