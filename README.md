@@ -14,21 +14,21 @@
 </p>
 <p align="center">English · <a href="./README.zh-CN.md">简体中文</a></p>
 
-Otter is a free, open-source screenshot tool for capturing, annotating, organizing
-and sharing images at work. Its processing-node structure turns your desktop into
-a workbench: connect different nodes to create the results you want.
+Otter is a free, open-source screenshot tool that brings capturing, annotating,
+organizing and sharing into your everyday work. Turn your desktop into a workbench:
+connect different processing nodes to combine functions, create effects and
+explore more possibilities for the images you capture.
 
 <details open>
-<summary>A desktop workspace · Show / hide demo</summary>
+<summary>A desktop workspace · Show / hide animation</summary>
 
 <p align="center">
-  <img src="./docs/assets/hook-home-demo.gif" width="860" alt="Otter's existing demo: capture, sticker and workflow sample cards on the desktop, with a sticker context menu."><br>
-  <sub>Repository demo with sample cards · Recorded under the former Hook name; the current interface may differ.</sub>
+  <img src="./docs/assets/hook-home-demo.gif" width="860" alt="Otter's existing demo: capture, sticker and workflow sample cards on the desktop, with a sticker context menu.">
 </p>
 
 </details>
 
-[Features](#features) · [Get started](#get-started) · [Development](#development) · [Contributing](#contributing)
+[Features](#features) · [Get started](#get-started) · [Contribute](#contributing)
 
 ## Features
 
