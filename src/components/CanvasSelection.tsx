@@ -9,6 +9,7 @@ import {
     longCaptureSession,
 } from "../store/uiStore";
 import { isWindowTargetCaptureMode } from "../services/captureState";
+import { LongCapturePreview } from "./LongCapturePreview";
 
 export const CanvasSelection: Component = () => {
     return (
@@ -68,6 +69,9 @@ export const CanvasSelection: Component = () => {
         </div>
       </Show>
 
+      <Show when={longCaptureSession()}>
+        <LongCapturePreview />
+      </Show>
       <Show when={longCaptureSession()}>
         {(session) => (
             <div

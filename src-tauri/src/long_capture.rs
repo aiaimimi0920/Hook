@@ -41,6 +41,10 @@ include!("long_capture/signature_matching.rs");
 include!("long_capture/aggregate_adjacent.rs");
 include!("long_capture/aggregate_search.rs");
 include!("long_capture/aggregate_merge.rs");
+include!("long_capture/preview.rs");
+include!("long_capture/spatial_coverage.rs");
+include!("long_capture/spatial_capture.rs");
+include!("long_capture/spatial_matching.rs");
 include!("long_capture/batch_stitch.rs");
 include!("long_capture/capture_loop.rs");
 
@@ -53,4 +57,6 @@ mod tests {
     include!("long_capture/tests/analysis_a.rs");
     include!("long_capture/tests/analysis_b.rs");
     include!("long_capture/tests/resource_limits.rs");
+    include!("long_capture/tests/preview.rs");
+    include!("long_capture/tests/spatial.rs");
 }

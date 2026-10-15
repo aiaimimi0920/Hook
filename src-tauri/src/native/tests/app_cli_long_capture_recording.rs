@@ -173,10 +173,12 @@
             h: 80.0,
         };
         let mut session = LongCaptureSessionState {
+            rect_revision: 0,
             rect,
             axis: Some(long_capture::LongCaptureAxis::Vertical),
             direction: None,
             frames: Vec::new(),
+            frame_rects: Vec::new(),
             last_frame_fingerprint: None,
             pair_analyses: Vec::new(),
             incremental_stitcher: None,
@@ -211,6 +213,18 @@
                 .frame_count(),
             1
         );
+
+        // Moving preserves the aggregate and recorded frames before the next sample.
+        assert!(move_long_capture_rect(&mut session, 1.0, 1.0).is_err());
+        assert!(move_long_capture_rect(&mut session, 0.0, f64::NAN).is_err());
+        assert!(move_long_capture_rect(&mut session, 0.0, 65.0).is_err());
+        assert_eq!(session.rect_revision, 0);
+        let moved = move_long_capture_rect(&mut session, 0.0, 16.0).unwrap();
+        assert_eq!((moved.x, moved.y, moved.w, moved.h), (0.0, 16.0, 8.0, 80.0));
+        assert_eq!(session.rect_revision, 1);
+        assert_eq!(session.frames.len(), 1);
+        assert_eq!(session.incremental_stitcher.as_ref().unwrap().frame_count(), 1);
+        assert!(session.last_frame_fingerprint.is_some());
 
         let second_result = LongCaptureSessionSampleResult {
             frame: second,
@@ -272,4 +286,3 @@
             LongCaptureSessionSampleStatus::Recorded
         ));
     }
-

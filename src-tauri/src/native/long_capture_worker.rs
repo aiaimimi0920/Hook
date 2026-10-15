@@ -89,7 +89,7 @@ fn run_long_capture_stitch_worker(shared: SharedLongCaptureSessions, session_id:
     let mut frames_since_rest = 0usize;
 
     loop {
-        let (mut stitcher, frame, frame_index) = {
+        let (mut stitcher, frame, frame_index, movement) = {
             let mut guard = match shared.sessions.lock() {
                 Ok(guard) => guard,
                 Err(_) => return,
@@ -122,12 +122,19 @@ fn run_long_capture_stitch_worker(shared: SharedLongCaptureSessions, session_id:
                 ));
                 return;
             }
-            (stitcher, frame, next_index)
+            let previous_rect = session.frame_rects[next_index - 1];
+            let rect = session.frame_rects[next_index];
+            // Desktop selection uses logical coordinates; frames contain physical pixels.
+            let movement = (
+                ((rect.x - previous_rect.x) * frame.width() as f64 / rect.w).round() as i64,
+                ((rect.y - previous_rect.y) * frame.height() as f64 / rect.h).round() as i64,
+            );
+            (stitcher, frame, next_index, movement)
         };
 
         let started_at = Instant::now();
         let push_result = stitcher
-            .push_frame_owned(frame)
+            .push_frame_at(frame, movement)
             .map_err(|error| error.to_string());
         let elapsed_ms = started_at.elapsed().as_millis();
 
@@ -190,4 +197,3 @@ fn run_long_capture_stitch_worker(shared: SharedLongCaptureSessions, session_id:
         }
     }
 }
-

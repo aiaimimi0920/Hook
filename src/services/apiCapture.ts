@@ -93,6 +93,14 @@ export const captureApi = {
     finishLongCaptureSession: (sessionId: string): Promise<CaptureResponse> =>
         safeInvoke("finish_long_capture_session", { sessionId }),
 
+    previewLongCaptureSession: (sessionId: string, revision?: number): Promise<{
+        revision: number; width: number; height: number; dataUrl: string;
+    } | null> => safeInvoke("preview_long_capture_session", { sessionId, revision }),
+
+    moveLongCaptureSession: (sessionId: string, dx: number, dy: number): Promise<{
+        x: number; y: number; w: number; h: number;
+    }> => safeInvoke("move_long_capture_session", { sessionId, dx, dy }),
+
     cancelLongCaptureSession: (sessionId: string): Promise<void> =>
         safeInvoke("cancel_long_capture_session", { sessionId }),
 

@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ManualLongCaptureFrame } from "../../src/services/captureState";
+vi.mock("../../src/services/syncService", () => ({ syncService: { updateBackendRects: vi.fn(async () => undefined) } }));
 
 const state = vi.hoisted(() => ({
     setLongCaptureSession: vi.fn(),
@@ -21,6 +22,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("../../src/store/uiStore", () => ({
+    longCaptureSession: () => null,
     setLongCaptureSession: state.setLongCaptureSession,
 }));
 
@@ -104,7 +106,11 @@ describe("auto long capture controller", () => {
             );
             expect(state.setCaptureInputActive).toHaveBeenLastCalledWith(false, true);
             const releaseOrder = state.setCaptureInputActive.mock.invocationCallOrder.at(-1)!;
-            expect(state.setMouseMonitorActive.mock.invocationCallOrder.at(-1)!).toBeLessThan(releaseOrder);
+            expect(state.setMouseMonitorActive.mock.calls.slice(-2)).toEqual([[false], [true]]);
+            expect(state.setMouseMonitorActive.mock.invocationCallOrder.at(-2)!).toBeLessThan(releaseOrder);
+            expect(state.setMouseMonitorActive.mock.invocationCallOrder.at(-1)!).toBeGreaterThan(
+                state.sampleLongCaptureSession.mock.invocationCallOrder.at(-1)!,
+            );
             expect(state.setOverlayClickThrough.mock.invocationCallOrder.at(-1)!).toBeLessThan(releaseOrder);
             expect(releaseOrder).toBeLessThan(state.startLongCaptureSession.mock.invocationCallOrder.at(-1)!);
             expect(releaseOrder).toBeLessThan(state.sampleLongCaptureSession.mock.invocationCallOrder.at(-1)!);
@@ -200,12 +206,12 @@ describe("auto long capture controller", () => {
         );
         await flushPromises();
         expect(state.startLongCaptureSession).toHaveBeenCalledTimes(1);
-        expect(state.setMouseMonitorActive).toHaveBeenCalledTimes(1);
+        expect(state.setMouseMonitorActive).toHaveBeenCalledTimes(2);
 
         cancellation.resolve(undefined);
         await flushPromises();
         expect(dependencies.restorePostCaptureInteractivity).toHaveBeenCalledTimes(1);
-        expect(state.setMouseMonitorActive).toHaveBeenCalledTimes(1);
+        expect(state.setMouseMonitorActive).toHaveBeenCalledTimes(2);
         restoration.resolve(undefined);
         await expect(cancelling).resolves.toBe(true);
         await restarting;

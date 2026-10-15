@@ -7,6 +7,7 @@ fn long_capture_frame_fingerprint(frame: &image::RgbImage) -> LongCaptureFrameFi
         hash = hash.wrapping_mul(0x1000_0000_01b3);
     }
     LongCaptureFrameFingerprint {
+        validation_thumbnail: long_capture_validation_thumbnail(frame),
         width: frame.width(),
         height: frame.height(),
         byte_len: frame.as_raw().len(),
@@ -86,6 +87,11 @@ fn classify_long_capture_recording_fingerprint(
             if previous == current
                 || long_capture_fingerprints_are_near_duplicate(previous, current) =>
         {
+            log_long_capture_classification(if previous == current {
+                "identical"
+            } else {
+                "near_duplicate"
+            });
             LongCaptureRecordingClassification {
                 status: LongCaptureSessionSampleStatus::Duplicate,
                 analysis: None,
@@ -103,12 +109,26 @@ fn classify_long_capture_recording_fingerprint(
                     min_new_content_px: Some(1),
                 },
             );
-            if motion_analysis.is_some() {
+            if motion_analysis.is_some()
+                || long_capture_repaint_motion_is_valid(
+                    previous,
+                    current,
+                    axis,
+                    max_scan,
+                    min_overlap_px,
+                )
+            {
+                log_long_capture_classification(if motion_analysis.is_some() {
+                    "exact_motion"
+                } else {
+                    "repaint_motion"
+                });
                 LongCaptureRecordingClassification {
                     status: LongCaptureSessionSampleStatus::Recorded,
                     analysis: None,
                 }
             } else {
+                log_long_capture_classification("changed_without_verified_overlap");
                 LongCaptureRecordingClassification {
                     status: LongCaptureSessionSampleStatus::Duplicate,
                     analysis: None,

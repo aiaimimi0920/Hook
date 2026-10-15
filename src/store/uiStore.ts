@@ -98,6 +98,8 @@ export const [multiDragPositions, setMultiDragPositions] = createSignal<MultiDra
 export const [isSelecting, setIsSelecting] = createSignal(false);
 export const [captureMode, setCaptureMode] = createSignal<"region" | "long-vertical" | "live">("region");
 export const [longCaptureSession, setLongCaptureSession] = createSignal<{
+    backendSessionId?: string;
+    overlayExcluded?: boolean;
     active: boolean;
     rect: CaptureRect;
     frameCount: number;

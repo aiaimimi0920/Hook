@@ -284,6 +284,13 @@ must be made conservatively because event ordering is load-bearing.
   top-to-bottom z-order ranks used by protected-region composition;
 - `long_capture.rs` — overlap analysis and incremental stitching.
 
+Global Loom connection restart intent is owned by `loom_connection/resume.rs`.
+It atomically stores a bounded, secret-free `loom-resume.json` independently of
+history. Successful activation and manual disconnect persist under the owner
+lock; shutdown retains intent. Startup reuses the authenticated connection worker
+and can claim only generation zero, so delayed restoration cannot replace a user
+action. Saved history without explicit intent never triggers an automatic request.
+
 Ordinary region capture can return a file-backed PNG plus metadata. HDR output
 uses 16-bit BT.2020/PQ when appropriate; SDR output uses 8-bit sRGB. Long capture
 remains SDR by design. After region selection, long-capture activation releases
@@ -292,6 +299,19 @@ so wheel and scrollbar drags reach the target application. Its independent
 Escape scope stays active even when the target has focus or backend capture
 falls back to frontend sampling; finish, cancellation, and failed activation
 clear that scope through the existing input cleanup command.
+
+`long_capture/preview.rs` samples a bounded thumbnail directly from aggregate
+segments, without flattening the full image. `native/long_capture_preview.rs`
+encodes it in memory outside the session lock. `LongCapturePreview.tsx` polls
+serially at 500 ms with a merged-frame revision and discards stale responses on
+session changes. The click-through preview prefers the region's right side,
+then its left; an inset fallback requires successful native capture exclusion.
+Preview pixels are never persisted and finish still consumes the same aggregate.
+Recording fingerprints retain at most a 320 x 320 RGB validation thumbnail.
+If exact motion signatures fail on a changed frame, `native/long_capture_repaint.rs`
+requires a Good pixel-overlap match before admission; scaled coordinates never
+drive the full-resolution stitch. Throttled reason-only diagnostics distinguish
+identical frames, near duplicates, verified repaint motion, and unmatched changes.
 
 Single-device live capture is a separate session path rather than a loop added to
 `capture_region`. Each session owns one delivery worker, one replaceable callback slot,

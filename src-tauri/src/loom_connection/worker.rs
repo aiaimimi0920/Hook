@@ -1,6 +1,6 @@
 //! One generation owns its approval receipt, device session and expiring server lease.
 use super::{
-    history::{self, Target},
+    history::Target,
     owner,
     protocol::{self, LoomInfo},
     publish, Receipt, View,
@@ -123,7 +123,12 @@ pub(super) async fn run(
             return Err("Loom 连接租约已过期".into());
         }
         if !recorded {
-            history::remember(
+            let state = owner()
+                .lock()
+                .map_err(|_| "Loom 连接状态不可用".to_string())?;
+            super::resume::remember_connected(
+                &state,
+                generation,
                 root,
                 Target {
                     origin: origin.into(),

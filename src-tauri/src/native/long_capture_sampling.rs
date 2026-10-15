@@ -68,6 +68,7 @@ fn record_long_capture_session_sample_result(
             ));
         }
         session.frames.push(result.frame);
+        session.frame_rects.push(session.rect);
         session.last_frame_fingerprint = Some(Arc::new(result.fingerprint));
         recorded = true;
 

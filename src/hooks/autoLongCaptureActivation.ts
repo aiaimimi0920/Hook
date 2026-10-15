@@ -1,5 +1,6 @@
 import { setLongCaptureSession } from "../store/uiStore";
 import { api } from "../services/api";
+import { syncService } from "../services/syncService";
 import type { CaptureRect, LongCaptureAxis } from "../services/captureState";
 
 interface AutoLongCaptureActivationDependencies {
@@ -72,6 +73,8 @@ export const activateAutoLongCaptureSession = async (
         assertCurrent();
         try {
             await api.setOverlayCaptureExclusion(true);
+            assertCurrent();
+            setLongCaptureSession((session) => session && { ...session, overlayExcluded: true });
         } catch (error) {
             logFailure("auto-long-capture-overlay-exclusion-failed", error);
         }
@@ -80,6 +83,7 @@ export const activateAutoLongCaptureSession = async (
             backendSessionId = await api.startLongCaptureSession(dependencies.rect, dependencies.axis);
             assertCurrent();
             dependencies.setBackendSessionId(backendSessionId);
+            setLongCaptureSession((session) => session && { ...session, backendSessionId: backendSessionId! });
             void api.debugLogEvent(
                 "auto-long-capture-backend-start",
                 `session=${backendSessionId} x=${x} y=${y} w=${w} h=${h} axis=${dependencies.axis ?? "auto"}`,
@@ -90,6 +94,11 @@ export const activateAutoLongCaptureSession = async (
             logFailure("auto-long-capture-backend-start-failed", error);
         }
         await dependencies.sampleInitialFrame();
+        assertCurrent();
+        // During recording the hit map contains only the preview's move controls.
+        await syncService.updateBackendRects();
+        assertCurrent();
+        await api.setMouseMonitorActive(true);
         assertCurrent();
     } catch (error) {
         const current = dependencies.sessionIsCurrent();

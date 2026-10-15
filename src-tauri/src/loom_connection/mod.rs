@@ -4,6 +4,10 @@ mod history;
 #[cfg(all(test, feature = "remote-surface"))]
 mod paired_tests;
 mod protocol;
+mod resume;
+pub(crate) use resume::startup;
+#[cfg(test)]
+mod resume_tests;
 #[cfg(feature = "remote-surface")]
 mod worker;
 #[cfg(not(feature = "remote-surface"))]
@@ -76,13 +80,19 @@ fn publish(app: &tauri::AppHandle, generation: u64, view: View) -> bool {
     true
 }
 
-fn replace(app: &tauri::AppHandle, view: View) -> Result<(u64, Option<Receipt>), String> {
+fn replace(
+    app: &tauri::AppHandle,
+    view: View,
+    clear_resume: Option<&std::path::Path>,
+    expected: Option<u64>,
+) -> Result<(u64, Option<Receipt>), String> {
     let mut state = owner()
         .lock()
         .map_err(|_| "Loom 连接状态不可用".to_string())?;
     if state.exiting {
         return Err("Otter 正在退出".into());
     }
+    resume::prepare_replace(&state, expected, clear_resume)?;
     state.generation = state.generation.wrapping_add(1);
     if let Some(task) = state.task.take() {
         task.abort();
@@ -136,6 +146,16 @@ pub(crate) async fn loom_connection_connect(
     expected_id: String,
     password: String,
 ) -> Result<(), String> {
+    connect(app, origin, expected_id, password, None).await
+}
+
+async fn connect(
+    app: tauri::AppHandle,
+    origin: String,
+    expected_id: String,
+    password: String,
+    startup_generation: Option<u64>,
+) -> Result<(), String> {
     let origin = protocol::origin(&origin)?;
     if password.len() > 256 || expected_id.len() > 160 || !expected_id.starts_with("loom-") {
         return Err("连接参数无效".into());
@@ -149,6 +169,12 @@ pub(crate) async fn loom_connection_connect(
             origin: Some(origin.clone()),
             ..View::default()
         },
+        if startup_generation.is_none() {
+            Some(&root)
+        } else {
+            None
+        },
+        startup_generation,
     )?;
     let handle = app.clone();
     let task = tauri::async_runtime::spawn(async move {
@@ -201,7 +227,8 @@ pub(crate) async fn loom_connection_connect(
 
 #[tauri::command]
 pub(crate) async fn loom_connection_disconnect(app: tauri::AppHandle) -> Result<(), String> {
-    let (_, receipt) = replace(&app, View::default())?;
+    let root = crate::effective_app_data_dir(&app)?;
+    let (_, receipt) = replace(&app, View::default(), Some(&root), None)?;
     if let Some(receipt) = receipt {
         cancel(receipt).await;
     }

@@ -28,6 +28,10 @@ Native Otter automatically discovers and connects to authenticated local Loom by
 default. Set `HOOK_ENABLE_LOOM_HOOK=0` to disable integration. Browser preview stays local: it does
 not connect anonymously to Loom or execute real Arts. See [security boundaries](docs/SECURITY_BOUNDARIES.md#authenticated-native-local-bridge).
 
+The explicit [global Loom connection](docs/LOOM_CONNECTION.md) remembers its last
+successful target across Otter restarts. Manual disconnect cancels auto-reconnect
+without deleting history; restart still requires valid device authorization.
+
 Start Loom and open `otter.exe` directly for OCR/translation and other installed
 extensions. Without Loom, local capture and editing remain available; no separate
 Loom integration launcher is required.
@@ -145,6 +149,7 @@ Actual executable/process SHA binding is external; these counters are not displa
   input stays blocked. Refusals appear as short Unit notices, not silent clicks;
 - HDR-aware Windows 11 capture with automatic SDR fallback;
 - long capture through `Ctrl+3`;
+- long capture shows a scaled preview of the current stitched result beside the capture region;
 - file-backed capture payloads to avoid unnecessary large Base64 transfers;
 - native screen color picking.
 

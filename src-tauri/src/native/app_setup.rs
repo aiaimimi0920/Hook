@@ -240,5 +240,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }
         spawn_rdev_input_listener(window, hit_map, capture_input_state, long_capture_sessions);
     }
+    crate::loom_connection::startup(app.handle().clone());
     Ok(())
 }

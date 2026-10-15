@@ -1,4 +1,4 @@
-import { setLongCaptureSession } from "../store/uiStore";
+import { longCaptureSession, setLongCaptureSession } from "../store/uiStore";
 import { api } from "../services/api";
 import {
     activateAutoLongCaptureSession,
@@ -413,7 +413,8 @@ export function createAutoLongCaptureController(
             dependencies.clearCaptureHover();
             if (finishing || !captureRect || !captureOrigin || !options) return false;
             const currentSessionId = sessionId;
-            const rect = captureRect;
+            const rect = longCaptureSession()?.backendSessionId === backendSessionId
+                ? longCaptureSession()!.rect : captureRect;
             const origin = captureOrigin;
             const currentOptions = options;
             await drainBeforeFinish(currentSessionId);

@@ -50,13 +50,17 @@ fn set_overlay_click_through_impl(window: &tauri::WebviewWindow, click_through: 
     apply_overlay_no_activate(window);
 }
 
-fn set_overlay_capture_exclusion_impl(window: &tauri::WebviewWindow, enabled: bool) {
-    if let Err(error) = window.set_content_protected(enabled) {
+fn set_overlay_capture_exclusion_impl(
+    window: &tauri::WebviewWindow,
+    enabled: bool,
+) -> Result<(), String> {
+    window.set_content_protected(enabled).map_err(|error| {
         append_runtime_log_line(&format!(
             "set_overlay_capture_exclusion_failed :: enabled={} error={}",
             enabled, error
         ));
-    }
+        error.to_string()
+    })
 }
 
 fn hide_to_tray_impl(window: &tauri::WebviewWindow) {

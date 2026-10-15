@@ -18,10 +18,12 @@ struct LongCaptureSessionRect {
 
 #[derive(Clone, Debug)]
 struct LongCaptureSessionState {
+    rect_revision: u64,
     rect: LongCaptureSessionRect,
     axis: Option<long_capture::LongCaptureAxis>,
     direction: Option<long_capture::LongCaptureDirection>,
     frames: Vec<image::RgbImage>,
+    frame_rects: Vec<LongCaptureSessionRect>,
     last_frame_fingerprint: Option<Arc<LongCaptureFrameFingerprint>>,
     pair_analyses: Vec<long_capture::LongCaptureOverlapAnalysis>,
     incremental_stitcher: Option<long_capture::LongCaptureIncrementalStitcher>,
@@ -89,6 +91,7 @@ struct LongCaptureRecordingClassification {
 
 #[derive(Clone, Debug)]
 struct LongCaptureFrameFingerprint {
+    validation_thumbnail: image::RgbImage,
     width: u32,
     height: u32,
     byte_len: usize,

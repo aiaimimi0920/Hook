@@ -3,6 +3,7 @@
 import { graphStore } from "../../store/graphStore";
 import { api } from "../api";
 import { extraRects } from "../uiRegistry";
+import { longCaptureSession } from "../../store/uiStore";
 
 type BackendRects = Awaited<Parameters<typeof api.updatePinRects>[0]>;
 
@@ -11,7 +12,8 @@ let syncPromise: Promise<void> | null = null;
 
 const captureBackendRects = (): BackendRects => {
     const dpr = window.devicePixelRatio || 1;
-    const rects = graphStore.units.map((unit) => ({
+    const recording = Boolean(longCaptureSession()?.active);
+    const rects = (recording ? [] : graphStore.units).map((unit) => ({
         id: unit.id,
         x: Math.round(unit.x * dpr),
         y: Math.round(unit.y * dpr),
@@ -21,6 +23,7 @@ const captureBackendRects = (): BackendRects => {
     }));
 
     extraRects().forEach((rect) => {
+        if (recording && rect.name !== "LONG_CAPTURE_MOVE") return;
         rects.push({
             id: rect.name,
             x: Math.round(rect.x * dpr),

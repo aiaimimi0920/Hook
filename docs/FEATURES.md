@@ -1,5 +1,42 @@
 # Otter Features and Manual Regression Matrix
 
+## Loom restart connection
+
+Check successful connection followed by normal exit/restart, manual disconnect
+followed by restart, cancellation during startup reconnect, an offline saved
+target, and changed/revoked server identity. Only the saved successful target is
+attempted; history alone does not authorize restart connection. Closing a dialog
+does not disconnect. Device authentication and server approval remain required.
+
+## Long-capture result preview
+
+During native `Ctrl+3` recording, a click-through thumbnail beside the selected
+region shows the current stitched result and its full output dimensions. It
+prefers the right side, falls back to the left and stays within the viewport;
+when neither side fits, inset placement requires successful capture exclusion.
+The preview preserves the whole image's aspect ratio, updates at most twice per
+second, and does not write capture files. Check first frame, continued scrolling,
+reverse scrolling, pause-to-finish agreement, near-edge selection, cancellation,
+restart, and exclusion failure.
+Native desktop capture exclusion and input acceptance require manual verification.
+
+The preview has up/down/left/right viewfinder buttons. Each click moves only the
+sampling rectangle, by at most 64 logical pixels with overlap, clamped to the
+viewport. The rectangle size, session and stitched content are preserved. The
+first movement upgrades the existing aggregate to a two-dimensional covered canvas;
+later samples are placed by verified overlap and viewfinder displacement (including
+logical-to-physical pixel scaling). No wheel events are sent to the background.
+Only these buttons intercept pointer input during recording. Controls wait for
+the updated preview before accepting another move; stale-position samples are discarded.
+
+L-shaped paths retain transparent, unsampled gaps in the preview. Finish crops to
+the largest-area axis-aligned rectangle whose every pixel was sampled, discarding
+the other parts of the L. Equal-area ties prefer topmost, then leftmost. Coverage
+is explicit alpha, not a test for black/white pixels. Spatial capture is bounded
+to 64 megapixels and 512 recorded frames. Unverifiable overlaps fail closed rather
+than inventing image content. Test turns, negative-direction moves, revisits that
+fill a gap, continued page scrolling after a turn, and final no-hole crop.
+
 ## System clipboard submenu
 
 The sticker context menu ends with a compact separator and **剪贴板**. Hover or

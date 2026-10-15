@@ -140,7 +140,7 @@ fn focus_overlay_window(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn set_overlay_capture_exclusion(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
-        set_overlay_capture_exclusion_impl(&window, enabled);
+        set_overlay_capture_exclusion_impl(&window, enabled)?;
         append_runtime_log_line(&format!(
             "set_overlay_capture_exclusion :: enabled={}",
             enabled

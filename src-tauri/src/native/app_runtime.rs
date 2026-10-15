@@ -217,6 +217,8 @@ pub fn run() {
             stitch_long_capture_frames,
             start_long_capture_session,
             sample_long_capture_session,
+            preview_long_capture_session,
+            move_long_capture_session,
             finish_long_capture_session,
             cancel_long_capture_session,
             start_live_capture,

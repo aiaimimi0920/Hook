@@ -124,6 +124,9 @@ impl LongCaptureIncrementalStitcher {
                 .map(|signatures| (axis, signatures, DirectionReferenceSource::Merged))
         });
         Self {
+            spatial: None,
+            spatial_reference: first_frame.clone(),
+            spatial_reference_origin: Some(0),
             options,
             aggregate: LongCaptureAggregate {
                 axis,
@@ -234,6 +237,8 @@ impl LongCaptureIncrementalStitcher {
         let Some((axis, candidate)) = best else {
             if let Some(axis) = self.aggregate.axis {
                 if aggregate_contains_current_frame(&self.aggregate, &current, axis, self.options) {
+                    self.spatial_reference = current.clone();
+                    self.spatial_reference_origin = None;
                     self.last_direction_reference_signatures = Some((
                         axis,
                         axis_signature_list(&current, axis),
@@ -256,6 +261,8 @@ impl LongCaptureIncrementalStitcher {
         }
 
         let current_reference_signatures = candidate.current_signatures.clone();
+        self.spatial_reference = current.clone();
+        self.spatial_reference_origin = Some(candidate.matched.origin);
         merge_frame_into_aggregate(&mut self.aggregate, &current, axis, candidate)?;
         self.merged_frames += 1;
         self.last_direction_reference_signatures = Some((
@@ -277,6 +284,9 @@ impl LongCaptureIncrementalStitcher {
     }
 
     fn try_into_image(self) -> Result<RgbImage> {
+        if let Some(spatial) = self.spatial {
+            return spatial.finish();
+        }
         aggregate_into_image(self.aggregate)
     }
 

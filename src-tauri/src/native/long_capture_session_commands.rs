@@ -29,10 +29,12 @@ fn start_long_capture_session(
     let min_overlap_px = ((max_dimension as f64) * 0.03).round().max(16.0) as u32;
     let session_id = uuid::Uuid::new_v4().to_string();
     let session = LongCaptureSessionState {
+        rect_revision: 0,
         rect,
         axis,
         direction: None,
         frames: Vec::new(),
+        frame_rects: Vec::new(),
         last_frame_fingerprint: None,
         pair_analyses: Vec::new(),
         incremental_stitcher: None,
@@ -62,7 +64,7 @@ async fn sample_long_capture_session(
     session_id: String,
 ) -> Result<LongCaptureSessionSampleResponse, String> {
     let started_at = Instant::now();
-    let work = {
+    let (work, rect_revision) = {
         let guard = sessions
             .sessions
             .lock()
@@ -70,21 +72,30 @@ async fn sample_long_capture_session(
         let session = guard
             .get(&session_id)
             .ok_or_else(|| format!("Long capture session not found: {session_id}"))?;
-        LongCaptureSessionSampleWork {
-            rect: session.rect,
-            previous_fingerprint: session.last_frame_fingerprint.clone(),
-            expected_frame_count: session.frames.len(),
-            axis: session
-                .incremental_stitcher
-                .as_ref()
-                .and_then(|stitcher| stitcher.axis())
-                .or(session.axis),
-            max_scan: session.max_scan,
-            min_overlap_px: session.min_overlap_px,
+        if let Some(error) = &session.stitch_error {
+            return Err(error.clone());
         }
+        if session.frames.len() >= 512 {
+            return Err("Long capture frame limit reached".into());
+        }
+        (
+            LongCaptureSessionSampleWork {
+                rect: session.rect,
+                previous_fingerprint: session.last_frame_fingerprint.clone(),
+                expected_frame_count: session.frames.len(),
+                axis: session
+                    .incremental_stitcher
+                    .as_ref()
+                    .and_then(|stitcher| stitcher.axis())
+                    .or(session.axis),
+                max_scan: session.max_scan,
+                min_overlap_px: session.min_overlap_px,
+            },
+            session.rect_revision,
+        )
     };
 
-    let result =
+    let mut result =
         tokio::task::spawn_blocking(move || capture_and_classify_long_capture_sample(work))
             .await
             .map_err(|error| error.to_string())??;
@@ -97,6 +108,9 @@ async fn sample_long_capture_session(
         .get_mut(&session_id)
         .ok_or_else(|| format!("Long capture session not found: {session_id}"))?;
 
+    if session.rect_revision != rect_revision {
+        return Err("Long capture rectangle moved during sampling".into());
+    }
     if session.frames.len() != result.expected_frame_count {
         return Err(format!(
             "Long capture session changed while sample was in flight: expected {} frames, found {}",
@@ -105,6 +119,13 @@ async fn sample_long_capture_session(
         ));
     }
 
+    // Rectangle movement is real new coverage even if the old 1-D classifier
+    // cannot recognize the cross-axis overlap. The worker validates it in 2-D.
+    if session.frame_rects.last().is_some_and(|rect|
+        rect.x != session.rect.x || rect.y != session.rect.y) {
+        result.status = LongCaptureSessionSampleStatus::Recorded;
+        result.analysis = None;
+    }
     let (response, should_spawn_worker) =
         record_long_capture_session_sample_result(session, result)?;
     drop(guard);

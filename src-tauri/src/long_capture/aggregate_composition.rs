@@ -333,6 +333,9 @@ enum DirectionReferenceSource {
 
 #[derive(Clone, Debug)]
 pub struct LongCaptureIncrementalStitcher {
+    spatial: Option<SpatialCapture>,
+    spatial_reference: RgbImage,
+    spatial_reference_origin: Option<i64>,
     options: LongCaptureStitchOptions,
     aggregate: LongCaptureAggregate,
     frame_count: usize,

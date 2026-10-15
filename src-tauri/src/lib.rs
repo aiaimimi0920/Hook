@@ -297,6 +297,7 @@ include!("native/capture_input_commands.rs");
 include!("native/long_capture_types.rs");
 
 include!("native/long_capture_fingerprints.rs");
+include!("native/long_capture_repaint.rs");
 
 include!("native/long_capture_guide.rs");
 
@@ -313,6 +314,8 @@ include!("native/capture_mode_entry.rs");
 include!("native/long_capture_encoding.rs");
 
 include!("native/long_capture_session_commands.rs");
+include!("native/long_capture_preview.rs");
+include!("native/long_capture_move.rs");
 
 include!("native/live_source_recovery.rs");
 
@@ -432,6 +435,7 @@ include!("native/app_runtime.rs");
 mod app_cli_tests {
     include!("native/tests/app_cli_prelude.rs");
     include!("native/tests/app_cli_long_capture_recording.rs");
+    include!("native/tests/long_capture_repaint.rs");
     include!("native/tests/app_cli_capture_encoding.rs");
     include!("native/tests/app_cli_image_cache.rs");
     include!("native/tests/app_cli_session_persistence.rs");
