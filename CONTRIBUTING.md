@@ -93,7 +93,8 @@ runs, the stable `build-windows-exe` check fails unless all three succeed and
 only then promotes the same-run candidate to `otter-portable-windows-x64`.
 
 README, known root documentation, `docs/**/*.md` (except the release body), and
-images in `docs/assets/` use a lightweight documentation lane on PR/main events.
+images in `docs/assets/` (except `github-home-hero.svg`, covered by the full
+public-identity contract) use a lightweight documentation lane on PR/main events.
 It checks the full Git diff, including deleted and renamed paths, then validates
 changed text, whitespace and repository-relative link targets, then installs
 locked npm dependencies to run the six existing documentation contract suites
@@ -105,7 +106,10 @@ runs in this lane. The stable check still reports success/failure. Missing histo
 empty diffs, executable/symlink paths, mixed code changes and classifier failures
 never grant a documentation-only success. CI classifier and aggregate regression
 tests run in both lanes. External URLs and heading anchors are not network-checked.
-Security and advisory workflows retain their independent scans and reports.
+The exact existing sibling Loom contract links in `TILE_WALL_CLIENT.md` and
+`TILE_TERMINAL.md` are external references and are not locally validated. All
+other out-of-repository paths fail. Security and advisory workflows retain their
+independent scans and reports.
 
 `npm run lint` remains strict (`--max-warnings 0`) for local/release verification.
 Development CI publishes valid findings through the independent advisory workflow. `npm run test:surface-browser` drives a real Chromium through

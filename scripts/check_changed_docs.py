@@ -5,6 +5,22 @@ import re
 import subprocess
 from urllib.parse import unquote, urlsplit
 
+# Existing sibling-repository contracts cannot be checked in an Otter-only checkout.
+# Restrict the exception to exact source/destination pairs; never read outside root.
+SIBLING_CONTRACT_LINKS = {
+    "docs/TILE_WALL_CLIENT.md": {
+        "../../Loom/docs/TILE_WALL.md",
+        "../../Loom/protocol/WALL_IDENTIFICATION_API.md",
+    },
+    "docs/TILE_TERMINAL.md": {
+        "../../Loom/docs/TILE_WALL.md",
+        "../../Loom/protocol/WALL_IDENTIFICATION_API.md",
+        "../../Loom/protocol/WALL_TIMING_MEDIA.md",
+        "../../Loom/protocol/WALL_SURFACE_API.md",
+        "../../Loom/protocol/WALL_PRESENTATION_API.md",
+    },
+}
+
 
 def markdown_destinations(text):
     """Read balanced inline link destinations, including escaped parentheses."""
@@ -62,6 +78,8 @@ def check_document(root, relative):
     if re.search(r"(?m)^(<{7}|>{7})(?: |$)", text):
         errors.append(f"{relative}: unresolved conflict marker")
     for target in local_targets(text):
+        if target in SIBLING_CONTRACT_LINKS.get(relative, set()):
+            continue
         resolved = (root / target.lstrip("/") if target.startswith("/") else path.parent / target).resolve()
         if not resolved.is_relative_to(root) or not resolved.exists():
             errors.append(f"{relative}: missing or out-of-repository link: {target}")
@@ -93,6 +111,7 @@ def main():
     if errors:
         raise SystemExit("\n".join(errors))
     print("Changed documentation: UTF-8, conflict markers, whitespace and local link paths passed")
+    print("External URLs, anchors and allowlisted sibling contract links are not locally validated")
 
 
 if __name__ == "__main__":

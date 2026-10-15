@@ -16,8 +16,8 @@ def is_documentation(path):
         return False
     if path in ROOT_DOCS:
         return True
-    # This document is consumed by release publication, not just a reader.
-    if path == "docs/GITHUB_RELEASE_BODY.md":
+    # Release input and the hero asset retain their existing full-product contracts.
+    if path in {"docs/GITHUB_RELEASE_BODY.md", "docs/assets/github-home-hero.svg"}:
         return False
     return (path.startswith("docs/") and path.endswith(".md")) or (
         path.startswith("docs/assets/") and PurePosixPath(path).suffix in IMAGE_SUFFIXES)

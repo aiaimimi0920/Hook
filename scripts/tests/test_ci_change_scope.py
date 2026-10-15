@@ -36,7 +36,8 @@ class PathOracleTests(unittest.TestCase):
                      'package-lock.json', 'version-state.json', 'vite.config.ts',
                      'scripts/build.ps1', 'scripts/ci_change_scope.py',
                      '.github/workflows/build-otter-exe.yml', 'security/policy.json',
-                     'docs/GITHUB_RELEASE_BODY.md', 'docs/assets/script.js',
+                     'docs/GITHUB_RELEASE_BODY.md', 'docs/assets/github-home-hero.svg',
+                     'docs/assets/script.js',
                      'docs/settings.json', 'docs/template.html', 'public/icon.svg',
                      'new-file.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.md', '../README.md', '/README.md',
                      'docs/../src/code.md', 'docs\\README.md', '']:
@@ -193,6 +194,22 @@ class DocumentationTests(unittest.TestCase):
                 'Title\n=======\n[guide](guide(v2).md)\n'
                 '[escaped](guide\\(v2\\).md)\n[angle](<guide(v2).md>)\n')
             self.assertEqual(docs.check_document(root, 'README.md'), [])
+
+    def test_only_known_sibling_contract_pairs_are_external(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / 'docs').mkdir()
+            for source, targets in docs.SIBLING_CONTRACT_LINKS.items():
+                path = root / source
+                for target in targets:
+                    path.write_text(f'# Contract\n[external]({target})\n')
+                    self.assertEqual(docs.check_document(root, source), [])
+                    (root / 'README.md').write_text(path.read_text())
+                    self.assertTrue(docs.check_document(root, 'README.md'))
+                for target in ['../../Loom/protocol/unknown.md', '../../Other/docs/TILE_WALL.md',
+                               '../../Loom/docs/../private.md', '../../../outside.md']:
+                    path.write_text(f'# Contract\n[bad]({target})\n')
+                    self.assertTrue(docs.check_document(root, source))
 
     def test_conflicts_empty_and_escape_links_fail(self):
         with tempfile.TemporaryDirectory() as directory:
