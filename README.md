@@ -39,7 +39,7 @@ explore more possibilities for the images you capture.
 - **Add local capabilities.** OCR, translation and Art workflows through installed, enabled and authorized Loom capabilities.
 - **Project to another device.** Image projection and LiveRelay through paired Loom connections, with receiver controls and server authorization.
 
-[**Explore capabilities and shortcuts →**](./docs/FEATURES.md) · [Live capture](./docs/LIVE_CAPTURE.md) · [Image projection](./docs/QR_PROJECTION.md)
+[**Full features →**](./docs/FEATURES.md)
 
 ## Get started
 
@@ -57,6 +57,8 @@ explore more possibilities for the images you capture.
 2. Select a pinned image and press **`Ctrl+E`** to show or hide the editing toolbar, or **`Tab`** to expand or collapse the parameter panel. After leaving editing or selection mode, press **`Esc`** to delete the pinned image.
 3. With the corresponding Loom capabilities available, press **`Ctrl+4`** for OCR and **`Alt+4`** to toggle recognition results; press **`Ctrl+5`** to translate and **`Alt+5`** to toggle translation results; press **`Shift+1`** to open the Art menu and add a new node.
 4. Select a pinned image, open the toolbar, and choose the projection button to project the pinned image to any connectable device.
+
+[**Complete usage guide →**](./docs/guide/getting-started.md)
 
 ## Contributing
 

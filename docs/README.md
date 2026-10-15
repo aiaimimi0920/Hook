@@ -19,6 +19,8 @@ of truth. Existing document paths stay stable; this index groups them by purpose
 
 ## 使用与功能 / Using Otter
 
+- [完整使用教程](guide/getting-started.zh-CN.md) · [Getting started](guide/getting-started.md) — preparation, capture, editing, nodes and projection.
+
 - [能力详解](guide/capabilities.zh-CN.md) · [Capability details](guide/capabilities.md) — capture, stickers, connections and workflow boundaries.
 
 - [Feature matrix](FEATURES.md) — implemented shortcuts and manual regression matrix.
