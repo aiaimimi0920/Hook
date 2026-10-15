@@ -43,9 +43,10 @@ explore more possibilities for the images you capture.
 
 ## Get started
 
-**To use Otter:** you need Windows 10 or 11 and the WebView2 Runtime. Download the
-portable ZIP from [Releases](https://github.com/aiaimimi0920/Otter/releases),
-extract it, and run the executable included in that package.
+- **Capture and pin:** Capture any area of your desktop and pin it anywhere on the desktop.
+- **Edit quickly:** Use the editing toolbar to quickly annotate pinned images.
+- **Connect a workflow:** Use Loom's node tools to assemble advanced workflows.
+- **Share the view:** Use the push tools to send a pinned image's content to any client.
 
 | Start here | What you need to do |
 | --- | --- |
