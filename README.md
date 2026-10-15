@@ -50,10 +50,8 @@ explore more possibilities for the images you capture.
 
 | Start here | What you need to do |
 | --- | --- |
-| [Download a release](https://github.com/aiaimimi0920/Otter/releases) | Choose the portable ZIP, not GitHub's source-code archive. An optional matching `.zip.sha256` file lets you verify the download. |
-| Capture and edit locally | Launch the app and press `Ctrl+1` to capture a region. Loom is not required for local capture and editing. |
-| Use OCR or translation | Start Loom, install and enable the corresponding capabilities, and authorize Otter's connection. Then select an image sticker. |
-| [Build from source](./docs/guide/development.md) | Use Node.js 22+ and Rust stable with the MSVC toolchain on Windows. |
+| [Download Otter](https://github.com/aiaimimi0920/Otter/releases) | |
+| Download Otter + Loom | |
 
 1. Press **`Ctrl+1`** for a region screenshot, **`Ctrl+2`** for live capture, or **`Ctrl+3`** for a long capture.
 2. Select a sticker and press **`Ctrl+E`** to toggle its editing toolbar.

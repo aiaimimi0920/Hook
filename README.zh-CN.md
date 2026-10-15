@@ -48,10 +48,8 @@ Otter 是一款免费开源的截图工具，让截图、标注、整理与分�
 
 | 从这里开始 | 操作方式 |
 | --- | --- |
-| [下载发布版](https://github.com/aiaimimi0920/Otter/releases) | 选择便携版 ZIP，而非 GitHub 自动生成的源码压缩包；可选下载配套 `.zip.sha256` 校验完整性。 |
-| 本地截图和编辑 | 启动程序，按 `Ctrl+1` 框选截图；本地截图和编辑不需要 Loom。 |
-| OCR 和翻译 | 启动 Loom，安装并启用对应能力，完成 Otter 连接授权后选中图片贴图。 |
-| [从源码构建](./docs/guide/development.zh-CN.md) | 在 Windows 上准备 Node.js 22+、Rust stable 和 MSVC 工具链。 |
+| [下载 Otter](https://github.com/aiaimimi0920/Otter/releases) | |
+| 下载 Otter + Loom | |
 
 1. 按 **`Ctrl+1`** 区域截图、**`Ctrl+2`** 实时截图，或 **`Ctrl+3`** 长截图。
 2. 选中贴图，按 **`Ctrl+E`** 显示或隐藏编辑工具栏。

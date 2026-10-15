@@ -14,6 +14,7 @@ describe("Otter developer entrypoints contract", () => {
     const verifyWrapperPath = resolve(otterRoot, "verify-otter-full.bat");
     const captureWrapperPath = resolve(otterRoot, "start-otter-capture-test.bat");
     const readme = readFileSync(resolve(otterRoot, "README.md"), "utf8");
+    const docsIndex = readFileSync(resolve(otterRoot, "docs/README.md"), "utf8");
     const developmentGuide = readFileSync(resolve(otterRoot, "docs/guide/development.md"), "utf8");
     const verifyScript = packageJson.scripts["verify:local"] ?? "";
 
@@ -42,7 +43,8 @@ describe("Otter developer entrypoints contract", () => {
       verifyScript.indexOf("build-otter-release.bat"),
     );
 
-    expect(readme).toContain("docs/guide/development.md");
+    expect(readme).toContain("./docs/README.md");
+    expect(docsIndex).toContain("guide/development.md");
     expect(developmentGuide).toContain("npm run verify:local");
     expect(developmentGuide).not.toContain("verify-otter-full.bat");
     expect(developmentGuide).not.toContain("start-otter-capture-test.bat");
