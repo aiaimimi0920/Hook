@@ -2,8 +2,8 @@
 <h1 align="center">Otter</h1>
 <p align="center"><strong>Capture it. Pin it. Make it yours.</strong><br>Connect nodes. Create effects. Turn your desktop into a creative workspace.</p>
 <p align="center">
+  Website ·
   <a href="https://github.com/aiaimimi0920/Otter/releases">Download</a> ·
-  <a href="#get-started">Get started</a> ·
   <a href="./docs/README.md">Documentation</a> ·
   <a href="https://github.com/aiaimimi0920/Otter/issues">Feedback</a>
 </p>

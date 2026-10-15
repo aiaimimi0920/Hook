@@ -2,8 +2,8 @@
 <h1 align="center">Otter</h1>
 <p align="center"><strong>截下画面，留在桌面，改成你想要的样子。</strong><br>连接节点，生成效果。让桌面成为你的创作工作台。</p>
 <p align="center">
+  官网 ·
   <a href="https://github.com/aiaimimi0920/Otter/releases">下载</a> ·
-  <a href="#快速开始">快速开始</a> ·
   <a href="./docs/README.md">文档中心</a> ·
   <a href="https://github.com/aiaimimi0920/Otter/issues">反馈</a>
 </p>
