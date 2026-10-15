@@ -1,5 +1,6 @@
 """Check changed documentation text and repository-relative link targets offline."""
 import json
+import os
 from html.parser import HTMLParser
 from pathlib import Path
 import re
@@ -70,7 +71,7 @@ class HtmlDestinations(HTMLParser):
 def local_targets(text):
     # Exclude code fences and inline code, where illustrative paths are not links.
     text = re.sub(r"(?ms)^\s*(```|~~~).*?^\s*\1[^\n]*$", "", text)
-    text = re.sub(r"`[^`\n]*`", "", text)
+    text = re.sub(r"(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)", "", text)
     links = list(markdown_destinations(text))
     html = HtmlDestinations()
     html.feed(text)
@@ -82,7 +83,17 @@ def local_targets(text):
             yield unquote(parsed.path)
 
 
-def check_document(root, relative):
+def target_exists(root, resolved, tracked):
+    if not resolved.resolve().is_relative_to(root) or not resolved.exists():
+        return False
+    if tracked is None:  # Standalone text checks may use an explicit file fixture.
+        return True
+    relative = resolved.relative_to(root).as_posix()
+    return relative == "." or relative in tracked or any(
+        name.startswith(relative.rstrip("/") + "/") for name in tracked)
+
+
+def check_document(root, relative, tracked=None):
     path = root / relative
     if not path.exists():  # A removed file has no remaining text to validate.
         return []
@@ -95,8 +106,8 @@ def check_document(root, relative):
     for target in local_targets(text):
         if target in SIBLING_CONTRACT_LINKS.get(relative, set()):
             continue
-        resolved = (root / target.lstrip("/") if target.startswith("/") else path.parent / target).resolve()
-        if not resolved.is_relative_to(root) or not resolved.exists():
+        resolved = Path(os.path.abspath(root / target.lstrip("/") if target.startswith("/") else path.parent / target))
+        if not target_exists(root, resolved, tracked):
             errors.append(f"{relative}: missing or out-of-repository link: {target}")
     return errors
 
@@ -107,22 +118,24 @@ def main():
         return
     root = Path.cwd().resolve()
     subprocess.run(["git", "diff", "--check", scope["base"], scope["head"], "--"], check=True)
+    tracked = {p.decode("utf-8") for p in
+               subprocess.check_output(["git", "ls-tree", "-r", "--name-only", "-z", "HEAD"]).split(b"\0") if p}
     errors = []
     for path in scope["paths"]:
         if path.endswith(".md") or path == "LICENSE":
-            errors.extend(check_document(root, path))
-    # Deletions/renames must not leave incoming links in unchanged documents.
+            errors.extend(check_document(root, path, tracked))
+    # Deleted paths can invalidate links to their now-empty parent directories.
     removed = {(root / p).resolve() for p in scope["paths"] if not (root / p).exists()}
     if removed:
-        files = subprocess.check_output(["git", "ls-files", "-z", "*.md"]).split(b"\0")
-        for item in files:
-            if not item:
-                continue
-            path = root / item.decode("utf-8")
+        for relative in sorted(p for p in tracked if p.endswith(".md")):
+            path = root / relative
             for target in local_targets(path.read_text(encoding="utf-8")):
-                resolved = (root / target.lstrip("/") if target.startswith("/") else path.parent / target).resolve()
-                if resolved in removed:
-                    errors.append(f"{path.relative_to(root)}: link to removed document: {target}")
+                if target in SIBLING_CONTRACT_LINKS.get(relative, set()):
+                    continue
+                resolved = Path(os.path.abspath(root / target.lstrip("/") if target.startswith("/") else path.parent / target))
+                affected = any(p == resolved or resolved in p.parents for p in removed)
+                if affected and not target_exists(root, resolved, tracked):
+                    errors.append(f"{relative}: link to removed document or directory: {target}")
     if errors:
         raise SystemExit("\n".join(errors))
     print("Changed documentation: UTF-8, conflict markers, whitespace and local link paths passed")

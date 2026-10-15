@@ -144,6 +144,27 @@ class GitScopeTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, 'link to removed document'):
             docs.main()
 
+    def test_deleted_last_file_invalidates_directory_links(self):
+        self.write('docs/guide/index.md', '# Guide\n')
+        self.write('README.md', '# Otter\n[guide](docs/guide/)\n')
+        base = self.commit()
+        (self.root / 'docs/guide/index.md').unlink()
+        result = self.classify(self.commit(), base)
+        self.write('.ci-change-scope.json', json.dumps(result))
+        with self.assertRaisesRegex(SystemExit, 'removed document or directory'):
+            docs.main()
+
+    def test_generated_and_git_metadata_link_targets_are_not_repository_files(self):
+        for target in ['.git/config', '.ci-change-scope.json', 'untracked.md']:
+            self.write('README.md', f'# Otter\n[bad]({target})\n')
+            result = self.classify(self.commit())
+            self.write('.ci-change-scope.json', json.dumps(result))
+            self.write('untracked.md', '# Untracked\n')
+            with self.assertRaisesRegex(SystemExit, 'missing or out-of-repository'):
+                docs.main()
+            Path('.ci-change-scope.json').unlink()
+            Path('untracked.md').unlink()
+
     def test_documentation_cli_output_and_full_fallback(self):
         self.write('README.md', '# Updated\n')
         head = self.commit()
@@ -185,6 +206,13 @@ class DocumentationTests(unittest.TestCase):
             self.assertEqual(docs.check_document(root, 'README.md'), [])
             (root / 'README.md').write_text('# Broken\n[bad](missing.md)\n')
             self.assertTrue(docs.check_document(root, 'README.md'))
+
+    def test_matching_multibacktick_code_spans_hide_illustrative_links(self):
+        for text in ['`` `[example](missing.md)` ``',
+                     '``` text `` [example](missing.md) `` text ```',
+                     '`` multiline\n[example](missing.md) ``']:
+            self.assertEqual(list(docs.local_targets(text)), [])
+        self.assertEqual(list(docs.local_targets('``unclosed [real](target.md)')), ['target.md'])
 
     def test_html_attributes_allow_spacing_case_and_unquoted_values(self):
         with tempfile.TemporaryDirectory() as directory:
