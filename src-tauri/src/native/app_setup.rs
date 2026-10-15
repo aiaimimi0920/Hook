@@ -240,6 +240,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }
         spawn_rdev_input_listener(window, hit_map, capture_input_state, long_capture_sessions);
     }
+    if let Ok(root) = effective_app_data_dir(app.handle()) {
+        if let Err(error) = crate::loom_lan_trust::initialize(&root) {
+            append_runtime_log_line(&format!("loom_lan_trust_load_failed :: {error}"));
+        }
+    }
     crate::loom_connection::startup(app.handle().clone());
     Ok(())
 }

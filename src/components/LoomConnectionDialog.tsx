@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { connectLoom, disconnectLoom, discoverLoom, loomConnectionHistory, loomConnectionState, loomManualOrigin, probeLoom, type LoomInfo, type LoomTarget } from "../services/loomConnection";
+import { connectLoom, disconnectLoom, discoverLoom, prepareDiscoveredLoom, loomConnectionHistory, loomConnectionState, loomManualOrigin, probeLoom, type LoomInfo, type LoomTarget } from "../services/loomConnection";
 
 export function LoomConnectionDialog(props: { close: () => void }) {
     const [tab, setTab] = createSignal<"discover" | "history" | "manual">("discover");
@@ -20,17 +20,29 @@ export function LoomConnectionDialog(props: { close: () => void }) {
     createEffect(() => { if (loomConnectionState().phase === "connected") props.close(); });
     const scan = async () => {
         if (scanning()) return;
-        setScanning(true); setError("");
-        try { const result = await discoverLoom(); if (alive) setTargets(result); }
-        catch (reason) { if (alive) setError(String(reason)); }
+        setScanning(true);
+        try {
+            const result = await discoverLoom();
+            if (alive) {
+                setTargets(result);
+                if (tab() === "discover" && !busy() && selected() && !result.some((item) => item.origin === selected()?.origin)) {
+                    selection++; setSelected(undefined); setInfo(undefined); setProbing(false); setPassword("");
+                }
+            }
+        }
+        catch (reason) { if (alive) { setTargets([]); setError(String(reason)); } }
         finally { if (alive) setScanning(false); }
     };
-    onMount(() => { void scan(); });
+    onMount(() => {
+        void scan();
+        const timer = setInterval(() => { if (tab() === "discover" && !busy()) void scan(); }, 5000);
+        onCleanup(() => clearInterval(timer));
+    });
     const choose = async (target: LoomTarget) => {
         const current = ++selection;
         setSelected(target); setInfo(undefined); setPassword(""); setError(""); setProbing(true);
         try {
-            const result = await probeLoom(target.origin);
+            const result = target.certificate ? (await prepareDiscoveredLoom(target)).info : await probeLoom(target.origin);
             if (!alive || selection !== current) return;
             if (target.loomId && result.loomId !== target.loomId) throw new Error("Loom 身份已变化，请核对目标地址");
             setInfo(result); setSelected({ ...target, name: result.name, loomId: result.loomId });
@@ -78,7 +90,7 @@ export function LoomConnectionDialog(props: { close: () => void }) {
             <Show when={probing()}><span role="status">正在核对 Loom 身份…</span></Show>
             <Show when={info()}>{(current) => <div class="loom-selected"><strong>{current().name}</strong><code title={current().loomId}>{current().loomId}</code></div>}</Show>
         </div>
-        <Show when={info()?.passwordRequired}><input type="password" aria-label="Loom 连接密码" placeholder="连接密码" autocomplete="off" maxLength={256} value={password()} disabled={busy()} onInput={(event) => setPassword(event.currentTarget.value)} /></Show>
+        <Show when={info()?.passwordRequired}><input type="password" aria-label="Loom 连接码" placeholder="连接码" autocomplete="off" maxLength={256} value={password()} disabled={busy()} onInput={(event) => setPassword(event.currentTarget.value)} /></Show>
         <Show when={error() || loomConnectionState().error}><div class="loom-error" role="alert">{error() || loomConnectionState().error}</div></Show>
         <div class="loom-dialog-footer"><span role="status">{loomConnectionState().phase === "waiting" ? "等待 Loom 批准…" : busy() ? "正在连接…" : ""}</span>
             <Show when={busy()} fallback={<button type="button" class="loom-primary" disabled={!info() || probing()} onClick={() => void connect()}>连接</button>}>

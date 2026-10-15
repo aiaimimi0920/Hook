@@ -3,9 +3,9 @@ import { createSignal, onCleanup, onMount } from "solid-js";
 
 export interface LoomInfo {
     protocolVersion: string; loomId: string; name: string; endpoint: string | null;
-    discoverable: boolean; approval: "manual" | "password" | "authenticated"; passwordRequired: boolean;
+    discoverable: boolean; approval: "manual" | "lan" | "password" | "authenticated"; passwordRequired: boolean;
 }
-export interface LoomTarget { origin: string; name: string; loomId: string }
+export interface LoomTarget { origin: string; name: string; loomId: string; certificate?: string | null }
 export interface LoomConnectionState {
     phase: "disconnected" | "connecting" | "waiting" | "connected";
     loomId: string | null; name: string | null; origin: string | null; error: string | null; expiresAt: number;
@@ -43,6 +43,7 @@ export function useLoomConnection(): void {
 }
 export const discoverLoom = () => invoke<LoomTarget[]>("loom_connection_discover");
 export const probeLoom = (origin: string) => invoke<LoomInfo>("loom_connection_probe", { origin });
+export const prepareDiscoveredLoom = (target: LoomTarget) => invoke<{ origin: string; info: LoomInfo }>("loom_connection_prepare_discovered", { origin: target.origin, loomId: target.loomId, certificate: target.certificate });
 export async function connectLoom(origin: string, expectedId: string, password: string): Promise<void> {
     const current = ++generation;
     setSnapshot({ ...idle, phase: "connecting", origin });

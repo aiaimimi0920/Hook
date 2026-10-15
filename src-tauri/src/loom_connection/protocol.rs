@@ -37,7 +37,7 @@ pub(crate) fn validate_info(info: &LoomInfo) -> Result<(), String> {
         || info.name.chars().any(char::is_control)
         || !matches!(
             info.approval.as_str(),
-            "manual" | "password" | "authenticated"
+            "manual" | "lan" | "password" | "authenticated"
         )
     {
         return Err("Loom 连接协议或身份无效".into());
@@ -83,7 +83,7 @@ pub(crate) async fn request(
             .and_then(Value::as_str)
             .unwrap_or("");
         return Err(match code {
-            "connection_password_invalid" => "密码不正确",
+            "connection_password_invalid" => "连接码不正确",
             "connection_rate_limited" => "连接申请过于频繁，请稍后重试",
             "device_disabled" | "connection_authentication_revoked" => "设备授权已撤销",
             "connection_request_unavailable" => "连接申请已过期或取消",

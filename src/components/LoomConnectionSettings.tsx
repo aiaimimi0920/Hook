@@ -19,7 +19,11 @@ export function LoomConnectionSettings(props: { frame: ProjectionSettingsFrame }
     };
     return <section class="sticker-settings-panel" aria-label="Loom 全局连接">
         <div class="loom-settings-row">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-label="Loom" role="img"><path d="M5 3v16h16M10 3v11h11M15 3v6h6" /><path d="M3 9h3M3 14h8M3 19h13" /></svg>
+            {/* Loom's canonical anvil and spark, matching its desktop LoomMark. */}
+            <svg viewBox="0 0 1024 1024" aria-label="Loom" role="img">
+                <path d="M196 330h632c-38 96-130 148-270 158v108h106l96 194H264l96-194h106V488H318L196 330Z" fill="currentColor" />
+                <path d="m690 206 30 66 72 8-54 48 16 70-64-36-64 36 16-70-54-48 72-8 30-66Z" fill="var(--theme-signal, #d9ff38)" />
+            </svg>
             <code title={connected() ? `${loomConnectionState().name}\n${loomConnectionState().loomId}` : loomConnectionState().error || "未连接"} aria-label={`Loom 唯一 ID：${connected() ? loomConnectionState().loomId : "-"}`}>{connected() ? loomConnectionState().loomId : "-"}</code>
             <button ref={(element) => { anchor = element; }} type="button" disabled={disconnecting()} onClick={() => { if (connected()) void stop(); else setOpen(!open()); }}>{connected() ? "断连" : "连接"}</button>
         </div>

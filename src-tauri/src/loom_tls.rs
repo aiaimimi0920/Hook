@@ -29,6 +29,7 @@ pub(crate) struct TrustKey {
     ca_sha256: [u8; 32],
 }
 
+#[derive(Clone)]
 pub(crate) struct ScopedTrust {
     pub(crate) key: TrustKey,
     config: Arc<rustls::ClientConfig>,
@@ -169,7 +170,7 @@ fn load_config(
     ScopedTrust::from_pem(origin, &bytes).map(Some)
 }
 
-pub(crate) fn for_endpoint(endpoint: &str) -> Result<Option<&'static ScopedTrust>, TrustError> {
+pub(crate) fn for_endpoint(endpoint: &str) -> Result<Option<Arc<ScopedTrust>>, TrustError> {
     // Immutable for this process: rotating the operator CA requires a restart, not polling I/O.
     TRUST
         .get_or_init(|| {
@@ -179,12 +180,19 @@ pub(crate) fn for_endpoint(endpoint: &str) -> Result<Option<&'static ScopedTrust
             )
         })
         .as_ref()
-        .map(|trust| trust.as_ref().filter(|trust| trust.matches(endpoint)))
+        .map(|trust| {
+            trust
+                .as_ref()
+                .filter(|trust| trust.matches(endpoint))
+                .cloned()
+                .map(Arc::new)
+                .or_else(|| crate::loom_lan_trust::for_endpoint(endpoint))
+        })
         .map_err(|error| *error)
 }
 
 pub(crate) fn websocket_connector(url: &Url) -> Result<Option<tungstenite::Connector>, TrustError> {
-    Ok(for_endpoint(url.as_str())?.map(ScopedTrust::connector))
+    Ok(for_endpoint(url.as_str())?.map(|trust| trust.connector()))
 }
 
 #[cfg(test)]

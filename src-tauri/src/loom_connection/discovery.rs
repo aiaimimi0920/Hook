@@ -13,6 +13,7 @@ pub(crate) struct Candidate {
     origin: String,
     name: String,
     loom_id: String,
+    certificate: Option<String>,
 }
 static SCANNING: AtomicBool = AtomicBool::new(false);
 struct ScanGuard;
@@ -20,6 +21,39 @@ impl Drop for ScanGuard {
     fn drop(&mut self) {
         SCANNING.store(false, Ordering::Release);
     }
+}
+
+fn decode_candidate(packet: &[u8], peer: std::net::IpAddr) -> Option<Candidate> {
+    if packet.len() > 8192 {
+        return None;
+    }
+    let info: LoomInfo = serde_json::from_slice(packet).ok()?;
+    if protocol::validate_info(&info).is_err() || !info.discoverable {
+        return None;
+    }
+    let origin = protocol::origin(info.endpoint.as_deref()?).ok()?;
+    let url = reqwest::Url::parse(&origin).ok()?;
+    // A discovery hint cannot redirect a selection to another machine or to plaintext.
+    if url.scheme() != "https" || url.host_str()?.parse::<std::net::IpAddr>().ok()? != peer {
+        return None;
+    }
+    let std::net::IpAddr::V4(ip) = peer else {
+        return None;
+    };
+    if !ip.is_private() && !ip.is_loopback() {
+        return None;
+    }
+    let value: serde_json::Value = serde_json::from_slice(packet).ok()?;
+    let certificate = value["certificate"]
+        .as_str()
+        .filter(|s| !s.is_empty() && s.len() <= 8192)
+        .map(str::to_owned);
+    Some(Candidate {
+        origin,
+        name: info.name,
+        loom_id: info.loom_id,
+        certificate,
+    })
 }
 
 pub(super) async fn discover() -> Result<Vec<Candidate>, String> {
@@ -36,36 +70,24 @@ pub(super) async fn discover() -> Result<Vec<Candidate>, String> {
             .set_read_timeout(Some(Duration::from_millis(150)))
             .map_err(|_| "无法启动 Loom 发现".to_string())?;
         let deadline = Instant::now() + Duration::from_millis(2300);
-        let mut packet = [0; 1025];
+        let mut packet = [0; 8193];
         while Instant::now() < deadline {
-            let Ok((size, _)) = socket.recv_from(&mut packet) else {
+            let Ok((size, peer)) = socket.recv_from(&mut packet) else {
                 continue;
             };
-            if size > 1024 || targets.len() >= 64 {
+            if size > 8192 || targets.len() >= 64 {
                 continue;
             }
-            let Ok(info) = serde_json::from_slice::<LoomInfo>(&packet[..size]) else {
+            let Some(candidate) = decode_candidate(&packet[..size], peer.ip()) else {
                 continue;
             };
-            if protocol::validate_info(&info).is_err() || !info.discoverable {
-                continue;
-            }
-            let Some(endpoint) = info.endpoint.as_deref() else {
-                continue;
-            };
-            let Ok(origin) = protocol::origin(endpoint) else {
-                continue;
-            };
-            if !origin.starts_with("https://")
-                || targets.iter().any(|item: &Candidate| item.origin == origin)
+            if targets
+                .iter()
+                .any(|item: &Candidate| item.origin == candidate.origin)
             {
                 continue;
             }
-            targets.push(Candidate {
-                origin,
-                name: info.name,
-                loom_id: info.loom_id,
-            });
+            targets.push(candidate);
         }
         Ok::<_, String>(targets)
     })
@@ -78,6 +100,7 @@ pub(super) async fn discover() -> Result<Vec<Candidate>, String> {
                     targets.insert(
                         0,
                         Candidate {
+                            certificate: None,
                             origin,
                             name: info.name,
                             loom_id: info.loom_id,
@@ -88,4 +111,30 @@ pub(super) async fn discover() -> Result<Vec<Candidate>, String> {
         }
     }
     Ok(targets)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn discovery_is_password_independent_and_cannot_redirect_to_another_peer() {
+        let mut value = serde_json::json!({"protocolVersion":"loom.connection.v1", "loomId":"loom-test", "name":"Loom",
+            "endpoint":"https://192.168.1.20:8766", "discoverable":true, "approval":"lan", "passwordRequired":true, "certificate":"public"});
+        let peer = "192.168.1.20".parse().unwrap();
+        for required in [true, false] {
+            value["passwordRequired"] = required.into();
+            assert!(decode_candidate(&serde_json::to_vec(&value).unwrap(), peer).is_some());
+        }
+        assert!(decode_candidate(
+            &serde_json::to_vec(&value).unwrap(),
+            "192.168.1.21".parse().unwrap()
+        )
+        .is_none());
+        value["endpoint"] = "http://192.168.1.20:8766".into();
+        assert!(decode_candidate(&serde_json::to_vec(&value).unwrap(), peer).is_none());
+        value["endpoint"] = "https://192.168.1.20:8766".into();
+        value["discoverable"] = false.into();
+        assert!(decode_candidate(&serde_json::to_vec(&value).unwrap(), peer).is_none());
+        assert!(decode_candidate(&vec![0; 8193], peer).is_none());
+    }
 }

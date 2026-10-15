@@ -251,6 +251,7 @@ pub fn run() {
             tea_client::create_tea_ticket,
             crate::loom_connection::loom_connection_view,
             crate::loom_connection::loom_connection_probe,
+            crate::loom_lan_trust::loom_connection_prepare_discovered,
             crate::loom_connection::loom_connection_discover,
             crate::loom_connection::loom_connection_connect,
             crate::loom_connection::loom_connection_disconnect,

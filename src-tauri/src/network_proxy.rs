@@ -194,7 +194,7 @@ pub fn apply_to_url(
     builder: ClientBuilder,
     endpoint: &str,
 ) -> Result<ClientBuilder, reqwest::Error> {
-    if endpoint_is_loopback(endpoint) {
+    if endpoint_is_direct(endpoint) {
         return Ok(builder.no_proxy());
     }
     match runtime_proxy() {
@@ -202,6 +202,11 @@ pub fn apply_to_url(
         RuntimeProxy::Disabled => Ok(builder.no_proxy()),
         RuntimeProxy::Custom(url) => Ok(builder.proxy(Proxy::all(url)?)),
     }
+}
+
+fn endpoint_is_direct(endpoint: &str) -> bool {
+    // Explicitly paired LAN origins must not be routed through an Internet proxy.
+    endpoint_is_loopback(endpoint) || crate::loom_lan_trust::for_endpoint(endpoint).is_some()
 }
 
 /// A proxy-aware client for `endpoint`, reused across calls.
@@ -249,7 +254,7 @@ fn build_blocking_client(
 ) -> Result<reqwest::blocking::Client, ClientBuildError> {
     let trust = crate::loom_tls::for_endpoint(endpoint)?;
     let mut builder = reqwest::blocking::Client::builder().use_rustls_tls();
-    if endpoint_is_loopback(endpoint) {
+    if endpoint_is_direct(endpoint) {
         builder = builder.no_proxy();
     } else {
         builder = match runtime_proxy() {
@@ -280,7 +285,7 @@ pub(crate) fn shared_client_with(
     configure: impl FnOnce(ClientBuilder) -> ClientBuilder,
 ) -> Result<Client, ClientBuildError> {
     let trust = crate::loom_tls::for_endpoint(endpoint)?;
-    shared_client_with_trust(endpoint, timeout, flavor, configure, trust)
+    shared_client_with_trust(endpoint, timeout, flavor, configure, trust.as_deref())
 }
 
 fn shared_client_with_trust(
@@ -292,7 +297,7 @@ fn shared_client_with_trust(
 ) -> Result<Client, ClientBuildError> {
     let trust = trust.filter(|trust| trust.matches(endpoint));
     let key = ClientKey {
-        loopback: endpoint_is_loopback(endpoint),
+        loopback: endpoint_is_direct(endpoint),
         timeout_millis: timeout.map(|timeout| timeout.as_millis() as u64),
         flavor,
         trust: trust.map(|trust| trust.key.clone()),

@@ -33,6 +33,7 @@ mod loom_bridge_client;
 mod loom_config;
 mod loom_connection;
 pub mod loom_connector;
+mod loom_lan_trust;
 mod loom_otter;
 mod loom_tls;
 mod mouse_monitor;

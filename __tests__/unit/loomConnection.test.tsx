@@ -29,7 +29,7 @@ beforeEach(async () => {
     await disconnectLoom();
     vi.mocked(invoke).mockClear();
 });
-afterEach(() => { dispose?.(); dispose = undefined; document.body.replaceChildren(); vi.resetAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { dispose?.(); dispose = undefined; document.body.replaceChildren(); vi.resetAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 it("constructs explicit secure remote origins and supports local and IPv6 targets", () => {
     expect(loomManualOrigin("192.168.1.8", "8310")).toBe("https://192.168.1.8:8310");
@@ -50,6 +50,39 @@ it("all sticker settings show the same authenticated connection and never show p
     expect([...document.querySelectorAll("code")].map((node) => node.textContent)).toEqual(["loom-test", "loom-test"]);
     button("断连").click();
     await vi.waitFor(() => expect([...document.querySelectorAll("code")].map((node) => node.textContent)).toEqual(["-", "-"]));
+});
+
+it("uses Loom's canonical anvil and spark in the settings row", () => {
+    dispose = render(() => <LoomConnectionSettings frame={{ x: 20, y: 20, w: 300, h: 200 }} />, document.body);
+    const icon = document.querySelector('.loom-settings-row svg[aria-label="Loom"]')!;
+    expect(icon.getAttribute("viewBox")).toBe("0 0 1024 1024");
+    const paths = icon.querySelectorAll("path");
+    expect(paths).toHaveLength(2);
+    expect(paths[0].getAttribute("d")).toBe("M196 330h632c-38 96-130 148-270 158v108h106l96 194H264l96-194h106V488H318L196 330Z");
+    expect(paths[1].getAttribute("d")).toBe("m690 206 30 66 72 8-54 48 16 70-64-36-64 36 16-70-54-48 72-8 30-66Z");
+    expect(paths[0].getAttribute("fill")).toBe("currentColor");
+    expect(paths[1].getAttribute("fill")).toBe("var(--theme-signal, #d9ff38)");
+});
+
+it("discovers without a code and prepares only the user-selected target", async () => {
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    vi.mocked(invoke).mockImplementation((command, args, options) => {
+        if (command === "loom_connection_discover") return Promise.resolve([{ ...target, certificate: "public-cert" }]);
+        if (command === "loom_connection_prepare_discovered") return Promise.resolve({ origin: target.origin, info: { ...info, passwordRequired: false } });
+        return original(command, args, options);
+    });
+    dispose = render(() => <LoomConnectionDialog close={() => undefined} />, document.body);
+    await vi.waitFor(() => expect(document.querySelector(".loom-target")).not.toBeNull());
+    expect(invoke).not.toHaveBeenCalledWith("loom_connection_prepare_discovered", expect.anything());
+    expect(document.querySelector('[aria-label="Loom 连接码"]')).toBeNull();
+    expect(document.body.textContent).not.toContain("验证并信任");
+    document.querySelector<HTMLButtonElement>(".loom-target")!.click();
+    await vi.waitFor(() => expect(button("连接").disabled).toBe(false));
+    expect(invoke).toHaveBeenCalledWith("loom_connection_prepare_discovered", { origin: target.origin, loomId: target.loomId, certificate: "public-cert" });
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+    button("连接").click();
+    await vi.waitFor(() => expect(document.body.textContent).toContain("等待 Loom 批准"));
+    expect(invoke).toHaveBeenCalledWith("loom_connection_connect", { origin: target.origin, expectedId: info.loomId, password: "" });
 });
 
 it("probes a selected target, submits the password only to native and keeps approval pending after popup disposal", async () => {
@@ -98,4 +131,26 @@ it("ignores a late probe after changing the manual address", async () => {
     await Promise.resolve(); await Promise.resolve();
     expect(button("连接").disabled).toBe(true);
     expect(button("查找").disabled).toBe(false);
+});
+
+it("refreshes discovered targets and stops discovery after closing the dialog", async () => {
+    vi.useFakeTimers();
+    let online = true;
+    const original = vi.mocked(invoke).getMockImplementation()!;
+    vi.mocked(invoke).mockImplementation((command, args, options) => command === "loom_connection_discover"
+        ? Promise.resolve(online ? [target] : []) : original(command, args, options));
+    dispose = render(() => <LoomConnectionDialog close={() => undefined} />, document.body);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(document.querySelector(".loom-target")).not.toBeNull();
+    document.querySelector<HTMLButtonElement>(".loom-target")!.click();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(button("连接").disabled).toBe(false);
+    online = false;
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(document.querySelector(".loom-target")).toBeNull();
+    expect(button("连接").disabled).toBe(true);
+    dispose(); dispose = undefined;
+    const calls = vi.mocked(invoke).mock.calls.filter(([command]) => command === "loom_connection_discover").length;
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "loom_connection_discover")).toHaveLength(calls);
 });
