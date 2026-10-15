@@ -13,7 +13,7 @@ follow the existing engineering setup and verification requirements.
 | Report a problem | Search [existing issues](https://github.com/aiaimimi0920/Otter/issues), then [open an issue](https://github.com/aiaimimi0920/Otter/issues/new) with the version, environment and reproduction steps if no matching report exists. |
 | Suggest a feature | Describe the use case, your current approach, the difficulty and the result you want. Note any required Loom capabilities and connection conditions. |
 | Share a useful example | Use an issue to explain a reproducible capture, annotation or node-processing example with sanitized images, steps, results and required versions or capabilities. |
-| Improve wording or documentation | Identify the page, original wording, proposed text and reason. Open an issue or propose a documentation PR; see [Wording and documentation](#wording-and-documentation). |
+| Improve wording or documentation | Identify the page, original wording, proposed text and reason. Open an issue or propose a documentation PR; see the [translation guide](./translating.md) and [Wording and documentation](#wording-and-documentation). |
 | Contribute code | Read the [engineering contribution guide](../../CONTRIBUTING.md) and [repository layout](../../TECHNICAL_ARCHITECTURE.md#2-repository-layout), then make a focused change with relevant verification. |
 
 ## Make a problem reproducible

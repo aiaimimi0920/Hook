@@ -8,6 +8,8 @@ const tauriConfig = JSON.parse(
 );
 const rustSource = readOtterLibRustSources();
 const readmeSource = readFileSync(resolve(process.cwd(), "README.md"), "utf8");
+const packagesSource = readFileSync(resolve(process.cwd(), "docs/guide/packages.md"), "utf8");
+const packagesZhSource = readFileSync(resolve(process.cwd(), "docs/guide/packages.zh-CN.md"), "utf8");
 const architectureSource = readFileSync(
     resolve(process.cwd(), "TECHNICAL_ARCHITECTURE.md"),
     "utf8",
@@ -61,8 +63,10 @@ describe("Otter public identity contract", () => {
     });
 
     it("documents the current public bundle identity without obsolete app-data paths", () => {
-        expect(readmeSource).toContain("com.yamiyu.hook");
+        expect(readmeSource).toContain("docs/guide/packages.md");
+        expect(packagesSource).toContain("com.yamiyu.hook");
+        expect(packagesZhSource).toContain("com.yamiyu.hook");
         expect(architectureSource).toContain("com.yamiyu.hook");
-        expect(readmeSource).toContain("yamiyu");
+        expect(packagesSource).toContain("yamiyu");
     });
 });

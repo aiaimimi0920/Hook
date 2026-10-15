@@ -1,4 +1,4 @@
-# 参与共享
+# 社区参与方式
 
 [English](./contributing.md) · [文档中心](../README.md) · [工程贡献规范](../../CONTRIBUTING.md)
 
@@ -12,7 +12,7 @@
 | 反馈问题 | 先搜索[已有 Issues](https://github.com/aiaimimi0920/Otter/issues)，没有相同问题时[新建 Issue](https://github.com/aiaimimi0920/Otter/issues/new)，附上版本、环境和复现步骤。 |
 | 提出功能建议 | 说明实际场景、目前怎么完成、哪里不方便，以及希望得到什么结果。涉及 Loom 能力时，注明所需的能力和连接条件。 |
 | 分享使用经验 | 在 Issue 中介绍一个可复现的截图、标注或节点处理示例，用脱敏图片说明操作和结果，并注明所需版本与能力。 |
-| 改进文案或文档 | 指出具体页面、原文、建议文字及理由；直接提 Issue，或修改对应文档后提交 PR。参见[文案与文档](#文案与文档)。 |
+| 改进文案或文档 | 指出具体页面、原文、建议文字及理由；直接提 Issue，或修改对应文档后提交 PR。参见[翻译教程](./translating.zh-CN.md)与[文案与文档](#文案与文档)。 |
 | 贡献代码 | 先阅读[工程贡献规范](../../CONTRIBUTING.md)和[项目目录](../../TECHNICAL_ARCHITECTURE.md#2-repository-layout)，再进行范围明确的修改和相关验证。 |
 
 ## 让问题更容易复现

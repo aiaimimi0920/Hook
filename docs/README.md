@@ -32,6 +32,7 @@ of truth. Existing document paths stay stable; this index groups them by purpose
 ## 参与共享 / Contributing
 
 - [中文参与指南](guide/contributing.zh-CN.md) · [English contribution guide](guide/contributing.md) — reports, ideas, examples, wording and documentation.
+- [中文翻译教程](guide/translating.zh-CN.md) · [Translation guide](guide/translating.md) — documentation translation and interface wording boundaries.
 - [Existing issues](https://github.com/aiaimimi0920/Otter/issues) — search before opening a new report.
 - [Engineering contribution guide](../CONTRIBUTING.md) — code ownership, checks and delivery requirements.
 
@@ -46,6 +47,8 @@ of truth. Existing document paths stay stable; this index groups them by purpose
 - [Asset library integration](ASSET_LIBRARY_INTEGRATION.md) — catalog, downloads, Loom-owned installation and Otter activation boundaries.
 
 ## 发布与签名 / Releases and signing
+
+- [发布包、签名与本地数据](guide/packages.zh-CN.md) · [Packages, signing and local data](guide/packages.md) — user-facing package choices, signing status and data directory identity.
 
 - [Release strategy](RELEASE_STRATEGY.md)
 - [Release provenance](release-provenance.md) — clean-source packaging, checksums and verification.

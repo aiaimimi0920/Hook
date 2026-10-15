@@ -68,7 +68,7 @@ capability below. See [rename compatibility](./docs/RENAMING.md).
 release explicitly includes an approved signed installer. UAC secure-desktop
 capture and overlays are unsupported. Live capture compatibility depends on the
 source program; no guaranteed frame rate or universal background-input support
-is claimed. [Security boundaries](./docs/SECURITY_BOUNDARIES.md) · [Release packages](#release-packages)
+is claimed. [Security boundaries](./docs/SECURITY_BOUNDARIES.md) · [Release packages](./docs/guide/packages.md)
 
 ## Capability details
 
@@ -430,79 +430,14 @@ in [`TECHNICAL_ARCHITECTURE.md`](TECHNICAL_ARCHITECTURE.md).
 
 </details>
 
-## Release packages
-
-<details>
-<summary>Portable packages, signing status and local data identity</summary>
-
-### Package formats
-
-Hook has been renamed to **Otter**. The instructions below describe builds from
-the current source. Previously published packages, including Hook v0.2.33, keep
-their original filenames and `hook.exe`; use the executable actually included
-in that release. See [rename compatibility](docs/RENAMING.md).
-
-- **Portable (current recommended package)**
-  - extract the zip and run `otter.exe`;
-  - the only current user-facing package in ordinary builds and tag releases;
-  - includes the project license, third-party notices, and bundled-source
-    license texts;
-  - if Windows blocks interaction with elevated foreground windows such as
-    **Task Manager**, try running Otter as **administrator** as the current
-    workaround.
-- **Installer (planned for future signed releases)**
-  - the repository retains the UIAccess installer and SignPath preparation;
-  - the installer is not a current public package and must not be published
-    until the signing provider and protected approval environment are active.
-
-The tag workflow retains the unsigned UIAccess signing candidate and its digest as
-short-lived Actions review evidence; neither is shown as a public Release asset.
-
-For the public Release, ordinary users only need the portable ZIP. Users who want
-to verify a download should also fetch the matching `.zip.sha256` sidecar. GitHub's
-automatic source ZIP and tarball remain available for developers.
-
-See [`UIACCESS_DISTRIBUTION.md`](UIACCESS_DISTRIBUTION.md) and
-[`docs/RELEASE_STRATEGY.md`](docs/RELEASE_STRATEGY.md). Formal clean-source
-packaging, checksums, SBOMs, attestations, and draft verification are documented
-in [`docs/release-provenance.md`](docs/release-provenance.md); dependency
-inventory and vulnerability response are in
-[`docs/DEPENDENCY_SECURITY.md`](docs/DEPENDENCY_SECURITY.md).
-
-### Code signing status
-
-Free code signing provided by [SignPath.io](https://signpath.io/), certificate
-by [SignPath Foundation](https://signpath.org/), applies only after the Otter
-project is provisioned and a hosted signing request receives manual approval.
-The current portable package must be treated as unsigned unless a release
-explicitly includes an approved signed installer.
-
-- [Code Signing Policy](docs/CODE_SIGNING_POLICY.md)
-- [Privacy Policy](docs/PRIVACY_POLICY.md)
-- [Security Policy](SECURITY.md)
-- [Governance and Signing Roles](GOVERNANCE.md)
-- [Third-Party Notices](THIRD_PARTY_NOTICES.md)
-
-### Local data identity
-
-The public Tauri bundle identifier and the only automatic local-data identity is
-`com.yamiyu.hook`. Development and test automation can select an isolated root
-explicitly with `OTTER_APPDATA_DIR` (`HOOK_APPDATA_DIR` remains a fallback);
-Otter does not scan or migrate obsolete roots.
-
-</details>
-
 ## Contributing
 
-Bug reports, wording improvements, documentation and focused code contributions
-are welcome. You can also share a reproducible capture, annotation or node-processing
-example, with private content removed.
-
-Start with [ways to contribute](./docs/guide/contributing.md), explore the
-[documentation index](./docs/README.md), or use the
-[repository layout](./TECHNICAL_ARCHITECTURE.md#2-repository-layout) to find your way around.
+Bug reports, translations, documentation improvements and code contributions are welcome.
+Start with [ways to contribute](./docs/guide/contributing.md) or the
+[translation guide](./docs/guide/translating.md), and explore the
+[repository layout](./TECHNICAL_ARCHITECTURE.md#2-repository-layout) to understand the code structure.
 Code changes follow the [engineering contribution guide](./CONTRIBUTING.md).
-Search [existing issues](https://github.com/aiaimimi0920/Otter/issues) before opening a new report.
+Search [existing issues](https://github.com/aiaimimi0920/Otter/issues) before reporting a problem.
 
 ## License
 

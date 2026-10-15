@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 const otterRoot = process.cwd();
 const readmeEn = readFileSync(resolve(otterRoot, "README.md"), "utf8");
 const readmeZh = readFileSync(resolve(otterRoot, "README.zh-CN.md"), "utf8");
+const packagesEn = readFileSync(resolve(otterRoot, "docs/guide/packages.md"), "utf8");
+const packagesZh = readFileSync(resolve(otterRoot, "docs/guide/packages.zh-CN.md"), "utf8");
 const docsIndex = readFileSync(resolve(otterRoot, "docs/README.md"), "utf8");
 const codeSigningPolicyPath = resolve(otterRoot, "docs/CODE_SIGNING_POLICY.md");
 const privacyPolicyPath = resolve(otterRoot, "docs/PRIVACY_POLICY.md");
@@ -44,18 +46,22 @@ describe("Otter signing docs contract", () => {
     expect(existsSync(releaseBodyPath)).toBe(true);
   });
 
-  it("keeps the public README surfaces linked to the signing and privacy policy set", () => {
-    expect(readmeEn).toContain("docs/CODE_SIGNING_POLICY.md");
-    expect(readmeEn).toContain("docs/PRIVACY_POLICY.md");
-    expect(readmeEn).toContain("SECURITY.md");
-    expect(readmeEn).toContain("GOVERNANCE.md");
-    expect(readmeEn).toContain("THIRD_PARTY_NOTICES.md");
-    expect(readmeEn).toContain("Free code signing provided by [SignPath.io]");
-    expect(readmeZh).toContain("docs/CODE_SIGNING_POLICY.md");
-    expect(readmeZh).toContain("docs/PRIVACY_POLICY.md");
-    expect(readmeZh).toContain("SECURITY.md");
-    expect(readmeZh).toContain("GOVERNANCE.md");
-    expect(readmeZh).toContain("Free code signing provided by [SignPath.io]");
+  it("keeps the public README and index linked through the package guides to the signing and privacy policy set", () => {
+    expect(readmeEn).toContain("docs/guide/packages.md");
+    expect(readmeZh).toContain("docs/guide/packages.zh-CN.md");
+    expect(docsIndex).toContain("guide/packages.md");
+    expect(docsIndex).toContain("guide/packages.zh-CN.md");
+    expect(packagesEn).toContain("../CODE_SIGNING_POLICY.md");
+    expect(packagesEn).toContain("../PRIVACY_POLICY.md");
+    expect(packagesEn).toContain("SECURITY.md");
+    expect(packagesEn).toContain("GOVERNANCE.md");
+    expect(packagesEn).toContain("THIRD_PARTY_NOTICES.md");
+    expect(packagesEn).toContain("Free code signing provided by [SignPath.io]");
+    expect(packagesZh).toContain("../CODE_SIGNING_POLICY.md");
+    expect(packagesZh).toContain("../PRIVACY_POLICY.md");
+    expect(packagesZh).toContain("SECURITY.md");
+    expect(packagesZh).toContain("GOVERNANCE.md");
+    expect(packagesZh).toContain("Free code signing provided by [SignPath.io]");
     expect(docsIndex).toContain("CODE_SIGNING_POLICY.md");
     expect(docsIndex).toContain("PRIVACY_POLICY.md");
     expect(docsIndex).toContain("MAINTAINER_SIGNING_GUIDE.md");
