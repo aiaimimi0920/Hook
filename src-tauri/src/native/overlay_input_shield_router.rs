@@ -10,7 +10,9 @@ fn route_overlay_input_shield_mouse_message(message: u32, wparam: WPARAM) -> Opt
 
     let (x, y) = current_cursor_position_physical()?;
     let modifiers = current_modifier_snapshot();
-    let should_route_overlay_mouse = should_route_overlay_mouse_events(x, y);
+    let should_route_overlay_mouse = should_route_overlay_mouse_events(x, y)
+        && (!overlay_visible_hit::needs_visible_hit_check(message)
+            || !overlay_visible_hit::blocks_edge(x, y));
     let otter_hover_active = OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.load(Ordering::SeqCst);
     let direct_drag_active = OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst);
     let native_drag_preflight_active =
@@ -75,6 +77,7 @@ fn route_overlay_input_shield_mouse_message(message: u32, wparam: WPARAM) -> Opt
                 let source = OverlayPointerSource::InputShield;
                 match claim_overlay_pointer_down(&OVERLAY_POINTER_STATE, source) {
                     OverlayPointerDownTransition::Started => {
+                        overlay_dialog_priority::request_claim();
                         let configured_sticker_native_drag_preflight =
                             shortcut_config::gesture_matches(
                                 "drag_out",
@@ -212,4 +215,3 @@ fn route_overlay_input_shield_mouse_message(message: u32, wparam: WPARAM) -> Opt
 
     None
 }
-

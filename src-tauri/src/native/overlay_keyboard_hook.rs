@@ -12,6 +12,9 @@ unsafe extern "system" fn overlay_keyboard_hook_proc(
     if lparam.0 == 0 {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
+    if overlay_dialog_priority::DESKTOP_UNAVAILABLE.load(Ordering::SeqCst) {
+        return unsafe { CallNextHookEx(None, code, wparam, lparam) };
+    }
 
     let keyboard = unsafe { *(lparam.0 as *const KBDLLHOOKSTRUCT) };
     let vk_code = keyboard.vkCode;

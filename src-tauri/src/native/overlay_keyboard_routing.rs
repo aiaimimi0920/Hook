@@ -14,6 +14,9 @@ fn rdev_should_dispatch_app_scoped_shortcut(
 
 #[cfg(target_os = "windows")]
 fn overlay_keyboard_capture_should_handle_current_cursor() -> bool {
+    if overlay_dialog_priority::blocks_keyboard() {
+        return false;
+    }
     if NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst) {
         return false;
     }

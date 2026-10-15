@@ -35,6 +35,10 @@ without deleting history; restart still requires valid device authorization.
 Start Loom and open `otter.exe` directly for OCR/translation and other installed
 extensions. Without Loom, local capture and editing remain available; no separate
 Loom integration launcher is required.
+On the ordinary Windows desktop, foreground dialogs and visibly higher external
+windows take input priority over stickers; deliberate capture or sticker interaction can reclaim priority.
+UAC secure-desktop capture/overlays are not supported; Otter yields input and cancels
+transient gestures without changing Windows security settings.
 Select an image sticker: `Ctrl+4` reruns OCR, `Alt+4` toggles OCR, `Ctrl+5` reruns
 translation, and `Alt+5` toggles translation (missing results are created first).
 The corresponding Loom capabilities must be installed, enabled, and authorized.

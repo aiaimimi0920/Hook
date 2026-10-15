@@ -288,6 +288,8 @@ include!("native/overlay_input_shield_window.rs");
 include!("native/overlay_input_shield_region.rs");
 
 include!("native/overlay_occlusion.rs");
+include!("native/overlay_dialog_priority.rs");
+include!("native/overlay_visible_hit.rs");
 
 include!("native/overlay_topmost_maintenance.rs");
 

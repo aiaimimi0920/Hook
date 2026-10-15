@@ -25,6 +25,9 @@ fn prepare_for_hook_process_exit(reason: &str) {
 fn set_capture_input_runtime_active(active: bool) {
     #[cfg(target_os = "windows")]
     {
+        if active {
+            overlay_dialog_priority::claim();
+        }
         CAPTURE_MOUSE_HOOK_ACTIVE.store(active, Ordering::SeqCst);
         if !active {
             CAPTURE_MOUSE_HOOK_BUTTON_DOWN.store(false, Ordering::SeqCst);

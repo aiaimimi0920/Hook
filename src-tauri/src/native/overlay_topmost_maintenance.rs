@@ -59,6 +59,24 @@ fn install_overlay_topmost_maintenance_thread(window: &tauri::WebviewWindow) {
                 OVERLAY_TOPMOST_MAINTENANCE_INTERVAL_MS,
             ));
 
+            let priority_changed = overlay_dialog_priority::refresh();
+            if overlay_dialog_priority::DESKTOP_UNAVAILABLE.load(Ordering::SeqCst) {
+                if priority_changed {
+                    set_capture_input_runtime_active(false);
+                    reset_overlay_pointer_session();
+                    OVERLAY_MOUSE_HOOK_HOVER_ACTIVE.store(false, Ordering::SeqCst);
+                    OVERLAY_KEYBOARD_CAPTURE_ACTIVE.store(false, Ordering::SeqCst);
+                    let _ = maintenance_window.emit("trigger-escape", ());
+                }
+                hide_overlay_input_shield_window();
+                set_overlay_click_through_impl(&maintenance_window, true);
+                continue;
+            }
+            if priority_changed {
+                refresh_overlay_interactivity_from_runtime_state(&maintenance_window, true);
+                sync_overlay_input_shield_from_runtime_state(&maintenance_window);
+            }
+
             if NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst) {
                 continue;
             }

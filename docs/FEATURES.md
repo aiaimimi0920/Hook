@@ -1,5 +1,32 @@
 # Otter Features and Manual Regression Matrix
 
+## System dialog priority
+
+On the ordinary Windows desktop, standard dialogs (`#32770`), modal-frame windows
+and windows with a disabled owner take priority over existing stickers. Both the
+visual overlay and native input shield go below the dialog; synthetic input excludes
+its physical rectangle. Exposed stickers remain interactive. Explicit capture,
+sticker interaction or focus can reclaim priority; later foreground changes or an
+external click yield again. Background hit-map refreshes do not claim priority.
+Maintenance uses the existing 250 ms timer and also respects visible foreign
+foreground windows above the sticker host, regardless of dialog class. New button
+and wheel events additionally check the actual Windows point target and relative
+Z-order, so visible foreign windows cannot be accepted solely by a stale sticker
+hit map. Underlying applications reached through click-through are not mistaken
+for windows above the sticker. Capture and mouse-move streams retain their fast path.
+Relative order is checked in both directions: Windows shell system-band dialogs
+can be absent from the ordinary overlay's upward window chain. Their downward
+chain must still prove that they are above the overlay; a point hit alone is not
+enough to classify a click-through underlying application as an occluder.
+
+Manual acceptance: existing sticker then file/confirmation dialog; dialog then
+capture/new sticker; exposed sticker interaction; rapid alternating clicks; negative
+monitor coordinates; Windows firewall permission prompts overlapping stickers;
+closing the dialog; UAC/lock-desktop entry and return during
+capture/drag/edit. Secure-desktop capture/overlays are unsupported: input is yielded,
+transient gestures canceled, and ordinary-desktop input restored without changing UAC.
+Policy/unit and hidden-HWND Z-order tests do not replace this interactive acceptance.
+
 ## Loom restart connection
 
 Check successful connection followed by normal exit/restart, manual disconnect

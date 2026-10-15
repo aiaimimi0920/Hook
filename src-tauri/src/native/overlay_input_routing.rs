@@ -12,6 +12,9 @@ fn is_sticker_body_synthetic_rect(rect: &mouse_monitor::Rect) -> bool {
 
 #[cfg(target_os = "windows")]
 fn restore_sticker_body_cursor(rects: &[mouse_monitor::Rect], x: f64, y: f64) {
+    if overlay_dialog_priority::blocks_point(x, y) {
+        return;
+    }
     if !OVERLAY_MOUSE_HIT_MAP_ACTIVE.load(Ordering::SeqCst) {
         return;
     }
@@ -59,6 +62,9 @@ fn should_overlay_window_ignore_cursor_events(
     x: f64,
     y: f64,
 ) -> bool {
+    if overlay_dialog_priority::blocks_point(x, y) {
+        return true;
+    }
     !rects
         .iter()
         .any(|rect| !is_synthetic_overlay_rect(rect) && rect.contains(x, y))
@@ -81,6 +87,9 @@ fn should_suppress_overlay_interaction_for_occlusion(
 
 #[cfg(target_os = "windows")]
 fn should_suppress_overlay_interaction_for_current_occlusion() -> bool {
+    if overlay_dialog_priority::DESKTOP_UNAVAILABLE.load(Ordering::SeqCst) {
+        return true;
+    }
     let drag_active = OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst)
         || OVERLAY_MOUSE_HOOK_SYNTHETIC_DRAG_ACTIVE.load(Ordering::SeqCst)
         || OVERLAY_INPUT_SHIELD_DIRECT_DRAG_ACTIVE.load(Ordering::SeqCst);
@@ -95,6 +104,9 @@ fn should_suppress_overlay_interaction_for_current_occlusion() -> bool {
 
 #[cfg(target_os = "windows")]
 fn should_route_overlay_mouse_events(x: f64, y: f64) -> bool {
+    if overlay_dialog_priority::blocks_point(x, y) {
+        return false;
+    }
     if OVERLAY_MOUSE_HOOK_DRAG_ACTIVE.load(Ordering::SeqCst) {
         return true;
     }

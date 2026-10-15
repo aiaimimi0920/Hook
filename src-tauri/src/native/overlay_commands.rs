@@ -124,6 +124,15 @@ fn set_overlay_keyboard_capture_active(
 #[tauri::command]
 fn focus_overlay_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
+        #[cfg(target_os = "windows")]
+        {
+            ensure_live_input_desktop()?;
+            overlay_dialog_priority::claim();
+            if let Some(hwnd) = resolve_overlay_main_hwnd(&window) {
+                reassert_overlay_topmost_window(hwnd);
+            }
+            sync_overlay_input_shield_from_runtime_state(&window);
+        }
         clear_overlay_no_activate(&window);
         if let Err(error) = window.set_focus() {
             apply_overlay_no_activate(&window);

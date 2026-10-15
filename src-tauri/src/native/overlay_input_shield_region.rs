@@ -39,7 +39,7 @@ fn sync_overlay_input_shield_region(
     let _ = unsafe {
         SetWindowPos(
             hwnd,
-            Some(HWND_TOPMOST),
+            Some(overlay_dialog_priority::insert_after()),
             main_rect.left,
             main_rect.top,
             width,

@@ -5,6 +5,16 @@ identity, remote-image fetching and native input. Vulnerability reporting remain
 in [SECURITY.md](../SECURITY.md); dependency policy is in
 [DEPENDENCY_SECURITY.md](DEPENDENCY_SECURITY.md).
 
+## UAC and input desktops
+
+Otter does not enter or capture the UAC secure desktop, disable UAC, or change the
+secure-desktop policy. Overlay priority maintenance checks the active input desktop;
+an unavailable/non-default desktop suppresses overlay input, hides the input shield
+and cancels transient capture/pointer state. Returning to the default desktop rebuilds
+input routing from current state, not pre-switch queued priority requests. This is
+separate from ordinary-dialog Z-order arbitration and does not authorize input to
+higher-integrity processes. See [Microsoft's UAC architecture](https://learn.microsoft.com/en-us/windows/security/application-security/application-control/user-account-control/how-it-works).
+
 ## Clipboard history
 
 The Windows clipboard-history submenu is read-only and local. System events carry

@@ -22,6 +22,7 @@ unsafe extern "system" fn capture_mouse_hook_proc(
 
     if NATIVE_FILE_DRAG_ACTIVE.load(Ordering::SeqCst)
         || NATIVE_FILE_DIALOG_ACTIVE.load(Ordering::SeqCst)
+        || overlay_dialog_priority::DESKTOP_UNAVAILABLE.load(Ordering::SeqCst)
     {
         return unsafe { CallNextHookEx(None, code, wparam, lparam) };
     }
@@ -92,7 +93,9 @@ unsafe extern "system" fn capture_mouse_hook_proc(
         live_source_shell_mouse_down(mouse.pt.x, mouse.pt.y);
     }
     let modifiers = current_modifier_snapshot();
-    let should_route_overlay_mouse = should_route_overlay_mouse_events(x, y);
+    let should_route_overlay_mouse = should_route_overlay_mouse_events(x, y)
+        && (!overlay_visible_hit::needs_visible_hit_check(message)
+            || !overlay_visible_hit::blocks_edge(x, y));
     // Cancel at the physical event boundary, not when a queued IPC move arrives:
     // old forwarded input must not consume a newer, explicit taskbar gesture.
     if should_route_overlay_mouse && mouse.flags & 1 == 0 {
@@ -107,6 +110,11 @@ unsafe extern "system" fn capture_mouse_hook_proc(
         overlay_pointer_source_owns_session(OverlayPointerSource::LowLevelHook);
     let overlay_pointer_session_active =
         OVERLAY_POINTER_STATE.load(Ordering::SeqCst) != OVERLAY_POINTER_STATE_NONE;
+    if message == WM_LBUTTONDOWN && mouse_flags & 1 == 0
+        && !should_route_overlay_mouse && !overlay_pointer_session_active
+    {
+        overlay_dialog_priority::request_yield();
+    }
     let configured_drag_out_active = shortcut_config::gesture_matches(
         "drag_out",
         shortcut_config::Modifiers {
@@ -177,6 +185,7 @@ unsafe extern "system" fn capture_mouse_hook_proc(
                 let source = OverlayPointerSource::LowLevelHook;
                 match claim_overlay_pointer_down(&OVERLAY_POINTER_STATE, source) {
                     OverlayPointerDownTransition::Started => {
+                        overlay_dialog_priority::request_claim();
                         let configured_sticker_native_drag_preflight =
                             shortcut_config::gesture_matches(
                                 "drag_out",

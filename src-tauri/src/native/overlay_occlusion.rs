@@ -25,17 +25,24 @@ fn is_desktop_shell_window_class(class_name: &str) -> bool {
 
 #[cfg(target_os = "windows")]
 fn window_is_above_overlay_in_z_order(candidate: HWND, overlay: HWND) -> bool {
-    let mut current = unsafe { GetWindow(overlay, GW_HWNDPREV) }.ok();
-    let mut remaining = 4096usize;
-    while let Some(current_hwnd) = current {
-        if remaining == 0 {
-            break;
+    use windows::Win32::UI::WindowsAndMessaging::GW_HWNDNEXT;
+    // Shell system-band windows can be omitted from the ordinary overlay's
+    // upward chain, even while WindowFromPoint hits them. Their downward chain
+    // still reaches us. Check both directions; numeric band IDs are not ranks.
+    for (start, direction, target) in [
+        (overlay, GW_HWNDPREV, candidate),
+        (candidate, GW_HWNDNEXT, overlay),
+    ] {
+        let mut current = unsafe { GetWindow(start, direction) }.ok();
+        for _ in 0..4096 {
+            let Some(hwnd) = current.filter(|hwnd| !hwnd.0.is_null()) else {
+                break;
+            };
+            if hwnd == target {
+                return true;
+            }
+            current = unsafe { GetWindow(hwnd, direction) }.ok();
         }
-        if current_hwnd == candidate {
-            return true;
-        }
-        current = unsafe { GetWindow(current_hwnd, GW_HWNDPREV) }.ok();
-        remaining -= 1;
     }
     false
 }
@@ -135,7 +142,7 @@ fn reassert_overlay_topmost_window(hwnd: HWND) {
     let _ = unsafe {
         SetWindowPos(
             hwnd,
-            Some(HWND_TOPMOST),
+            Some(overlay_dialog_priority::insert_after()),
             0,
             0,
             0,

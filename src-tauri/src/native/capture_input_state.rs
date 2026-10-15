@@ -366,10 +366,15 @@ fn queue_overlay_keyboard_hook_event(event: OverlayKeyboardHookEvent) {
 
 #[cfg(target_os = "windows")]
 fn try_begin_capture_input_runtime() -> bool {
+    if ensure_live_input_desktop().is_err() {
+        append_runtime_log_line("capture_input_blocked_secure_desktop");
+        return false;
+    }
     if CAPTURE_MOUSE_HOOK_ACTIVE.swap(true, Ordering::SeqCst) {
         return false;
     }
 
+    overlay_dialog_priority::claim();
     CAPTURE_MOUSE_HOOK_BUTTON_DOWN.store(false, Ordering::SeqCst);
     append_runtime_log_line("capture_mouse_hook_active :: true");
     set_capture_cursor_crosshair();
