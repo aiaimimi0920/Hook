@@ -5,7 +5,7 @@ Start with a task below, then follow the focused references.
 
 | 想做什么 / Your goal | 从这里开始 / Start here |
 | --- | --- |
-| 了解与使用 Otter / Learn about Otter | [中文介绍与上手](../README.zh-CN.md#快速开始) · [English overview and quick start](../README.md#get-started) |
+| 了解与使用 Otter / Learn about Otter | [中文介绍与上手](../README.zh-CN.md#开始使用) · [English overview and quick start](../README.md#get-started) |
 | 查快捷键与功能范围 / Check shortcuts and scope | [功能矩阵 / Feature matrix](FEATURES.md) |
 | 反馈、改进文案或分享示例 / Report, improve or share | [参与共享指南](guide/contributing.zh-CN.md) · [Ways to contribute](guide/contributing.md) |
 | 修改代码 / Work on code | [工程贡献规范 / Engineering guide](../CONTRIBUTING.md) · [技术架构 / Architecture](../TECHNICAL_ARCHITECTURE.md) |

@@ -25,7 +25,7 @@ describe("Otter README localization contract", () => {
         expect(readmeEn).toContain("## License");
 
         expect(readmeZh).toContain("## 功能");
-        expect(readmeZh).toContain("## 快速开始");
+        expect(readmeZh).toContain("## 开始使用");
         expect(readmeZh).toContain("## 参与贡献");
         expect(readmeZh).toContain("## 许可证");
 

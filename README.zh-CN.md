@@ -26,7 +26,7 @@ Otter 是一款免费开源的截图工具，让截图、标注、整理与分�
 
 </details>
 
-[功能](#功能) · [开始使用](#快速开始) · [参与共享](#参与贡献)
+[功能](#功能) · [开始使用](#开始使用) · [参与共享](#参与贡献)
 
 ## 功能
 
@@ -39,7 +39,7 @@ Otter 是一款免费开源的截图工具，让截图、标注、整理与分�
 
 [**查看完整功能与快捷键 →**](./docs/FEATURES.md) · [实时截图](./docs/LIVE_CAPTURE.md) · [图片投射](./docs/QR_PROJECTION.md)
 
-## 快速开始
+## 开始使用
 
 **运行 Otter：** 需要 Windows 10 或 11，以及 WebView2 Runtime。
 从 [Releases](https://github.com/aiaimimi0920/Otter/releases) 下载便携版 ZIP，
