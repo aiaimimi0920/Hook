@@ -1,5 +1,6 @@
 """Protect the product check identity and all parallelized packaging gates."""
 from pathlib import Path
+from unittest.mock import patch
 import re
 import os
 import subprocess
@@ -17,7 +18,20 @@ def job(name):
     return match[1]
 
 
+def aggregate_bash(platform=os.name):
+    # Windows PATH may select the WSL launcher; hosted Windows provides Git Bash.
+    if platform == "nt":
+        return str(Path(os.environ["ProgramFiles"]) / "Git" / "bin" / "bash.exe")
+    return "bash"
+
+
 class BuildGateTests(unittest.TestCase):
+    def test_windows_shell_never_resolves_the_wsl_launcher(self):
+        with patch.dict(os.environ, ProgramFiles="C:/Program Files"):
+            self.assertEqual(aggregate_bash("nt"),
+                             str(Path("C:/Program Files") / "Git" / "bin" / "bash.exe"))
+        self.assertEqual(aggregate_bash("posix"), "bash")
+
     def test_independent_work_has_no_serial_dependency(self):
         for name in ("frontend-serial", "build-windows-candidate", "parallel-race"):
             self.assertIn("needs: change-scope", job(name))
@@ -88,8 +102,8 @@ class BuildGateTests(unittest.TestCase):
             for scope, full, frontend, build, parallel, success in cases:
                 env = dict(os.environ, SCOPE=scope, FULL=full, FRONTEND=frontend,
                            BUILD=build, PARALLEL=parallel,
-                           GITHUB_STEP_SUMMARY=str(Path(directory) / "summary"))
-                result = subprocess.run(["bash", "-e", "-c", script], env=env)
+                           GITHUB_STEP_SUMMARY=(Path(directory) / "summary").as_posix())
+                result = subprocess.run([aggregate_bash(), "-e", "-c", script], env=env)
                 self.assertEqual(result.returncode == 0, success,
                                  (scope, full, frontend, build, parallel))
 
