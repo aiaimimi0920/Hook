@@ -13,6 +13,7 @@ import type { Unit } from "../../src/types/unit";
 import { syncService } from "../../src/services/syncService";
 import { render } from "solid-js/web";
 import { QrProjectionFeatures } from "../../src/components/QrProjectionFeatures";
+import { saveProjectionReceivePolicy } from "../../src/store/projectionReceivePolicyStore";
 
 vi.mock("../../src/services/projectionDeliveryApi", () => ({ deliveryInbox: vi.fn(), deliveryReceipt: vi.fn() }));
 vi.mock("../../src/services/qrProjectionApi", () => ({ requestProjection: vi.fn(), unlinkProjection: vi.fn(), projectionContext: vi.fn() }));
@@ -31,6 +32,7 @@ let receiver: ReturnType<typeof createDeliveryReceiver> | undefined;
 
 beforeEach(() => {
     vi.useFakeTimers(); vi.setSystemTime(1000); setDeliveryBusy(false); closeProjectionDialog();
+    saveProjectionReceivePolicy("confirm");
     graphStore.units.splice(0); document.body.replaceChildren();
     saveDeliverySettings("https://loom.example.test", "confirm");
     vi.mocked(deliveryInbox).mockResolvedValue([invitation()]);
@@ -63,6 +65,7 @@ it("prompts in confirm mode without accepting, then rejects only the selected de
 });
 
 it("auto accepts and sends a display receipt only after rendered image; retries do not duplicate units", async () => {
+    saveProjectionReceivePolicy("auto");
     saveDeliverySettings(deliverySettings().origin, "auto"); receiver = createDeliveryReceiver();
     await vi.advanceTimersByTimeAsync(0);
     expect(attachProjectionReceiver).toHaveBeenCalledTimes(1);
@@ -71,13 +74,15 @@ it("auto accepts and sends a display receipt only after rendered image; retries 
     expect(attachProjectionReceiver).toHaveBeenCalledTimes(1); expect(requestProjection).toHaveBeenCalledTimes(1);
 });
 
-it.each(["workspace", "delete", "dispose"])("does not attach a late acceptance after %s", async (reason) => {
+it.each(["workspace", "delete", "dispose", "policy"])("does not attach a late acceptance after %s", async (reason) => {
+    saveProjectionReceivePolicy("auto");
     saveDeliverySettings(deliverySettings().origin, "auto");
     let resolve!: (value: ReturnType<typeof projectionResponse>) => void;
     vi.mocked(requestProjection).mockImplementation(() => new Promise((done) => { resolve = done; }));
     receiver = createDeliveryReceiver(); await vi.advanceTimersByTimeAsync(0);
     if (reason === "workspace") invalidateProjectionWorkspace();
     else if (reason === "delete") invalidateProjectionUnit("delivery-" + invitation().envelope.projectionId.slice("projection:".length));
+    else if (reason === "policy") saveProjectionReceivePolicy("reject");
     else receiver.dispose();
     resolve(projectionResponse()); await vi.advanceTimersByTimeAsync(0);
     expect(attachProjectionReceiver).not.toHaveBeenCalled(); expect(deliveryReceipt).not.toHaveBeenCalled();
@@ -98,17 +103,18 @@ it("disabled receiver never polls", async () => {
     await vi.advanceTimersByTimeAsync(30_000); expect(deliveryInbox).not.toHaveBeenCalled();
 });
 
-it("Loom confirm overrides legacy Otter auto while Loom whitelist auto overrides local confirm", async () => {
-    saveDeliverySettings(deliverySettings().origin, "auto");
+it("explicit local auto accepts an allowed Loom confirmation invitation", async () => {
+    saveProjectionReceivePolicy("auto");
     vi.mocked(deliveryInbox).mockResolvedValue([{ ...invitation(), receivePolicy: "confirm" }]);
-    receiver = createDeliveryReceiver(); await vi.advanceTimersByTimeAsync(0);
-    expect(requestProjection).not.toHaveBeenCalled(); expect(deliveryPending()).toHaveLength(1);
-    receiver.dispose();
-    saveDeliverySettings(deliverySettings().origin, "confirm");
-    vi.mocked(deliveryInbox).mockResolvedValue([{ ...invitation(), receivePolicy: "auto" }]);
     receiver = createDeliveryReceiver(); await vi.advanceTimersByTimeAsync(0);
     expect(attachProjectionReceiver).toHaveBeenCalledTimes(1);
     expect(deliveryReceipt).toHaveBeenCalledWith(deliverySettings().origin, invitation().envelope.projectionId, "displayed");
+});
+
+it("local manual approval still prompts when Loom offers automatic acceptance", async () => {
+    vi.mocked(deliveryInbox).mockResolvedValue([{ ...invitation(), receivePolicy: "auto" }]);
+    receiver = createDeliveryReceiver(); await vi.advanceTimersByTimeAsync(0);
+    expect(requestProjection).not.toHaveBeenCalled(); expect(deliveryPending()).toHaveLength(1);
 });
 
 it("refuses a visible stale invitation immediately after workspace replacement, before the next poll", async () => {
@@ -121,6 +127,7 @@ it("refuses a visible stale invitation immediately after workspace replacement, 
 });
 
 it("keeps the mounted receiver alive while auto acceptance changes busy state", async () => {
+    saveProjectionReceivePolicy("auto");
     saveDeliverySettings(deliverySettings().origin, "auto");
     vi.mocked(deliveryInbox).mockResolvedValue([]).mockResolvedValueOnce([{ ...invitation(), receivePolicy: "auto" }]);
     const host = document.createElement("div"); document.body.append(host);
@@ -142,4 +149,38 @@ it("does not claim display if durable saving fails", async () => {
     vi.mocked(syncService.persistPendingChanges).mockRejectedValue(new Error("disk unavailable"));
     await expect(receiveDelivery(invitation(), () => true)).rejects.toThrow("disk unavailable");
     expect(attachProjectionReceiver).toHaveBeenCalledTimes(1); expect(deliveryReceipt).not.toHaveBeenCalled();
+});
+
+it("always reject sends a rejection without accepting or adding a sticker", async () => {
+    saveProjectionReceivePolicy("reject");
+    receiver = createDeliveryReceiver(); await vi.advanceTimersByTimeAsync(0);
+    expect(requestProjection).not.toHaveBeenCalled();
+    expect(attachProjectionReceiver).not.toHaveBeenCalled();
+    expect(deliveryReceipt).toHaveBeenCalledWith(deliverySettings().origin, invitation().envelope.projectionId, "rejected");
+    expect(deliveryPending()).toHaveLength(0);
+});
+
+it("changing policy rejects pending pushes promptly but leaves accepted stickers intact", async () => {
+    receiver = createDeliveryReceiver(); await vi.advanceTimersByTimeAsync(0);
+    saveProjectionReceivePolicy("reject"); await vi.advanceTimersByTimeAsync(1000);
+    expect(deliveryReceipt).toHaveBeenCalledWith(deliverySettings().origin, invitation().envelope.projectionId, "rejected");
+    await receiveDelivery({ ...invitation(), accepted: true }, () => true);
+    const existing = graphStore.units[0];
+    vi.mocked(deliveryInbox).mockResolvedValue([{ ...invitation(), accepted: true }]);
+    vi.mocked(attachProjectionReceiver).mockClear(); vi.mocked(deliveryReceipt).mockClear();
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(graphStore.units).toEqual([existing]);
+    expect(attachProjectionReceiver).not.toHaveBeenCalled(); expect(queueProjectionUnlink).not.toHaveBeenCalled();
+    expect(deliveryReceipt).toHaveBeenCalledWith(deliverySettings().origin, invitation().envelope.projectionId, "displayed");
+});
+
+it("a policy change during an accepted sticker's durable save does not unlink it", async () => {
+    saveProjectionReceivePolicy("auto");
+    let saved!: () => void;
+    vi.mocked(syncService.persistPendingChanges).mockImplementationOnce(() => new Promise((resolve) => { saved = resolve; }));
+    receiver = createDeliveryReceiver(); await vi.advanceTimersByTimeAsync(0);
+    expect(attachProjectionReceiver).toHaveBeenCalledTimes(1);
+    saveProjectionReceivePolicy("reject"); saved(); await vi.advanceTimersByTimeAsync(0);
+    expect(graphStore.units).toHaveLength(1); expect(queueProjectionUnlink).not.toHaveBeenCalled();
+    expect(deliveryReceipt).toHaveBeenCalledWith(deliverySettings().origin, invitation().envelope.projectionId, "displayed");
 });

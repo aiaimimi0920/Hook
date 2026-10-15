@@ -400,7 +400,6 @@ export const UnitView: Component<Props> = (props) => {
                 hasDeclarativeSurface={surface.hasDeclarativeSurface()}
                 isShaderArt={surface.isShaderArt()}
                 isMinified={isMinified()}
-                minifiedBakedPreviewSrc={image.minifiedBakedPreviewSrc()}
                 minifiedAnnotationViewport={image.minifiedAnnotationViewport()}
                 imageContentFrame={image.imageContentFrame()}
                 minifiedViewport={image.minifiedViewport()}
@@ -421,7 +420,6 @@ export const UnitView: Component<Props> = (props) => {
                 isMinified={isMinified()}
                 isSelected={props.isSelected}
                 isCleanView={isCleanView()}
-                minifiedBakedPreviewSrc={image.minifiedBakedPreviewSrc()}
                 minifiedAnnotationViewport={image.minifiedAnnotationViewport()}
                 displaySrc={image.displaySrc()}
                 artErrorMessage={surface.artErrorMessage()}

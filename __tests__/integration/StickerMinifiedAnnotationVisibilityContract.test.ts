@@ -9,14 +9,13 @@ const stickerEditingFacadeSource = readFileSync(resolve(process.cwd(), "src/serv
 const stickerFrameGeometrySource = readFileSync(resolve(process.cwd(), "src/services/stickerFrameGeometry.ts"), "utf8");
 
 describe("Otter sticker minified annotation visibility contract", () => {
-    it("uses a current baked bitmap for fast minified display while retaining the live annotation fallback", () => {
+    it("keeps the live full-size layers independent of the synchronization preview cache", () => {
         expect(stickerEditingFacadeSource).toContain("computeMinifiedStickerAnnotationViewport");
         expect(stickerFrameGeometrySource).toContain("export const computeMinifiedStickerAnnotationViewport = (");
         expect(unitImageModelSource).toContain("computeMinifiedStickerAnnotationViewport");
-        expect(unitImageModelSource).toContain("resolveCachedBakedSyncPreview");
-        expect(unitImageModelSource).toContain("bakedSyncPreviewCacheRevision();");
-        expect(unitImageContentSource).toContain('data-sticker-minified-baked-preview="true"');
-        expect(unitImageContentSource).toContain('display: props.minifiedBakedPreviewSrc ? "none" : "block"');
+        expect(unitImageModelSource).not.toContain("syncImageCache");
+        expect(unitImageContentSource).not.toContain("minifiedBakedPreview");
+        expect(unitVisualOverlaysSource).not.toContain("minifiedBakedPreview");
         expect(unitImageModelSource).toContain('unit.type !== "sticker"');
         expect(unitVisualOverlaysSource).toContain('class="sticker-annotation-layer-viewport absolute"');
         expect(unitImageContentSource).toContain('class="sticker-rasterized-annotation-layer-viewport absolute"');

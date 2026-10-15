@@ -171,9 +171,16 @@ describe("UnitView restored minified shader viewport", () => {
         graphStore.setUnitExecConfig({});
         vi.useRealTimers();
         vi.clearAllMocks();
+        vi.unstubAllGlobals();
     });
 
-    it("reacts to a late baked preview without remounting the live annotation tree on restore", async () => {
+    it("ignores late baked previews and keeps live layers visible throughout minify and restore", async () => {
+        const decode = vi.fn(() => Promise.resolve());
+        vi.stubGlobal("Image", class {
+            src = ""; naturalWidth = 320; naturalHeight = 180;
+            decode = decode;
+            removeAttribute() { this.src = ""; }
+        });
         const fullSticker: Unit = {
             ...INPUT_UNIT,
             id: "annotated-sticker",
@@ -253,7 +260,7 @@ describe("UnitView restored minified shader viewport", () => {
         const annotationNode = host.querySelector('[data-testid="sticker-annotation-layer"]');
         const annotationViewport = annotationNode?.parentElement as HTMLDivElement | null;
         expect(annotationNode).toBeInstanceOf(HTMLDivElement);
-        expect(annotationViewport?.style.display).toBe("block");
+        expect(annotationViewport?.style.display).not.toBe("none");
         expect(host.querySelector("[data-sticker-minified-baked-preview]")).toBeNull();
 
         const displaySrcOverride = resolveStickerCompositeBaseImageSrc({
@@ -269,13 +276,14 @@ describe("UnitView restored minified shader viewport", () => {
             src: "data:image/png;base64,BAKED",
         });
 
+        expect(annotationViewport?.style.display).not.toBe("none");
+        expect(host.querySelector("[data-sticker-minified-baked-preview]")).toBeNull();
         await Promise.resolve();
         await Promise.resolve();
-        expect(host.querySelector("[data-sticker-minified-baked-preview]")).toBeInstanceOf(
-            HTMLImageElement,
-        );
+        expect(host.querySelector("[data-sticker-minified-baked-preview]")).toBeNull();
+        expect(decode).not.toHaveBeenCalled();
         expect(host.querySelector('[data-testid="sticker-annotation-layer"]')).toBe(annotationNode);
-        expect(annotationViewport?.style.display).toBe("none");
+        expect(annotationViewport?.style.display).not.toBe("none");
 
         graphStore.setUnits([fullSticker]);
         setCurrentUnit(fullSticker);
@@ -284,7 +292,7 @@ describe("UnitView restored minified shader viewport", () => {
 
         expect(host.querySelector("[data-sticker-minified-baked-preview]")).toBeNull();
         expect(host.querySelector('[data-testid="sticker-annotation-layer"]')).toBe(annotationNode);
-        expect(annotationViewport?.style.display).toBe("block");
+        expect(annotationViewport?.style.display).not.toBe("none");
 
         dispose();
         deleteBakedSyncPreviewCacheEntry(minifiedSticker.id);

@@ -1,4 +1,4 @@
-import { Accessor, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
+import { Accessor, createEffect, createSignal, onCleanup } from "solid-js";
 import { api } from "../services/api";
 import { normalizeImageSourceForDisplay } from "../services/imageSource";
 import {
@@ -7,8 +7,6 @@ import {
     computeMinifiedStickerViewport,
 } from "../services/stickerEditing";
 import { resolveStickerContentFrame } from "../services/stickerEditPropagation";
-import { resolveStickerCompositeBaseImageSrc } from "../services/stickerExport";
-import { bakedSyncPreviewCacheRevision, resolveCachedBakedSyncPreview } from "../services/syncImageCache";
 import { DISABLED_PREFIX } from "../constants";
 import { graphStore } from "../store/graphStore";
 import type { Link, Unit } from "../types/unit";
@@ -35,9 +33,17 @@ export const createUnitImageModel = (options: UnitImageModelOptions) => {
     const [shaderImageIntrinsicSize, setShaderImageIntrinsicSize] = createSignal<{ w: number; h: number } | null>(null);
     const isMinified = () => !!options.unit().data.minified;
     const imageEditState = () => options.unit().data.imageEditState;
-    const imageContentFrame = () => isMinified()
-        ? { x: 0, y: 0, w: options.unit().w, h: options.unit().h }
-        : resolveStickerContentFrame(options.unit());
+    const imageContentFrame = () => {
+        const unit = options.unit();
+        if (!isMinified()) return resolveStickerContentFrame(unit);
+        if (unit.type !== "sticker") return { x: 0, y: 0, w: unit.w, h: unit.h };
+        // Minifying crops the window, not its image coordinate system. Keep crop,
+        // contain margins, flips and propagated content aligned with annotations.
+        const saved = unit.data.savedRect;
+        const full = saved && Number.isFinite(saved.w) && Number.isFinite(saved.h) && saved.w > 0 && saved.h > 0 ? saved : unit;
+        const frame = resolveStickerContentFrame({ ...unit, w: full.w, h: full.h });
+        return { ...frame, x: frame.x - (unit.data.cropOffset?.x ?? 0), y: frame.y - (unit.data.cropOffset?.y ?? 0) };
+    };
     const displaySrc = () => {
         const unit = options.unit();
         let resolvedSrc: string | undefined;
@@ -58,19 +64,6 @@ export const createUnitImageModel = (options: UnitImageModelOptions) => {
     const baseImageSrc = () => options.unit().data.rasterizedAnnotationLayerSrc
         ? normalizeImageSourceForDisplay(options.unit().data.src || displaySrc()) || ""
         : displaySrc();
-    const minifiedBakedPreviewSrc = createMemo(() => {
-        bakedSyncPreviewCacheRevision();
-        const unit = options.unit();
-        if (unit.type !== "sticker" || !unit.data.minified) return undefined;
-        const displaySrcOverride = resolveStickerCompositeBaseImageSrc({
-            unit,
-            units: graphStore.units,
-            links: graphStore.links,
-            capabilities: graphStore.capabilities,
-        });
-        const cached = resolveCachedBakedSyncPreview(unit, displaySrcOverride ?? null);
-        return cached ? normalizeImageSourceForDisplay(cached) || undefined : undefined;
-    });
     const shaderViewportSourceKey = () => options.isShaderArt()
         ? `${options.artId() || ""}|${options.shaderInputSrc()}|${options.shaderReferenceSrc() || ""}`
         : "";
@@ -138,7 +131,6 @@ export const createUnitImageModel = (options: UnitImageModelOptions) => {
             options.unit().data.savedRect,
             options.unit().data.cropOffset,
         ),
-        minifiedBakedPreviewSrc,
         minifiedViewport: () => computeMinifiedStickerViewport(
             { w: options.unit().w, h: options.unit().h },
             options.unit().data.savedRect,

@@ -1,8 +1,9 @@
-import { Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, type Component } from "solid-js";
+import { Match, Show, Switch, createEffect, createMemo, createSignal, createUniqueId, onCleanup, type Component } from "solid-js";
 
 import { BLUR_EFFECT_OVERLAY_FILL, buildMosaicTextureDataUrl } from "../services/stickerEffects";
 import type { StickerPoint } from "../types/stickerEditing";
 import { acquireStickerBlurTexture } from "../services/stickerBlurTexture";
+import { createDecodedImageSource } from "./decodedImageSource";
 
 type StickerEffectOverlayParams = {
     // Bounding box of the brush stroke (already expanded by half the brush
@@ -86,8 +87,13 @@ const BlurPatternDefs: Component<{
     imageH: number;
 }> = (props) => {
     const [texture, setTexture] = createSignal<string | null>(null);
+    const decodedTexture = createDecodedImageSource(texture);
+    const source = createMemo(() => props.imageSrc);
+    const width = createMemo(() => props.imageW);
+    const height = createMemo(() => props.imageH);
+    const radius = createMemo(() => props.blurRadius);
     createEffect(() => {
-        const lease = acquireStickerBlurTexture(props.imageSrc, props.imageW, props.imageH, props.blurRadius);
+        const lease = acquireStickerBlurTexture(source(), width(), height(), radius());
         setTexture(lease.url);
         let active = true;
         void lease.ready.then((url) => { if (active) setTexture(url); });
@@ -95,7 +101,7 @@ const BlurPatternDefs: Component<{
     });
     return (
     <defs>
-        <Show when={!texture()}><filter id={props.filterId} x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+        <Show when={!decodedTexture()}><filter id={props.filterId} x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
             <feGaussianBlur stdDeviation={props.blurRadius} />
         </filter></Show>
         <pattern
@@ -107,13 +113,13 @@ const BlurPatternDefs: Component<{
             height={props.imageH}
         >
             <image
-                href={texture() || props.imageSrc}
+                href={decodedTexture() || props.imageSrc}
                 x={0}
                 y={0}
                 width={props.imageW}
                 height={props.imageH}
-                preserveAspectRatio={texture() ? "none" : "xMidYMid meet"}
-                filter={texture() ? undefined : `url(#${props.filterId})`}
+                preserveAspectRatio={decodedTexture() ? "none" : "xMidYMid meet"}
+                filter={decodedTexture() ? undefined : `url(#${props.filterId})`}
             />
         </pattern>
     </defs>
@@ -134,18 +140,23 @@ const EffectStrokeBrush: Component<{
     idSeed: string;
     draft?: boolean;
 }> = (props) => {
+    // Propagated annotations retain their IDs; SVG references are document-wide.
+    // Scope both committed and draft resources to this mount, not the stored ID.
+    const instanceId = createUniqueId();
     const isMosaic = createMemo(() => props.effectType === "mosaic");
     // Blur must not reveal extra sharp source pixels while the pointer is down.
-    const opacity = createMemo(() => (props.draft && isMosaic() ? 0.95 : 1));
-    const mosaicPatternId = createMemo(() => `${props.idSeed}-mosaic-pattern`);
-    const blurFilterId = createMemo(() => `${props.idSeed}-blur-filter`);
-    const blurPatternId = createMemo(() => `${props.idSeed}-blur-pattern`);
+    const opacity = () => 1;
+    const mosaicPatternId = createMemo(() => `${props.idSeed}-${instanceId}-mosaic-pattern`);
+    const blurFilterId = createMemo(() => `${props.idSeed}-${instanceId}-blur-filter`);
+    const blurPatternId = createMemo(() => `${props.idSeed}-${instanceId}-blur-pattern`);
     // The "strength" slider sets the cell size. Build the full non-repeating
     // mosaic-grid texture once for this stroke; it never samples the image, so
     // there is zero risk of leaking content.
     const mosaicTextureSrc = createMemo(() =>
         isMosaic() ? buildMosaicTextureDataUrl(props.imageW, props.imageH, Math.max(2, Math.round(props.strength || 12))) : null,
     );
+    const decodedMosaic = createDecodedImageSource(mosaicTextureSrc);
+    const decodedBase = createDecodedImageSource(() => isMosaic() ? undefined : props.imageSrc);
     const blurRadius = createMemo(() => Math.max(0.1, props.strength || 8));
 
     return (
@@ -153,7 +164,7 @@ const EffectStrokeBrush: Component<{
             <Match when={isMosaic()}>
                 <g opacity={opacity()}>
                     <Show
-                        when={mosaicTextureSrc()}
+                        when={decodedMosaic()}
                         fallback={
                             <path
                                 d={props.pathData()}
@@ -189,11 +200,11 @@ const EffectStrokeBrush: Component<{
             <Match when={true}>
                 <g opacity={opacity()}>
                     <Show
-                        when={props.imageSrc}
+                        when={decodedBase()}
                         fallback={
                             <path
                                 d={props.pathData()}
-                                stroke={BLUR_EFFECT_OVERLAY_FILL}
+                                stroke="#808a96"
                                 stroke-width={props.brushWidth}
                                 stroke-linecap="round"
                                 stroke-linejoin="round"

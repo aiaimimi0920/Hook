@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createSignal } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import { render } from "solid-js/web";
 import { StickerEffectDraftOverlay, renderStickerEffectOverlay } from "../../src/components/StickerEffectOverlay";
 import { acquireStickerBlurTexture } from "../../src/services/stickerBlurTexture";
 import { buildMosaicTextureDataUrl } from "../../src/services/stickerEffects";
 
 vi.mock("../../src/services/stickerBlurTexture", () => ({ acquireStickerBlurTexture: vi.fn() }));
+// Resource-identity tests keep decoding immediate; delayed/failed loads have their own runtime suite.
+vi.mock("../../src/components/decodedImageSource", () => ({ createDecodedImageSource: (source: () => string) => source }));
 vi.mock("../../src/services/stickerEffects", () => ({
     BLUR_EFFECT_OVERLAY_FILL: "rgba(255,255,255,0.08)", buildMosaicTextureDataUrl: vi.fn(() => "data:mosaic"),
 }));
@@ -14,6 +16,40 @@ vi.mock("../../src/services/stickerEffects", () => ({
 describe("blur draft raster presentation", () => {
     let dispose: (() => void) | undefined;
     afterEach(() => { dispose?.(); dispose = undefined; document.body.innerHTML = ""; vi.clearAllMocks(); });
+
+    it.each(["mosaic", "blur"] as const)("isolates %s definitions across propagated copies and concurrent drafts", (effectType) => {
+        vi.mocked(acquireStickerBlurTexture).mockReturnValue({ url: null, ready: Promise.resolve(null), release: vi.fn() });
+        const [sourceVisible, setSourceVisible] = createSignal(true);
+        const [sourceMounted, setSourceMounted] = createSignal(true);
+        const host = document.createElement("div"); document.body.append(host);
+        const committed = () => renderStickerEffectOverlay({ effectType, points: [{ x: 10, y: 20 }, { x: 90, y: 40 }],
+            brushWidth: 30, strength: 8, imageSrc: "data:source", stickerWidth: 400, stickerHeight: 300,
+            x: -5, y: 5, w: 110, h: 50, maskId: "same-propagated-annotation" });
+        const draft = () => <StickerEffectDraftOverlay effectType={effectType} pathData={() => "M 10 20 L 90 40"}
+            brushWidth={30} strength={8} imageSrc="data:source" stickerWidth={400} stickerHeight={300} />;
+        dispose = render(() => <>
+            <Show when={sourceMounted()}><svg style={{ display: sourceVisible() ? "block" : "none" }}>{committed()}</svg></Show>
+            <svg data-receiver>{committed()}</svg><svg>{draft()}</svg><svg>{draft()}</svg>
+        </>, host);
+        const assertLocalReferences = () => {
+            const ids = [...host.querySelectorAll("[id]")].map((element) => element.id);
+            expect(new Set(ids).size).toBe(ids.length);
+            for (const svg of host.querySelectorAll("svg")) {
+                for (const element of svg.querySelectorAll("[stroke], [filter]")) {
+                    for (const name of ["stroke", "filter"]) {
+                        const reference = /^url\(#(.+)\)$/.exec(element.getAttribute(name) ?? "");
+                        if (reference) expect(document.getElementById(reference[1])?.closest("svg")).toBe(svg);
+                    }
+                }
+            }
+        };
+        assertLocalReferences();
+        const receiverPattern = host.querySelector("[data-receiver] pattern");
+        setSourceVisible(false); assertLocalReferences();
+        setSourceVisible(true); assertLocalReferences();
+        setSourceMounted(false); assertLocalReferences();
+        expect(host.querySelector("[data-receiver] pattern")).toBe(receiverPattern);
+    });
 
     it("updates the path without filtering, reacquiring textures, or building mosaics", async () => {
         const release = vi.fn();

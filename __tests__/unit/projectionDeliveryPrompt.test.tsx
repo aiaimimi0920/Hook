@@ -10,6 +10,7 @@ import { deliveryPending, saveDeliverySettings, setDeliveryBusy, setDeliveryErro
 import { closeProjectionDialog, openProjectionReceiver } from "../../src/store/qrProjectionStore";
 import { projectionResponse } from "../fixtures/qrProjection";
 import { createOverlaySyntheticDispatcher } from "../../src/services/overlaySyntheticDispatch";
+import { saveProjectionReceivePolicy } from "../../src/store/projectionReceivePolicyStore";
 
 vi.mock("../../src/services/api", () => ({ api: { focusOverlayWindow: vi.fn().mockResolvedValue(undefined) } }));
 vi.mock("../../src/services/projectionDeliveryReceiver", () => ({ decideDelivery: vi.fn().mockResolvedValue(undefined) }));
@@ -33,6 +34,7 @@ beforeEach(() => {
         disconnect() { disconnect(); }
     });
     closeProjectionDialog(); setDeliveryBusy(false); setDeliveryError("");
+    saveProjectionReceivePolicy("confirm");
     saveDeliverySettings("https://loom.example.test", "confirm");
     const host = document.createElement("div"); document.body.append(host);
     dispose = render(ProjectionDeliveryPrompt, host);
@@ -123,4 +125,16 @@ it("blocks duplicate actions while busy and keeps failures available for retry",
     setDeliveryBusy(false); setDeliveryError("projection_network_error");
     expect(panel()?.querySelector('[role="alert"]')).not.toBeNull();
     button("接收并显示").click(); expect(decideDelivery).toHaveBeenCalledTimes(1);
+});
+
+it("uses the device-wide strategy for new invitations regardless of Loom's suggested approval", () => {
+    const automatic = { ...invitation("Automatic"), receivePolicy: "auto" as const };
+    const manual = { ...invitation("Needs approval", "-manual"), receivePolicy: "confirm" as const };
+    setDeliveryPending([automatic, manual]);
+    expect(panel()?.textContent).toContain("Automatic");
+    expect(document.querySelector('[aria-label="待处理数量"]')?.textContent).toBe("2");
+    saveProjectionReceivePolicy("auto"); expect(panel()).toBeNull();
+    saveProjectionReceivePolicy("reject"); expect(panel()).toBeNull();
+    saveProjectionReceivePolicy("confirm"); expect(panel()).not.toBeNull();
+    expect(decideDelivery).not.toHaveBeenCalled();
 });

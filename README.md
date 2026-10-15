@@ -48,8 +48,11 @@ links a sticker or formal Art image to another Windows Otter. Choose a shared
 HTTPS Loom with device pairing and no official login, or the existing Loom
 account mode. Receiver layout stays independent. Shared Loom supports online-device
 selection and continuous delivery with receiver confirmation or automatic display.
-Confirmation uses a compact upper-center desktop prompt with accept, reject,
-and defer actions. Manually trusted offline Loom peers also support delivery. Official premium relay
+Confirmation uses a compact bottom-right desktop prompt with accept, reject,
+and defer actions. The receive tab exposes a persistent device-wide policy: automatic
+approval, manual approval (default), or always reject. Policy changes leave existing
+received stickers linked. Server authorization and deny rules still apply.
+Manually trusted offline Loom peers also support delivery. Official premium relay
 remains reserved. Native PC1/PC3 acceptance passed using pinned SSH forwarding.
 
 Self-hosted private-CA HTTPS Loom can use [origin-scoped process trust](docs/SECURITY_BOUNDARIES.md#origin-scoped-loom-https-trust)

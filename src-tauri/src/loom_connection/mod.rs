@@ -3,6 +3,7 @@ mod discovery;
 mod history;
 #[cfg(all(test, feature = "remote-surface"))]
 mod paired_tests;
+pub(crate) mod projection;
 mod protocol;
 mod resume;
 pub(crate) use resume::startup;
@@ -61,6 +62,7 @@ struct Runtime {
     generation: u64,
     view: View,
     receipt: Option<Receipt>,
+    projection: Option<projection::Session>,
     task: Option<tauri::async_runtime::JoinHandle<()>>,
 }
 static OWNER: OnceLock<Mutex<Runtime>> = OnceLock::new();
@@ -76,6 +78,9 @@ fn publish(app: &tauri::AppHandle, generation: u64, view: View) -> bool {
         return false;
     }
     state.view = view;
+    if state.view.phase != "connected" {
+        state.projection = None;
+    }
     let _ = app.emit("loom-connection-state", &state.view);
     true
 }
@@ -98,6 +103,7 @@ fn replace(
         task.abort();
     }
     let previous = state.receipt.take();
+    state.projection = None;
     state.view = view;
     let _ = app.emit("loom-connection-state", &state.view);
     Ok((state.generation, previous))
@@ -244,6 +250,7 @@ pub(crate) fn shutdown() {
         }
         // No network wait on application exit; the server lease expires within 30 seconds.
         state.receipt = None;
+        state.projection = None;
         state.view = View::default();
     }
 }

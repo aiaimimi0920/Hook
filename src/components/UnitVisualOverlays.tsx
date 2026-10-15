@@ -15,7 +15,6 @@ interface UnitVisualOverlaysProps {
     isMinified: boolean;
     isSelected: boolean;
     isCleanView: boolean;
-    minifiedBakedPreviewSrc?: string;
     minifiedAnnotationViewport: ImageViewport;
     displaySrc: string;
     artErrorMessage: string;
@@ -57,7 +56,6 @@ export const UnitVisualOverlays: Component<UnitVisualOverlaysProps> = (props) =>
             <div
                 class="sticker-annotation-layer-viewport absolute"
                 style={{
-                    display: props.minifiedBakedPreviewSrc ? "none" : "block",
                     width: `${props.isMinified ? props.minifiedAnnotationViewport.width : props.unit.w}px`,
                     height: `${props.isMinified ? props.minifiedAnnotationViewport.height : props.unit.h}px`,
                     left: `${props.isMinified ? -props.minifiedAnnotationViewport.offsetX : 0}px`,

@@ -107,4 +107,28 @@ describe("unit image model file fallback", () => {
         await request;
         expect(state.updateUnitData).not.toHaveBeenCalled();
     });
+
+    it("keeps the full crop and flip layout behind a minified window", () => {
+        const unit = createUnit();
+        unit.w = 100; unit.h = 100;
+        unit.data = { ...unit.data, minified: true, savedRect: { x: 0, y: 0, w: 400, h: 200 },
+            cropOffset: { x: 150, y: 50 }, imageEditState: { cropRect: { x: 100, y: 50, w: 200, h: 100 },
+                sourceSize: { w: 800, h: 400 }, flippedX: true, contentEraseStrokes: [] } };
+        const mounted = mountModel(() => unit);
+        expect(mounted.model.imageContentFrame()).toEqual({ x: -150, y: -50, w: 400, h: 200 });
+        expect(mounted.model.croppedImageViewport()).toEqual({ width: 1600, height: 800, offsetX: 200, offsetY: 100 });
+        expect(mounted.model.transform()).toBe("scale(-1, 1)");
+        expect(mounted.model.minifiedAnnotationViewport()).toEqual({ width: 400, height: 200, offsetX: 150, offsetY: 50 });
+        mounted.dispose();
+    });
+
+    it("retains contain margins instead of recentering the image under annotations", () => {
+        const unit = createUnit();
+        unit.w = 100; unit.h = 100;
+        unit.data = { ...unit.data, minified: true, savedRect: { x: 0, y: 0, w: 400, h: 400 }, cropOffset: { x: 150, y: 50 } };
+        const mounted = mountModel(() => unit);
+        expect(mounted.model.imageContentFrame()).toEqual({ x: -150, y: -50, w: 400, h: 400 });
+        expect(mounted.model.croppedImageViewport()).toBeNull();
+        mounted.dispose();
+    });
 });

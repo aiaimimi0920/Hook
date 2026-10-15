@@ -44,7 +44,15 @@ export async function deliveryInbox(origin: string, policy: ReceivePolicy): Prom
     const value = await request(origin, { kind: "inbox", policy });
     const local = parseInbox(value, origin, false);
     if (!object(value) || value.offlinePeers !== true || policy === "disabled") return local;
-    return [...local, ...parseInbox(await request(origin, { kind: "inbox", policy }, true), origin, true)].slice(0, 64);
+    try {
+        const peers = parseInbox(await request(origin, { kind: "inbox", policy }, true), origin, true);
+        return [...local, ...peers].slice(0, 64);
+    } catch {
+        // Offline-peer ingress is optional (including over LAN). Its failure must
+        // not discard authenticated shared-Loom invitations or suppress their approval UI.
+        // Primary inbox failures still propagate above; failed peer data is never accepted.
+        return local;
+    }
 }
 
 function parseInbox(value: unknown, origin: string, offline: boolean): DeliveryInvitation[] {

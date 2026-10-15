@@ -106,11 +106,13 @@ pub(crate) async fn projection_request(
                 envelope.server_origin.clone()
             }
             ProjectionOperation::Context | ProjectionOperation::Create { .. } => {
-                let configured = server_origin.or_else(|| {
-                    crate::loom_connector::read_default_loom_manifest()
-                        .ok()
-                        .map(|manifest| manifest.transport.base_url)
-                });
+                let configured = server_origin
+                    .or(crate::loom_connection::projection::origin()?)
+                    .or_else(|| {
+                        crate::loom_connector::read_default_loom_manifest()
+                            .ok()
+                            .map(|manifest| manifest.transport.base_url)
+                    });
                 protocol::normalize_origin(
                     configured.as_deref().ok_or("projection_loom_unavailable")?,
                 )?
@@ -127,9 +129,12 @@ pub(crate) async fn projection_request(
     }
     // Local context and QR encoding must not wait behind remote device approval.
     let permit = client::request_permit(&origin)?;
-    let authorization = crate::device_session::authorize_projection_request(&app, &origin)
-        .await
-        .map_err(|_| "projection_pairing_required")?;
+    let authorization = match crate::loom_connection::projection::authorization(&origin)? {
+        Some(authorization) => authorization,
+        None => crate::device_session::authorize_projection_request(&app, &origin)
+            .await
+            .map_err(|_| "projection_pairing_required")?,
+    };
     let actor = authorization.device_id.clone();
     let prepare_only = matches!(&operation, ProjectionOperation::PrepareCreate { .. });
     let request_origin = origin.clone();

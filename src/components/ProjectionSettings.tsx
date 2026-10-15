@@ -8,6 +8,7 @@ import { ProjectionIcon, type ProjectionDirection } from "./ProjectionToolbar";
 import { ProjectionEditControls } from "./ProjectionEditControls";
 import { ProjectionTargetToolbar } from "./ProjectionTargetToolbar";
 import { ProjectionSettingsIcon } from "./ProjectionSettingsIcons";
+import { ProjectionReceivePolicyControl } from "./ProjectionReceivePolicyControl";
 import "../styles/projection-settings.css";
 
 export interface ProjectionSettingsFrame { x: number; y: number; w: number; h: number }
@@ -65,6 +66,7 @@ const ProjectionReceiverActions = (props: { unitId: string }) => {
         patchProjection(props.unitId, { ...saved, stopped: false, stopReason: undefined, stopPending: true });
     };
     return <>
+        <ProjectionReceivePolicyControl />
         <div class="projection-settings-row" role="group" aria-label="导入投射">
             <span class="projection-settings-label" title="导入"><ProjectionSettingsIcon kind="import" /></span>
             <For each={["qr", "link"] as const}>{(kind) => <button type="button" aria-label={kind === "qr" ? "导入二维码" : "导入链接"}

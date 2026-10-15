@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { render } from "solid-js/web";
 import { ProjectionEditControls } from "../../src/components/ProjectionEditControls";
 import { graphStore } from "../../src/store/graphStore";
@@ -26,7 +27,9 @@ afterEach(() => {
 function mount(role: "source" | "receiver") {
     graphStore.actions.replaceUnits([projectionUnit(role)]);
     setProjectionEditStatuses(role, { mode: "one_way", revision: 1, pending: false, conflicts: 0 });
-    dispose = render(() => <ProjectionEditControls unitId={role} direction={role === "source" ? "send" : "receive"} />, document.body);
+    dispose = render(() => <section class="sticker-settings-panel"><div class="projection-settings-flow">
+        <ProjectionEditControls unitId={role} direction={role === "source" ? "send" : "receive"} />
+    </div></section>, document.body);
 }
 
 it("cleans up the native issue popup and restores focus on Escape", () => {
@@ -58,6 +61,30 @@ it("keeps receiver direction read-only and offers explicit local/remote conflict
     await vi.waitFor(() => expect(resolveProjectionEditConflict).toHaveBeenCalledWith("receiver", true));
     textButton("采用远端版本").click();
     await vi.waitFor(() => expect(resolveProjectionEditConflict).toHaveBeenCalledWith("receiver", false));
+    expect(setProjectionEditMode).not.toHaveBeenCalled();
+});
+
+it("tracks source direction updates without enabling receiver controls", () => {
+    mount("receiver");
+    const style = document.createElement("style");
+    style.textContent = readFileSync("src/styles/sticker-settings.css", "utf8")
+        + readFileSync("src/styles/projection-settings.css", "utf8");
+    document.body.append(style);
+    const color = (button: HTMLButtonElement) => [...style.sheet!.cssRules]
+        .filter((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule && button.matches(rule.selectorText))
+        .map((rule) => rule.style.color).filter(Boolean).at(-1);
+    const one = document.querySelector<HTMLButtonElement>('[aria-label="单向修改"]')!;
+    const two = document.querySelector<HTMLButtonElement>('[aria-label="双向修改"]')!;
+    for (const mode of ["one_way", "two_way", "one_way"] as const) {
+        setProjectionEditStatuses("receiver", { mode, revision: 5, pending: false, conflicts: 0 });
+        expect(one.getAttribute("aria-pressed")).toBe(String(mode === "one_way"));
+        expect(two.getAttribute("aria-pressed")).toBe(String(mode === "two_way"));
+        expect(one.disabled).toBe(true);
+        expect(two.disabled).toBe(true);
+        expect(color(mode === "one_way" ? one : two)).toBe("var(--theme-signal)");
+        expect(color(mode === "one_way" ? two : one)).toBe("rgb(89, 97, 107)");
+        one.click(); two.click();
+    }
     expect(setProjectionEditMode).not.toHaveBeenCalled();
 });
 

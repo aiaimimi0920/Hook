@@ -23,7 +23,6 @@ interface UnitStickerImageContentProps {
     hasDeclarativeSurface: boolean;
     isShaderArt: boolean;
     isMinified: boolean;
-    minifiedBakedPreviewSrc?: string;
     minifiedAnnotationViewport: ImageViewport;
     imageContentFrame: ImageContentFrame;
     minifiedViewport: ImageViewport;
@@ -89,44 +88,17 @@ const imageStyle = (
     };
 };
 
-/** Owns baked, base, rasterized, and border image layers for one unit. */
+/** Keeps live image layers mounted; minification only clips their full-size frame. */
 export const UnitStickerImageContent: Component<UnitStickerImageContentProps> = (props) => {
     const liveGpuUnitId = () => props.unit.id;
     const liveGpuDisabled = () => props.isMinified || Boolean(props.croppedImageViewport)
         || props.cornerRadius > 0 || Boolean(props.unit.data.rasterizedAnnotationLayerSrc);
     return (
     <>
-        <Show when={!props.hasDeclarativeSurface && props.minifiedBakedPreviewSrc} keyed>
-            {(src) => (
-                <div
-                    class="sticker-minified-baked-preview-viewport absolute"
-                    style={{
-                        width: `${props.minifiedAnnotationViewport.width}px`,
-                        height: `${props.minifiedAnnotationViewport.height}px`,
-                        left: "0",
-                        top: "0",
-                        transform: `translate3d(${-props.minifiedAnnotationViewport.offsetX}px, ${-props.minifiedAnnotationViewport.offsetY}px, 0)`,
-                        "pointer-events": "none",
-                        "z-index": 10,
-                        contain: "layout paint style",
-                    }}
-                >
-                    <img
-                        class="sticker-minified-baked-preview pointer-events-none absolute inset-0"
-                        data-sticker-minified-baked-preview="true"
-                        src={src}
-                        draggable={false}
-                        style={{ width: "100%", height: "100%", "object-fit": "fill", "max-width": "100%", "max-height": "100%" }}
-                    />
-                </div>
-            )}
-        </Show>
-
         <Show when={!props.hasDeclarativeSurface && !props.isShaderArt}>
             <div
                 class="sticker-image-content-frame"
                 style={{
-                    display: props.minifiedBakedPreviewSrc ? "none" : "block",
                     position: "absolute",
                     left: `${props.imageContentFrame.x}px`,
                     top: `${props.imageContentFrame.y}px`,
@@ -148,7 +120,7 @@ export const UnitStickerImageContent: Component<UnitStickerImageContentProps> = 
                     onLoad={(event) => props.onBaseImageLoad(event)}
                     onError={() => props.onImageError()}
                     style={imageStyle(
-                        props.isMinified,
+                        props.isMinified && props.unit.type !== "sticker",
                         props.minifiedViewport,
                         props.croppedImageViewport,
                         props.transform,
@@ -162,7 +134,6 @@ export const UnitStickerImageContent: Component<UnitStickerImageContentProps> = 
                 <div
                     class="sticker-rasterized-annotation-layer-viewport absolute"
                     style={{
-                        display: props.minifiedBakedPreviewSrc ? "none" : "block",
                         width: `${props.isMinified ? props.minifiedAnnotationViewport.width : props.unit.w}px`,
                         height: `${props.isMinified ? props.minifiedAnnotationViewport.height : props.unit.h}px`,
                         left: `${props.isMinified ? -props.minifiedAnnotationViewport.offsetX : 0}px`,
@@ -185,7 +156,6 @@ export const UnitStickerImageContent: Component<UnitStickerImageContentProps> = 
             <div
                 class="pointer-events-none absolute inset-0 z-[12] box-border"
                 style={{
-                    display: props.minifiedBakedPreviewSrc ? "none" : "block",
                     border: `${props.imageBorderWidth}px solid ${props.imageBorderColor}`,
                     "border-radius": `${props.cornerRadius}px`,
                 }}

@@ -127,10 +127,14 @@ inside one valid window creates a window-relative region. A drag not fully
 contained by one valid window creates a display-region source. The settings dialog remains implemented, but
 its tray entry is temporarily hidden.
 
-Device delivery confirmation uses an upper-center desktop prompt with accept,
+Device delivery confirmation uses a bottom-right desktop prompt with accept,
 reject and defer actions. Deferred invitations remain available in the receiver
 panel; polling does not repeatedly reopen the same deferred prompt. Native hit
 rectangles and direct synthetic input handling keep the prompt interactive.
+The receive tab offers a persistent device-wide policy: automatic approval,
+manual approval (default), or always reject. All sticker panels share the setting;
+existing received stickers remain linked. Server authorization and deny rules are
+not bypassed by local automatic approval.
 
 ## 2. Frontend shortcuts
 

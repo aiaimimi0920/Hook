@@ -1,17 +1,18 @@
 .projection-delivery-prompt-host {
     position: fixed;
+    box-sizing: border-box;
     inset: 0;
     z-index: 2147483645;
     display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding: clamp(16px, 8vh, 80px) 16px 16px;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 16px;
     pointer-events: none;
 }
 .projection-delivery-prompt {
     box-sizing: border-box;
     width: min(420px, 100%);
-    max-height: 80vh;
+    max-height: min(480px, calc(100dvh - 32px));
     overflow: auto;
     pointer-events: auto;
     color: var(--theme-text);

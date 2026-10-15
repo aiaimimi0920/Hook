@@ -6,21 +6,24 @@ import { attachProjectionReceiver } from "./qrProjectionSession";
 import { onProjectionUnitRemoved, projectionWorkspaceGeneration } from "./qrProjectionLifecycle";
 import { queueProjectionUnlink } from "./qrProjectionCleanup";
 import { syncService } from "./syncService";
+import { projectionReceivePolicy, projectionReceivePolicyRevision } from "../store/projectionReceivePolicyStore";
 
 const unitId = (invitation: DeliveryInvitation) => "delivery-" + invitation.envelope.projectionId.slice("projection:".length);
 let receiverLifetime = 0;
 const queueDeliveryUnlink = (invitation: DeliveryInvitation) => queueProjectionUnlink(invitation.envelope, ...(invitation.offlineTransport ? [invitation.offlineTransport] as const : [] as const));
 
-export async function receiveDelivery(invitation: DeliveryInvitation, active: () => boolean): Promise<void> {
+export async function receiveDelivery(invitation: DeliveryInvitation, active: () => boolean, consentCurrent: () => boolean = () => true): Promise<void> {
     const id = unitId(invitation);
     let removed = false;
     const lifetime = receiverLifetime;
+    let attached = invitation.accepted;
     const stopListening = onProjectionUnitRemoved((removedId) => { if (removedId === id) removed = true; });
-    const valid = () => active() && !removed && receiverLifetime === lifetime;
+    const valid = () => active() && !removed && receiverLifetime === lifetime && (attached || consentCurrent());
     try {
         const previous = graphStore.units.find((unit) => unit.id === id);
         if (previous && (previous.data.qrProjection?.envelope.projectionId !== invitation.envelope.projectionId
             || previous.data.qrProjection.envelope.serverOrigin !== invitation.envelope.serverOrigin)) throw new Error("projection_invalid_response");
+        if (previous) attached = true;
         if (previous?.data.qrProjection?.stopped || previous?.data.qrProjection?.stopPending) {
             queueDeliveryUnlink(invitation); return;
         }
@@ -33,6 +36,7 @@ export async function receiveDelivery(invitation: DeliveryInvitation, active: ()
             if (!valid()) { queueDeliveryUnlink(invitation); return; }
             // A deterministic unit ID lets a lost acceptance response recover without duplicate stickers.
             attachProjectionReceiver(id, response);
+            attached = true; // Later policy changes govern new requests, not this accepted sticker.
         }
         await syncService.persistPendingChanges();
         if (!valid()) { queueDeliveryUnlink(invitation); return; }
@@ -64,15 +68,19 @@ export async function decideDelivery(invitation: DeliveryInvitation, accept: boo
     if (deliveryBusy()) return;
     const settings = deliverySettings();
     const generation = projectionWorkspaceGeneration();
+    const policyRevision = projectionReceivePolicyRevision();
     // The visible inbox may still belong to the previous workspace until the next poll.
     if (deliveryPendingGeneration() !== generation) {
         setDeliveryPending([]); setDeliveryError("projection_workspace_changed"); return;
     }
-    const valid = () => settings === deliverySettings() && generation === projectionWorkspaceGeneration();
+    const active = () => settings === deliverySettings() && generation === projectionWorkspaceGeneration();
+    const consentCurrent = () => policyRevision === projectionReceivePolicyRevision();
+    const valid = () => active() && consentCurrent();
     setDeliveryBusy(true); setDeliveryError("");
     try {
         if (settings.policy === "disabled" || settings.origin !== (invitation.offlineTransport?.origin ?? invitation.envelope.serverOrigin)) return;
-        if (accept) await receiveDelivery(invitation, valid);
+        if (accept && !invitation.accepted && projectionReceivePolicy() === "reject") return;
+        if (accept) await receiveDelivery(invitation, active, consentCurrent);
         else await deliveryReceipt(settings.origin, invitation.envelope.projectionId, "rejected", ...(invitation.offlineTransport ? [invitation.offlineTransport] as const : [] as const));
         if (valid()) setDeliveryPending((items) => items.filter((item) => item.envelope.projectionId !== invitation.envelope.projectionId));
     } catch (reason) { if (valid()) setDeliveryError(reason instanceof Error ? reason.message : String(reason)); }
@@ -86,26 +94,38 @@ export function createDeliveryReceiver() {
     let failures = 0;
     let lastAttempt = "";
     let lastSettings = deliverySettings();
+    let lastPolicyRevision = projectionReceivePolicyRevision();
     let generation = projectionWorkspaceGeneration();
     const tick = async () => {
         const settings = deliverySettings();
+        const policyRevision = projectionReceivePolicyRevision();
+        if (policyRevision !== lastPolicyRevision) { lastPolicyRevision = policyRevision; nextAt = 0; }
         if (settings !== lastSettings) { lastSettings = settings; generation = projectionWorkspaceGeneration(); nextAt = 0; }
         if (disposed || polling || deliveryBusy() || settings.policy === "disabled" || Date.now() < nextAt) return;
         if (generation !== projectionWorkspaceGeneration()) {
             setDeliveryPending([]); setDeliveryError("projection_workspace_changed"); return;
         }
-        const valid = () => !disposed && settings === deliverySettings() && generation === projectionWorkspaceGeneration();
+        const active = () => !disposed && settings === deliverySettings() && generation === projectionWorkspaceGeneration();
+        const consentCurrent = () => policyRevision === projectionReceivePolicyRevision();
+        const valid = () => active() && consentCurrent();
         polling = true;
         try {
             const items = await deliveryInbox(settings.origin, settings.policy);
             if (!valid()) return;
             setDeliveryPending(items); setDeliveryError(""); failures = 0;
-            const candidates = items.filter((item) => item.accepted || (item.receivePolicy ?? settings.policy) === "auto");
+            // Loom still enforces authorization/deny rules. Local consent decides whether
+            // an allowed NEW push needs a person, is accepted automatically, or is rejected.
+            const candidates = items.filter((item) => item.accepted || projectionReceivePolicy() !== "confirm");
             const automatic = candidates[(candidates.findIndex((item) => item.envelope.projectionId === lastAttempt) + 1) % candidates.length];
             if (automatic) {
                 lastAttempt = automatic.envelope.projectionId;
                 setDeliveryBusy(true);
-                try { await receiveDelivery(automatic, valid); }
+                try {
+                    if (!automatic.accepted && projectionReceivePolicy() === "reject") {
+                        await deliveryReceipt(settings.origin, automatic.envelope.projectionId, "rejected", ...(automatic.offlineTransport ? [automatic.offlineTransport] as const : [] as const));
+                        if (valid()) setDeliveryPending((pending) => pending.filter((item) => item.envelope.projectionId !== automatic.envelope.projectionId));
+                    } else await receiveDelivery(automatic, active, consentCurrent);
+                }
                 finally { setDeliveryBusy(false); }
             }
         } catch (reason) {

@@ -152,9 +152,11 @@ const renderEffectAnnotation = (
                 maskId: `sticker-effect-mask-${effect.id}`,
                 effectType: effect.type,
                 strength: sanitizeEffectStrength(effect.strength || 8, 8),
-                imageSrc: props.imageSrc,
-                stickerWidth: sanitizeCanvasDimension(props.stickerWidth),
-                stickerHeight: sanitizeCanvasDimension(props.stickerHeight),
+                // Track presentation inputs inside the mounted brush, not in
+                // this JSX factory: window-only updates must not recreate it.
+                get imageSrc() { return props.imageSrc; },
+                get stickerWidth() { return sanitizeCanvasDimension(props.stickerWidth); },
+                get stickerHeight() { return sanitizeCanvasDimension(props.stickerHeight); },
             })}
         </g>
     );

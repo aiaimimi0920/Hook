@@ -9,6 +9,7 @@ import { syncService } from "../services/syncService";
 import { addOrUpdateRect, removeRect } from "../services/uiRegistry";
 import { deliveryBusy, deliveryError, deliveryPending, deliverySettings } from "../store/projectionDeliveryStore";
 import { projectionDialog } from "../store/qrProjectionStore";
+import { projectionReceivePolicy } from "../store/projectionReceivePolicyStore";
 import "./ProjectionDeliveryPrompt.css";
 
 const invitationKey = (item: DeliveryInvitation) => JSON.stringify([
@@ -30,7 +31,7 @@ export const ProjectionDeliveryPrompt = () => {
             return retained.size === previous.size ? previous : retained;
         });
     });
-    const candidates = createMemo(() => deliverySettings().policy !== "confirm" ? [] : deliveryPending()
+    const candidates = createMemo(() => deliverySettings().policy === "disabled" || projectionReceivePolicy() !== "confirm" ? [] : deliveryPending()
         .filter((item) => !item.accepted && !dismissed().has(invitationKey(item))));
     const current = createMemo(() => candidates()[0]);
     return <Show when={!projectionDialog() && current() && invitationKey(current()!)} keyed>{(key) =>

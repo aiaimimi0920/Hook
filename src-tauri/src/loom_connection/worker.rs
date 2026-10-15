@@ -90,6 +90,7 @@ pub(super) async fn run(
     let mut session = session.ok_or_else(|| "Loom 设备认证失败".to_string())?;
     let mut recorded = false;
     let mut lease_deadline = u64::MAX;
+    let mut projection_origin = None;
     loop {
         if protocol::now() >= lease_deadline {
             return Err("Loom 连接已过期".into());
@@ -139,6 +140,20 @@ pub(super) async fn run(
             )?;
             recorded = true;
         }
+        let endpoint = super::projection::resolve_origin(
+            app,
+            origin,
+            &active_info,
+            projection_origin.as_deref(),
+        )
+        .await?;
+        projection_origin = Some(endpoint.clone());
+        super::projection::install(
+            generation,
+            endpoint,
+            session.0.clone(),
+            session.1.min(lease_deadline),
+        )?;
         if !publish(
             app,
             generation,
