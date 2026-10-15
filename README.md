@@ -1,28 +1,82 @@
-# Otter
+<p align="center"><img src="./src-tauri/icons/otter-icon.svg" width="80" height="80" alt="Otter capture icon"></p>
+<h1 align="center">Otter</h1>
+<p align="center"><strong>Capture. Pin. Create.</strong><br>A Windows desktop workspace for screenshots, stickers and visual workflows.</p>
+<p align="center">
+  <a href="https://github.com/aiaimimi0920/Otter/releases">Download</a> ·
+  <a href="#get-started">Get started</a> ·
+  <a href="./docs/README.md">Documentation</a> ·
+  <a href="https://github.com/aiaimimi0920/Otter/issues">Feedback</a>
+</p>
+<p align="center">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-36564f?style=flat-square" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/platform-Windows_10_%2F_11-36564f?style=flat-square" alt="Windows 10 / 11">
+  <a href="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml"><img src="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml/badge.svg" alt="Build Otter EXE"></a>
+</p>
+<p align="center">English · <a href="./README.zh-CN.md">简体中文</a></p>
+
+Otter is a free, open-source desktop tool maintained by **yamiyu**. Capture a
+region, keep it on your desktop, and annotate or organize it in a persistent
+sticker workspace. Connect an authenticated Loom to use installed OCR,
+translation and Art capabilities. Local capture and editing work without Loom.
+
+<details open>
+<summary>A desktop workspace · Show / hide demo</summary>
 
 <p align="center">
-  <a href="README.md"><strong>English</strong></a>
-  ·
-  <a href="README.zh-CN.md"><strong>简体中文</strong></a>
+  <img src="./docs/assets/hook-home-demo.gif" width="860" alt="Otter's existing demo: capture, sticker and workflow sample cards on the desktop, with a sticker context menu."><br>
+  <sub>Repository demo with sample cards · Recorded under the former Hook name; the current interface may differ.</sub>
 </p>
 
-<p align="center">
-  Windows-first desktop capture, sticker editing, and visual workflow workspace.
-</p>
+</details>
 
-<p align="center">
-  Maintained by <strong>yamiyu</strong>
-</p>
+[Features](#features) · [Get started](#get-started) · [Development](#development) · [Contributing](#contributing)
 
-<p align="center">
-  <a href="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml"><img src="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml/badge.svg" alt="Build Otter EXE" /></a>
-  <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows" />
-  <img src="https://img.shields.io/badge/Tauri-v2-24C8DB" alt="Tauri v2" />
-  <img src="https://img.shields.io/badge/SolidJS-TypeScript-2C4F7C" alt="SolidJS TypeScript" />
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-F4EA2A" alt="MIT License" /></a>
-</p>
+## Features
 
-## Why Otter
+- **Capture what you need.** Region and window screenshots, long captures, live captures and a screen color picker.
+- **Keep it on your desktop.** Persistent stickers, a focused canvas, groups, a reference library and history.
+- **Make the image yours.** Crop, erase, rotate and annotate with text, arrows, shapes, brushes, blur and mosaic; undo and redo your edits.
+- **Work with live content.** Capture a program region into a live sticker; supported source windows allow interaction. Compatibility and resource limits apply.
+- **Add local capabilities.** OCR, translation and Art workflows through installed, enabled and authorized Loom capabilities.
+- **Project to another device.** Image projection and LiveRelay through paired Loom connections, with receiver controls and server authorization.
+
+[**Explore capabilities and shortcuts →**](./docs/FEATURES.md) · [Live capture](./docs/LIVE_CAPTURE.md) · [Image projection](./docs/QR_PROJECTION.md)
+
+## Get started
+
+**To use Otter:** you need Windows 10 or 11 and the WebView2 Runtime. Download the
+portable ZIP from [Releases](https://github.com/aiaimimi0920/Otter/releases),
+extract it, and run the executable included in that package.
+
+| Start here | What you need to do |
+| --- | --- |
+| [Download a release](https://github.com/aiaimimi0920/Otter/releases) | Choose the portable ZIP, not GitHub's source-code archive. An optional matching `.zip.sha256` file lets you verify the download. |
+| Capture and edit locally | Launch the app and press `Ctrl+1` to capture a region. Loom is not required for local capture and editing. |
+| Use OCR or translation | Start Loom, install and enable the corresponding capabilities, and authorize Otter's connection. Then select an image sticker. |
+| [Build from source](#development) | Use Node.js 22+ and Rust stable with the MSVC toolchain on Windows. |
+
+1. Press **`Ctrl+1`** for a region screenshot, **`Ctrl+2`** for live capture, or **`Ctrl+3`** for a long capture.
+2. Select a sticker and press **`Ctrl+E`** to toggle its editing toolbar.
+3. With the required Loom capabilities available, use **`Ctrl+4`** for OCR and **`Ctrl+5`** for translation; **`Alt+4` / `Alt+5`** toggle their results.
+
+**Package names:** Hook has been renamed to Otter. Current-source builds use
+`otter.exe`; historical releases such as **v0.2.33** still contain `hook.exe` and
+retain their original asset names. Follow the package's own release notes.
+This README describes current source; a published package may not include every
+capability below. See [rename compatibility](./docs/RENAMING.md).
+
+**Signing and compatibility:** treat portable downloads as unsigned unless the
+release explicitly includes an approved signed installer. UAC secure-desktop
+capture and overlays are unsupported. Live capture compatibility depends on the
+source program; no guaranteed frame rate or universal background-input support
+is claimed. [Security boundaries](./docs/SECURITY_BOUNDARIES.md) · [Release packages](#release-packages)
+
+## Capability details
+
+<details>
+<summary>Connections, projection and detailed capability notes</summary>
+
+### Why Otter
 
 Native Otter automatically discovers and connects to authenticated local Loom by
 default. Set `HOOK_ENABLE_LOOM_HOOK=0` to disable integration. Browser preview stays local: it does
@@ -86,9 +140,9 @@ editing, source-controlled direction, durable retries and explicit conflict choi
 The base image stays fixed during an editing session; account-mode v2 and unsupported
 annotation effects do not expose this editing capability.
 
-## Core capabilities
+### Core capabilities
 
-### Cross-device LiveRelay
+#### Cross-device LiveRelay
 
 The Live capture Unit's **实时投射** panel publishes to the paired default Loom.
 On the receiver, open a Surface-capable Art Unit's parameter panel, refresh the
@@ -106,7 +160,7 @@ The viewer also exposes [bounded receiver diagnostics](docs/LIVE_RELAY_DIAGNOSTI
 for source/epoch/frame and decoded-submitted stages, without pixels or private errors.
 Actual executable/process SHA binding is external; these counters are not display FPS.
 
-### Capture
+#### Capture
 
 - region capture through `Ctrl+1`;
 - hovered-window targeting and double-click window capture;
@@ -160,7 +214,7 @@ Actual executable/process SHA binding is external; these counters are not displa
 - file-backed capture payloads to avoid unnecessary large Base64 transfers;
 - native screen color picking.
 
-### Sticker workspace
+#### Sticker workspace
 
 The sticker context menu's **剪贴板** submenu displays Windows clipboard history
 (images and plain text only), refreshed by system clipboard events. Select an image
@@ -184,7 +238,7 @@ the clipboard list supports wheel scrolling and a draggable scrollbar.
 - fast minified/full-view switching through cached composite previews;
 - native Shift-drag file export to Explorer.
 
-### Workflow and local integrations
+#### Workflow and local integrations
 
 - node canvas, links, grouped parameters, and shader previews;
 - Loom capability discovery and Art execution/delivery;
@@ -221,7 +275,21 @@ See [`docs/FEATURES.md`](docs/FEATURES.md) for the current shortcut and manual
 regression matrix. The implementation remains the source of truth when a
 document and the code disagree.
 
-## Requirements
+</details>
+
+## Development
+
+Tauri v2 · SolidJS · TypeScript · Rust
+
+```powershell
+npm install
+npm run dev:tauri
+```
+
+<details>
+<summary>Requirements, checks, native acceptance and local builds</summary>
+
+### Requirements
 
 - Windows 10 or Windows 11;
 - WebView2 Runtime;
@@ -232,7 +300,7 @@ HDR capture is available only when the selected Windows 11 display reports HDR
 support. Unsupported or SDR-only cases fall back automatically. See
 [`docs/HDR_CAPTURE.md`](docs/HDR_CAPTURE.md).
 
-## Development
+### Development verification
 
 Install dependencies and start the Tauri development application:
 
@@ -361,7 +429,14 @@ Development rules and module ownership are documented in
 [`CONTRIBUTING.md`](CONTRIBUTING.md). The current runtime structure is documented
 in [`TECHNICAL_ARCHITECTURE.md`](TECHNICAL_ARCHITECTURE.md).
 
+</details>
+
 ## Release packages
+
+<details>
+<summary>Portable packages, signing status and local data identity</summary>
+
+### Package formats
 
 Hook has been renamed to **Otter**. The instructions below describe builds from
 the current source. Previously published packages, including Hook v0.2.33, keep
@@ -395,7 +470,7 @@ in [`docs/release-provenance.md`](docs/release-provenance.md); dependency
 inventory and vulnerability response are in
 [`docs/DEPENDENCY_SECURITY.md`](docs/DEPENDENCY_SECURITY.md).
 
-## Code signing status
+### Code signing status
 
 Free code signing provided by [SignPath.io](https://signpath.io/), certificate
 by [SignPath Foundation](https://signpath.org/), applies only after the Otter
@@ -409,12 +484,14 @@ explicitly includes an approved signed installer.
 - [Governance and Signing Roles](GOVERNANCE.md)
 - [Third-Party Notices](THIRD_PARTY_NOTICES.md)
 
-## Local data identity
+### Local data identity
 
 The public Tauri bundle identifier and the only automatic local-data identity is
 `com.yamiyu.hook`. Development and test automation can select an isolated root
 explicitly with `OTTER_APPDATA_DIR` (`HOOK_APPDATA_DIR` remains a fallback);
 Otter does not scan or migrate obsolete roots.
+
+</details>
 
 ## Contributing
 

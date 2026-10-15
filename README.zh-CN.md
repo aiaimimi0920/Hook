@@ -1,32 +1,81 @@
-# Otter
+<p align="center"><img src="./src-tauri/icons/otter-icon.svg" width="80" height="80" alt="Otter 截图图标"></p>
+<h1 align="center">Otter</h1>
+<p align="center"><strong>截图，贴在桌面，继续创作。</strong><br>面向 Windows 的截图、贴图编辑与视觉工作流工具。</p>
+<p align="center">
+  <a href="https://github.com/aiaimimi0920/Otter/releases">下载</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="./docs/README.md">文档</a> ·
+  <a href="https://github.com/aiaimimi0920/Otter/issues">反馈</a>
+</p>
+<p align="center">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-36564f?style=flat-square" alt="MIT 许可证"></a>
+  <img src="https://img.shields.io/badge/platform-Windows_10_%2F_11-36564f?style=flat-square" alt="Windows 10 / 11">
+  <a href="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml"><img src="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml/badge.svg" alt="Build Otter EXE"></a>
+</p>
+<p align="center"><a href="./README.md">English</a> · 简体中文</p>
+
+Otter 是由 **yamiyu** 维护的免费开源桌面工具。截取画面，将它留在桌面，继续标注、
+编辑和整理；连接经过认证的 Loom，还能使用已安装的 OCR、翻译和 Art 能力。
+没有 Loom，也可以使用本地截图和编辑。
+
+<details open>
+<summary>桌面工作区 · 展开 / 收起演示</summary>
+
+<p align="center">
+  <img src="./docs/assets/hook-home-demo.gif" width="860" alt="Otter 仓库现有演示：桌面上的截图、贴图和工作流示例卡片，以及贴图右键菜单。"><br>
+  <sub>仓库示例卡片演示 · 录制时使用旧名称 Hook，当前界面可能有所不同。</sub>
+</p>
+
+</details>
+
+[功能](#功能) · [快速开始](#快速开始) · [开发](#开发) · [参与贡献](#参与贡献)
+
+## 功能
+
+- **截取所需画面。** 区域截图、窗口截图、长截图、实时截图，以及屏幕取色。
+- **把参考留在桌面。** 持久化贴图、专注画布、分组、参考图库与历史记录。
+- **继续编辑和表达。** 裁剪、擦除、旋转，添加文字、箭头、图形、笔触、模糊和马赛克，支持撤销与重做。
+- **使用实时内容。** 将程序区域变成实时贴图，并与兼容的源窗口交互；适用程序兼容性和资源限制。
+- **接入本地能力。** 通过已安装、启用并授权的 Loom 能力使用 OCR、翻译和 Art 工作流。
+- **投射到另一台设备。** 通过已配对的 Loom 连接使用图片投射和 LiveRelay，保留接收端控制与服务端授权。
+
+[**查看完整功能与快捷键 →**](./docs/FEATURES.md) · [实时截图](./docs/LIVE_CAPTURE.md) · [图片投射](./docs/QR_PROJECTION.md)
+
+## 快速开始
+
+**运行 Otter：** 需要 Windows 10 或 11，以及 WebView2 Runtime。
+从 [Releases](https://github.com/aiaimimi0920/Otter/releases) 下载便携版 ZIP，
+解压后运行该包内实际包含的程序。
+
+| 从这里开始 | 操作方式 |
+| --- | --- |
+| [下载发布版](https://github.com/aiaimimi0920/Otter/releases) | 选择便携版 ZIP，而非 GitHub 自动生成的源码压缩包；可选下载配套 `.zip.sha256` 校验完整性。 |
+| 本地截图和编辑 | 启动程序，按 `Ctrl+1` 框选截图；本地截图和编辑不需要 Loom。 |
+| OCR 和翻译 | 启动 Loom，安装并启用对应能力，完成 Otter 连接授权后选中图片贴图。 |
+| [从源码构建](#开发) | 在 Windows 上准备 Node.js 22+、Rust stable 和 MSVC 工具链。 |
+
+1. 按 **`Ctrl+1`** 区域截图、**`Ctrl+2`** 实时截图，或 **`Ctrl+3`** 长截图。
+2. 选中贴图，按 **`Ctrl+E`** 显示或隐藏编辑工具栏。
+3. 对应 Loom 能力可用时，按 **`Ctrl+4`** 识别、**`Ctrl+5`** 翻译；**`Alt+4` / `Alt+5`** 切换结果显示。
+
+**包名说明：** Hook 已更名为 Otter。当前源码构建使用 `otter.exe`；
+**v0.2.33** 等历史发布包仍包含 `hook.exe`，附件名称保持不变，请按该版本说明运行。
+本页介绍当前源码，已发布的旧版本可能尚未包含下文所有能力。详见[更名说明](./docs/RENAMING.md)。
+
+**签名与兼容性：** 除非 Release 明确包含经过批准的签名安装版，否则请将便携包视为未签名产物。
+不支持 UAC 安全桌面截图或覆盖贴图。实时截图兼容性取决于源程序，不保证实际帧率或任意程序的后台输入。
+[安全边界](./docs/SECURITY_BOUNDARIES.md) · [发布包](#发布包)
+
+## 能力详解
+
+<details>
+<summary>连接、投射与完整能力说明</summary>
 
 全局 Loom 连接会记住最后成功连接的目标：未手动断连就退出 Otter，下次启动自动尝试重连；
 手动断连会取消自动重连但保留历史记录，仍须通过设备认证与服务端审批。
 详见[全局 Loom 连接](docs/LOOM_CONNECTION.md)。
 
-<p align="center">
-  <a href="README.md"><strong>English</strong></a>
-  ·
-  <a href="README.zh-CN.md"><strong>简体中文</strong></a>
-</p>
-
-<p align="center">
-  面向 Windows 的桌面截图、贴图编辑与视觉工作流工具。
-</p>
-
-<p align="center">
-  维护方：<strong>yamiyu</strong>
-</p>
-
-<p align="center">
-  <a href="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml"><img src="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml/badge.svg" alt="Build Otter EXE" /></a>
-  <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows" />
-  <img src="https://img.shields.io/badge/Tauri-v2-24C8DB" alt="Tauri v2" />
-  <img src="https://img.shields.io/badge/SolidJS-TypeScript-2C4F7C" alt="SolidJS TypeScript" />
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-F4EA2A" alt="MIT License" /></a>
-</p>
-
-## 为什么是 Otter
+### 为什么是 Otter
 
 原生桌面 Otter 默认自动发现并连接经过认证的本机 Loom；设置 `HOOK_ENABLE_LOOM_HOOK=0` 可关闭集成。
 纯浏览器预览仅保留本地功能，不匿名连接 Loom 或执行真实 Art。
@@ -82,9 +131,9 @@ Otter 将透明桌面截图层和可持续编辑的贴图工作区放在同一�
 提供持久重试与显式冲突选择。编辑会话中的底图固定；账号模式 v2 和不支持的标注
 效果不开放此编辑能力。
 
-## 核心能力
+### 核心能力
 
-### 截图
+#### 截图
 
 - `Ctrl+1` 区域截图；
 - 鼠标悬停窗口识别与双击窗口截图；
@@ -124,7 +173,7 @@ Otter 将透明桌面截图层和可持续编辑的贴图工作区放在同一�
 - 文件型截图载荷，避免不必要的大型 Base64 传输；
 - 原生屏幕取色。
 
-### 贴图工作区
+#### 贴图工作区
 
 贴图右键菜单底部的“剪贴板”悬浮展开系统剪贴板历史，仅展示图片和纯文本，
 通过系统变更事件更新。选择图片新建贴图，选择文字在当前贴图中心生成可撤销的文本标注。
@@ -147,7 +196,7 @@ Otter 将透明桌面截图层和可持续编辑的贴图工作区放在同一�
 当前快捷键和人工回归矩阵见 [`docs/FEATURES.md`](docs/FEATURES.md)。如果文档和
 代码不一致，以当前实现为准。
 
-### 工作流与本地能力
+#### 工作流与本地能力
 
 - 节点画布、连线、分组参数和 Shader 预览；
 - Loom 能力发现、Art 执行与结果回传；
@@ -166,7 +215,21 @@ Otter 将透明桌面截图层和可持续编辑的贴图工作区放在同一�
   400 ms）。单独连按 Esc 或 Delete、长按和自动重复不会触发整体退出；保留
   `Ctrl+Alt+Shift+F12` 备用紧急退出。
 
-## 运行与开发要求
+</details>
+
+## 开发
+
+Tauri v2 · SolidJS · TypeScript · Rust
+
+```powershell
+npm install
+npm run dev:tauri
+```
+
+<details>
+<summary>运行要求、验证与本地构建</summary>
+
+### 运行与开发要求
 
 - Windows 10 或 Windows 11；
 - WebView2 Runtime；
@@ -223,7 +286,14 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 开发规则见 [`CONTRIBUTING.md`](CONTRIBUTING.md)，当前运行时结构见
 [`TECHNICAL_ARCHITECTURE.md`](TECHNICAL_ARCHITECTURE.md)。
 
+</details>
+
 ## 发布包
+
+<details>
+<summary>便携版、签名状态与本地数据目录</summary>
+
+### 包格式
 
 Hook 已更名为 **Otter（水獭）**。以下说明针对当前源码构建；此前已发布的
 Hook v0.2.33 等历史包保留原有附件名称和 `hook.exe`，请运行对应包内实际包含的
@@ -251,7 +321,7 @@ Hook v0.2.33 等历史包保留原有附件名称和 `hook.exe`，请运行对�
 [`docs/release-provenance.md`](docs/release-provenance.md)，依赖清单与漏洞响应规则见
 [`docs/DEPENDENCY_SECURITY.md`](docs/DEPENDENCY_SECURITY.md)。
 
-## 代码签名状态
+### 代码签名状态
 
 Free code signing provided by [SignPath.io](https://signpath.io/), certificate
 by [SignPath Foundation](https://signpath.org/) 只会在 Otter 项目完成开通、托管签名
@@ -264,10 +334,12 @@ by [SignPath Foundation](https://signpath.org/) 只会在 Otter 项目完成开�
 - [治理与签名角色](GOVERNANCE.md)
 - [第三方归属说明](THIRD_PARTY_NOTICES.md)
 
-## 本地数据目录
+### 本地数据目录
 
 当前公开 Tauri 包标识符是 `com.yamiyu.hook`。Otter 只读写该标识符对应的数据目录，
 不会探测、读取或迁移旧标识符的数据目录。
+
+</details>
 
 ## 参与贡献
 
