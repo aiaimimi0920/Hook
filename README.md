@@ -14,10 +14,9 @@
 </p>
 <p align="center">English · <a href="./README.zh-CN.md">简体中文</a></p>
 
-Otter is a free, open-source desktop tool maintained by **yamiyu**. Capture a
-region, keep it on your desktop, and annotate or organize it in a persistent
-sticker workspace. Connect an authenticated Loom to use installed OCR,
-translation and Art capabilities. Local capture and editing work without Loom.
+Otter is a free, open-source screenshot tool for capturing, annotating, organizing
+and sharing images at work. Its processing-node structure turns your desktop into
+a workbench: connect different nodes to create the results you want.
 
 <details open>
 <summary>A desktop workspace · Show / hide demo</summary>
