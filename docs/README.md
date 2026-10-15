@@ -1,57 +1,71 @@
-# Otter Documentation
+# Otter Documentation · 文档中心
 
-This directory contains only documentation that describes the current product,
-release process, or public policy. Current code, configuration, workflows, and
-tests remain the source of truth.
+从使用、反馈或开发入口开始，再按主题查阅详细说明。
+Start with a task below, then follow the focused references.
 
-## Product and runtime
+| 想做什么 / Your goal | 从这里开始 / Start here |
+| --- | --- |
+| 了解与使用 Otter / Learn about Otter | [中文介绍与上手](../README.zh-CN.md#快速开始) · [English overview and quick start](../README.md#get-started) |
+| 查快捷键与功能范围 / Check shortcuts and scope | [功能矩阵 / Feature matrix](FEATURES.md) |
+| 反馈、改进文案或分享示例 / Report, improve or share | [参与共享指南](guide/contributing.zh-CN.md) · [Ways to contribute](guide/contributing.md) |
+| 修改代码 / Work on code | [工程贡献规范 / Engineering guide](../CONTRIBUTING.md) · [技术架构 / Architecture](../TECHNICAL_ARCHITECTURE.md) |
+| 了解发布与安全要求 / Check release and security requirements | [发布策略 / Release strategy](RELEASE_STRATEGY.md) · [安全策略 / Security policy](../SECURITY.md) |
 
-- [`../README.md`](../README.md) - English product overview and developer entrypoints.
-- [`../README.zh-CN.md`](../README.zh-CN.md) - Simplified Chinese product overview.
-- [`../TECHNICAL_ARCHITECTURE.md`](../TECHNICAL_ARCHITECTURE.md) - current runtime,
-  module, capture, input, persistence, and release architecture.
-- [`../CONTRIBUTING.md`](../CONTRIBUTING.md) - engineering and verification rules.
-- [`FEATURES.md`](FEATURES.md) - implemented shortcuts and manual regression matrix.
-- [`HDR_CAPTURE.md`](HDR_CAPTURE.md) - HDR capture behavior and SDR fallback rules.
-- [`LIVE_CAPTURE.md`](LIVE_CAPTURE.md) - native capture scope, browser behavior,
-  failure notices, and the current implementation/verification entrypoints.
-- [`LIVE_RELAY_DIAGNOSTICS.md`](LIVE_RELAY_DIAGNOSTICS.md) - bounded receiver evidence,
-  timestamp semantics and actual executable/process binding requirements.
-- [`LIVE_RESOURCE_ADMISSION.md`](LIVE_RESOURCE_ADMISSION.md) - resource admission and pressure.
-- [`LIVE_GPU_PRESENTATION.md`](LIVE_GPU_PRESENTATION.md) - GPU presentation and fallback.
-- [`LIVE_SHARED_SOURCE_CAPTURE.md`](LIVE_SHARED_SOURCE_CAPTURE.md) - shared window capture ownership.
-- [`QR_PROJECTION.md`](QR_PROJECTION.md) - projection, receiving, and two-way editing.
-- [`QR_BARCODE_RECOGNITION.md`](QR_BARCODE_RECOGNITION.md) - optional OCR package
-  code recognition, gestures, attachments, and safe URL handling.
-- [`TILE_TERMINAL.md`](TILE_TERMINAL.md) - terminal startup and its acceptance boundary.
-- [Live compatibility and validation](LIVE_CAPTURE.md#compatibility-and-validation) -
-  controlled support matrix, native probes and evidence limits.
-- [`LIVE_SCREENSHOT_PROTOCOL.md`](LIVE_SCREENSHOT_PROTOCOL.md) - `loom.live.v1`
-  source/viewer, ordering, binary-media, and security boundaries.
-- [`ASSET_LIBRARY_INTEGRATION.md`](ASSET_LIBRARY_INTEGRATION.md) - target
-  AssetLibrary catalog, download, Loom-owned installation, and Otter activation
-  boundary.
+This directory contains documentation for the current product, release process and
+public policy. Current code, configuration, workflows and tests remain the source
+of truth. Existing document paths stay stable; this index groups them by purpose.
+这里整理当前产品、发布流程与公开策略；具体实现以当前代码、配置、工作流和测试为准。
+目录按阅读目的组织，不移动已有文档。
 
-## Release and signing
+## 使用与功能 / Using Otter
 
-- [`RELEASE_STRATEGY.md`](RELEASE_STRATEGY.md)
-- [`CODE_SIGNING_POLICY.md`](CODE_SIGNING_POLICY.md)
-- [`MAINTAINER_SIGNING_GUIDE.md`](MAINTAINER_SIGNING_GUIDE.md)
-- [`SIGNPATH_APPLICATION_CHECKLIST.md`](SIGNPATH_APPLICATION_CHECKLIST.md)
-- [`SIGNPATH_APPLICATION_DRAFT.md`](SIGNPATH_APPLICATION_DRAFT.md)
-- [`GITHUB_RELEASE_BODY.md`](GITHUB_RELEASE_BODY.md)
-- [`../UIACCESS_DISTRIBUTION.md`](../UIACCESS_DISTRIBUTION.md)
+- [Feature matrix](FEATURES.md) — implemented shortcuts and manual regression matrix.
+- [Live capture](LIVE_CAPTURE.md) — capture scope, browser behavior and failure notices.
+- [Live compatibility and validation](LIVE_CAPTURE.md#compatibility-and-validation) — controlled support matrix and evidence limits.
+- [HDR capture](HDR_CAPTURE.md) — Windows HDR behavior and SDR fallback.
+- [Image projection](QR_PROJECTION.md) — sending, receiving and two-way editing.
+- [Loom connection](LOOM_CONNECTION.md) — connection history, reconnect and device authorization.
+- [QR and barcode recognition](QR_BARCODE_RECOGNITION.md) — optional OCR capability and safe URL handling.
+- [Freehand editing](FREEHAND_EDITING.md) · [Bézier editing](BEZIER_EDITING.md) — drawing and curve tools.
+- [Tile terminal](TILE_TERMINAL.md) — terminal startup and its current acceptance boundary.
 
-## Project policy
+## 参与共享 / Contributing
 
-- [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md)
-- [`SECURITY_BOUNDARIES.md`](SECURITY_BOUNDARIES.md) - identity storage, remote-image
-  destination enforcement and native input lifecycle limits.
-- [`../SECURITY.md`](../SECURITY.md)
-- [`../GOVERNANCE.md`](../GOVERNANCE.md)
-- [`../THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md)
+- [中文参与指南](guide/contributing.zh-CN.md) · [English contribution guide](guide/contributing.md) — reports, ideas, examples, wording and documentation.
+- [Existing issues](https://github.com/aiaimimi0920/Otter/issues) — search before opening a new report.
+- [Engineering contribution guide](../CONTRIBUTING.md) — code ownership, checks and delivery requirements.
 
-## Documentation rule
+## 开发与运行时 / Development and runtime
+
+- [Technical architecture](../TECHNICAL_ARCHITECTURE.md) — current runtime, module, capture, input, persistence and release architecture.
+- [Live resource admission](LIVE_RESOURCE_ADMISSION.md) — resource admission and pressure handling.
+- [GPU presentation](LIVE_GPU_PRESENTATION.md) — native presentation and fallback.
+- [Shared-source capture](LIVE_SHARED_SOURCE_CAPTURE.md) — shared window-capture ownership.
+- [LiveRelay diagnostics](LIVE_RELAY_DIAGNOSTICS.md) — bounded evidence, timestamp semantics and executable/process identity requirements.
+- [Live protocol](LIVE_SCREENSHOT_PROTOCOL.md) — source/viewer, ordering, binary media and security boundaries.
+- [Asset library integration](ASSET_LIBRARY_INTEGRATION.md) — catalog, downloads, Loom-owned installation and Otter activation boundaries.
+
+## 发布与签名 / Releases and signing
+
+- [Release strategy](RELEASE_STRATEGY.md)
+- [Release provenance](release-provenance.md) — clean-source packaging, checksums and verification.
+- [UIAccess distribution](../UIACCESS_DISTRIBUTION.md)
+- [Code signing policy](CODE_SIGNING_POLICY.md)
+- [Maintainer signing guide](MAINTAINER_SIGNING_GUIDE.md)
+- [SignPath application checklist](SIGNPATH_APPLICATION_CHECKLIST.md)
+- [SignPath application draft](SIGNPATH_APPLICATION_DRAFT.md)
+- [Release body template](GITHUB_RELEASE_BODY.md)
+
+## 安全与项目策略 / Security and project policy
+
+- [Privacy policy](PRIVACY_POLICY.md)
+- [Security boundaries](SECURITY_BOUNDARIES.md) — identity storage, remote-image destinations and native input lifecycle limits.
+- [Security reporting](../SECURITY.md) — private vulnerability reporting and safe fallback.
+- [Dependency security](DEPENDENCY_SECURITY.md) — dependency inventory and vulnerability response.
+- [Governance and signing roles](../GOVERNANCE.md)
+- [Third-party notices](../THIRD_PARTY_NOTICES.md)
+
+## 文档维护 / Documentation rule
 
 Completed implementation plans, migration checklists, smoke logs, and handoff
 notes are preserved by Git history and the `cleanup-base-20260928` tag rather than kept in

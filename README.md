@@ -494,11 +494,15 @@ Otter does not scan or migrate obsolete roots.
 
 ## Contributing
 
-Focused issues and pull requests are welcome:
+Bug reports, wording improvements, documentation and focused code contributions
+are welcome. You can also share a reproducible capture, annotation or node-processing
+example, with private content removed.
 
-- Issues: <https://github.com/aiaimimi0920/Otter/issues>
-- Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- Documentation index: [`docs/README.md`](docs/README.md)
+Start with [ways to contribute](./docs/guide/contributing.md), explore the
+[documentation index](./docs/README.md), or use the
+[repository layout](./TECHNICAL_ARCHITECTURE.md#2-repository-layout) to find your way around.
+Code changes follow the [engineering contribution guide](./CONTRIBUTING.md).
+Search [existing issues](https://github.com/aiaimimi0920/Otter/issues) before opening a new report.
 
 ## License
 

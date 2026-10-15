@@ -341,9 +341,14 @@ by [SignPath Foundation](https://signpath.org/) 只会在 Otter 项目完成开�
 
 ## 参与贡献
 
-- Issues：<https://github.com/aiaimimi0920/Otter/issues>
-- 开发与提交规范：[`CONTRIBUTING.md`](CONTRIBUTING.md)
-- 文档索引：[`docs/README.md`](docs/README.md)
+欢迎反馈问题、改进文案与文档，或贡献范围明确的代码修改。
+也欢迎分享可复现的截图、标注与节点处理示例，分享前请移除私密内容。
+
+从[参与共享指南](./docs/guide/contributing.zh-CN.md)开始，按兴趣选择一种参与方式；
+通过[文档中心](./docs/README.md)查阅功能说明，或从
+[项目目录](./TECHNICAL_ARCHITECTURE.md#2-repository-layout)了解代码结构。
+代码修改请遵循[工程贡献规范](./CONTRIBUTING.md)，反馈前先搜索
+[已有 Issues](https://github.com/aiaimimi0920/Otter/issues)。
 
 ## 许可证
 
