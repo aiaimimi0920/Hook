@@ -502,7 +502,8 @@ Focused issues and pull requests are welcome:
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+Otter-owned code is [MIT licensed](./LICENSE). Dependencies retain their own
+[licenses and notices](./THIRD_PARTY_NOTICES.md).
 
 Development CI policy: valid vulnerability, license, lint, format, and size findings
 are advisory in independent reporting workflows. Tool/report/upload failures remain

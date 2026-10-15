@@ -347,4 +347,4 @@ by [SignPath Foundation](https://signpath.org/) 只会在 Otter 项目完成开�
 
 ## 许可证
 
-MIT，详见 [`LICENSE`](LICENSE)。
+Otter 自有代码采用 [MIT 许可](./LICENSE)，依赖保留各自的[许可与声明](./THIRD_PARTY_NOTICES.md)。
