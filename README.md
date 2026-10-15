@@ -1,6 +1,6 @@
 <p align="center"><img src="./src-tauri/icons/otter-icon.svg" width="80" height="80" alt="Otter capture icon"></p>
 <h1 align="center">Otter</h1>
-<p align="center"><strong>Capture. Pin. Create.</strong><br>A Windows desktop workspace for screenshots, stickers and visual workflows.</p>
+<p align="center"><strong>Capture it. Pin it. Make it yours.</strong><br>A Windows desktop workspace for screenshots, stickers and visual workflows.</p>
 <p align="center">
   <a href="https://github.com/aiaimimi0920/Otter/releases">Download</a> ·
   <a href="#get-started">Get started</a> ·
