@@ -50,8 +50,8 @@ explore more possibilities for the images you capture.
 
 | Start here | What you need to do |
 | --- | --- |
-| [Download Otter](https://github.com/aiaimimi0920/Otter/releases) | |
-| Download Otter + Loom | |
+| [Download Otter](https://github.com/aiaimimi0920/Otter/releases) | Extract and launch the Otter App. |
+| Download Otter + Loom | Extract and launch the Otter App and Loom App. In Loom's capability packages, install the OCR and translation packages; you can also install commonly used MCP and Art packages. |
 
 1. Press **`Ctrl+1`** for a region screenshot, **`Ctrl+2`** for live capture, or **`Ctrl+3`** for a long capture.
 2. Select a sticker and press **`Ctrl+E`** to toggle its editing toolbar.

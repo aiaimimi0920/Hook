@@ -46,10 +46,10 @@ Otter 是一款免费开源的截图工具，让截图、标注、整理与分�
 - **连接流程：** 使用 Loom 的节点工具，进行高级工作流组装处理。
 - **分享画面：** 使用推送工具，将贴图的画面推送给任意客户端。
 
-| 从这里开始 | 操作方式 |
+| 从这里开始 | 需要做什么 |
 | --- | --- |
-| [下载 Otter](https://github.com/aiaimimi0920/Otter/releases) | |
-| 下载 Otter + Loom | |
+| [下载 Otter](https://github.com/aiaimimi0920/Otter/releases) | 解压并启动 Otter App |
+| 下载 Otter + Loom | 解压并启动 Otter App 和 Loom App，可以在 Loom 的能力包中安装 OCR 能力包 + 翻译能力包，也可以再安装一些常用的 MCP、Art。 |
 
 1. 按 **`Ctrl+1`** 区域截图、**`Ctrl+2`** 实时截图，或 **`Ctrl+3`** 长截图。
 2. 选中贴图，按 **`Ctrl+E`** 显示或隐藏编辑工具栏。
