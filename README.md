@@ -1,439 +1,75 @@
-# Otter
+<p align="center"><img src="./src-tauri/icons/otter-icon.svg" width="80" height="80" alt="Otter capture icon"></p>
+<h1 align="center">Otter</h1>
+<p align="center"><strong>Capture it. Pin it. Make it yours.</strong><br>Connect nodes. Create effects. Turn your desktop into a creative workspace.</p>
+<p align="center">
+  Website ·
+  <a href="https://github.com/aiaimimi0920/Otter/releases">Download</a> ·
+  <a href="./docs/README.md">Documentation</a> ·
+  <a href="https://github.com/aiaimimi0920/Otter/issues">Feedback</a>
+</p>
+<p align="center">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-36564f?style=flat-square" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/platform-Windows_10_%2F_11-36564f?style=flat-square" alt="Windows 10 / 11">
+  <a href="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml"><img src="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml/badge.svg" alt="Build Otter EXE"></a>
+</p>
+<p align="center">English · <a href="./README.zh-CN.md">简体中文</a></p>
+
+Otter is a free, open-source screenshot tool that brings capturing, annotating,
+organizing and sharing into your everyday work. Turn your desktop into a workbench:
+connect different processing nodes to combine functions, create effects and
+explore more possibilities for the images you capture.
+
+<details open>
+<summary>A desktop workspace · Show / hide animation</summary>
 
 <p align="center">
-  <a href="README.md"><strong>English</strong></a>
-  ·
-  <a href="README.zh-CN.md"><strong>简体中文</strong></a>
+  <img src="./docs/assets/hook-home-demo.gif" width="860" alt="Otter's existing demo: capture, sticker and workflow sample cards on the desktop, with a sticker context menu.">
 </p>
 
-<p align="center">
-  Windows-first desktop capture, sticker editing, and visual workflow workspace.
-</p>
+</details>
 
-<p align="center">
-  Maintained by <strong>yamiyu</strong>
-</p>
+[Features](#features) · [Get started](#get-started) · [Contribute](#contributing)
 
-<p align="center">
-  <a href="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml"><img src="https://github.com/aiaimimi0920/Otter/actions/workflows/build-otter-exe.yml/badge.svg" alt="Build Otter EXE" /></a>
-  <img src="https://img.shields.io/badge/platform-Windows-0078D6" alt="Windows" />
-  <img src="https://img.shields.io/badge/Tauri-v2-24C8DB" alt="Tauri v2" />
-  <img src="https://img.shields.io/badge/SolidJS-TypeScript-2C4F7C" alt="SolidJS TypeScript" />
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-F4EA2A" alt="MIT License" /></a>
-</p>
+## Features
 
-## Why Otter
+- **Capture the view you want.** Take region, window and long screenshots, and pick colors from the screen.
+- **Pin images to your desktop.** Keep references in view and organize your material with groups, the library and history.
+- **Annotate freely and keep editing.** Crop, erase and rotate; add text, arrows and shapes; hide information with blur and mosaic.
+- **Keep pinned images live.** Turn a window or part of the screen into a live pinned view to follow changing content and interact with supported source windows.
+- **Connect nodes and combine effects.** Use Loom's OCR, translation and Art capabilities, connecting nodes to build your own processing flows.
+- **Project your view to other devices.** Send images or live views to connected, paired devices for viewing and collaboration across screens.
 
-Native Otter automatically discovers and connects to authenticated local Loom by
-default. Set `HOOK_ENABLE_LOOM_HOOK=0` to disable integration. Browser preview stays local: it does
-not connect anonymously to Loom or execute real Arts. See [security boundaries](docs/SECURITY_BOUNDARIES.md#authenticated-native-local-bridge).
+[**Full features →**](./docs/FEATURES.md)
 
-The explicit [global Loom connection](docs/LOOM_CONNECTION.md) remembers its last
-successful target across Otter restarts. Manual disconnect cancels auto-reconnect
-without deleting history; restart still requires valid device authorization.
+## Get started
 
-Start Loom and open `otter.exe` directly for OCR/translation and other installed
-extensions. Without Loom, local capture and editing remain available; no separate
-Loom integration launcher is required.
-On the ordinary Windows desktop, foreground dialogs and visibly higher external
-windows take input priority over stickers; deliberate capture or sticker interaction can reclaim priority.
-UAC secure-desktop capture/overlays are not supported; Otter yields input and cancels
-transient gestures without changing Windows security settings.
-Select an image sticker: `Ctrl+4` reruns OCR, `Alt+4` toggles OCR, `Ctrl+5` reruns
-translation, and `Alt+5` toggles translation (missing results are created first).
-The corresponding Loom capabilities must be installed, enabled, and authorized.
+- **Capture and pin:** Capture any area of your desktop and pin it anywhere on the desktop.
+- **Edit quickly:** Use the editing toolbar to quickly annotate pinned images.
+- **Connect a workflow:** Use Loom's node tools to assemble advanced workflows.
+- **Share the view:** Use the push tools to send a pinned image's content to any client.
 
-Otter combines a transparent desktop capture surface with a persistent sticker
-workspace. Captures can remain on the desktop, be edited and annotated, or be
-connected to local Art/Loom workflows without leaving the application.
+| Start here | What you need to do |
+| --- | --- |
+| [Download Otter](https://github.com/aiaimimi0920/Otter/releases) | Extract and launch the Otter App to get started. |
+| Download Otter + Loom | Extract and launch the Otter App and Loom App. Install capability packages such as OCR and translation in Loom, and add commonly used MCP tools and Art nodes as needed to expand your creative workflow. |
 
-[QR projection](docs/QR_PROJECTION.md) is available from the Ctrl+E toolbar and
-links a sticker or formal Art image to another Windows Otter. Choose a shared
-HTTPS Loom with device pairing and no official login, or the existing Loom
-account mode. Receiver layout stays independent. Shared Loom supports online-device
-selection and continuous delivery with receiver confirmation or automatic display.
-Confirmation uses a compact bottom-right desktop prompt with accept, reject,
-and defer actions. The receive tab exposes a persistent device-wide policy: automatic
-approval, manual approval (default), or always reject. Policy changes leave existing
-received stickers linked. Server authorization and deny rules still apply.
-Manually trusted offline Loom peers also support delivery. Official premium relay
-remains reserved. Native PC1/PC3 acceptance passed using pinned SSH forwarding.
+1. Press **`Ctrl+1`** for a region screenshot, **`Ctrl+2`** for live capture, or **`Ctrl+3`** for a long capture.
+2. Select a pinned image and press **`Ctrl+E`** to show or hide the editing toolbar, or **`Tab`** to expand or collapse the parameter panel. After leaving editing or selection mode, press **`Esc`** to delete the pinned image.
+3. With the corresponding Loom capabilities available, press **`Ctrl+4`** for OCR and **`Alt+4`** to toggle recognition results; press **`Ctrl+5`** to translate and **`Alt+5`** to toggle translation results; press **`Shift+1`** to open the Art menu and add a new node.
+4. Select a pinned image, open the toolbar, and choose the projection button to project the pinned image to any connectable device.
 
-Self-hosted private-CA HTTPS Loom can use [origin-scoped process trust](docs/SECURITY_BOUNDARIES.md#origin-scoped-loom-https-trust)
-for HTTP and media WSS, without changing Windows roots or device-pairing rules.
-This configuration support is not direct-LAN two-machine acceptance evidence.
-
-Projection now lives below the sticker settings panel, with send/receive icon tabs.
-Receive placeholders use a gray background. The tray's checkable “自启动” item above Quit controls Windows login startup for the current user, using the executable path at enable time; re-enable after moving the portable application.
-The tray's “接收投射” action creates a blank sticker and opens the same QR import dialog inside it; successful import fills that sticker. Tray shortcut hints follow the current configuration in a separate aligned column.
-The fixed 320×280 target dialog uses device/group checkboxes to start or cancel
-projection directly, with per-row pending/success/failure markers and safe retry.
-Success follows receiver display or remote cancellation acknowledgement.
-The receive tab displays both mutually exclusive flow buttons as read-only indicators.
-Its QR and link import buttons open the same compact, sticker-anchored dialog with switchable QR/link tabs, also reused by tray reception, without explanatory
-labels and receives content after an explicit
-Import action; the sender identifier remains visible without a revision button.
-Device/group/user icons show confirmed counts and open the corresponding dialog tab;
-tab switching preserves its size. The source projection ID can be copied or unlinked,
-and remains visible until remote unlink acknowledgement. Long target
-and font lists support wheel scrolling and draggable scrollbars in the overlay.
-The user dropdown reports the unavailable account service. This UI increment has
-focused and browser coverage. Isolated candidates have also passed PC1/PC3
-shared/cross-Loom policy, editing, batch-binding and stop checks over pinned SSH
-forwarding; the batch check used two Loom identities on one physical receiver.
-Shared and trusted cross-Loom v1 links also support opt-in two-way annotation
-editing, source-controlled direction, durable retries and explicit conflict choices.
-The base image stays fixed during an editing session; account-mode v2 and unsupported
-annotation effects do not expose this editing capability.
-
-## Core capabilities
-
-### Cross-device LiveRelay
-
-The Live capture Unit's **实时投射** panel publishes to the paired default Loom.
-On the receiver, open a Surface-capable Art Unit's parameter panel, refresh the
-LiveRelay list, select a session and explicitly join. This reuses the mounted
-Surface attachment and server authorization; it does not grant remote control.
-Closing the parameter panel keeps an established viewer open; closing it during
-joining cancels that pending result. See [Live capture](docs/LIVE_CAPTURE.md).
-If Loom deleted this device, choose **重新配对** to submit its existing public key again.
-Loom approval, refreshing and joining remain explicit; a revoked old viewer stays closed.
-The Windows [C1 H.264 path](docs/LIVE_RELAY_H264_POC.md) uses GPU capture textures,
-hardware encoding and a native MF viewer decoder, with JPEG/raw compatibility.
-PC1/PC3 functional evidence is separate from performance: A3-P was waived by the
-user, and no throughput, CPU or physical-display improvement is claimed.
-The viewer also exposes [bounded receiver diagnostics](docs/LIVE_RELAY_DIAGNOSTICS.md)
-for source/epoch/frame and decoded-submitted stages, without pixels or private errors.
-Actual executable/process SHA binding is external; these counters are not display FPS.
-
-### Capture
-
-- region capture through `Ctrl+1`;
-- hovered-window targeting and double-click window capture;
-- persistent single-device live capture through `Ctrl+2` or the tray. A drag
-  fully contained by a valid program window keeps a fixed window-local pixel
-  region when that program moves; other drags remain screen-region captures;
-- repeat `Ctrl+2` for resource-admitted concurrent Live stickers, including different
-  regions of the same program. Each has independent frames, placement, and input;
-  closing one leaves the others running. No global desktop LIVE badge is shown;
-- browser windows use the same native `Ctrl+2` capture without an extension.
-  Scrolling or switching tabs changes the captured pixels; preserving the original
-  webpage content across those actions is outside the Live capture scope;
-- [runtime resource admission](docs/LIVE_RESOURCE_ADMISSION.md) replaces the fixed
-  four-source cap: source/crop size, RAM headroom, DXGI budget and sampled CPU/load
-  growth determine whether another source can start, within a 16-source safety
-  ceiling. Pressure slows existing capture and rejects new work without deleting Units;
-- local Live targets up to 60 FPS, using frame-ready wakeups, Windows JPEG
-  encoding, and decode-before-display presentation. Actual rate depends on source
-  updates, region size, hardware, and concurrent captures; queues remain bounded;
-- multiple Live sources share a capture pixel/rate budget and one automatic CPU
-  readback/encode permit. Hidden/offscreen views without a relay publisher reduce capture to 1 FPS and pause
-  JPEG production; visible unsupported effects use bounded-rate fallback rather
-  than unrestricted CPU pipelines. Layout polling shares one clock and Unit
-  geometry sample. Same-window regions now [share one WGC source](docs/LIVE_SHARED_SOURCE_CAPTURE.md)
-  while retaining independent crops, frame delivery, visibility and stop;
-- automatic [route B GPU presentation](docs/LIVE_GPU_PRESENTATION.md) copies
-  WGC textures into native swapchains without JPEG on that display branch. The
-  copy/save and native Shift-drag export can request lossless GPU snapshots. The
-  ordinary JPEG branch pauses CPU readback/encoding while GPU presentation is
-  healthy and no relay publisher needs encoded images. JPEG/raw publishing retains
-  budgeted JPEG production independently of local visibility; negotiated H.264 owns
-  a separate GPU input demand and releases its JPEG demand after GPU input is available.
-  Unsupported composition uses fresh decoded fallback pixels; set
-  `HOOK_LIVE_GPU_PREVIEW=0` to force JPEG compatibility. This is not an FPS guarantee;
-- the local live view starts at the selected screen position and contains only
-  the current pixels, a theme-green border, and theme-yellow move corners.
-  Drag any yellow corner to move it; clicking a captured control operates the
-  source program directly. Like ordinary units, `Ctrl`+wheel resizes the live
-  view around the pointer and `Alt`+wheel changes its opacity;
-- same-integrity Win32/WinForms source windows, including validated child HWNDs
-  hosted on another UI thread or helper process, can be logically hidden while
-  capture continues, then controlled through ordered mouse, wheel, drag, and
-  keyboard messages with explicit reclaim and watchdog recovery;
-- Live input follows Windows UIPI direction: the same user's source may have
-  equal or lower integrity than Otter. An administrator Otter is not blocked from
-  controlling ordinary programs; upward, cross-user/session, and secure-desktop
-  input stays blocked. Refusals appear as short Unit notices, not silent clicks;
-- HDR-aware Windows 11 capture with automatic SDR fallback;
-- long capture through `Ctrl+3`;
-- long capture shows a scaled preview of the current stitched result beside the capture region;
-- file-backed capture payloads to avoid unnecessary large Base64 transfers;
-- native screen color picking.
-
-### Sticker workspace
-
-The sticker context menu's **剪贴板** submenu displays Windows clipboard history
-(images and plain text only), refreshed by system clipboard events. Select an image
-to create a new sticker, or text to add centered, undoable annotations to the target
-sticker. Windows clipboard history must be enabled; Otter does not enable it or
-store a separate clipboard archive.
-Submenus shift vertically or open to the left to remain visible near screen edges;
-the clipboard list supports wheel scrolling and a draggable scrollbar.
-
-- persistent desktop stickers and a focused canvas mode;
-- crop, erase, border, corner radius, opacity, rotate, flip, and beautify tools;
-- text, numbering, shapes, lines, arrows, brush, highlighter, mosaic, and blur
-  annotations;
-- compact text/numbering properties share transparent color swatches, font selection, and 8–999 size/radius steppers for creation and selected annotations;
-- with the text tool active, click an existing text annotation to edit its content; click empty space to create another text annotation;
-- geometry-aware annotation selection instead of bounding-box-only hit testing;
-- compact pencil/paintbrush properties with independent size, opacity and smoothing; natural speed-sensitive, lightly softened brush strokes support undo/redo and rasterization ([freehand editing](docs/FREEHAND_EDITING.md));
-- editable multi-segment Bézier paths: double-click to insert anchors, drag endpoint `+` handles to extend, and right-click white anchors to delete them with undo/redo; see [curve editing](docs/BEZIER_EDITING.md);
-- recycle bin, reference library, groups, history, undo, and redo;
-- Unicode-safe naming for visible save, clipboard, and drag-export files;
-- fast minified/full-view switching through cached composite previews;
-- native Shift-drag file export to Explorer.
-
-### Workflow and local integrations
-
-- node canvas, links, grouped parameters, and shader previews;
-- Loom capability discovery and Art execution/delivery;
-- an opt-in [tile terminal](docs/TILE_TERMINAL.md) through `--tile`, presenting
-  Loom-managed images, Live content and declarative Art on a selected physical
-  output, with endpoint-scoped input and host-owned Art confirmation/cancellation.
-  Loom can freeze, black out and resume a saved wall, with per-output application
-  reports and paused input. Identify one screen by its actual output name with a
-  marker lasting at most 10 seconds; Escape dismisses it without exiting the output.
-  This remains an internal development slice;
-  scheduling and multi-computer acceptance are pending;
-- installable Loom Capability Plugins can contribute commands, shortcuts, toolbar
-  menus, result attachments, overlays, and unit-scoped notices without a Otter
-  business branch; the official OCR package contributes its own `Ctrl+4`,
-  `Alt+4`, cached full/layout copy, click-to-copy, and Shift+click multi-block
-  selection behavior only while installed and enabled;
-- OCR and translation keep independent cached results: `Ctrl+4` re-recognizes,
-  `Ctrl+5` translates using existing OCR or recognizes first, and `Alt+4` / `Alt+5`
-  toggle cached overlays or produce the missing result on first use. The overlays
-  are mutually exclusive; hiding translation restores OCR only when it was not
-  explicitly hidden. Visibility changes do not repeat OCR or model requests;
-- all sticker and Art notices stay bound to their owning unit, stack in its upper-right corner, and can be dismissed one at a time;
-- the official OCR package automatically performs bounded local QR/barcode
-  decoding during `Ctrl+4`, then contributes generic result attachments, green hit markers, and
-  click-to-copy behavior; Otter core contains no QR/barcode decoder or product branch;
-- optional Talk voice capture and Tea ticket creation through local capability
-  bridges;
-- single-instance enforcement, tray residency, runtime diagnostics, and an
-  independent emergency-exit watchdog. Emergency exit uses three `Esc+Delete`
-  press/release cycles with less than 400 ms between chords; both keys must be
-  released between cycles. Esc alone no longer exits the application.
-
-See [`docs/FEATURES.md`](docs/FEATURES.md) for the current shortcut and manual
-regression matrix. The implementation remains the source of truth when a
-document and the code disagree.
-
-## Requirements
-
-- Windows 10 or Windows 11;
-- WebView2 Runtime;
-- Node.js 22+ for frontend development;
-- Rust stable with the MSVC toolchain for desktop builds.
-
-HDR capture is available only when the selected Windows 11 display reports HDR
-support. Unsupported or SDR-only cases fall back automatically. See
-[`docs/HDR_CAPTURE.md`](docs/HDR_CAPTURE.md).
-
-## Development
-
-Install dependencies and start the Tauri development application:
-
-```powershell
-npm install
-npm run dev:tauri
-```
-
-Useful checks:
-
-```powershell
-npm run typecheck
-npm run test:performance
-npm run test:surface-browser
-npm run test:parallel
-npm test
-npm run probe:live-screenshot:phase2
-npm run probe:live-screenshot:phase3
-cargo fmt --check --manifest-path src-tauri\Cargo.toml
-cargo test --manifest-path src-tauri\Cargo.toml
-npm run build
-```
-
-`npm run verify:local` runs the complete serial verification chain and then
-builds/packages a local release. It is not a lightweight lint-only command.
-
-`npm run test:surface-browser` launches an isolated headless Chromium, imports
-the production JavaScript Surface document builder, and exercises healthy,
-timer, DOM, CPU long-task, and heap-growth budget paths. It does not launch a
-second native Otter process or bypass Otter's global single-instance safety mutex.
-
-The live-capture G2 probe is interactive and runs for 600 seconds by default. It
-uses an animated same-integrity WinForms fixture to prove fresh WGC frames,
-resize/recreate, source-close fail-closed behavior, session cleanup, and bounded
-handle/private-memory growth. Its evidence is written below
-`artifacts/live-screenshot-phase2/<run-id>` and is intentionally not committed.
-Local WebView presentation uses raw Tauri binary responses carrying bounded JPEG
-frames; it does not send frames through `loom.surface.v1` or JSON/Base64.
-
-The G3 probe covers the deliberately narrow Windows 11, single-SDR-display,
-same-integrity Win32/WinForms declaration. It verifies changing frames while the
-source is a near-transparent compositor window, independent input edges, exact
-restore, local reclaim, recovery-journal execution, and worker cleanup. Otter does
-not claim native-minimize, elevated, cross-session, WPF, WinUI, or arbitrary
-custom-control support from this result.
-
-Validate a built native candidate in two stages. Preflight only hashes the
-candidate, checks the CDP dependency/port, and reports any live Otter main or
-watchdog process; it never launches or stops Otter:
-
-Phase 71 is the canonical-only baseline: acceptance and release checks exercise
-only the current app-data identity, publisher-qualified packages, and formal
-`loom.hook.v1`/`loom.surface.v1` contracts. Obsolete compatibility paths are not
-part of acceptance.
-
-The acceptance scripts fail closed on SHA-256. Pass the candidate's matching
-expected digest explicitly; historical script defaults do not identify the
-current build. Each candidate needs its own 600-second soak, formal Surface
-action/resource delivery, clean exit and restart-recovery evidence. Older
-acceptance summaries remain in Git history and do not certify a later binary.
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\Invoke-OtterNativeCandidateAcceptance.ps1 `
-  -OtterExe ..\release\Otter\candidate\otter.exe `
-  -ExpectedSha256 <candidate-sha256> `
-  -PreflightOnly
-```
-
-After every existing Otter instance has been exited normally, remove
-`-PreflightOnly` to run the real WebView2/Tauri IPC probe, global
-single-instance refusal, process-tree memory soak, normal exit, watchdog/CDP
-teardown, and restart check. The script uses isolated app data and WebView2
-storage. It enables `HOOK_NATIVE_ACCEPTANCE=1` only for the spawned candidate so
-the gated clean-exit command can return through the normal Tauri shutdown path;
-it does not rename/bypass the mutex or disable global Otter behavior.
-
-The Phase 69 dual-end gate uses the outer orchestrator instead of treating a
-daemon-only or browser-only smoke as sufficient. It verifies both candidate
-hashes, starts an isolated packaged Loom daemon and fixture Art Store, installs
-the real dashboard Surface, and delegates to the native Otter runner:
-
-```powershell
-# Safe while another Otter is running: hashes/files/ports/processes only.
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\Invoke-OtterLoomSurfaceCandidateAcceptance.ps1 `
-  -OtterExe ..\release\Otter\candidate\otter.exe `
-  -ExpectedOtterSha256 <candidate-sha256> `
-  -LoomPackageDir ..\release\Loom\candidate `
-  -ExpectedLoomDaemonSha256 <loom-daemon-sha256> `
-  -PreflightOnly
-
-# Safe isolated Loom-side rehearsal; does not launch Otter.
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\Invoke-OtterLoomSurfaceCandidateAcceptance.ps1 `
-  -OtterExe ..\release\Otter\candidate\otter.exe `
-  -ExpectedOtterSha256 <candidate-sha256> `
-  -LoomPackageDir ..\release\Loom\candidate `
-  -ExpectedLoomDaemonSha256 <loom-daemon-sha256> `
-  -ValidateLoomServicesOnly
-```
-
-With all existing Otter main/watchdog processes normally exited, omit both
-switches for the full packaged Otter GUI → packaged Loom Surface click/resource/
-formal-result loop, ten-minute process-tree soak, clean exit, restart recovery,
-and final listener/process cleanup. The native runner waits for Otter's awaited
-`frontend-initialized` marker before both the first Surface probe and the restart
-probe, so CDP availability alone is not treated as frontend readiness.
-
-When Loom reports a newly registered device as pending, the runner approves that
-exact public-key device through the isolated Loom control plane while Otter waits
-for the bounded authorization transition. Native acceptance exits through the
-normal Tauri run loop and requires exactly one process-exit cleanup record before
-checking watchdog, CDP, and restart recovery.
-
-Build a portable executable directly:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\scripts\build-local-otter-exe.ps1 `
-  -OutputDir ..\release\Otter\local-build `
-  -Force
-```
-
-Development rules and module ownership are documented in
-[`CONTRIBUTING.md`](CONTRIBUTING.md). The current runtime structure is documented
-in [`TECHNICAL_ARCHITECTURE.md`](TECHNICAL_ARCHITECTURE.md).
-
-## Release packages
-
-Hook has been renamed to **Otter**. The instructions below describe builds from
-the current source. Previously published packages, including Hook v0.2.33, keep
-their original filenames and `hook.exe`; use the executable actually included
-in that release. See [rename compatibility](docs/RENAMING.md).
-
-- **Portable (current recommended package)**
-  - extract the zip and run `otter.exe`;
-  - the only current user-facing package in ordinary builds and tag releases;
-  - includes the project license, third-party notices, and bundled-source
-    license texts;
-  - if Windows blocks interaction with elevated foreground windows such as
-    **Task Manager**, try running Otter as **administrator** as the current
-    workaround.
-- **Installer (planned for future signed releases)**
-  - the repository retains the UIAccess installer and SignPath preparation;
-  - the installer is not a current public package and must not be published
-    until the signing provider and protected approval environment are active.
-
-The tag workflow retains the unsigned UIAccess signing candidate and its digest as
-short-lived Actions review evidence; neither is shown as a public Release asset.
-
-For the public Release, ordinary users only need the portable ZIP. Users who want
-to verify a download should also fetch the matching `.zip.sha256` sidecar. GitHub's
-automatic source ZIP and tarball remain available for developers.
-
-See [`UIACCESS_DISTRIBUTION.md`](UIACCESS_DISTRIBUTION.md) and
-[`docs/RELEASE_STRATEGY.md`](docs/RELEASE_STRATEGY.md). Formal clean-source
-packaging, checksums, SBOMs, attestations, and draft verification are documented
-in [`docs/release-provenance.md`](docs/release-provenance.md); dependency
-inventory and vulnerability response are in
-[`docs/DEPENDENCY_SECURITY.md`](docs/DEPENDENCY_SECURITY.md).
-
-## Code signing status
-
-Free code signing provided by [SignPath.io](https://signpath.io/), certificate
-by [SignPath Foundation](https://signpath.org/), applies only after the Otter
-project is provisioned and a hosted signing request receives manual approval.
-The current portable package must be treated as unsigned unless a release
-explicitly includes an approved signed installer.
-
-- [Code Signing Policy](docs/CODE_SIGNING_POLICY.md)
-- [Privacy Policy](docs/PRIVACY_POLICY.md)
-- [Security Policy](SECURITY.md)
-- [Governance and Signing Roles](GOVERNANCE.md)
-- [Third-Party Notices](THIRD_PARTY_NOTICES.md)
-
-## Local data identity
-
-The public Tauri bundle identifier and the only automatic local-data identity is
-`com.yamiyu.hook`. Development and test automation can select an isolated root
-explicitly with `OTTER_APPDATA_DIR` (`HOOK_APPDATA_DIR` remains a fallback);
-Otter does not scan or migrate obsolete roots.
+[**Complete usage guide →**](./docs/guide/getting-started.md)
 
 ## Contributing
 
-Focused issues and pull requests are welcome:
-
-- Issues: <https://github.com/aiaimimi0920/Otter/issues>
-- Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- Documentation index: [`docs/README.md`](docs/README.md)
+Bug reports, translations, documentation improvements and code contributions are welcome.
+Start with [ways to contribute](./docs/guide/contributing.md) or the
+[translation guide](./docs/guide/translating.md), and explore the
+[repository layout](./TECHNICAL_ARCHITECTURE.md#2-repository-layout) to understand the code structure.
+Code changes follow the [engineering contribution guide](./CONTRIBUTING.md).
+Search [existing issues](https://github.com/aiaimimi0920/Otter/issues) before reporting a problem.
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
-
-## Friendly links
-
-- [linux.do](https://linux.do/) — thanks to the linux.do community for helping
-  introduce Otter to more users.
-
-Development CI policy: valid vulnerability, license, lint, format, and size findings
-are advisory in independent reporting workflows. Tool/report/upload failures remain
-errors; typechecking, builds, and functional tests stay blocking. Release checks and
-`npm run verify:local` remain strict. See [dependency security policy](docs/DEPENDENCY_SECURITY.md).
+Otter-owned code is [MIT licensed](./LICENSE). Dependencies retain their own
+[licenses and notices](./THIRD_PARTY_NOTICES.md).

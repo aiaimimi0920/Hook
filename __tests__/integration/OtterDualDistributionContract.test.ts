@@ -32,6 +32,8 @@ const releaseStrategyDocSource = releaseStrategyDocExists
   : "";
 const readmeSource = readFileSync(readmePath, "utf8");
 const readmeZhSource = readFileSync(readmeZhPath, "utf8");
+const packagesSource = readFileSync(resolve(otterRoot, "docs/guide/packages.md"), "utf8");
+const packagesZhSource = readFileSync(resolve(otterRoot, "docs/guide/packages.zh-CN.md"), "utf8");
 
 describe("Otter dual distribution contract", () => {
   it("keeps portable builds as the only current public GitHub Actions artifact while preserving installer packaging scripts in-repo for a future signed phase", () => {
@@ -75,14 +77,16 @@ describe("Otter dual distribution contract", () => {
     expect(releaseStrategyDocSource).toContain("portable-first");
     expect(releaseStrategyDocSource).toContain("signed-installer");
     expect(releaseStrategyDocSource).toContain("GitHub Actions");
-    expect(readmeSource).toContain("Portable");
-    expect(readmeSource).toContain("administrator");
-    expect(readmeSource).toContain("future signed releases");
-    expect(readmeSource).toContain("Portable");
-    expect(readmeSource).toContain("Task Manager");
-    expect(readmeZhSource).toContain("安装版");
-    expect(readmeZhSource).toContain("便携版");
-    expect(readmeZhSource).toContain("任务管理器");
-    expect(readmeZhSource).toContain("管理员身份");
+    expect(readmeSource).toContain("./docs/README.md");
+    expect(readmeZhSource).toContain("./docs/README.md");
+    expect(packagesSource).toContain("Portable");
+    expect(packagesSource).toContain("administrator");
+    expect(packagesSource).toContain("future signed releases");
+    expect(packagesSource).toContain("Portable");
+    expect(packagesSource).toContain("Task Manager");
+    expect(packagesZhSource).toContain("安装版");
+    expect(packagesZhSource).toContain("便携版");
+    expect(packagesZhSource).toContain("任务管理器");
+    expect(packagesZhSource).toContain("管理员身份");
   });
 });
