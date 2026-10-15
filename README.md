@@ -504,11 +504,6 @@ Focused issues and pull requests are welcome:
 
 MIT. See [`LICENSE`](LICENSE).
 
-## Friendly links
-
-- [linux.do](https://linux.do/) — thanks to the linux.do community for helping
-  introduce Otter to more users.
-
 Development CI policy: valid vulnerability, license, lint, format, and size findings
 are advisory in independent reporting workflows. Tool/report/upload failures remain
 errors; typechecking, builds, and functional tests stay blocking. Release checks and

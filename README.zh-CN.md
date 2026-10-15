@@ -348,7 +348,3 @@ by [SignPath Foundation](https://signpath.org/) 只会在 Otter 项目完成开�
 ## 许可证
 
 MIT，详见 [`LICENSE`](LICENSE)。
-
-## 友情链接
-
-- [linux.do](https://linux.do/) — 感谢 linux.do 社区帮助更多用户认识 Otter。
