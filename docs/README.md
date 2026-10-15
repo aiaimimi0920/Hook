@@ -19,6 +19,8 @@ of truth. Existing document paths stay stable; this index groups them by purpose
 
 ## 使用与功能 / Using Otter
 
+- [能力详解](guide/capabilities.zh-CN.md) · [Capability details](guide/capabilities.md) — capture, stickers, connections and workflow boundaries.
+
 - [Feature matrix](FEATURES.md) — implemented shortcuts and manual regression matrix.
 - [Live capture](LIVE_CAPTURE.md) — capture scope, browser behavior and failure notices.
 - [Live compatibility and validation](LIVE_CAPTURE.md#compatibility-and-validation) — controlled support matrix and evidence limits.
@@ -37,6 +39,8 @@ of truth. Existing document paths stay stable; this index groups them by purpose
 - [Engineering contribution guide](../CONTRIBUTING.md) — code ownership, checks and delivery requirements.
 
 ## 开发与运行时 / Development and runtime
+
+- [开发与验证](guide/development.zh-CN.md) · [Development and verification](guide/development.md) — requirements, commands, local builds and native acceptance boundaries.
 
 - [Technical architecture](../TECHNICAL_ARCHITECTURE.md) — current runtime, module, capture, input, persistence and release architecture.
 - [Live resource admission](LIVE_RESOURCE_ADMISSION.md) — resource admission and pressure handling.

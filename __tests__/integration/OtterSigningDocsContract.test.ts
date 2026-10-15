@@ -47,8 +47,8 @@ describe("Otter signing docs contract", () => {
   });
 
   it("keeps the public README and index linked through the package guides to the signing and privacy policy set", () => {
-    expect(readmeEn).toContain("docs/guide/packages.md");
-    expect(readmeZh).toContain("docs/guide/packages.zh-CN.md");
+    expect(readmeEn).toContain("./docs/README.md");
+    expect(readmeZh).toContain("./docs/README.md");
     expect(docsIndex).toContain("guide/packages.md");
     expect(docsIndex).toContain("guide/packages.zh-CN.md");
     expect(packagesEn).toContain("../CODE_SIGNING_POLICY.md");

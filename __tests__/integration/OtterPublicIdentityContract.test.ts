@@ -63,7 +63,7 @@ describe("Otter public identity contract", () => {
     });
 
     it("documents the current public bundle identity without obsolete app-data paths", () => {
-        expect(readmeSource).toContain("docs/guide/packages.md");
+        expect(readmeSource).toContain("./docs/README.md");
         expect(packagesSource).toContain("com.yamiyu.hook");
         expect(packagesZhSource).toContain("com.yamiyu.hook");
         expect(architectureSource).toContain("com.yamiyu.hook");

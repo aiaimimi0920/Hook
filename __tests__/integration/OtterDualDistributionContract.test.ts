@@ -77,8 +77,8 @@ describe("Otter dual distribution contract", () => {
     expect(releaseStrategyDocSource).toContain("portable-first");
     expect(releaseStrategyDocSource).toContain("signed-installer");
     expect(releaseStrategyDocSource).toContain("GitHub Actions");
-    expect(readmeSource).toContain("docs/guide/packages.md");
-    expect(readmeZhSource).toContain("docs/guide/packages.zh-CN.md");
+    expect(readmeSource).toContain("./docs/README.md");
+    expect(readmeZhSource).toContain("./docs/README.md");
     expect(packagesSource).toContain("Portable");
     expect(packagesSource).toContain("administrator");
     expect(packagesSource).toContain("future signed releases");
