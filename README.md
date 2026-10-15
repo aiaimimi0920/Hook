@@ -54,8 +54,8 @@ explore more possibilities for the images you capture.
 | Download Otter + Loom | Extract and launch the Otter App and Loom App. Install capability packages such as OCR and translation in Loom, and add commonly used MCP tools and Art nodes as needed to expand your creative workflow. |
 
 1. Press **`Ctrl+1`** for a region screenshot, **`Ctrl+2`** for live capture, or **`Ctrl+3`** for a long capture.
-2. Select a sticker and press **`Ctrl+E`** to toggle its editing toolbar.
-3. With the required Loom capabilities available, use **`Ctrl+4`** for OCR and **`Ctrl+5`** for translation; **`Alt+4` / `Alt+5`** toggle their results.
+2. Select a pinned image and press **`Ctrl+E`** to show or hide the editing toolbar, or **`Tab`** to expand or collapse the parameter panel. After leaving editing or selection mode, press **`Esc`** to delete the pinned image.
+3. With the corresponding Loom capabilities available, press **`Ctrl+4`** for OCR and **`Alt+4`** to toggle recognition results; press **`Ctrl+5`** to translate and **`Alt+5`** to toggle translation results; press **`Shift+1`** to open the Art menu and add a new node.
 
 ## Contributing
 
