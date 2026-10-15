@@ -1,5 +1,6 @@
 """Check changed documentation text and repository-relative link targets offline."""
 import json
+from html.parser import HTMLParser
 from pathlib import Path
 import re
 import subprocess
@@ -54,13 +55,27 @@ def markdown_destinations(text):
             yield "".join(destination)
 
 
+class HtmlDestinations(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.links = []
+
+    def handle_starttag(self, tag, attrs):
+        self.links.extend(value for name, value in attrs
+                          if name in {"href", "src"} and value is not None)
+
+    handle_startendtag = handle_starttag
+
+
 def local_targets(text):
     # Exclude code fences and inline code, where illustrative paths are not links.
     text = re.sub(r"(?ms)^\s*(```|~~~).*?^\s*\1[^\n]*$", "", text)
     text = re.sub(r"`[^`\n]*`", "", text)
     links = list(markdown_destinations(text))
-    links += re.findall(r'\b(?:href|src)=[\"\']([^\"\']+)[\"\']', text)
-    links += re.findall(r"(?m)^\s*\[[^\]]+\]:\s*(<[^>]+>|\S+)", text)
+    html = HtmlDestinations()
+    html.feed(text)
+    links += html.links
+    links += re.findall(r"(?m)^\s*\[(?!\^)[^\]]+\]:\s*(<[^>]+>|\S+)", text)
     for link in links:
         parsed = urlsplit(link.strip("<>"))
         if not parsed.scheme and not parsed.netloc and parsed.path:

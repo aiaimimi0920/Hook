@@ -97,7 +97,7 @@ images in `docs/assets/` (except `github-home-hero.svg`, covered by the full
 public-identity contract) use a lightweight documentation lane on PR/main events.
 It checks the full Git diff, including deleted and renamed paths, then validates
 changed text, whitespace and repository-relative link targets, then installs
-locked npm dependencies to run the six existing documentation contract suites
+locked npm dependencies to run the seven existing documentation/naming contract suites
 and the documentation case from the mixed public-identity suite. Its unrelated
 product source checks remain in the full product lane; an explicit guard rejects
 a renamed/missing documentation case instead of silently running zero tests. No

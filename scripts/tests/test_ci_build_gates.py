@@ -66,7 +66,7 @@ class BuildGateTests(unittest.TestCase):
 
     def test_docs_lane_keeps_existing_contracts_without_product_commands(self):
         docs = job("change-scope")
-        for contract in ("ReadmeLocalization", "SigningDocs", "DualDistribution",
+        for contract in ("Naming", "ReadmeLocalization", "SigningDocs", "DualDistribution",
                          "PublicIdentity", "DeveloperEntrypoints", "TestEntrypoint",
                          "ArchivedDocsSanitization"):
             self.assertIn("Otter" + contract + "Contract.test.ts", docs)

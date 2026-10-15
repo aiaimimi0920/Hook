@@ -43,6 +43,7 @@ jobs:
         if: steps.scope.outputs.full == 'false'
         run: >-
           npx vitest run
+          __tests__/integration/OtterNamingContract.test.ts
           __tests__/integration/OtterReadmeLocalizationContract.test.ts
           __tests__/integration/OtterSigningDocsContract.test.ts
           __tests__/integration/OtterDualDistributionContract.test.ts

@@ -186,6 +186,25 @@ class DocumentationTests(unittest.TestCase):
             (root / 'README.md').write_text('# Broken\n[bad](missing.md)\n')
             self.assertTrue(docs.check_document(root, 'README.md'))
 
+    def test_html_attributes_allow_spacing_case_and_unquoted_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / 'target.md').write_text('# Target\n')
+            for attribute in ['HREF = "target.md"', "sRc = 'target.md'", 'href=target.md']:
+                path = root / 'README.md'
+                path.write_text(f'<A {attribute}>link</A>\n')
+                self.assertEqual(docs.check_document(root, 'README.md'), [])
+                path.write_text(f'<IMG {attribute.replace("target.md", "missing.md")} />\n')
+                self.assertTrue(docs.check_document(root, 'README.md'))
+
+    def test_footnotes_are_not_reference_link_destinations(self):
+        text = 'Text[^note].\n[^note]: Explanation of the result.\n[guide]: missing.md\n'
+        self.assertEqual(list(docs.local_targets(text)), ['missing.md'])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / 'README.md').write_text('Text[^note].\n[^note]: Explanation.\n')
+            self.assertEqual(docs.check_document(root, 'README.md'), [])
+
     def test_setext_heading_and_balanced_parenthesis_destinations(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
