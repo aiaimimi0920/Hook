@@ -21,7 +21,7 @@ Otter 是一款免费开源的截图工具，让截图、标注、整理与分�
 <summary>桌面工作区 · 展开 / 收起动画</summary>
 
 <p align="center">
-  <img src="./docs/assets/hook-home-demo.gif" width="860" alt="Otter 仓库现有演示：桌面上的截图、贴图和工作流示例卡片，以及贴图右键菜单。">
+  <img src="./docs/assets/otter-workflow-demo-v2.gif" width="860" alt="Otter 完整工作流演示：截图、翻译、节点处理、双向投射、标注编辑与拖放保存。">
 </p>
 
 </details>
@@ -38,9 +38,6 @@ Otter 是一款免费开源的截图工具，让截图、标注、整理与分�
 - **把画面投向其他设备。** 将图片或实时画面投射到已连接、配对的设备，方便跨屏查看与协作。
 
 [**完整功能 →**](./docs/FEATURES.md)
-
-更新 OCR 能力包后，OCR 与翻译控件使用各自原区域排除估计文字颜色后的主色作为背景，
-文字颜色独立保证可读性。旧缓存不会自动改写，需重新识别并翻译以更新底色。
 
 ## 开始使用
 

@@ -20,10 +20,10 @@ connect different processing nodes to combine functions, create effects and
 explore more possibilities for the images you capture.
 
 <details open>
-<summary>A desktop workspace · Show / hide animation</summary>
+<summary>Desktop workspace · Show / hide animation</summary>
 
 <p align="center">
-  <img src="./docs/assets/hook-home-demo.gif" width="860" alt="Otter's existing demo: capture, sticker and workflow sample cards on the desktop, with a sticker context menu.">
+  <img src="./docs/assets/otter-workflow-demo-v2.gif" width="860" alt="Otter workflow demo: capture, translation, node processing, two-way projection, annotation, editing and drag-and-drop saving.">
 </p>
 
 </details>
@@ -32,7 +32,7 @@ explore more possibilities for the images you capture.
 
 ## Features
 
-- **Capture the view you want.** Take region, window and long screenshots, and pick colors from the screen.
+- **Capture the view you want.** Take region, window and scrolling screenshots, and pick colors from the screen.
 - **Pin images to your desktop.** Keep references in view and organize your material with groups, the library and history.
 - **Annotate freely and keep editing.** Crop, erase and rotate; add text, arrows and shapes; hide information with blur and mosaic.
 - **Keep pinned images live.** Turn a window or part of the screen into a live pinned view to follow changing content and interact with supported source windows.
@@ -40,10 +40,6 @@ explore more possibilities for the images you capture.
 - **Project your view to other devices.** Send images or live views to connected, paired devices for viewing and collaboration across screens.
 
 [**Full features →**](./docs/FEATURES.md)
-
-With the updated OCR capability, OCR and translation backgrounds follow each
-source region's dominant non-text color, with independently readable text colors.
-Rerun OCR and translation to replace the colors in previously cached results.
 
 ## Get started
 
@@ -57,7 +53,7 @@ Rerun OCR and translation to replace the colors in previously cached results.
 | [Download Otter](https://github.com/aiaimimi0920/Otter/releases) | Extract and launch the Otter App to get started. |
 | Download Otter + Loom | Extract and launch the Otter App and Loom App. Install capability packages such as OCR and translation in Loom, and add commonly used MCP tools and Art nodes as needed to expand your creative workflow. |
 
-1. Press **`Ctrl+1`** for a region screenshot, **`Ctrl+2`** for live capture, or **`Ctrl+3`** for a long capture.
+1. Press **`Ctrl+1`** for a region screenshot, **`Ctrl+2`** for live capture, or **`Ctrl+3`** for a scrolling screenshot.
 2. Select a pinned image and press **`Ctrl+E`** to show or hide the editing toolbar, or **`Tab`** to expand or collapse the parameter panel. After leaving editing or selection mode, press **`Esc`** to delete the pinned image.
 3. With the corresponding Loom capabilities available, press **`Ctrl+4`** for OCR and **`Alt+4`** to toggle recognition results; press **`Ctrl+5`** to translate and **`Alt+5`** to toggle translation results; press **`Shift+1`** to open the Art menu and add a new node.
 4. Select a pinned image, open the toolbar, and choose the projection button to project the pinned image to any connectable device.
