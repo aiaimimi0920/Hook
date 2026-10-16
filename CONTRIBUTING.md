@@ -1,174 +1,74 @@
 # Contributing to Otter
 
-Otter is a Windows-first Tauri/SolidJS application. Changes should be based on
-current code, configuration, runtime behavior, and tests rather than historical
-plans or archived conversations.
+Thank you for helping improve Otter. Bug reports, translations, documentation,
+workflow examples and code contributions are all welcome — you do not need to
+write code to take part.
 
-## 1. Before changing behavior
+[Simplified Chinese](docs/guide/contributing.zh-CN.md) · [Documentation](docs/README.md) · [Browse issues](https://github.com/aiaimimi0920/Otter/issues)
 
-1. Identify the real event/data boundary that fails.
-2. Read the exact implementation and its closest call sites.
-3. Check relevant integration and runtime tests.
-4. Prefer a narrow fix over a broad rewrite.
-5. Do not retain compatibility branches for abandoned development-only behavior
-   unless persisted user data or an active external protocol still needs them.
+## Find your starting point
 
-## 2. Ownership map
-
-目录与文件归属以 [代码组织与开发规范](docs/development/CODE_ORGANIZATION.md) 为准。
-第一次贡献请先阅读其中的功能地图、依赖规则和验证流程；不要恢复旧的全局
-`components`、`services`、`hooks` 分类目录。
-
-| Concern | Primary location |
+| I want to… | Start here |
 | --- | --- |
-| Persistent units, links, groups, library state | `src/features/workspace/state/graphStore.ts` |
-| Transient selection, tools, panels, drag/edit state | `src/features/workspace/state/uiStore.ts` |
-| Tauri command boundary | `src/platform/tauri/api.ts` |
-| Desktop event orchestration | `src/app/app.tsx` |
-| Sticker/unit rendering | `src/features/workspace/components/UnitView.tsx` |
-| Annotation editing | `src/features/stickers/components/StickerAnnotationLayer.tsx` |
-| Capture frontend lifecycle | `src/features/capture/hooks/useSelection.ts` |
-| Native runtime, input, tray, commands | `src-tauri/src/lib.rs` |
-| Capture implementation | `src-tauri/src/capture.rs`, `screenshot.rs` |
-| Long-capture stitching | `src-tauri/src/long_capture.rs` |
-| Release/build automation | `scripts/`, `.github/workflows/` |
+| Report a bug or suggest an improvement | Search [existing issues](https://github.com/aiaimimi0920/Otter/issues), then describe the problem and expected result. |
+| Improve wording or translate documentation | Read the [translation guide](docs/guide/translating.md) / [Simplified Chinese](docs/guide/translating.zh-CN.md). |
+| Share a workflow or help other users | See [ways to contribute](docs/guide/contributing.md). Remove private images, tokens and personal data from examples. |
+| Fix a bug or develop a feature | Follow the [development guide](docs/guide/development.md) / [Simplified Chinese](docs/guide/development.zh-CN.md), then find the owning module in the [code organization standard](docs/development/CODE_ORGANIZATION.md). |
+| Report a security vulnerability | Use the [security policy](SECURITY.md), not a public bug report containing exploit details. |
 
-## 3. Frontend rules
+## Make your first contribution
 
-- Use TypeScript and avoid `any`; narrow `unknown` at the boundary.
-- Put domain decisions, hooks, state and UI together under the owning `src/features/<feature>/`.
-- Use `src/shared/` only for domain-independent primitives; integrations and desktop adapters have explicit owners.
-- Keep `app.tsx` focused on orchestration and side effects.
-- Persistent edits go through `graphStore.actions`; do not write high-frequency
-  pointer samples into persisted state.
-- Use registered element references and imperative transforms for hot drag/edit
-  previews. Commit the final model state once when the interaction ends.
-- Prefer existing Tailwind utility classes for layout. Use inline styles for
-  dynamic coordinates, sizes, opacity, transforms, and other runtime values.
-- Add `app.css` rules only for shared theme tokens, global behavior, or effects
-  that are impractical as utilities.
+1. **Check the existing discussion.** For a larger feature or structural change,
+   discuss the scope in an issue before investing in a broad implementation.
+2. **Work on a focused branch from `main`.** Keep unrelated cleanup separate and
+   preserve existing behavior outside your change.
+3. **Read the owning code and guidance.** Otter is a Windows-first Tauri/SolidJS
+   application. Use current implementation and tests, not historical plans, as
+   the source of truth. Read [AGENTS.md](AGENTS.md) and the
+   [engineering requirements](docs/development/ENGINEERING.md) for code work.
+4. **Verify what you changed.** Run the relevant tests and checks. Documentation-only
+   changes need link/content checks and their consuming contract tests, not an EXE rebuild.
+5. **Open a pull request.** Explain the problem, the change, how you verified it,
+   and anything still untested. Include before/after screenshots for visible UI changes,
+   with private information removed.
 
-## 4. Rust and native-input rules
+For bug reports, include the Otter version, Windows version, reproduction steps,
+expected versus actual behavior, and relevant sanitized logs or screenshots.
+Mention display scaling or monitor layout when the problem involves capture or positioning.
 
-- Format Rust changes with `cargo fmt`.
-- Preserve input edge ordering and pointer ownership across low-level hook,
-  input-shield, Tauri event, and WebView paths.
-- Move samples may be coalesced; button, Escape, delete, and emergency-exit edges
-  must not be dropped.
-- Keep screen-physical, monitor-logical, and WebView-client coordinates explicit.
-- Use atomic/bounded file, cache, and queue behavior for long-running processes.
-- Restore cursor and input state on normal exit, abnormal exit, and emergency
-  watchdog termination.
+## Before opening a pull request
 
-## 5. Styling and UI
-
-- The current visual baseline is the terminal-style dark surface with signal
-  yellow/green accents.
-- Avoid reintroducing the old rounded lavender/glass style.
-- Keep overlays compact; screenshot content has priority over explanatory labels.
-- Interactive overlays must register their hit rectangles through
-  `src/platform/desktop/uiRegistry.ts` when the native click-through layer needs to know
-  about them.
-
-## 6. Tests and verification
-
-Use the smallest relevant checks while developing, then run the appropriate
-release gate before publishing a functional change.
-
-```powershell
-npm run lint
-npm run typecheck
-npm run typecheck:test
-npm run test:performance
-npm run test:parallel
-npm test
-npm run test:surface-browser
-cargo fmt --check --manifest-path src-tauri\Cargo.toml
-cargo test --manifest-path src-tauri\Cargo.toml
-npm run build
-```
-
-`test:parallel` excludes only `RuntimePerformanceGates.test.ts`: its wall-clock
-budgets must not compete with other test workers. CI immediately runs that exact
-file through `test:performance` with one worker and unchanged thresholds. The
-serial `npm test` packaging gate still includes every test. It runs in
-`frontend-serial` alongside the native build and `parallel-race` jobs.
-For code, dependencies, workflows, build configuration, unknown paths and manual
-runs, the stable `build-windows-exe` check fails unless all three succeed and
-only then promotes the same-run candidate to `otter-portable-windows-x64`.
-
-README, known root documentation, `docs/**/*.md` (except the release body), and
-images in `docs/assets/` (except `github-home-hero.svg`, covered by the full
-public-identity contract) use a lightweight documentation lane on PR/main events.
-It checks the full Git diff, including deleted and renamed paths, then validates
-changed text, whitespace and repository-relative link targets, then installs
-locked npm dependencies to run the seven existing documentation/naming contract suites
-and the documentation case from the mixed public-identity suite. Its unrelated
-product source checks remain in the full product lane; an explicit guard rejects
-a renamed/missing documentation case instead of silently running zero tests. No
-full application/native test suite, desktop compilation or EXE artifact promotion
-runs in this lane. The stable check still reports success/failure. Missing history,
-empty diffs, executable/symlink paths, mixed code changes and classifier failures
-never grant a documentation-only success. CI classifier and aggregate regression
-tests run in both lanes. External URLs and heading anchors are not network-checked.
-Loom contract links in `TILE_WALL_CLIENT.md` and `TILE_TERMINAL.md` point to the
-independent GitHub repository and need separate network/version verification.
-The checker retains narrow exceptions for historical sibling-checkout links;
-other out-of-repository paths fail. Security and advisory workflows retain their
-independent scans and reports.
-
-`npm run lint` remains strict (`--max-warnings 0`) for local/release verification.
-Development CI publishes valid findings through the independent advisory workflow. `npm run test:surface-browser` drives a real Chromium through
-Playwright; run `npx playwright install chromium` once before its first use.
-
-`npm run verify:local` runs the full serial verification and also creates a local
-release package. Use it only when that side effect is intended.
-
-For documentation-only changes, run the documentation/contract tests that read
-the changed files and verify links/paths. A full desktop rebuild is unnecessary
-unless release behavior or embedded assets changed.
-
-## 7. Release discipline
-
-- Keep `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`,
-  `src-tauri/Cargo.lock`, and `src-tauri/tauri.conf.json` versions aligned.
-- New public release tags use `vx.x.x`; existing uppercase tags remain accepted.
-- Internal iterations use `vx.x.x.n` via `npm run version:internal`; do not bump
-  public package versions for internal work. See `docs/release/VERSIONING.md`.
-- The current user package is the portable Windows zip.
-- A signing-candidate manifest is provenance metadata, not a signed installer.
-- Never commit a PFX, private key, signing token, or private provider identifier.
-- Every signed installer request must use the hosted reviewed workflow and fail
-  closed when approval or configuration is missing.
-- Run the exact-lock inventory and OSV gate described in
-  [`docs/security/DEPENDENCY_SECURITY.md`](docs/security/DEPENDENCY_SECURITY.md) before release.
-- Formal release evidence and draft-first publication follow
-  [`docs/release/release-provenance.md`](docs/release/release-provenance.md).
-
-## 8. Documentation discipline
-
-- The code and tests are the source of truth.
-- Keep only current operational docs in the working tree.
-- Do not create per-task implementation-plan Markdown after the work is complete;
-  use issues, commits, and Git history for temporary reasoning.
-- Update `README.md`, `README.zh-CN.md`, and `docs/FEATURES.md` together when a
-  user-facing shortcut or capability changes.
-- Update `docs/architecture/overview.md` when module ownership, persistence,
-  runtime input, capture, or release boundaries change.
-- Machine-local paths and generated logs do not belong in tracked documentation.
-
-## 9. Pull request checklist
-
-- [ ] The change addresses the real implementation boundary.
-- [ ] No unrelated code or user data was removed.
-- [ ] New hot-path work is bounded and measured.
-- [ ] Relevant tests cover the behavior, not only source strings when a runtime
-      test is feasible.
-- [ ] Documentation matches the final code.
+- [ ] The change has one clear purpose and does not remove unrelated work or data.
+- [ ] Relevant checks pass; untested native or cross-device behavior is stated explicitly.
+- [ ] Documentation and both language variants are updated when affected.
+- [ ] No credentials, private screenshots, local logs or generated build output are included.
 - [ ] `git diff --check` is clean.
-- [ ] The verification results and remaining risks are reported accurately.
 
-Development CI policy: valid vulnerability, license, lint, format, and size findings
-are advisory in independent reporting workflows. Tool/report/upload failures remain
-errors; typechecking, builds, and functional tests stay blocking. Release checks and
-`npm run verify:local` remain strict. See [dependency security policy](docs/security/DEPENDENCY_SECURITY.md).
+## Development and verification
+
+Otter is built with SolidJS, TypeScript, Rust and Tauri for Windows. Use the
+[development guide](docs/guide/development.md) for prerequisites and setup; a browser
+preview alone cannot validate native capture, input or desktop behavior.
+
+Before changing code, read the [engineering requirements](docs/development/ENGINEERING.md)
+and [code organization standard](docs/development/CODE_ORGANIZATION.md). These cover
+module ownership, state and resource lifetimes, testing, and release boundaries.
+
+| Your change | Verification to include in the PR |
+| --- | --- |
+| Documentation or translation | Check affected links, anchors, examples and language consistency; run the documentation contracts that consume those files. |
+| Frontend behavior | Relevant tests, typechecks and lint; describe visible behavior and add regression coverage. |
+| Native capture or desktop input | Relevant Rust and frontend checks, plus the applicable Windows runtime verification. |
+| Packaging or dependencies | Follow the release and dependency-security gates in the engineering requirements. |
+
+See the [verification requirements](docs/development/ENGINEERING.md#6-tests-and-verification)
+for commands and CI behavior. Report which checks you actually ran; compilation,
+mocked tests and browser tests do not substitute for native or cross-device acceptance.
+
+## Review and follow-up
+
+Keep the pull request description focused on the problem and the evidence for the
+solution. Link the relevant issue when one exists. Maintainers may ask for a smaller
+scope, additional tests or documentation changes before merging. Do not combine a
+public release, version-tag change or external deployment with an ordinary fix
+unless that work has been agreed separately.

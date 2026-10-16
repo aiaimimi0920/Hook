@@ -66,7 +66,7 @@ Do not move existing documents merely to tidy the directory.
    first to avoid duplicate work.
 2. Start your own working branch from current code and change only related files.
 3. For documentation, check links, images, anchors, code examples and bilingual
-   consistency. Code changes follow the [engineering verification requirements](../../CONTRIBUTING.md#6-tests-and-verification).
+   consistency. Code changes follow the [engineering verification requirements](../development/ENGINEERING.md#6-tests-and-verification).
 4. Explain what changed, why, the checks performed and remaining verification gaps
    in the PR. Show actual results; a simulated demo is not native acceptance evidence.
 

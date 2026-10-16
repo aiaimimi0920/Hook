@@ -38,7 +38,8 @@ of truth. Documents are grouped by purpose and this index is the navigation entr
 - [中文参与指南](guide/contributing.zh-CN.md) · [English contribution guide](guide/contributing.md) — reports, ideas, examples, wording and documentation.
 - [中文翻译教程](guide/translating.zh-CN.md) · [Translation guide](guide/translating.md) — documentation translation and interface wording boundaries.
 - [Existing issues](https://github.com/aiaimimi0920/Otter/issues) — search before opening a new report.
-- [Engineering contribution guide](../CONTRIBUTING.md) — code ownership, checks and delivery requirements.
+- [Contribution entry point](../CONTRIBUTING.md) — choosing a contribution, opening a PR and reporting verification.
+- [Engineering requirements](development/ENGINEERING.md) — code ownership, implementation rules, checks and delivery requirements.
 
 ## 开发与运行时 / Development and runtime
 

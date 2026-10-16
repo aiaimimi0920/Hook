@@ -130,7 +130,7 @@ native 子目录放内部实现。新工具先明确用途、runner、输入/输
 - 保留稳定 npm 命令名。内部迭代只递增 `version-state.json`，不改变公开版本或应用身份。
 - 分别报告代码检查、浏览器检查、原生运行、打包和人工验收；已有失败不等于新回归，未跑不等于通过。
 
-当前命令和发布门见 [贡献指南](../../CONTRIBUTING.md#6-tests-and-verification) 与
+当前命令和发布门见 [工程验证要求](ENGINEERING.md#6-tests-and-verification) 与
 [发布来源规范](../release/release-provenance.md)。本文件不重复维护另一套命令清单。
 
 ## 8. 目录设计参考
