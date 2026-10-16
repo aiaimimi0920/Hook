@@ -107,7 +107,6 @@ const preserveBlock = (
     coordinateScale: number,
     sourceWidth: number,
     sourceHeight: number,
-    fillColor: string,
 ): Record<string, unknown> | null => {
     if (!preservesWithinSchema(block)) return null;
     const bounds = resolveOcrBlockBounds(block.boxPoints, coordinateScale);
@@ -117,6 +116,7 @@ const preserveBlock = (
     const right = Math.max(0, Math.min(sourceWidth, bounds.maxX));
     const bottom = Math.max(0, Math.min(sourceHeight, bounds.maxY));
     if (right <= left || bottom <= top) return null;
+    const fillColor = resolveOcrOverlayFillColor(block).hex;
     return {
         text: block.text,
         left,
@@ -144,11 +144,11 @@ const buildSurfaceScene = (
     coordinateScale: number,
     sourceWidth: number,
     sourceHeight: number,
-    fillColor: string,
 ): Record<string, unknown> | null => {
     const overlays = resolveOcrOverlayBlocks(blocks, coordinateScale);
     if (overlays.length > MAX_CLICKABLE_SCENE_BLOCKS) return null;
     const children = overlays.map((block, index) => {
+        const fillColor = resolveOcrOverlayFillColor(block).hex;
         const lines = resolveOcrOverlayVisualLines(block);
         const lineHeight = (block.bounds.maxY - block.bounds.minY) / Math.max(1, lines.length);
         const typography = resolveOcrSurfaceTypography(
@@ -209,16 +209,14 @@ export const buildLegacyOcrAttachmentPayload = (result: LegacyOcrResult): unknow
     const sourceWidth = sourceDimension(result.width, result.textBlocks, "x", coordinateScale);
     const sourceHeight = sourceDimension(result.height, result.textBlocks, "y", coordinateScale);
     if (!sourceWidth || !sourceHeight) return null;
-    const fillColor = resolveOcrOverlayFillColor(result.textBlocks).hex;
     const textBlocks = result.textBlocks.map((block) =>
-        preserveBlock(block, coordinateScale, sourceWidth, sourceHeight, fillColor));
+        preserveBlock(block, coordinateScale, sourceWidth, sourceHeight));
     if (textBlocks.some((block) => block === null)) return null;
     const surfaceScene = buildSurfaceScene(
         result.textBlocks,
         coordinateScale,
         sourceWidth,
         sourceHeight,
-        fillColor,
     );
     if (!surfaceScene) return null;
     try {

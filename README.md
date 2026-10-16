@@ -41,6 +41,10 @@ explore more possibilities for the images you capture.
 
 [**Full features →**](./docs/FEATURES.md)
 
+With the updated OCR capability, OCR and translation backgrounds follow each
+source region's dominant non-text color, with independently readable text colors.
+Rerun OCR and translation to replace the colors in previously cached results.
+
 ## Get started
 
 - **Capture and pin:** Capture any area of your desktop and pin it anywhere on the desktop.
