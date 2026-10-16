@@ -5,5 +5,5 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["src/**/*", "__tests__/**/*", "vite.config.ts", "scripts/**/*.ts"]
+  "include": ["src/**/*", "tests/**/*", "vite.config.ts", "scripts/**/*.ts"]
 }

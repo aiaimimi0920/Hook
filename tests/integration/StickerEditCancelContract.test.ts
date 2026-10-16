@@ -1,0 +1,35 @@
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const shortcutsSource = readFileSync(resolve(process.cwd(), "src/platform/desktop/shortcuts.ts"), "utf8");
+const appShortcutSource = readFileSync(
+    resolve(process.cwd(), "src/app/useAppShortcutController.ts"),
+    "utf8",
+);
+const captureStateSource = readFileSync(resolve(process.cwd(), "src/features/capture/services/captureState.ts"), "utf8");
+const layerSource = readFileSync(resolve(process.cwd(), "src/features/stickers/components/StickerAnnotationLayer.tsx"), "utf8");
+const lifecycleSource = readFileSync(
+    resolve(process.cwd(), "src/features/stickers/components/stickerAnnotationLifecycleController.ts"),
+    "utf8",
+);
+const uiStoreSource = readFileSync(resolve(process.cwd(), "src/features/workspace/state/uiStore.ts"), "utf8");
+
+describe("Otter sticker edit cancel contract", () => {
+    it("uses Escape to cancel active sticker drawing/edit drafts without deleting the sticker", () => {
+        expect(shortcutsSource).toContain("cancel-sticker-edit");
+        expect(shortcutsSource).toContain("context: 'sticker-editing'");
+
+        expect(appShortcutSource).toContain("resolveShortcutContext");
+        expect(captureStateSource).toContain("return \"sticker-editing\"");
+        expect(appShortcutSource).toContain("onCancelStickerEdit");
+
+        expect(uiStoreSource).toContain("stickerEditCancelToken");
+        expect(uiStoreSource).toContain("requestStickerEditCancel");
+
+        expect(layerSource).toContain("createStickerAnnotationLifecycleController");
+        expect(lifecycleSource).toContain("stickerEditCancelToken");
+        expect(lifecycleSource).toContain("options.setDraftShape(null)");
+        expect(lifecycleSource).toContain("options.setDraftLine(null)");
+    });
+});

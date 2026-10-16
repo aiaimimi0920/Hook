@@ -20,7 +20,7 @@ fn main_webview_has_only_self_and_native_ipc_connect_sources() {
 
 #[test]
 fn boot_profile_cannot_expand_the_static_network_policy() {
-    let runtime = include_str!("native/app_runtime.rs");
+    let runtime = include_str!("native/runtime/app_runtime.rs");
     assert!(!runtime.contains("allow_configured_bridge"));
     assert!(!runtime.contains("config_mut()"));
 }

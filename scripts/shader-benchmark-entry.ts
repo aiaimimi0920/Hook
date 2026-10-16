@@ -1,4 +1,4 @@
-import { ShaderRenderer, type ShaderSuccessResponse } from "../src/components/ShaderRenderer";
+import { ShaderRenderer, type ShaderSuccessResponse } from "../src/features/art/components/ShaderRenderer";
 
 interface ShaderBenchmarkMetric {
   p50Ms: number;

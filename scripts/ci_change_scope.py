@@ -6,9 +6,9 @@ import re
 import subprocess
 
 ROOT_DOCS = {"README.md", "README.zh-CN.md", "CONTRIBUTING.md", "AGENTS.md",
-             "TECHNICAL_ARCHITECTURE.md", "CHANGELOG.md", "GOVERNANCE.md",
-             "SECURITY.md", "MIGRATION.md", "THIRD_PARTY_NOTICES.md",
-             "UIACCESS_DISTRIBUTION.md"}
+             "docs/architecture/overview.md", "CHANGELOG.md", "GOVERNANCE.md",
+             "SECURITY.md", "docs/development/standalone-migration.md", "THIRD_PARTY_NOTICES.md",
+             "docs/release/uiaccess-distribution.md"}
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
 
 
@@ -19,7 +19,7 @@ def is_documentation(path):
     if path in ROOT_DOCS:
         return True
     # Release input and the hero asset retain their existing full-product contracts.
-    if path in {"docs/GITHUB_RELEASE_BODY.md", "docs/assets/github-home-hero.svg"}:
+    if path in {"docs/release/GITHUB_RELEASE_BODY.md", "docs/assets/github-home-hero.svg"}:
         return False
     return (path.startswith("docs/") and path.endswith(".md")) or (
         path.startswith("docs/assets/") and PurePosixPath(path).suffix in IMAGE_SUFFIXES)

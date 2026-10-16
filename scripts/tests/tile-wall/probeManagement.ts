@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import type { Browser, Locator, Page } from 'playwright';
-import type { WallRect, WallStateSnapshot } from '../../../src/services/wallTypes.ts';
+import type { WallRect, WallStateSnapshot } from '../../../src/features/tile/services/wallTypes.ts';
 import { connectOutput, screenshotPixels, type ArtRecord } from './artProbe.ts';
 import { openProbe, readJson, sampleJson, until, writeJson } from './probeSession.ts';
 

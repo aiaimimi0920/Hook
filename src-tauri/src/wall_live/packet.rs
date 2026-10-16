@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn golden_packets_reject_stale_identity_wrong_codec_and_png_allocation_spoofing() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../__tests__/fixtures/wall/wall-media.v1.json"
+            "../../../tests/fixtures/wall/wall-media.v1.json"
         ))
         .unwrap();
         for (name, format) in [

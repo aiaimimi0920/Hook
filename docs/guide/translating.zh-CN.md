@@ -26,8 +26,8 @@
 | 社区参与说明 | [中文指南](./contributing.zh-CN.md)与[英文指南](./contributing.md)。 |
 | 本翻译教程 | 本页与[英文教程](./translating.md)。 |
 | 其他产品与技术文档 | 从[文档中心](../README.md)找到现有说明；并非每篇都有双语版本，不要创建指向尚不存在译文的链接。 |
-| 工具栏选项 | [stickerTopStripCatalog.tsx](../../src/components/stickerTopStripCatalog.tsx)直接保存选项的显示文字，例如“选择”和“移动”。 |
-| 组件内标签与提示 | 例如 [StickerTopStripEditActions.tsx](../../src/components/StickerTopStripEditActions.tsx)中的按钮标题与无障碍标签，以及 [AppSettingsDialog.tsx](../../src/components/AppSettingsDialog.tsx)中的设置文案。 |
+| 工具栏选项 | [stickerTopStripCatalog.tsx](../../src/features/stickers/components/stickerTopStripCatalog.tsx)直接保存选项的显示文字，例如“选择”和“移动”。 |
+| 组件内标签与提示 | 例如 [StickerTopStripEditActions.tsx](../../src/features/stickers/components/StickerTopStripEditActions.tsx)中的按钮标题与无障碍标签，以及 [AppSettingsDialog.tsx](../../src/features/settings/components/AppSettingsDialog.tsx)中的设置文案。 |
 
 当前核对到的界面文字直接保存在组件与选项目录等源码中，不能通过仿照其他项目新增一个语言文件就完成界面翻译。
 界面文字修改属于代码修改，应定位实际调用位置，按[工程贡献规范](../../CONTRIBUTING.md)验证。

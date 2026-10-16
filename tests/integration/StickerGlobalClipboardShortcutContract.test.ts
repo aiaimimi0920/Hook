@@ -1,0 +1,183 @@
+import { describe, expect, it } from "vitest";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const readSource = (relativePath: string) =>
+  readFileSync(resolve(process.cwd(), relativePath), "utf8");
+
+const sourceBetween = (source: string, start: string, end: string) => {
+  const startIndex = source.indexOf(start);
+  expect(startIndex).toBeGreaterThanOrEqual(0);
+  const endIndex = source.indexOf(end, startIndex + start.length);
+  expect(endIndex).toBeGreaterThan(startIndex);
+  return source.slice(startIndex, endIndex);
+};
+
+describe("sticker global clipboard shortcut contract", () => {
+  it("captures Ctrl+C/Ctrl+V from the low-level keyboard hook when the overlay is intentionally unfocused", () => {
+    const appSource = readSource("src/app/app.tsx");
+    const commandSource = readSource("src/app/appCommandListeners.ts");
+    const rustSource = readOtterLibRustSources();
+
+    const keyMatcherBlock = sourceBetween(
+      rustSource,
+      "fn overlay_keyboard_hook_event_for_keydown",
+      "unsafe extern \"system\" fn overlay_keyboard_hook_proc",
+    );
+    const keyboardHookBlock = sourceBetween(
+      rustSource,
+      "unsafe extern \"system\" fn overlay_keyboard_hook_proc",
+      "fn install_overlay_keyboard_hook_thread",
+    );
+    const keyboardHookThread = sourceBetween(
+      rustSource,
+      "fn install_overlay_keyboard_hook_thread",
+      "#[cfg(not(target_os = \"windows\"))]\nfn install_overlay_keyboard_hook_thread",
+    );
+    const tauriListenBlock = sourceBetween(
+      commandSource,
+      'listen("trigger-open-image"',
+      'listen<VoiceHotkeyPayload>',
+    );
+
+    expect(keyMatcherBlock).toContain('shortcut_config::action_matches("copy_unit"');
+    expect(keyMatcherBlock).toContain('shortcut_config::action_matches("paste_unit"');
+    expect(keyMatcherBlock).toContain("runtime_modifiers");
+    expect(keyboardHookBlock).toContain("return LRESULT(1);");
+    expect(keyboardHookThread).toContain('"trigger-copy"');
+    expect(keyboardHookThread).toContain('"trigger-paste"');
+    expect(keyboardHookThread).not.toContain("window.set_focus()");
+
+    expect(tauriListenBlock).toContain('listen("trigger-copy"');
+    expect(tauriListenBlock).toContain('listen("trigger-paste"');
+    expect(tauriListenBlock).toContain("if (!selectedStickerId()) return;");
+    expect(tauriListenBlock).toContain("void handleCopy();");
+    expect(tauriListenBlock).toContain("void handlePaste();");
+    expect(appSource).toContain("registerAppCommandListeners");
+  });
+
+  it("captures Otter-owned sticker shortcuts with a low-level keyboard hook so they do not leak to the app underneath", () => {
+    const appSource = readSource("src/app/app.tsx");
+    const overlayWindowApiSource = readSource("src/platform/tauri/apiOverlayWindow.ts");
+    const rustSource = readOtterLibRustSources();
+
+    const keyboardHookProc = sourceBetween(
+      rustSource,
+      "unsafe extern \"system\" fn overlay_keyboard_hook_proc",
+      "fn install_overlay_keyboard_hook_thread",
+    );
+    const keyboardCaptureCursorHelper = sourceBetween(
+      rustSource,
+      "fn overlay_keyboard_capture_should_handle_current_cursor",
+      "unsafe extern \"system\" fn overlay_keyboard_hook_proc",
+    );
+    const keyMatcherBlock = sourceBetween(
+      rustSource,
+      "fn overlay_keyboard_hook_event_for_keydown",
+      "unsafe extern \"system\" fn overlay_keyboard_hook_proc",
+    );
+    const keyboardHookThread = sourceBetween(
+      rustSource,
+      "fn install_overlay_keyboard_hook_thread",
+      "#[cfg(not(target_os = \"windows\"))]\nfn install_overlay_keyboard_hook_thread",
+    );
+    const setupBlock = sourceBetween(
+      rustSource,
+      "install_capture_mouse_hook_thread(window.clone());",
+      "if boot_profile.initial_ui_mode == \"tray\"",
+    );
+    const appKeyboardCaptureEffect = sourceBetween(
+      appSource,
+      "createEffect(() => {",
+      "useAppShortcutController({",
+    );
+    const rdevEscapeDeleteBlock = sourceBetween(
+      rustSource,
+      "rdev::EventType::KeyPress(rdev::Key::Escape)",
+      "rdev::EventType::KeyPress(rdev::Key::Return)",
+    );
+
+    expect(rustSource).toContain("static OVERLAY_KEYBOARD_CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);");
+    expect(rustSource).toContain("enum OverlayKeyboardHookEvent");
+    expect(rustSource).toContain(
+      "fn set_overlay_keyboard_capture_active(_app: tauri::AppHandle, active: bool) -> Result<(), String>",
+    );
+    expect(rustSource).toContain("set_overlay_keyboard_capture_active,");
+
+    expect(keyboardHookProc).toContain("KBDLLHOOKSTRUCT");
+    expect(keyboardHookProc).toContain("overlay_keyboard_capture_should_handle_current_cursor()");
+    expect(keyboardHookProc).toContain("queue_overlay_keyboard_hook_event");
+    expect(keyboardHookProc).toContain("return LRESULT(1);");
+    expect(keyboardCaptureCursorHelper).toContain("OVERLAY_KEYBOARD_CAPTURE_ACTIVE.load(Ordering::SeqCst)");
+    expect(keyboardCaptureCursorHelper).toContain("current_cursor_position_physical()");
+    expect(keyboardCaptureCursorHelper).toContain("should_route_overlay_mouse_events(x, y)");
+    expect(keyMatcherBlock).toContain('shortcut_config::action_matches("cancel"');
+    expect(keyMatcherBlock).toContain('shortcut_config::action_matches("delete_unit"');
+    expect(keyMatcherBlock).toContain('shortcut_config::action_matches("copy_unit"');
+    expect(keyMatcherBlock).toContain('shortcut_config::action_matches("paste_unit"');
+    expect(keyMatcherBlock).toContain("runtime_modifiers");
+
+    expect(keyboardHookThread).toContain("SetWindowsHookExW(WH_KEYBOARD_LL");
+    expect(keyboardHookThread).toContain("WH_KEYBOARD_LL");
+    expect(keyboardHookThread).toContain('"trigger-escape"');
+    expect(keyboardHookThread).toContain('"trigger-delete"');
+    expect(keyboardHookThread).toContain('"trigger-copy"');
+    expect(keyboardHookThread).toContain('"trigger-paste"');
+    expect(keyboardHookThread).not.toContain("window.set_focus()");
+    expect(setupBlock).toContain("install_overlay_keyboard_hook_thread(window.clone());");
+
+    expect(overlayWindowApiSource).toContain("setOverlayKeyboardCaptureActive");
+    expect(overlayWindowApiSource).toContain('"set_overlay_keyboard_capture_active"');
+    expect(appKeyboardCaptureEffect).toContain("api.setOverlayKeyboardCaptureActive");
+    expect(appKeyboardCaptureEffect).toContain("Boolean(selectedStickerId())");
+    expect(appKeyboardCaptureEffect).toContain("!isSelecting()");
+    expect(rdevEscapeDeleteBlock).toContain("overlay_keyboard_capture_should_handle_current_cursor()");
+  });
+
+  it("fails open for Alt input owned by another foreground process", () => {
+    const rustSource = readOtterLibRustSources();
+    const passthroughHelper = sourceBetween(
+      rustSource,
+      "fn should_passthrough_foreign_alt_input",
+      "// A sticker-selected DOM shortcut",
+    );
+    const keyboardHookBlock = sourceBetween(
+      rustSource,
+      "unsafe extern \"system\" fn overlay_keyboard_hook_proc",
+      "fn install_overlay_keyboard_hook_thread",
+    );
+    const mouseHookBlock = sourceBetween(
+      rustSource,
+      'unsafe extern "system" fn capture_mouse_hook_proc',
+      "fn install_capture_mouse_hook_thread",
+    );
+    const shieldRouteBlock = sourceBetween(
+      rustSource,
+      "fn route_overlay_input_shield_mouse_message(",
+      'unsafe extern "system" fn overlay_input_shield_wndproc',
+    );
+    const shieldBlock = sourceBetween(
+      rustSource,
+      "fn set_overlay_input_shield_alt_passthrough",
+      "struct OverlayMainWindowSearchState",
+    );
+
+    expect(passthroughHelper).toContain("alt_pressed");
+    expect(passthroughHelper).toContain("!capture_active");
+    expect(passthroughHelper).toContain("!drag_active");
+    expect(passthroughHelper).toContain("!native_drag_preflight_active");
+    expect(passthroughHelper).toContain("!otter_has_foreground_window");
+    expect(passthroughHelper).toContain("let routed_overlay_wheel = is_wheel_message && should_route_overlay_mouse;");
+    expect(passthroughHelper).toContain("&& !routed_overlay_wheel");
+    expect(keyboardHookBlock).toContain("should_passthrough_foreign_alt_input(");
+    expect(keyboardHookBlock).toContain("hook_process_has_foreground_window()");
+    expect(mouseHookBlock).toContain("should_passthrough_foreign_alt_mouse_input(");
+    expect(mouseHookBlock).toContain("message == WM_MOUSEWHEEL");
+    expect(mouseHookBlock).toContain("should_route_overlay_mouse");
+    expect(shieldRouteBlock).toContain("should_passthrough_foreign_alt_mouse_input(");
+    expect(shieldRouteBlock).toContain("message == WM_MOUSEWHEEL");
+    expect(mouseHookBlock).toContain("set_overlay_input_shield_alt_passthrough(true)");
+    expect(shieldBlock).toContain("WS_EX_TRANSPARENT");
+  });
+});

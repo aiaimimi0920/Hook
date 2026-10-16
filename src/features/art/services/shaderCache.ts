@@ -1,0 +1,378 @@
+/**
+ * ShaderCache - Manages shader programs for Shader Arts
+ *
+ * This service handles:
+ * - Prefetching shader code from Python Arts during Art library refresh
+ * - Caching compiled ShaderRenderer instances per Art ID
+ * - Providing quick access to shader renderers for real-time preview
+ */
+
+import { api, isTauriRuntimeAvailable } from '../../../platform/tauri/api';
+
+import { ShaderRenderer, type ShaderSuccessResponse } from '../components/ShaderRenderer';
+
+/**
+ * Cached shader entry
+ */
+interface CachedShader {
+    artId: string;
+    shaderCode: ShaderSuccessResponse;
+    renderers: Map<string, ShaderRenderer>;  // Key: unitId, Value: ShaderRenderer instance
+    estimatedBytes: number;
+    lastUsed: number;
+}
+
+export const SHADER_CACHE_LIMITS = {
+    maxEntries: 16,
+    maxEstimatedBytes: 64 * 1024 * 1024,
+} as const;
+
+export interface ShaderCacheStats {
+    shaderCount: number;
+    rendererCount: number;
+    estimatedBytes: number;
+    pendingPrefetchCount: number;
+}
+
+/**
+ * ShaderCache singleton
+ */
+class ShaderCacheService {
+    private cache: Map<string, CachedShader> = new Map();
+    private prefetchPromises: Map<string, Promise<ShaderSuccessResponse | null>> = new Map();
+    private prefetchGenerations: Map<string, number> = new Map();
+    private nextPrefetchGeneration: number = 0;
+    private nextUseOrder: number = 0;
+
+    /**
+     * Prefetch shader code from a Shader Art
+     * Returns cached promise if already fetching
+     * @param inputPath - Optional path to source image for LUT generation
+     * @param referencePath - Optional path to reference image for LUT generation
+     */
+    prefetchShader(
+        artId: string,
+        force: boolean = false,
+        inputPath?: string,
+        referencePath?: string
+    ): Promise<ShaderSuccessResponse | null> {
+        // Return existing promise if already fetching
+        const existingPromise = this.prefetchPromises.get(artId);
+        if (existingPromise && !force) {
+            return existingPromise;
+        }
+
+        // Return cached shader if already available (unless forced)
+        if (!force && this.hasShaderCode(artId)) {
+            return Promise.resolve(this.getShaderCode(artId));
+        }
+
+        // Start fetching
+        const generation = ++this.nextPrefetchGeneration;
+        this.prefetchGenerations.set(artId, generation);
+        const promise: Promise<ShaderSuccessResponse | null> = this.doFetchShader(artId, inputPath, referencePath)
+            .then((result) => {
+                if (this.prefetchGenerations.get(artId) !== generation) {
+                    return null;
+                }
+                if (result) {
+                    this.storeShaderCode(artId, result);
+                    console.log(`[ShaderCache] Successfully cached shader for Art: ${artId}`);
+                }
+                return result;
+            })
+            .finally(() => {
+                if (this.prefetchPromises.get(artId) === promise) {
+                    this.prefetchPromises.delete(artId);
+                }
+                if (this.prefetchGenerations.get(artId) === generation) {
+                    this.prefetchGenerations.delete(artId);
+                }
+            });
+        this.prefetchPromises.set(artId, promise);
+        return promise;
+    }
+
+    private async doFetchShader(artId: string, inputPath?: string, referencePath?: string): Promise<ShaderSuccessResponse | null> {
+        if (!isTauriRuntimeAvailable()) {
+            return null;
+        }
+        try {
+            console.log(`[ShaderCache] Prefetching shader for Art: ${artId}`);
+            if (inputPath || referencePath) {
+                console.log(`[ShaderCache] With paths - input: ${inputPath || '<none>'}, reference: ${referencePath || '<none>'}`);
+            }
+
+            const response = await api.prefetchShader({
+                artId,
+                inputPath: inputPath ?? null,
+                referencePath: referencePath ?? null
+            });
+
+
+            // Validate response
+            if (response && response.type === 'shader' && response.vertex_shader && response.fragment_shader) {
+                const shaderResponse: ShaderSuccessResponse = {
+                    type: 'shader',
+                    vertex_shader: response.vertex_shader,
+                    fragment_shader: response.fragment_shader,
+                    uniforms: response.uniforms || {},
+                    textures: response.textures || {},  // CRITICAL: Include textures (contains LUT!)
+                    success: true
+                };
+
+                return shaderResponse;
+            } else {
+                console.warn(`[ShaderCache] Invalid shader response for Art: ${artId}`, response);
+                return null;
+            }
+        } catch (e) {
+            console.error(`[ShaderCache] Failed to prefetch shader for Art: ${artId}`, e);
+            return null;
+        }
+    }
+
+    /**
+     * Store shader code for an Art
+     */
+    setShaderCode(artId: string, shaderCode: ShaderSuccessResponse): void {
+        this.nextPrefetchGeneration += 1;
+        this.prefetchGenerations.delete(artId);
+        this.prefetchPromises.delete(artId);
+        this.storeShaderCode(artId, shaderCode);
+    }
+
+    private storeShaderCode(artId: string, shaderCode: ShaderSuccessResponse): void {
+        const existing = this.cache.get(artId);
+        const estimatedBytes = estimateShaderResponseBytes(shaderCode);
+        if (existing) {
+            if (!shaderResponsesEqual(existing.shaderCode, shaderCode)) {
+                for (const renderer of existing.renderers.values()) {
+                    renderer.dispose();
+                }
+                existing.renderers.clear();
+            }
+            existing.shaderCode = shaderCode;
+            existing.estimatedBytes = estimatedBytes;
+            this.touch(existing);
+        } else {
+            this.cache.set(artId, {
+                artId,
+                shaderCode,
+                renderers: new Map(),
+                estimatedBytes,
+                lastUsed: ++this.nextUseOrder,
+            });
+        }
+        this.pruneCache(artId);
+        console.log(`[ShaderCache] Cached shader for Art: ${artId}`);
+    }
+
+    /**
+     * Get cached shader code for an Art
+     */
+    getShaderCode(artId: string): ShaderSuccessResponse | null {
+        const cached = this.cache.get(artId);
+        if (!cached) return null;
+        this.touch(cached);
+        return cached.shaderCode;
+    }
+
+    /**
+     * Check if shader code is cached for an Art
+     */
+    hasShaderCode(artId: string): boolean {
+        return this.cache.has(artId);
+    }
+
+    /**
+     * Get or create a ShaderRenderer for a specific unit
+     */
+    getRenderer(artId: string, unitId: string, canvas: HTMLCanvasElement): ShaderRenderer | null {
+        const cached = this.cache.get(artId);
+        if (!cached) {
+            console.warn(`[ShaderCache] No shader cached for Art: ${artId}`);
+            return null;
+        }
+        this.touch(cached);
+
+        // Check if we already have a renderer for this unit
+        let renderer = cached.renderers.get(unitId);
+        if (renderer) {
+            const boundCanvas =
+                typeof (renderer as ShaderRenderer & { getCanvas?: () => HTMLCanvasElement }).getCanvas === "function"
+                    ? (renderer as ShaderRenderer & { getCanvas: () => HTMLCanvasElement }).getCanvas()
+                    : null;
+            if (boundCanvas && boundCanvas !== canvas) {
+                renderer.dispose();
+                cached.renderers.delete(unitId);
+                console.log(`[ShaderCache] Recreating renderer for unit ${unitId} because the canvas changed`);
+                renderer = undefined;
+            } else {
+                return renderer;
+            }
+        }
+
+        // Create new renderer
+        try {
+            renderer = new ShaderRenderer(canvas);
+            const success = renderer.initFromShaderResponse(cached.shaderCode);
+            if (!success) {
+                renderer.dispose();
+                console.error(`[ShaderCache] Failed to init shader for unit: ${unitId}`);
+                return null;
+            }
+            cached.renderers.set(unitId, renderer);
+            console.log(`[ShaderCache] Created renderer for unit: ${unitId}`);
+            return renderer;
+        } catch (e) {
+            renderer?.dispose();
+            console.error(`[ShaderCache] Error creating renderer:`, e);
+            return null;
+        }
+    }
+
+    /**
+     * Dispose renderer for a unit (when unit is deleted)
+     */
+    disposeRenderer(artId: string, unitId: string, expectedRenderer?: ShaderRenderer): void {
+        const cached = this.cache.get(artId);
+        if (!cached) {
+            expectedRenderer?.dispose();
+            return;
+        }
+        const renderer = cached.renderers.get(unitId);
+        if (expectedRenderer && renderer !== expectedRenderer) {
+            expectedRenderer.dispose();
+            return;
+        }
+        if (renderer) {
+            renderer.dispose();
+            cached.renderers.delete(unitId);
+            console.log(`[ShaderCache] Disposed renderer for unit: ${unitId}`);
+        }
+        this.pruneCache();
+    }
+
+    disposeUnit(unitId: string): void {
+        for (const cached of this.cache.values()) {
+            const renderer = cached.renderers.get(unitId);
+            if (!renderer) continue;
+            renderer.dispose();
+            cached.renderers.delete(unitId);
+        }
+        this.pruneCache();
+    }
+
+    retainRenderersForUnits(activeUnitIds: ReadonlySet<string>): void {
+        for (const cached of this.cache.values()) {
+            for (const [unitId, renderer] of cached.renderers) {
+                if (activeUnitIds.has(unitId)) continue;
+                renderer.dispose();
+                cached.renderers.delete(unitId);
+            }
+        }
+        this.pruneCache();
+    }
+
+    /**
+     * Clear all cached shaders and renderers
+     */
+    clear(): void {
+        for (const cached of this.cache.values()) {
+            for (const renderer of cached.renderers.values()) {
+                renderer.dispose();
+            }
+        }
+        this.cache.clear();
+        this.prefetchPromises.clear();
+        this.prefetchGenerations.clear();
+        this.nextUseOrder = 0;
+        console.log(`[ShaderCache] Cache cleared`);
+    }
+
+    /**
+     * Get all cached Art IDs
+     */
+    getCachedArtIds(): string[] {
+        return Array.from(this.cache.keys());
+    }
+
+    getCacheStats(): ShaderCacheStats {
+        let rendererCount = 0;
+        let estimatedBytes = 0;
+        for (const cached of this.cache.values()) {
+            rendererCount += cached.renderers.size;
+            estimatedBytes += cached.estimatedBytes;
+        }
+        return {
+            shaderCount: this.cache.size,
+            rendererCount,
+            estimatedBytes,
+            pendingPrefetchCount: this.prefetchPromises.size,
+        };
+    }
+
+    private touch(cached: CachedShader): void {
+        cached.lastUsed = ++this.nextUseOrder;
+    }
+
+    private pruneCache(protectedArtId?: string): void {
+        let estimatedBytes = 0;
+        for (const cached of this.cache.values()) {
+            estimatedBytes += cached.estimatedBytes;
+        }
+
+        while (
+            this.cache.size > SHADER_CACHE_LIMITS.maxEntries
+            || estimatedBytes > SHADER_CACHE_LIMITS.maxEstimatedBytes
+        ) {
+            const candidate = Array.from(this.cache.values())
+                .filter((cached) => cached.artId !== protectedArtId && cached.renderers.size === 0)
+                .sort((left, right) => left.lastUsed - right.lastUsed)[0];
+            if (!candidate) break;
+
+            this.cache.delete(candidate.artId);
+            estimatedBytes -= candidate.estimatedBytes;
+            console.log(`[ShaderCache] Evicted inactive shader for Art: ${candidate.artId}`);
+        }
+    }
+}
+
+const estimateShaderResponseBytes = (shader: ShaderSuccessResponse): number => {
+    let estimatedBytes = (shader.vertex_shader.length + shader.fragment_shader.length) * 2;
+    for (const name of Object.keys(shader.uniforms)) {
+        estimatedBytes += name.length * 2 + 8;
+    }
+    for (const [name, src] of Object.entries(shader.textures ?? {})) {
+        estimatedBytes += (name.length + src.length) * 2;
+    }
+    return estimatedBytes;
+};
+
+const recordsEqual = <T extends number | string>(
+    left: Record<string, T> | undefined,
+    right: Record<string, T> | undefined,
+): boolean => {
+    const leftEntries = Object.entries(left ?? {}).sort(([leftKey], [rightKey]) =>
+        leftKey.localeCompare(rightKey),
+    );
+    const rightEntries = Object.entries(right ?? {}).sort(([leftKey], [rightKey]) =>
+        leftKey.localeCompare(rightKey),
+    );
+    if (leftEntries.length !== rightEntries.length) return false;
+    return leftEntries.every(([key, value], index) =>
+        rightEntries[index]?.[0] === key && rightEntries[index]?.[1] === value,
+    );
+};
+
+const shaderResponsesEqual = (
+    left: ShaderSuccessResponse,
+    right: ShaderSuccessResponse,
+): boolean => left.vertex_shader === right.vertex_shader
+    && left.fragment_shader === right.fragment_shader
+    && recordsEqual(left.uniforms, right.uniforms)
+    && recordsEqual(left.textures, right.textures);
+
+// Singleton instance
+export const shaderCache = new ShaderCacheService();

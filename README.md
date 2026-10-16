@@ -46,7 +46,7 @@ explore more possibilities for the images you capture.
 - **Capture and pin:** Capture any area of your desktop and pin it anywhere on the desktop.
 - **Edit quickly:** Use the editing toolbar to quickly annotate pinned images.
 - **Connect a workflow:** Use Loom's node tools to assemble advanced workflows.
-- **Share the view:** Use the push tools to send a pinned image's content to any client.
+- **Share the view:** Use the push tools to send a pinned image's content to connected, paired and authorized Otter receivers.
 
 | Start here | What you need to do |
 | --- | --- |
@@ -56,7 +56,7 @@ explore more possibilities for the images you capture.
 1. Press **`Ctrl+1`** for a region screenshot, **`Ctrl+2`** for live capture, or **`Ctrl+3`** for a scrolling screenshot.
 2. Select a pinned image and press **`Ctrl+E`** to show or hide the editing toolbar, or **`Tab`** to expand or collapse the parameter panel. After leaving editing or selection mode, press **`Esc`** to delete the pinned image.
 3. With the corresponding Loom capabilities available, press **`Ctrl+4`** for OCR and **`Alt+4`** to toggle recognition results; press **`Ctrl+5`** to translate and **`Alt+5`** to toggle translation results; press **`Shift+1`** to open the Art menu and add a new node.
-4. Select a pinned image, open the toolbar, and choose the projection button to project the pinned image to any connectable device.
+4. Select a pinned image, open the toolbar, and choose the projection button to project the pinned image to a connected, paired and authorized Otter receiver.
 
 [**Complete usage guide →**](./docs/guide/getting-started.md)
 
@@ -65,8 +65,9 @@ explore more possibilities for the images you capture.
 Bug reports, translations, documentation improvements and code contributions are welcome.
 Start with [ways to contribute](./docs/guide/contributing.md) or the
 [translation guide](./docs/guide/translating.md), and explore the
-[repository layout](./TECHNICAL_ARCHITECTURE.md#2-repository-layout) to understand the code structure.
+[repository layout](./docs/architecture/overview.md#2-repository-layout) to understand the code structure.
 Code changes follow the [engineering contribution guide](./CONTRIBUTING.md).
+File placement and module ownership follow the [code organization standard](./docs/development/CODE_ORGANIZATION.md).
 Search [existing issues](https://github.com/aiaimimi0920/Otter/issues) before reporting a problem.
 
 ## License

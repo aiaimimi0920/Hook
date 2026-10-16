@@ -1,0 +1,509 @@
+import { api, type SessionData } from "../../../platform/tauri/api";
+import { graphStore } from "../state/graphStore";
+import { Unit, Link, WorkflowAssetArchiveHints } from "../types/unit";
+import { requestBackendRectSync } from "./syncService/backendRects";
+import { SyncScheduler } from "./syncService/scheduler";
+import { loomOtter } from "../../../integrations/loom/client";
+import { WORKFLOW_ID } from "../model/constants";
+import type { BootProfile } from "../../settings/services/bootProfile";
+import type { StickerGroup } from "../../stickers/types/stickerEditing";
+import { mapSessionStickerToUnit, detectUnknownSessionStickerKeys } from "./sessionStickerMapping";
+import { stripNonPersistableArtParams } from "../../art/services/artParamSecurity";
+import {
+    buildSyncedImagePayload,
+    buildSyncedImageSignature,
+    resolveBakedStickerSyncSize,
+} from "./syncedImagePayload";
+import {
+    renderStickerCompositeWithAnnotations,
+    resolveStickerCompositeBaseImageSrc,
+} from "../../stickers/services/stickerExport";
+import { buildSessionStickersForSave } from "./sessionStickerPayload";
+import {
+    bakedSyncPreviewCache,
+    getSyncImageCacheEpoch,
+    getSyncImageCacheToken,
+    isSyncImageCacheEpochCurrent,
+    isSyncImageCacheTokenCurrent,
+    lastSyncedImageSignatures,
+    retainSyncImageCachesForUnits,
+    setBakedSyncPreviewCacheEntry,
+    type SyncImageCacheToken,
+} from "./syncImageCache";
+
+const mapLinkToSessionLink = (link: Link) => ({
+    id: link.id,
+    fromUnitId: link.fromUnitId,
+    fromPortId: link.fromPortId,
+    toUnitId: link.toUnitId,
+    toPortId: link.toPortId,
+});
+
+const mapGroupToSessionGroup = (group: StickerGroup) => ({
+    id: group.id,
+    name: group.name,
+    hidden: group.hidden ?? false,
+    locked: group.locked ?? false,
+});
+
+const SESSION_REVISION_CONFLICT_EVENT = "otter:session-revision-conflict";
+let currentSessionRevision = 0;
+
+const isSessionRevisionConflict = (error: unknown) =>
+    String(error instanceof Error ? error.message : error).includes("SESSION_REVISION_CONFLICT");
+
+const ensureWorkflowArchiveHint = (
+    hints: WorkflowAssetArchiveHints,
+    workflowId: string,
+) => {
+    if (!hints.workflows[workflowId]) {
+        hints.workflows[workflowId] = { nodes: {} };
+    }
+    return hints.workflows[workflowId];
+};
+
+
+const executeSyncCycle = async () => {
+    const syncEpoch = getSyncImageCacheEpoch();
+    const currentUnits = graphStore.units;
+    const currentLinks = graphStore.links;
+    const unitById = new Map(currentUnits.map((unit) => [unit.id, unit]));
+    const unitParams = graphStore.unitParams;
+    const persistableUnitParams = Object.fromEntries(
+        currentUnits.map((unit) => [
+            unit.id,
+            stripNonPersistableArtParams(
+                unit,
+                graphStore.capabilities,
+                unitParams[unit.id] || unit.params || {},
+            ),
+        ]),
+    );
+    const invalidArtUnit = currentUnits.find(
+        (unit) => unit.type === 'art' && !unit.artId?.trim(),
+    );
+    if (invalidArtUnit) {
+        throw new Error(`Art unit ${invalidArtUnit.id} is missing its canonical artId`);
+    }
+    const pendingImageCommits = new Map<string, {
+        unitId: string;
+        token: SyncImageCacheToken;
+        signature: string;
+    }>();
+    const workflowAssetArchiveHints: WorkflowAssetArchiveHints = { workflows: {} };
+    const bakedPreviewSignatures = new Map<string, string | undefined>();
+
+    const resolveBakedPreviewDisplaySrc = (unit: Unit) =>
+        resolveStickerCompositeBaseImageSrc({
+            unit,
+            units: currentUnits,
+            links: currentLinks,
+            capabilities: graphStore.capabilities,
+        });
+
+    const normalizeBakedPreviewUnit = (unit: Unit): Unit => {
+        const bakedSize = resolveBakedStickerSyncSize(unit);
+        if (bakedSize.w === unit.w && bakedSize.h === unit.h) {
+            return unit;
+        }
+        return {
+            ...unit,
+            w: bakedSize.w,
+            h: bakedSize.h,
+        };
+    };
+
+    const buildBakedPreviewSignature = (unit: Unit) => {
+        if (bakedPreviewSignatures.has(unit.id)) {
+            return bakedPreviewSignatures.get(unit.id);
+        }
+        const signature = buildSyncedImageSignature(unit, {
+            displaySrcOverride: resolveBakedPreviewDisplaySrc(unit) ?? null,
+        });
+        bakedPreviewSignatures.set(unit.id, signature);
+        return signature;
+    };
+
+    const renderBakedPreviewSrc = async (unit: Unit) => {
+        const bakedUnit = normalizeBakedPreviewUnit(unit);
+        const cacheToken = getSyncImageCacheToken(unit.id);
+        const baseImageSrcOverride = resolveBakedPreviewDisplaySrc(bakedUnit);
+        const signature = buildBakedPreviewSignature(unit);
+        if (!signature) {
+            return baseImageSrcOverride || unit.data.previewSrc || unit.data.src || "";
+        }
+
+        const cached = bakedSyncPreviewCache.get(unit.id);
+        if (cached?.signature === signature) {
+            return cached.src;
+        }
+
+        const bakedPreviewSrc = await renderStickerCompositeWithAnnotations(
+            bakedUnit,
+            unit.data.annotationState?.elements || [],
+            { baseImageSrcOverride, outputMode: "source-resolution" },
+        );
+        if (
+            isSyncImageCacheTokenCurrent(unit.id, cacheToken) &&
+            graphStore.units.some((candidate) => candidate.id === unit.id)
+        ) {
+            setBakedSyncPreviewCacheEntry(unit.id, { signature, src: bakedPreviewSrc });
+        }
+        return bakedPreviewSrc;
+    };
+
+    // Helper to check dirtiness but defer commit
+    const shouldSyncImage = (u: Unit, targetWfId: string) => {
+        const key = `${targetWfId}:${u.id}`;
+        const last = lastSyncedImageSignatures.get(key);
+        const currentSignature = buildBakedPreviewSignature(u);
+        const cacheToken = getSyncImageCacheToken(u.id);
+        const forceImageSync = targetWfId === WORKFLOW_ID;
+        if (forceImageSync && currentSignature) {
+            pendingImageCommits.set(key, {
+                unitId: u.id,
+                token: cacheToken,
+                signature: currentSignature,
+            });
+            return true;
+        }
+        if (currentSignature && currentSignature !== last) {
+            pendingImageCommits.set(key, {
+                unitId: u.id,
+                token: cacheToken,
+                signature: currentSignature,
+            });
+            return true;
+        }
+        return false;
+    };
+
+    // 1. Build Graph Adjacency
+    const adjacency = new Map<string, Set<string>>();
+    currentUnits.forEach((unit) => adjacency.set(unit.id, new Set()));
+    currentLinks.forEach((link) => {
+        if (!adjacency.has(link.fromUnitId)) adjacency.set(link.fromUnitId, new Set());
+        if (!adjacency.has(link.toUnitId)) adjacency.set(link.toUnitId, new Set());
+        adjacency.get(link.fromUnitId)?.add(link.toUnitId);
+        adjacency.get(link.toUnitId)?.add(link.fromUnitId);
+    });
+
+    const visited = new Set<string>();
+    const syncRequests: Array<{ workflowId: string; snapshot: unknown }> = [];
+
+    // 2. Component Sync
+    for (const unit of currentUnits) {
+        if (visited.has(unit.id)) continue;
+
+        // Start BFS for Component
+        const componentUnits: Unit[] = [];
+        const queue = [unit.id];
+        let queueIndex = 0;
+        visited.add(unit.id);
+
+        const workflowCounts: Record<string, number> = {};
+
+        while (queueIndex < queue.length) {
+            const currId = queue[queueIndex++];
+            const currUnit = unitById.get(currId);
+            if (!currUnit) continue;
+
+            componentUnits.push(currUnit);
+
+            if (currUnit.data?.originWorkflowId) {
+                const wid = currUnit.data.originWorkflowId;
+                workflowCounts[wid] = (workflowCounts[wid] || 0) + 1;
+            }
+
+            for (const neighbor of adjacency.get(currId) ?? []) {
+                if (!visited.has(neighbor)) {
+                    visited.add(neighbor);
+                    queue.push(neighbor);
+                }
+            }
+        }
+
+        // Determine Winner (Dominant Workflow)
+        let dominantWfId: string | null = null;
+        let maxCount = 0;
+        for (const [wid, count] of Object.entries(workflowCounts)) {
+            if (count > maxCount) {
+                maxCount = count;
+                dominantWfId = wid;
+            }
+        }
+
+        if (dominantWfId) {
+            const componentIds = new Set(componentUnits.map(u => u.id));
+            const workflowArchiveHint = ensureWorkflowArchiveHint(workflowAssetArchiveHints, dominantWfId);
+            componentUnits.forEach((u) => {
+                workflowArchiveHint.nodes[u.data?.originNodeId || u.id] = { stickerId: u.id };
+            });
+
+            const rfNodes = componentUnits.map(async (u) => {
+                const syncImg = shouldSyncImage(u, dominantWfId!);
+                const loomOtterType = u.type === 'sticker' ? 'sticker' : 'artNode';
+                const imagePayload = syncImg
+                    ? await buildSyncedImagePayload(u, { renderBakedPreviewSrc })
+                    : {};
+                return {
+                    id: u.data?.originNodeId || u.id,
+                    type: loomOtterType,
+                    position: { x: u.x, y: u.y },
+                    data: {
+                        label: u.artId || "Node",
+                        ...(u.type === 'art' ? { artId: u.artId } : {}),
+                        params: persistableUnitParams[u.id] || {},
+                        ...imagePayload,
+                        outputs: u.data?.outputs || null,
+                        w: u.w, h: u.h,
+                        minified: u.data?.minified,
+                        savedRect: u.data?.savedRect,
+                        cropOffset: u.data?.cropOffset,
+                        opacityNormal: u.data?.opacityNormal,
+                        opacityMini: u.data?.opacityMini,
+                        executionConfig: graphStore.unitExecConfig[u.id] || u.data?.executionConfig
+                    },
+                    measured: { width: u.w, height: u.h },
+                };
+            });
+
+            const rfEdges = currentLinks
+                .filter(l => componentIds.has(l.fromUnitId) && componentIds.has(l.toUnitId))
+                .map(l => ({
+                    id: l.id,
+                    source: unitById.get(l.fromUnitId)?.data?.originNodeId || l.fromUnitId,
+                    target: unitById.get(l.toUnitId)?.data?.originNodeId || l.toUnitId,
+                    sourceHandle: l.fromPortId || "output",
+                    targetHandle: l.toPortId || "input"
+                }));
+
+            const snapshot = {
+                nodes: await Promise.all(rfNodes),
+                edges: rfEdges,
+                viewport: { x: 0, y: 0, zoom: 1 }
+            };
+            if (!isSyncImageCacheEpochCurrent(syncEpoch)) {
+                return;
+            }
+
+            syncRequests.push({ workflowId: dominantWfId, snapshot });
+
+            // Optimistic update of origin info for nodes that were just adopted
+            const neededUpdates = componentUnits.filter(u => u.data?.originWorkflowId !== dominantWfId);
+            if (neededUpdates.length > 0) {
+                 const neededUpdateIds = new Set(neededUpdates.map((unit) => unit.id));
+                 graphStore.setUnits(prev => prev.map(u => {
+                     if (neededUpdateIds.has(u.id)) {
+                         return {
+                             ...u,
+                             data: {
+                                 ...u.data,
+                                 originWorkflowId: dominantWfId!,
+                                 originNodeId: u.data?.originNodeId || u.id
+                             }
+                         };
+                     }
+                     return u;
+                 }));
+            }
+        }
+    }
+
+    // 3. DUAL SYNC (Global)
+    // Cleanup Stale Cache
+    const currentUnitIds = new Set(currentUnits.map(u => u.id));
+    retainSyncImageCachesForUnits(currentUnitIds);
+
+    const globalRfNodes = currentUnits.map(async (u) => {
+        const syncImg = shouldSyncImage(u, WORKFLOW_ID);
+        const loomOtterType = u.type === 'sticker' ? 'sticker' : 'artNode';
+        const imagePayload = syncImg
+            ? await buildSyncedImagePayload(u, { renderBakedPreviewSrc })
+            : {};
+
+        return {
+            id: u.id,
+            type: loomOtterType,
+            position: { x: u.x, y: u.y },
+            data: {
+                label: u.artId || "Node",
+                ...(u.type === 'art' ? { artId: u.artId } : {}),
+                params: persistableUnitParams[u.id] || {},
+                ...imagePayload,
+                outputs: u.data?.outputs || null,
+                w: u.w, h: u.h,
+                minified: u.data?.minified,
+                savedRect: u.data?.savedRect,
+                cropOffset: u.data?.cropOffset,
+                opacityNormal: u.data?.opacityNormal,
+                opacityMini: u.data?.opacityMini,
+                executionConfig: graphStore.unitExecConfig[u.id] || u.data?.executionConfig
+            },
+            measured: { width: u.w, height: u.h }
+        };
+    });
+
+    const globalRfEdges = currentLinks.map(l => ({
+        id: l.id,
+        source: l.fromUnitId,
+        target: l.toUnitId,
+        sourceHandle: l.fromPortId || "output",
+        targetHandle: l.toPortId || "input"
+    }));
+
+    const globalSnapshot = {
+        nodes: await Promise.all(globalRfNodes),
+        edges: globalRfEdges,
+        viewport: { x: 0, y: 0, zoom: 1 }
+    };
+    if (!isSyncImageCacheEpochCurrent(syncEpoch)) {
+        return;
+    }
+    syncRequests.push({ workflowId: WORKFLOW_ID, snapshot: globalSnapshot });
+    const liveWorkflowArchiveHint = ensureWorkflowArchiveHint(workflowAssetArchiveHints, WORKFLOW_ID);
+    currentUnits.forEach((u) => {
+        liveWorkflowArchiveHint.nodes[u.id] = { stickerId: u.id };
+    });
+
+    // Otter owns the durable document revision. Save first so every Loom snapshot
+    // carries the exact generation against which later Loom patches must compare.
+    const sessionStickers = await buildSessionStickersForSave(graphStore.units, {
+        renderBakedPreviewSrc,
+        previewCache: bakedSyncPreviewCache,
+        setPreviewCacheEntry: setBakedSyncPreviewCacheEntry,
+        buildPreviewSignature: buildBakedPreviewSignature,
+        paramsByUnitId: persistableUnitParams,
+    });
+    if (!isSyncImageCacheEpochCurrent(syncEpoch)) {
+        return;
+    }
+
+    let saveResult;
+    try {
+        saveResult = await api.saveSession(
+            sessionStickers,
+            graphStore.links.map(mapLinkToSessionLink),
+            graphStore.stickerGroups.map(mapGroupToSessionGroup),
+            graphStore.recycleBin.map((entry) => entry),
+            graphStore.referenceLibrary.map((entry) => entry),
+            workflowAssetArchiveHints,
+            currentSessionRevision,
+        );
+    } catch (error) {
+        if (!isSessionRevisionConflict(error)) throw error;
+        const latest = await api.loadSession();
+        await syncService.restoreSession(undefined, latest);
+        window.dispatchEvent(new CustomEvent(SESSION_REVISION_CONFLICT_EVENT, {
+            detail: {
+                message: "Loom 与 Otter 同时修改了画布。Otter 已刷新到磁盘中的最新版本；请确认内容后重试同步。",
+            },
+        }));
+        return;
+    }
+    currentSessionRevision = saveResult.documentRevision;
+
+    await Promise.all(
+        syncRequests.map(({ workflowId, snapshot }) =>
+            loomOtter.syncWorkflow(workflowId, {
+                ...(snapshot as Record<string, unknown>),
+                documentSchemaVersion: 1,
+                documentRevision: currentSessionRevision,
+            })
+        ),
+    );
+    if (!isSyncImageCacheEpochCurrent(syncEpoch)) {
+        return;
+    }
+
+    // Commit image state updates only after both the durable save and Loom sync succeed.
+    const liveUnitIds = new Set(graphStore.units.map((unit) => unit.id));
+    pendingImageCommits.forEach(({ unitId, token, signature }, key) => {
+        if (liveUnitIds.has(unitId) && isSyncImageCacheTokenCurrent(unitId, token)) {
+            lastSyncedImageSignatures.set(key, signature);
+        }
+    });
+};
+
+const scheduler = new SyncScheduler(executeSyncCycle);
+
+
+export const syncService = {
+    persistPendingChanges: () => scheduler.scheduleAndWait(),
+    updateBackendRects: requestBackendRectSync,
+
+    restoreSession: async (
+        bootProfile?: BootProfile,
+        preloadedSessionData?: SessionData | null,
+    ) => {
+        try {
+            const sessionData = preloadedSessionData ?? await api.loadSession();
+            if (sessionData) {
+                 currentSessionRevision = sessionData.documentRevision ?? 0;
+                 const rawStickers = sessionData.stickers || [];
+                 const loadedUnits = rawStickers.map((s) =>
+                     mapSessionStickerToUnit(s, { capabilities: graphStore.capabilities }),
+                 );
+
+                 // Diagnostic only: surface persisted sticker fields the loader no
+                 // longer recognizes (e.g. a renamed backend field silently dropped
+                 // on load). Never rejects — a drifted session still loads.
+                 const unknownStickerKeys = new Set<string>();
+                 rawStickers.forEach((s) => {
+                     for (const key of detectUnknownSessionStickerKeys(s as unknown as Record<string, unknown>)) {
+                         unknownStickerKeys.add(key);
+                     }
+                 });
+                 if (unknownStickerKeys.size > 0) {
+                     console.warn(
+                         `[session] loaded with ${unknownStickerKeys.size} unrecognized sticker field(s), data for these is ignored: ${[...unknownStickerKeys].join(", ")}`,
+                     );
+                 }
+                 const loadedLinks = (sessionData.links || []).map((link) => ({
+                     id: link.id,
+                     fromUnitId: link.fromUnitId,
+                     fromPortId: link.fromPortId,
+                     toUnitId: link.toUnitId,
+                     toPortId: link.toPortId,
+                 }));
+
+                 // Populate Stores
+                 graphStore.actions.replaceUnits(loadedUnits);
+                 graphStore.setLinks(loadedLinks);
+                 graphStore.actions.reconcileStickerEditPropagation();
+                 graphStore.setStickerGroups((sessionData.groups || []).map((group) => ({
+                     id: group.id,
+                     name: group.name,
+                     hidden: group.hidden ?? false,
+                     locked: group.locked ?? false,
+                 })));
+                 graphStore.setRecycleBin(sessionData.recycleBin || []);
+                 graphStore.setReferenceLibrary(sessionData.referenceLibrary || []);
+
+                 // Populate Params Map
+                 const paramsMap: Record<string, Unit["params"]> = {};
+                 const execConfigMap: Record<string, Unit["data"]["executionConfig"]> = {};
+                 loadedUnits.forEach((u) => paramsMap[u.id] = u.params || {});
+                 loadedUnits.forEach((u) => {
+                     execConfigMap[u.id] = u.data?.executionConfig;
+                 });
+                 graphStore.setUnitParams(paramsMap);
+                 graphStore.setUnitExecConfig(execConfigMap);
+
+                 // Update Backend Geometry after state restore. Startup visibility is
+                 // already owned by Rust setup, so do not re-show overlay/canvas here.
+                 void syncService.updateBackendRects();
+                 if (bootProfile?.initialUiMode === "overlay" && loadedUnits.length > 0) {
+                     await api.setMouseMonitorActive(true);
+                     await syncService.updateBackendRects();
+                 }
+            }
+        } catch (e) {
+            console.error("Session Load Failed:", e);
+        }
+    },
+
+    performWorkflowSync: async () => {
+        scheduler.schedule();
+    }
+};

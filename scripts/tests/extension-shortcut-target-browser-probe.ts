@@ -13,8 +13,8 @@ await mkdir(output);
 const bundle = await build({
     absWorkingDir: repo, bundle: true, write: false, format: "iife", platform: "browser", minify: true,
     stdin: { resolveDir: repo, loader: "ts", contents: `
-        import { ExtensionShortcutRegistry } from './src/services/extensionShortcutRegistry';
-        import { parseContributionSnapshot } from './src/services/extensionProtocol';
+        import { ExtensionShortcutRegistry } from './src/features/extensions/services/extensionShortcutRegistry';
+        import { parseContributionSnapshot } from './src/features/extensions/services/extensionProtocol';
         const registry = new ExtensionShortcutRegistry();
         window.__shortcutProbe = { calls: [], targets: [], registry };
         const rejected = registry.applySnapshot(parseContributionSnapshot({

@@ -1,0 +1,385 @@
+import { api } from "../../../platform/tauri/api";
+import { graphStore } from "../../workspace/state/graphStore";
+import { shaderCache } from "../services/shaderCache";
+import { syncService } from "../../workspace/services/syncService";
+import {
+    resolveEffectiveNodeParams,
+    resolveMissingUnitExecutionImagePorts,
+    resolveUnitExecutionImageInputs,
+} from "../../workspace/services/graphImageResolution";
+import { deriveUnitExecutionConfig } from "../services/nodeExecutionConfig";
+import {
+    requiresFormalExecutionAfterPreview,
+    supportsShaderPreview,
+    supportsSurface,
+} from "../services/artCapabilities";
+import { findArtCapability } from "../services/artCapabilityLookup";
+import { artExecutionRequests } from "../services/artExecutionRequests";
+import {
+    DISABLED_PREFIX,
+    PARAM_ui_resize,
+    EXEC_PREFIX,
+    EXEC_expanded,
+    EXEC_upstreamDriven,
+    EXEC_paramDriven,
+    EXEC_listenUpstream,
+    EXEC_notifyDownstream,
+    EXEC_manualTrigger,
+    isInternalArtControlParam,
+} from "../../workspace/model/constants";
+
+export function useNodeParameters() {
+
+    const handleParamChange = async (
+        unitId: string,
+        paramId: string,
+        value: unknown,
+        isFinal = false,
+        triggerSource: "param" | "upstream" | "manual" = "param",
+    ) => {
+        // --- Handle UI Resize (Special Case) ---
+        if (paramId === PARAM_ui_resize) {
+            if (
+                value &&
+                typeof value === "object" &&
+                "w" in value &&
+                "h" in value &&
+                typeof value.w === "number" &&
+                typeof value.h === "number"
+            ) {
+                console.log(`[UI Action] Resize unit ${unitId} to`, value);
+                const unit = graphStore.units.find((candidate) => candidate.id === unitId);
+                if (unit?.type === "sticker") {
+                    graphStore.actions.resizeStickerFrame(unitId, {
+                        x: unit.x,
+                        y: unit.y,
+                        w: value.w,
+                        h: value.h,
+                    });
+                } else {
+                    graphStore.actions.updateUnit(unitId, {
+                        w: value.w,
+                        h: value.h
+                    });
+                }
+                syncService.updateBackendRects();
+                syncService.performWorkflowSync();
+            }
+            return;
+        }
+
+        // --- Handle Execution Config Params (UI-only, no backend dispatch) ---
+        if (paramId.startsWith(EXEC_PREFIX)) {
+            // Initialize executionConfig if not present
+            if (!graphStore.unitExecConfig[unitId]) {
+                const unit = graphStore.units.find(u => u.id === unitId);
+                const artCap = unit && findArtCapability(graphStore.capabilities, unit.artId);
+                const existingConfig = unit?.data?.executionConfig;
+
+                graphStore.setUnitExecConfig(unitId, deriveUnitExecutionConfig({
+                    capability: artCap || undefined,
+                    explicitConfig: existingConfig,
+                }));
+            }
+
+            // Update the specific field using path-based update (fine-grained reactivity)
+            switch (paramId) {
+                case EXEC_expanded:
+                    graphStore.setUnitExecConfig(unitId, "__expanded", value);
+                    break;
+                case EXEC_upstreamDriven:
+                    graphStore.setUnitExecConfig(unitId, "triggerMode", "upstreamDriven", value);
+                    graphStore.setUnitExecConfig(unitId, "propagation", "listenUpstream", value);
+                    break;
+                case EXEC_paramDriven:
+                    graphStore.setUnitExecConfig(unitId, "triggerMode", "paramDriven", value);
+                    break;
+                case EXEC_listenUpstream:
+                    graphStore.setUnitExecConfig(unitId, "propagation", "listenUpstream", value);
+                    break;
+                case EXEC_notifyDownstream:
+                    graphStore.setUnitExecConfig(unitId, "propagation", "notifyDownstream", value);
+                    break;
+                case EXEC_manualTrigger: {
+                    // Manual trigger
+                    console.log(`[Execution] Manual trigger for unit ${unitId}`);
+
+                    // CHECK IF SHADER ART BEFORE CONTINUING
+                    const unit = graphStore.units.find(u => u.id === unitId);
+                    const caps = graphStore.capabilities;
+                    const artCap = unit && findArtCapability(caps, unit.artId);
+
+                    if (supportsShaderPreview(artCap)) {
+                         const shaderArtId = artCap?.id ?? unit?.artId;
+                         const canvas = document.getElementById(`shader-canvas-${unitId}`) as HTMLCanvasElement;
+                         if (shaderArtId && canvas) {
+                             shaderCache.getRenderer(shaderArtId, unitId, canvas)?.render();
+                         }
+                         if (!requiresFormalExecutionAfterPreview(artCap)) return;
+                    }
+
+                    break;
+                }
+            }
+
+            // 2. MIRROR TO UNIT DATA & PERSIST
+            // We must update unit.data.executionConfig so it's included in the sync snapshot
+            const newConfig = { ...graphStore.unitExecConfig[unitId] };
+            graphStore.actions.updateUnitData(unitId, { executionConfig: newConfig });
+
+            // 3. SYNC TO BACKEND
+            syncService.performWorkflowSync();
+
+            if (paramId !== EXEC_manualTrigger) return;
+        }
+
+        const hasIncomingValueLink = graphStore.links.some(
+            (link) => link.toUnitId === unitId && link.toPortId === paramId,
+        );
+        const shouldPersistManualParam =
+            !isInternalArtControlParam(paramId) &&
+            !(triggerSource === "upstream" && hasIncomingValueLink);
+
+        // 1. Optimistic Update (UI Store). Upstream-linked updates are derived values,
+        // so keep the manual fallback untouched and resolve the effective value later.
+        if (shouldPersistManualParam) {
+            graphStore.setUnitParams(unitId, (prev) => ({ ...(prev || {}), [paramId]: value }));
+
+            if (isFinal) {
+                 const unit = graphStore.units.find(u => u.id === unitId);
+                 if (unit) {
+                      // Important: Update the persisted logic.
+                      graphStore.actions.updateUnit(unitId, { params: { ...unit.params, [paramId]: value } });
+                 }
+            }
+        }
+
+        // 3. Find the Unit and its Capability
+        const unit = graphStore.units.find(u => u.id === unitId);
+        if (!unit) return;
+
+        const shouldUnlockRestoredPreview =
+            unit.type === "art" &&
+            unit.data.restoredPreviewLocked &&
+            (
+                triggerSource === "upstream" ||
+                triggerSource === "manual" ||
+                paramId === EXEC_manualTrigger ||
+                (!paramId.startsWith(EXEC_PREFIX) && paramId !== PARAM_ui_resize)
+            );
+        if (shouldUnlockRestoredPreview) {
+            graphStore.actions.updateUnitData(unitId, { restoredPreviewLocked: false });
+        }
+
+        const artId = unit.artId;
+        const caps = graphStore.capabilities;
+        const artCapability = findArtCapability(caps, artId);
+        const runtimeArtId = artCapability?.id ?? artId;
+
+        // Event-only Surface runtimes consume declared Surface actions, not generic
+        // parameter/upstream execution. Explicit hybrid/workflow Arts retain that path.
+        if (supportsSurface(artCapability) && !requiresFormalExecutionAfterPreview(artCapability)) {
+            if (isFinal || triggerSource !== "param") void syncService.performWorkflowSync();
+            return;
+        }
+
+        // 4. Check execution config to decide if we should execute
+        const execConfig = deriveUnitExecutionConfig({
+            capability: artCapability,
+            explicitConfig: graphStore.unitExecConfig[unitId] || unit.data?.executionConfig,
+        });
+
+        const isManualTrigger =
+            paramId === EXEC_manualTrigger ||
+            triggerSource === "manual";
+        const isUpstreamTrigger = triggerSource === "upstream";
+        const isParamDriven = execConfig.triggerMode?.paramDriven ?? true;
+        const isUpstreamDriven = execConfig.triggerMode?.upstreamDriven ?? true;
+
+        if (!isManualTrigger) {
+            if (isUpstreamTrigger) {
+                if (!isUpstreamDriven) return;
+            } else if (!isParamDriven) {
+                return;
+            }
+        }
+
+        // Shader preview is reactive in ShaderPreview. Pure shader Arts stay on
+        // the local hot path; hybrid workflow Arts still execute their formal
+        // backend output after a final, manual, or upstream-triggered change.
+        if (artCapability && supportsShaderPreview(artCapability) && runtimeArtId) {
+            if (isManualTrigger) {
+                const canvas = document.getElementById(`shader-canvas-${unitId}`) as HTMLCanvasElement;
+                if (canvas) {
+                    shaderCache.getRenderer(runtimeArtId, unitId, canvas)?.render();
+                }
+            }
+            if (!requiresFormalExecutionAfterPreview(artCapability)
+                && (isFinal || isManualTrigger || isUpstreamTrigger)) {
+                void syncService.performWorkflowSync();
+            }
+            if (!requiresFormalExecutionAfterPreview(artCapability)) return;
+        }
+
+        // If param-driven but NOT final (dragging slider), SKIP backend execution
+        if (!isFinal && !isManualTrigger && !isUpstreamTrigger) {
+             return;
+        }
+
+          // 5. Resolve the current full parameter/image state from the graph.
+          const manualParams = graphStore.unitParams[unitId] || {};
+
+          const executionImageInputs = resolveUnitExecutionImageInputs({
+              units: graphStore.units,
+              links: graphStore.links,
+              capabilities: graphStore.capabilities,
+              unitId,
+              manualParams,
+          });
+          const missingExecutionImagePorts = resolveMissingUnitExecutionImagePorts({
+              units: graphStore.units,
+              links: graphStore.links,
+              capabilities: graphStore.capabilities,
+              unitId,
+              manualParams,
+          });
+
+          if (!isManualTrigger && missingExecutionImagePorts.length > 0) {
+              void api.debugLogEvent(
+                  "art-dispatch-skipped-missing-images",
+                  [
+                      `unit=${unitId}`,
+                      `art=${artId || "none"}`,
+                      `param=${paramId}`,
+                      `trigger=${triggerSource}`,
+                      `missing=${missingExecutionImagePorts.join(",")}`,
+                  ].join(" "),
+              );
+              return;
+          }
+
+          // 6. Dispatch to Backend
+          const fullParams = resolveEffectiveNodeParams({
+              units: graphStore.units,
+              links: graphStore.links,
+              capabilities: graphStore.capabilities,
+              unitId,
+              manualParams,
+          });
+          const effectiveValue = fullParams[paramId] ?? value;
+
+          const disabledParams: string[] = [];
+          const activeParams: Record<string, unknown> = {};
+
+          Object.keys(manualParams).forEach(key => {
+              if (
+                  manualParams[key] === DISABLED_PREFIX &&
+                  !isInternalArtControlParam(key)
+              ) {
+                  disabledParams.push(key);
+              }
+          });
+
+          Object.keys(fullParams).forEach(key => {
+              if (
+                  fullParams[key] !== DISABLED_PREFIX &&
+                  !isInternalArtControlParam(key)
+              ) {
+                  activeParams[key] = fullParams[key];
+              }
+          });
+
+          // Dispatch Action
+          const previousRequest = artExecutionRequests.active(unitId);
+          const requestId = artExecutionRequests.begin(unitId);
+          const generation = artExecutionRequests.generation(unitId, requestId);
+          if (generation === undefined) return;
+          graphStore.actions.updateUnitData(unitId, {
+              processing: true,
+              progress: 0,
+              nodeStatus: "running",
+              errorMessage: undefined,
+          });
+          try {
+            if (previousRequest) {
+                void api.debugLogEvent(
+                    "art-dispatch-cancel",
+                    [
+                        `unit=${unitId}`,
+                        `art=${artId || "none"}`,
+                        `request=${previousRequest.requestId}`,
+                        `generation=${previousRequest.generation}`,
+                    ].join(" "),
+                );
+                try {
+                    await api.dispatchAction({
+                        action: "cancel_art",
+                        payload: {
+                            node_id: unitId,
+                            request_id: previousRequest.requestId,
+                            generation: previousRequest.generation,
+                        },
+                    });
+                } catch (error) {
+                    void api.debugLogEvent(
+                        "art-dispatch-cancel-failed",
+                        [
+                            `unit=${unitId}`,
+                            `request=${previousRequest.requestId}`,
+                            `error=${error instanceof Error ? error.message : String(error)}`,
+                        ].join(" "),
+                    );
+                }
+            }
+            void api.debugLogEvent(
+                "art-dispatch-execute",
+                [
+                    `unit=${unitId}`,
+                    `art=${artId || "none"}`,
+                    `param=${paramId}`,
+                    `trigger=${triggerSource}`,
+                    `inputKeys=${Object.keys(executionImageInputs).join(",") || "none"}`,
+                    `request=${requestId}`,
+                ].join(" "),
+            );
+            await api.dispatchAction({
+                     action: "execute_art",
+                     payload: {
+                         node_id: unitId,
+                         request_id: requestId,
+                         generation,
+                         art_id: runtimeArtId,
+                         inputs: executionImageInputs,
+                         parameters: activeParams,
+                         disabled_parameters: disabledParams,
+                     }
+            });
+
+            if (unit.data?.originWorkflowId && unit.data?.originNodeId) {
+                await api.dispatchAction({
+                    action: "update_workflow_node",
+                    payload: {
+                        request_id: `workflow-node-update:${crypto.randomUUID()}`,
+                        workflow_id: unit.data.originWorkflowId,
+                        node_id: unit.data.originNodeId,
+                        parameter_id: paramId,
+                        value: effectiveValue,
+                    },
+                });
+            }
+
+          } catch (e) {
+              console.error("Failed to update param:", e);
+              if (artExecutionRequests.isLatest(unitId, requestId)) {
+                  graphStore.actions.updateUnitData(unitId, {
+                      processing: false,
+                      nodeStatus: "error",
+                      errorMessage: e instanceof Error ? e.message : String(e),
+                  });
+                  artExecutionRequests.finish(unitId, requestId);
+              }
+          }
+    };
+
+    return { handleParamChange };
+}

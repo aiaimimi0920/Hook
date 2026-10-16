@@ -129,7 +129,7 @@ $commands.otterNetworkPrivacy = Invoke-LoggedCommand -Name "otter-network-privac
 $commands.otterRuntimeLogPrivacy = Invoke-LoggedCommand -Name "otter-runtime-log-privacy" -WorkingDirectory $repoRoot `
     -FilePath $cargo -Arguments @("test", "--manifest-path", "src-tauri\Cargo.toml", "runtime_log_sanitize_tests")
 $commands.otterWebContracts = Invoke-LoggedCommand -Name "otter-web-contracts" -WorkingDirectory $repoRoot -FilePath $npm `
-    -Arguments @("test", "--", "__tests__\unit\liveNetworkCapabilities.test.ts", "__tests__\unit\liveRelayInputQos.test.ts", "__tests__\integration\RuntimeLoggingContract.test.ts")
+    -Arguments @("test", "--", "tests\unit\liveNetworkCapabilities.test.ts", "tests\unit\liveRelayInputQos.test.ts", "tests\integration\RuntimeLoggingContract.test.ts")
 $commands.otterTypecheck = Invoke-LoggedCommand -Name "otter-typecheck" -WorkingDirectory $repoRoot `
     -FilePath $npm -Arguments @("run", "typecheck:test")
 

@@ -92,11 +92,11 @@ Creation and selected-annotation properties use the compact drawing toolbar shel
 
 ## Pencil and paintbrush
 
-The pencil dropdown enables an independent natural paintbrush. Check compact color/size/opacity/smoothing fields, independent numeric profiles, equal-width pencil versus speed-sensitive, lightly softened brush rendering, a single-click dab, cancelled strokes, one history entry per stroke, undo/redo, and rasterization consistency. Legacy pencil and highlighter annotations retain their rendering. Native pressure and cross-Loom object editing are not claimed; rasterize natural brush strokes before using the existing remote edit protocol. See [freehand editing](FREEHAND_EDITING.md).
+The pencil dropdown enables an independent natural paintbrush. Check compact color/size/opacity/smoothing fields, independent numeric profiles, equal-width pencil versus speed-sensitive, lightly softened brush rendering, a single-click dab, cancelled strokes, one history entry per stroke, undo/redo, and rasterization consistency. Legacy pencil and highlighter annotations retain their rendering. Native pressure and cross-Loom object editing are not claimed; rasterize natural brush strokes before using the existing remote edit protocol. See [freehand editing](features/FREEHAND_EDITING.md).
 
 ## Bézier path editing
 
-Use the line-tool dropdown to create a Bézier path. Double-click a curve to insert an anchor without changing its shape; drag either endpoint's `+` handle to extend. Right-click a white anchor and choose “删除节点” to merge adjacent segments or trim the first/last segment. Deletion may change the local curve shape; at least one segment remains. Yellow tangent handles cannot be deleted separately. Check insertion, both-end extension/deletion, disabled deletion on the final segment, menu dismissal, undo/redo, and rasterization. See [curve editing](BEZIER_EDITING.md).
+Use the line-tool dropdown to create a Bézier path. Double-click a curve to insert an anchor without changing its shape; drag either endpoint's `+` handle to extend. Right-click a white anchor and choose “删除节点” to merge adjacent segments or trim the first/last segment. Deletion may change the local curve shape; at least one segment remains. Yellow tangent handles cannot be deleted separately. Check insertion, both-end extension/deletion, disabled deletion on the final segment, menu dismissal, undo/redo, and rasterization. See [curve editing](features/BEZIER_EDITING.md).
 
 Local Loom Art/extension integration is native-only and enabled by default;
 `HOOK_ENABLE_LOOM_HOOK=0` disables it. In browser preview, verify that local UI/session work
@@ -104,7 +104,8 @@ still functions, no Loom request/push WebSocket is opened, and Art execution
 finishes with a local unsupported error rather than uploading images or inventing
 a result. A native paired-version runtime is required for real integration.
 
-Projection target dropdowns use count-free device/group/user icons with chevrons.
+Projection target buttons show device/group/user icons and confirmed successful target counts,
+and open the corresponding tab in the shared target dialog.
 Receive placeholders use a gray background. The checkable tray “自启动” item controls current-user Windows login startup; re-enable it after moving the portable executable.
 The tray's “接收投射” creates a blank sticker and opens the shared QR/link import panel inside it; acceptance fills the same sticker. Both receiver import buttons open this same tabbed panel with the requested method selected. Tray shortcut hints use the configured bindings and a separate aligned native menu column.
 Available targets show one ID and checkbox per row; checking starts projection,
@@ -125,7 +126,7 @@ This document records currently implemented user-facing controls. It is a manual
 verification guide, not an implementation specification. When behavior changes,
 verify the code first and update this file with the same change.
 
-Self-hosted HTTPS Loom with a private CA supports [origin-scoped process trust](SECURITY_BOUNDARIES.md#origin-scoped-loom-https-trust).
+Self-hosted HTTPS Loom with a private CA supports [origin-scoped process trust](security/SECURITY_BOUNDARIES.md#origin-scoped-loom-https-trust).
 Check async/blocking HTTP and LiveRelay/wall WSS together: the selected origin
 accepts its valid certificate, while a wrong hostname, expired/untrusted
 certificate, malformed configuration or redirect fails closed. Other origins
@@ -141,14 +142,15 @@ another application has focus.
 | --- | --- | --- |
 | `Ctrl+1` | Enter region/window capture mode. Hovering a valid visible window highlights it; double-click captures the revalidated window target. | Test empty desktop, ordinary windows, overlapping windows, secondary monitors, and cancel with `Escape`. |
 | `Ctrl+2` | Enter live region/window capture mode. Double-click chooses a revalidated full window. A drag fully contained by one valid program window binds a fixed window-local pixel region; other drags use a screen region. | Select a 50×50 area at offset (100,100), move the source window, and confirm the view still shows that same UI area. |
-| `Ctrl+3` | Enter vertical long-capture mode. | Capture a scrollable page, then cancel and retry to confirm session cleanup. |
+| `Ctrl+3` | Enter long-capture mode, with four-direction viewfinder movement during recording. | Capture a scrollable page, move the viewfinder horizontally and vertically, verify the final no-hole crop, then cancel and retry to confirm session cleanup. |
 | `Ctrl+E` | Toggle sticker editing, including projection invitations, device/group multiselect and opt-in two-way v1 annotation editing. Enabled Capability Plugins may contribute namespaced menus and actions. | Select overlapping targets, retry partial sends, switch source-only direction, merge separate objects and explicitly resolve same-object conflicts. Check durable restart, Escape focus and native popup clicks. Shared Loom needs no official login; account mode keeps its login requirement and does not support two-way editing. |
 | `Ctrl+Alt+Space` | Toggle the configured Talk voice session between start and stop. | Verify both edges and confirm dictated text is inserted only after a completed session. |
 | Three `Esc+Delete` chords, with less than 400 ms between chords | Emergency exit. Both keys must overlap, then both must be released before the next chord counts. The main process and independent watchdog share this rule. | Verify three full press/release cycles exit; repeated Esc alone, Delete alone, autorepeat, and releasing only one key must not exit. |
 | `Ctrl+Alt+Shift+F12` | Backup emergency-exit chord handled by the watchdog. | Verify it terminates Otter and restores cursor/input state. |
 
 The tray currently exposes **Capture**, **Live capture**, **Long capture**,
-**Open existing image**, and **Quit**. Live capture enters the same window-aware
+**Open existing image**, **Receive projection**, checkable **Autostart**, and **Quit**.
+Live capture enters the same window-aware
 selection surface: double-click selects a revalidated full window, while a drag
 inside one valid window creates a window-relative region. A drag not fully
 contained by one valid window creates a display-region source. The settings dialog remains implemented, but
@@ -176,7 +178,7 @@ not bypassed by local automatic approval.
   新 viewer，但旧 relay 的身份、终态与空帧缓存不能复活。活动或 recovering viewer 仍去重。
 - 检查空列表、长标题/设备 ID、键盘选择、错误/重试、连续点击、面板关闭及 Surface 换代。
   已打开窗口不因关闭参数面板而结束；未完成的加入被取消后不应留下新 viewer。
-- 观看窗口的[只读诊断槽](LIVE_RELAY_DIAGNOSTICS.md)输出 source/epoch/frame、接收计数、
+- 观看窗口的[只读诊断槽](features/LIVE_RELAY_DIAGNOSTICS.md)输出 source/epoch/frame、接收计数、
   codec/字节和解码提交耗时；epoch/停止使旧提交失效，无图像、标题或错误正文。
   原生基线必须另绑实际 EXE/进程 SHA；不把这些字段当物理 FPS 或跨机延迟。
 - 原生两机、权限撤销和性能矩阵仍须按实际包验证，不把组件测试当作网络/物理显示验收。
@@ -202,7 +204,7 @@ cancel/delete semantics.
 | `Alt+4` | selected unit | The enabled official OCR plugin contributes this shortcut. Toggle cached OCR overlays; recognize and show them if no result exists. |
 | `Ctrl+5` | selected image unit | The enabled translation plugin translates from cached OCR, recognizing first when needed. Repeated use refreshes translation while preserving OCR content. |
 | `Alt+5` | selected image unit | Toggle cached translation without a model request; produce OCR and translation on first use. |
-| `Ctrl+Shift+4` | canvas | Toggle clean view. |
+| `Ctrl+Shift+4` | canvas | Cycle sticker chrome: all controls → border only → hidden → all controls. |
 | `Q` / `W` / `E` / `R` | selected unit or sticker editing | Select the annotation transform mode: select, move, rotate, or scale. |
 
 Ordinary `Escape`/`Delete` context actions and triple-`Esc+Delete` emergency exit
@@ -267,7 +269,7 @@ updates the crop to the newly displayed pixels. Browser document binding and
 extension installation are no longer part of this feature.
 
 Route B native GPU presentation is automatic for eligible Windows Live images,
-with `HOOK_LIVE_GPU_PREVIEW=0` forcing JPEG compatibility. See [GPU presentation](LIVE_GPU_PRESENTATION.md). Its additional
+with `HOOK_LIVE_GPU_PREVIEW=0` forcing JPEG compatibility. See [GPU presentation](features/LIVE_GPU_PRESENTATION.md). Its additional
 gate must prove native pixels plus the existing Unit/editor/input behavior;
 ordinary browser screenshots and submission counters alone do not prove native
 compositor visibility or monitor FPS. Copy/save/native Shift-drag can request a
@@ -314,7 +316,7 @@ and an animated-source CPU sample; submission counts are not monitor FPS.
 - Admission uses source/crop memory estimates, available RAM, DXGI budget and
   sampled CPU/allocation growth, bounded by 16 sources rather than a fixed four.
   Pressure reduces cadence, refuses new work, and preserves existing Units.
-  See [resource admission](LIVE_RESOURCE_ADMISSION.md) for limits and diagnostics.
+  See [resource admission](features/LIVE_RESOURCE_ADMISSION.md) for limits and diagnostics.
   Creating a new selection does not replace existing Live Units. The desktop
   does not mount the global LIVE relay-panel badge; relay transport remains intact.
 - The local live view starts at the selected screen rectangle and renders only
@@ -396,7 +398,7 @@ and an animated-source CPU sample; submission counts are not monitor FPS.
 ## 8. Tile terminal regression matrix
 
 The opt-in `--tile` / `--tile-output` entry is described in
-[TILE_TERMINAL.md](TILE_TERMINAL.md). It has its own output mutex and device
+[TILE_TERMINAL.md](features/TILE_TERMINAL.md). It has its own output mutex and device
 identity path and does not start the ordinary capture workspace.
 
 - Images and existing Live sessions follow one versioned crop/rotation mapping;

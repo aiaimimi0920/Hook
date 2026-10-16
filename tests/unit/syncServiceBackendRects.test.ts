@@ -1,0 +1,117 @@
+// @vitest-environment jsdom
+
+import { createEffect, createRoot } from "solid-js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const { updatePinRects } = vi.hoisted(() => ({
+  updatePinRects: vi.fn(),
+}));
+
+vi.mock("../../src/platform/tauri/api", () => ({
+  api: { updatePinRects },
+}));
+
+vi.mock("../../src/features/workspace/state/graphStore", () => ({
+  graphStore: { units: [] },
+}));
+
+import { syncService } from "../../src/features/workspace/services/syncService";
+import { addOrUpdateRect, removeRect } from "../../src/platform/desktop/uiRegistry";
+
+describe("syncService backend hit rectangles", () => {
+  afterEach(() => {
+    removeRect("test-actions-menu");
+    removeRect("test-ocr-text");
+    updatePinRects.mockReset();
+  });
+
+  it("serializes updates and sends the latest rectangle after an in-flight update", async () => {
+    let resolveFirst: (() => void) | undefined;
+    updatePinRects
+      .mockImplementationOnce(() => new Promise<void>((resolve) => {
+        resolveFirst = resolve;
+      }))
+      .mockResolvedValue(undefined);
+
+    addOrUpdateRect({
+      id: "test-actions-menu",
+      x: 10,
+      y: 20,
+      width: 250,
+      height: 300,
+      name: "ACTIONS_MENU",
+    });
+    const first = syncService.updateBackendRects();
+    await vi.waitFor(() => expect(updatePinRects).toHaveBeenCalledTimes(1));
+
+    addOrUpdateRect({
+      id: "test-actions-menu",
+      x: 80,
+      y: 90,
+      width: 250,
+      height: 300,
+      name: "ACTIONS_MENU",
+    });
+    const second = syncService.updateBackendRects();
+    resolveFirst?.();
+    await Promise.all([first, second]);
+
+    expect(updatePinRects).toHaveBeenCalledTimes(2);
+    const latestRects = updatePinRects.mock.calls[1][0] as Array<{ x: number; y: number; name: string }>;
+    expect(latestRects).toContainEqual(expect.objectContaining({
+      x: 80,
+      y: 90,
+      name: "ACTIONS_MENU",
+    }));
+  });
+
+  it("keeps automatic rect tracking active while a backend update is in flight", async () => {
+    let resolveFirst: (() => void) | undefined;
+    let resolveSecond: (() => void) | undefined;
+    updatePinRects
+      .mockImplementationOnce(() => new Promise<void>((resolve) => {
+        resolveFirst = resolve;
+      }))
+      .mockImplementationOnce(() => new Promise<void>((resolve) => {
+        resolveSecond = resolve;
+      }))
+      .mockResolvedValue(undefined);
+
+    const initialSync = syncService.updateBackendRects();
+    await vi.waitFor(() => expect(updatePinRects).toHaveBeenCalledTimes(1));
+
+    let dispose: () => void = () => undefined;
+    createRoot((rootDispose) => {
+      dispose = rootDispose;
+      createEffect(() => {
+        void syncService.updateBackendRects();
+      });
+    });
+    await Promise.resolve();
+
+    resolveFirst?.();
+    await vi.waitFor(() => expect(updatePinRects).toHaveBeenCalledTimes(2));
+
+    addOrUpdateRect({
+      id: "test-ocr-text",
+      x: 120,
+      y: 140,
+      width: 180,
+      height: 24,
+      name: "OCR_TEXT",
+    });
+    await Promise.resolve();
+    resolveSecond?.();
+
+    await vi.waitFor(() => expect(updatePinRects).toHaveBeenCalledTimes(3));
+    await initialSync;
+    dispose();
+
+    const latestRects = updatePinRects.mock.calls[2][0] as Array<{ x: number; y: number; name: string }>;
+    expect(latestRects).toContainEqual(expect.objectContaining({
+      x: 120,
+      y: 140,
+      name: "OCR_TEXT",
+    }));
+  });
+});

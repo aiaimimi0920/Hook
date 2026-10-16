@@ -28,8 +28,8 @@ capability in the translation.
 | Community participation | [English guide](./contributing.md) and [Chinese guide](./contributing.zh-CN.md). |
 | This translation guide | This page and its [Chinese counterpart](./translating.zh-CN.md). |
 | Other product and technical documents | Find the existing owner in the [documentation index](../README.md). Not every document has a translation; do not link to a translation that does not exist. |
-| Toolbar options | [stickerTopStripCatalog.tsx](../../src/components/stickerTopStripCatalog.tsx) stores display labels directly, including selection and movement labels. |
-| Component labels and hints | Examples include button titles and accessibility labels in [StickerTopStripEditActions.tsx](../../src/components/StickerTopStripEditActions.tsx), and settings copy in [AppSettingsDialog.tsx](../../src/components/AppSettingsDialog.tsx). |
+| Toolbar options | [stickerTopStripCatalog.tsx](../../src/features/stickers/components/stickerTopStripCatalog.tsx) stores display labels directly, including selection and movement labels. |
+| Component labels and hints | Examples include button titles and accessibility labels in [StickerTopStripEditActions.tsx](../../src/features/stickers/components/StickerTopStripEditActions.tsx), and settings copy in [AppSettingsDialog.tsx](../../src/features/settings/components/AppSettingsDialog.tsx). |
 
 The inspected interface wording lives directly in components and option catalogs.
 Copying another project's language-file structure does not enable an Otter UI

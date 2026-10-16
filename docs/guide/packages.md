@@ -7,7 +7,7 @@
 Hook has been renamed to **Otter**. The instructions below describe builds from
 the current source. Previously published packages, including Hook v0.2.33, keep
 their original filenames and `hook.exe`; use the executable actually included
-in that release. See [rename compatibility](../RENAMING.md).
+in that release. See [rename compatibility](../development/RENAMING.md).
 
 - **Portable (current recommended package)**
   - extract the zip and run `otter.exe`;
@@ -29,30 +29,34 @@ For the public Release, ordinary users only need the portable ZIP. Users who wan
 to verify a download should also fetch the matching `.zip.sha256` sidecar. GitHub's
 automatic source ZIP and tarball remain available for developers.
 
-See [`UIACCESS_DISTRIBUTION.md`](../../UIACCESS_DISTRIBUTION.md) and
-[`docs/RELEASE_STRATEGY.md`](../RELEASE_STRATEGY.md). Formal clean-source
+See [`docs/release/uiaccess-distribution.md`](../release/uiaccess-distribution.md) and
+[`docs/release/RELEASE_STRATEGY.md`](../release/RELEASE_STRATEGY.md). Formal clean-source
 packaging, checksums, SBOMs, attestations, and draft verification are documented
-in [`docs/release-provenance.md`](../release-provenance.md); dependency
+in [`docs/release/release-provenance.md`](../release/release-provenance.md); dependency
 inventory and vulnerability response are in
-[`docs/DEPENDENCY_SECURITY.md`](../DEPENDENCY_SECURITY.md).
+[`docs/security/DEPENDENCY_SECURITY.md`](../security/DEPENDENCY_SECURITY.md).
 
 ## Code signing status
 
 Free code signing provided by [SignPath.io](https://signpath.io/), certificate
 by [SignPath Foundation](https://signpath.org/), applies only after the Otter
 project is provisioned and a hosted signing request receives manual approval.
-The current portable package must be treated as unsigned unless a release
-explicitly includes an approved signed installer.
+Do not assume a portable executable is signed. A separately approved signed
+installer does not establish a signature on the portable EXE; verify the exact
+downloaded file and that release's package description.
 
-- [Code Signing Policy](../CODE_SIGNING_POLICY.md)
-- [Privacy Policy](../PRIVACY_POLICY.md)
+- [Code Signing Policy](../release/CODE_SIGNING_POLICY.md)
+- [Privacy Policy](../security/PRIVACY_POLICY.md)
 - [Security Policy](../../SECURITY.md)
 - [Governance and Signing Roles](../../GOVERNANCE.md)
 - [Third-Party Notices](../../THIRD_PARTY_NOTICES.md)
 
 ## Local data identity
 
-The public Tauri bundle identifier and the only automatic local-data identity is
+The public Tauri bundle identifier and canonical application-data identity is
 `com.yamiyu.hook`. Development and test automation can select an isolated root
 explicitly with `OTTER_APPDATA_DIR` (`HOOK_APPDATA_DIR` remains a fallback);
-Otter does not scan or migrate obsolete roots.
+Otter does not scan or migrate obsolete application-data roots. This is not a claim
+that every file is stored there: runtime logs use their own directory, and temporary
+capture/clipboard files have separate bounded paths. See [exit diagnostics](../development/UNEXPECTED_EXIT_INVESTIGATION.md)
+for the runtime log location; deleting a portable program folder is not a data reset.

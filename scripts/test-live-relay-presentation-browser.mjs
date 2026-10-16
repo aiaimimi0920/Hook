@@ -11,7 +11,7 @@ await fs.mkdir(output, { recursive: true });
 const modules = new Map();
 const jpegFixture = await fs.readFile(new URL("../protocol/fixtures/live-jpeg-v1.nllv", import.meta.url));
 for (const name of ["liveRelay", "liveRelayPresentation"]) {
-    const source = await fs.readFile(new URL(`../src/services/${name}.ts`, import.meta.url), "utf8");
+    const source = await fs.readFile(new URL(`../src/features/live/services/${name}.ts`, import.meta.url), "utf8");
     modules.set(`/${name}.js`, stripTypeScriptTypes(source));
 }
 const server = http.createServer((request, response) => {

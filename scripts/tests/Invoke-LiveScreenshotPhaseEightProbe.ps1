@@ -97,7 +97,7 @@ $commands.otterVisualTrust = Invoke-LoggedCommand -Name "otter-visual-trust" `
     -WorkingDirectory $repoRoot -FilePath $cargo `
     -Arguments @("test", "--manifest-path", "src-tauri\Cargo.toml", "visual_observations_cannot_claim_exact_confidence")
 $commands.otterProtocol = Invoke-LoggedCommand -Name "otter-protocol" -WorkingDirectory $repoRoot `
-    -FilePath $npm -Arguments @("test", "--", "__tests__\unit\liveExtensions.test.ts")
+    -FilePath $npm -Arguments @("test", "--", "tests\unit\liveExtensions.test.ts")
 $commands.otterTypecheck = Invoke-LoggedCommand -Name "otter-typecheck" -WorkingDirectory $repoRoot `
     -FilePath $npm -Arguments @("run", "typecheck")
 $commands.otterTestTypecheck = Invoke-LoggedCommand -Name "otter-test-typecheck" -WorkingDirectory $repoRoot `

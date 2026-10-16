@@ -3,9 +3,9 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { build } from "vite";
-import type { Unit } from "../../src/types/unit";
-import type { renderStickerCompositeWithAnnotations } from "../../src/services/stickerCompositeRenderer";
-import type { createLiveStickerEraseSession } from "../../src/services/stickerBitmapLayers";
+import type { Unit } from "../../src/features/workspace/types/unit";
+import type { renderStickerCompositeWithAnnotations } from "../../src/features/stickers/services/stickerCompositeRenderer";
+import type { createLiveStickerEraseSession } from "../../src/features/stickers/services/stickerBitmapLayers";
 
 test("repeated content erasing preserves untouched pixels at fractional sticker sizes", async () => {
     const root = fileURLToPath(new URL("../../", import.meta.url)).replaceAll("\\", "/");
@@ -25,8 +25,8 @@ test("repeated content erasing preserves untouched pixels at fractional sticker 
                     return "export const resolveRuntimeStickerCompositeBaseImageSrc = () => undefined;";
                 }
                 if (id === "\0erase-test-entry") return `
-                    export { renderStickerCompositeWithAnnotations } from ${JSON.stringify(`${root}src/services/stickerCompositeRenderer.ts`)};
-                    export { createLiveStickerEraseSession } from ${JSON.stringify(`${root}src/services/stickerBitmapLayers.ts`)};
+                    export { renderStickerCompositeWithAnnotations } from ${JSON.stringify(`${root}src/features/stickers/services/stickerCompositeRenderer.ts`)};
+                    export { createLiveStickerEraseSession } from ${JSON.stringify(`${root}src/features/stickers/services/stickerBitmapLayers.ts`)};
                 `;
             },
         }],

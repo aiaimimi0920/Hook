@@ -7,7 +7,7 @@ Run the commands below from the repository root. For contribution rules and owne
 Tauri v2 · SolidJS · TypeScript · Rust
 
 ```powershell
-npm install
+npm ci
 npm run dev:tauri
 ```
 
@@ -16,26 +16,22 @@ npm run dev:tauri
 
 - Windows 10 or Windows 11;
 - WebView2 Runtime;
-- Node.js 22+ for frontend development;
+- Node.js 22.12+ for frontend development on the Node 22 line; use the repository's
+  locked dependencies (`npm ci`) rather than updating dependency versions to set up a checkout;
 - Rust stable with the MSVC toolchain for desktop builds.
 
 HDR capture is available only when the selected Windows 11 display reports HDR
 support. Unsupported or SDR-only cases fall back automatically. See
-[`docs/HDR_CAPTURE.md`](../HDR_CAPTURE.md).
+[`docs/features/HDR_CAPTURE.md`](../features/HDR_CAPTURE.md).
 
 ## Development verification
-
-Install dependencies and start the Tauri development application:
-
-```powershell
-npm install
-npm run dev:tauri
-```
 
 Useful checks:
 
 ```powershell
 npm run typecheck
+npm run typecheck:test
+npm run lint
 npm run test:performance
 npm run test:surface-browser
 npm run test:parallel
@@ -74,7 +70,7 @@ Validate a built native candidate in two stages. Preflight only hashes the
 candidate, checks the CDP dependency/port, and reports any live Otter main or
 watchdog process; it never launches or stops Otter:
 
-Phase 71 is the canonical-only baseline: acceptance and release checks exercise
+The canonical-only acceptance baseline requires release checks to exercise
 only the current app-data identity, publisher-qualified packages, and formal
 `loom.hook.v1`/`loom.surface.v1` contracts. Obsolete compatibility paths are not
 part of acceptance.
@@ -101,7 +97,7 @@ storage. It enables `HOOK_NATIVE_ACCEPTANCE=1` only for the spawned candidate so
 the gated clean-exit command can return through the normal Tauri shutdown path;
 it does not rename/bypass the mutex or disable global Otter behavior.
 
-The Phase 69 dual-end gate uses the outer orchestrator instead of treating a
+The packaged Otter/Loom dual-end gate uses the outer orchestrator instead of treating a
 daemon-only or browser-only smoke as sufficient. It verifies both candidate
 hashes, starts an isolated packaged Loom daemon and fixture Art Store, installs
 the real dashboard Surface, and delegates to the native Otter runner:
@@ -150,11 +146,11 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 
 Development rules and module ownership are documented in
 [`CONTRIBUTING.md`](../../CONTRIBUTING.md). The current runtime structure is documented
-in [`TECHNICAL_ARCHITECTURE.md`](../../TECHNICAL_ARCHITECTURE.md).
+in [`docs/architecture/overview.md`](../architecture/overview.md).
 
 
 
 Development CI policy: valid vulnerability, license, lint, format, and size findings
 are advisory in independent reporting workflows. Tool/report/upload failures remain
 errors; typechecking, builds, and functional tests stay blocking. Release checks and
-`npm run verify:local` remain strict. See [dependency security policy](../DEPENDENCY_SECURITY.md).
+`npm run verify:local` remain strict. See [dependency security policy](../security/DEPENDENCY_SECURITY.md).

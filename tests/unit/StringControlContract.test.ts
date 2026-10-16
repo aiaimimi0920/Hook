@@ -1,0 +1,28 @@
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const readSource = (relativePath: string) =>
+    readFileSync(resolve(process.cwd(), relativePath), "utf8");
+
+describe("StringControl text-field interactivity contract", () => {
+    it("keeps native text interactivity hooks on the inline query input", () => {
+        const controlSource = readSource("src/features/art/components/params/controls/StringControl.tsx");
+        const cssSource = readSource("src/shared/styles/terminal-primitives.css");
+        const overlayWindowApiSource = readSource("src/platform/tauri/apiOverlayWindow.ts");
+        const panelSource = readSource("src/features/art/components/UnitParamsPanel.tsx");
+
+        expect(controlSource).toContain("const focusEditableTarget = (");
+        expect(controlSource).toContain("onPointerDown={focusEditableTarget}");
+        expect(controlSource).toContain("onMouseDown={focusEditableTarget}");
+        expect(controlSource).toContain('from "../../../../../platform/tauri/api"');
+        expect(controlSource).toContain("void api.focusOverlayWindow()");
+        expect(overlayWindowApiSource).toContain("focusOverlayWindow");
+        expect(panelSource).toContain("void api.focusOverlayWindow();");
+        expect(panelSource).toContain(
+            '<textarea class="otter-terminal-input otter-scrollbar w-full h-[150px]',
+        );
+        expect(cssSource).toContain("user-select: text;");
+        expect(cssSource).toContain("-webkit-user-select: text;");
+    });
+});

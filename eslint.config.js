@@ -18,7 +18,7 @@ export default tseslint.config(
             ".vinxi/**",
             ".runtime/**",
             "src-tauri/**",
-            "__tests__/**",
+            "tests/**",
             "*.config.js",
             "*.config.ts",
         ],

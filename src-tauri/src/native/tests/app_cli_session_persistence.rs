@@ -54,7 +54,7 @@
 
     #[test]
     fn session_revision_is_validated_before_image_assets_are_written() {
-        let source = include_str!("../session_commands.rs");
+        let source = include_str!("../session/session_commands.rs");
         let revision_check = source
             .find("ensure_expected_session_revision")
             .expect("session save must validate its expected revision");

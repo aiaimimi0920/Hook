@@ -1,0 +1,229 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+    renderStickerComposite,
+    renderStickerTransparentAnnotationLayer,
+} from "../../src/features/stickers/services/stickerExport";
+import type { Unit } from "../../src/features/workspace/types/unit";
+
+// Brush-stroke mosaic/blur: the effect stores stroke points + a brush width and a
+// bounding box. Export renders the full effect into an offscreen layer (box-local
+// coordinates), masks it down to the brush stroke with destination-in, then
+// composites the masked layer back at the bounding-box origin. There is no
+// rectangle border anymore.
+const makeEffectUnit = (type: "mosaic" | "blur"): Unit => ({
+    id: `sticker-${type}`,
+    type: "sticker",
+    x: 0,
+    y: 0,
+    w: 200,
+    h: 120,
+    params: {},
+    inputs: [],
+    outputs: [],
+    data: {
+        src: "data:image/png;base64,BASE",
+        annotationState: {
+            serialCounter: 1,
+            elements: [
+                {
+                    id: `${type}-1`,
+                    type,
+                    zIndex: 1,
+                    x: 30,
+                    y: 32,
+                    w: 50,
+                    h: 20,
+                    points: [
+                        { x: 40, y: 42 },
+                        { x: 70, y: 48 },
+                    ],
+                    brushWidth: 16,
+                    strength: type === "mosaic" ? 12 : 8,
+                    style:
+                        type === "mosaic"
+                            ? { color: "#ff00ff", width: 0, fill: "#111111", secondaryFill: "#eeeeee" }
+                            : { color: "#00ffcc", width: 0 },
+                },
+            ],
+        },
+        imageEditState: { contentEraseStrokes: [] },
+    },
+});
+
+describe("sticker effect export rasterization", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    const installCanvas = () => {
+        const calls: Array<[string, ...unknown[]]> = [];
+        const context = {
+            save: () => calls.push(["save"]),
+            restore: () => calls.push(["restore"]),
+            scale: (...args: number[]) => calls.push(["scale", ...args]),
+            beginPath: () => calls.push(["beginPath"]),
+            rect: (...args: number[]) => calls.push(["rect", ...args]),
+            clip: () => calls.push(["clip"]),
+            arc: (
+                x: number,
+                y: number,
+                radius: number,
+                startAngle: number,
+                endAngle: number,
+                counterclockwise?: boolean,
+            ) => calls.push(["arc", x, y, radius, startAngle, endAngle, counterclockwise]),
+            moveTo: (...args: number[]) => calls.push(["moveTo", ...args]),
+            lineTo: (...args: number[]) => calls.push(["lineTo", ...args]),
+            stroke: () => calls.push(["stroke"]),
+            fill: () => calls.push(["fill"]),
+            fillRect: (...args: number[]) => calls.push(["fillRect", ...args]),
+            drawImage: (...args: unknown[]) => calls.push(["drawImage", ...args]),
+            createPattern: () => {
+                calls.push(["createPattern"]);
+                return "__pattern__" as unknown as CanvasPattern;
+            },
+            // Cast because the real `createImageData` is overloaded and the stub only
+            // implements the (width, height) form the exporter uses.
+            createImageData: ((w: number, h: number) => {
+                calls.push(["createImageData", w, h]);
+                return { width: w, height: h, data: new Uint8ClampedArray(w * h * 4) } as unknown as ImageData;
+            }) as CanvasRenderingContext2D["createImageData"],
+            putImageData: (...args: unknown[]) => calls.push(["putImageData", ...args]),
+            set fillStyle(value: string) {
+                calls.push(["fillStyle", value]);
+            },
+            set strokeStyle(value: string) {
+                calls.push(["strokeStyle", value]);
+            },
+            set lineWidth(value: number) {
+                calls.push(["lineWidth", value]);
+            },
+            set lineCap(value: CanvasLineCap) {
+                calls.push(["lineCap", value]);
+            },
+            set lineJoin(value: CanvasLineJoin) {
+                calls.push(["lineJoin", value]);
+            },
+            set globalCompositeOperation(value: GlobalCompositeOperation) {
+                calls.push(["globalCompositeOperation", value]);
+            },
+            set filter(value: string) {
+                calls.push(["filter", value]);
+            },
+            get filter() {
+                return "none";
+            },
+        } satisfies Partial<CanvasRenderingContext2D>;
+
+        const canvases: Array<{ width: number; height: number }> = [];
+
+        vi.stubGlobal("document", {
+            createElement: (tagName: string) => {
+                expect(tagName).toBe("canvas");
+                const canvas = {
+                    width: 0,
+                    height: 0,
+                    // Cast for the same reason as `createImageData`: only the "2d" overload is stubbed.
+                    getContext: (() => context) as unknown as HTMLCanvasElement["getContext"],
+                    toDataURL: () => "data:image/png;base64,LAYER",
+                } satisfies Partial<HTMLCanvasElement>;
+                canvases.push(canvas);
+                return canvas;
+            },
+        });
+
+        class FakeImage {
+            onload: (() => void) | null = null;
+            onerror: (() => void) | null = null;
+            width = 200;
+            height = 120;
+            naturalWidth = 200;
+            naturalHeight = 120;
+            set src(_value: string) {
+                queueMicrotask(() => this.onload?.());
+            }
+        }
+        vi.stubGlobal("Image", FakeImage);
+
+        return { calls, canvases };
+    };
+
+    it("paints a non-repeating mosaic grid, masks it to the stroke, and composites at the box origin", async () => {
+        const { calls } = installCanvas();
+
+        await renderStickerTransparentAnnotationLayer(makeEffectUnit("mosaic"), ["mosaic-1"]);
+
+        // Mosaic is a grid of square cells (fillRect per cell), colored from a
+        // blue-gray palette by absolute position so the grid never repeats. It never
+        // samples the source image, so the censored content cannot leak.
+        expect(calls.some(([name]) => name === "fillRect")).toBe(true);
+        // The grid is masked down to the brush stroke (destination-in), then the
+        // masked layer is composited back at the bounding-box origin. No border.
+        expect(calls).toContainEqual(["globalCompositeOperation", "destination-in"]);
+        expect(calls.some(([name]) => name === "strokeRect")).toBe(false);
+        const composite = calls.find(
+            (call): call is ["drawImage", unknown, number, number] =>
+                call[0] === "drawImage" && typeof call[2] === "number" && typeof call[3] === "number",
+        );
+        expect(composite?.[2]).toBe(30);
+        expect(composite?.[3]).toBe(32);
+    });
+
+    it("blurs source pixels, keeps the overlay tint, masks the stroke, and drops the border", async () => {
+        const { calls } = installCanvas();
+
+        await renderStickerTransparentAnnotationLayer(makeEffectUnit("blur"), ["blur-1"]);
+
+        expect(calls).toContainEqual(["filter", "blur(8px)"]);
+        expect(calls.some(([name]) => name === "drawImage")).toBe(true);
+        // Live overlay tint preserved, old wrong constant absent.
+        expect(calls).not.toContainEqual(["fillStyle", "rgba(255,255,255,0.10)"]);
+        expect(calls).toContainEqual(["fillStyle", "rgba(255,255,255,0.08)"]);
+        // Masked to the brush stroke, no rectangle border.
+        expect(calls).toContainEqual(["globalCompositeOperation", "destination-in"]);
+        expect(calls.some(([name]) => name === "strokeRect")).toBe(false);
+    });
+
+    it("rejects a non-finite effect canvas before browser allocation", async () => {
+        installCanvas();
+        const unit = makeEffectUnit("mosaic");
+        const effect = unit.data.annotationState?.elements[0];
+        if (effect?.type !== "mosaic") throw new Error("Expected mosaic fixture");
+        effect.w = Number.POSITIVE_INFINITY;
+
+        await expect(renderStickerTransparentAnnotationLayer(unit, [effect.id])).rejects.toThrow(
+            "Invalid canvas dimension: effect width",
+        );
+    });
+
+    it.each(["mosaic", "blur"] as const)(
+        "allocates %s effect layers at source resolution when the sticker frame is smaller",
+        async (type) => {
+            const { canvases } = installCanvas();
+            const unit = makeEffectUnit(type);
+            unit.w = 100;
+            unit.h = 60;
+
+            await renderStickerTransparentAnnotationLayer(unit, [`${type}-1`]);
+
+            expect(canvases[0]).toMatchObject({ width: 200, height: 120 });
+            expect(canvases[1]).toMatchObject({ width: 100, height: 40 });
+        },
+    );
+
+    it.each(["mosaic", "blur"] as const)(
+        "keeps %s composite export at source resolution instead of CSS frame size",
+        async (type) => {
+            const { canvases } = installCanvas();
+            const unit = makeEffectUnit(type);
+            unit.w = 100;
+            unit.h = 60;
+
+            await renderStickerComposite(unit);
+
+            expect(canvases[0]).toMatchObject({ width: 200, height: 120 });
+            expect(canvases[1]).toMatchObject({ width: 100, height: 40 });
+        },
+    );
+});

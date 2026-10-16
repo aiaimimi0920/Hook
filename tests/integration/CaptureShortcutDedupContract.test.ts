@@ -1,0 +1,61 @@
+import { describe, expect, it } from "vitest";
+import { readOtterLibRustSources } from "../helpers/otterLibRustSources";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const readSource = (relativePath: string) =>
+  readFileSync(resolve(process.cwd(), relativePath), "utf8");
+
+describe("capture shortcut de-duplication", () => {
+  it("keeps rdev as the fallback for Loom-managed global shortcuts", () => {
+    const rustSource = readOtterLibRustSources();
+
+    expect(rustSource).toContain("fn configured_global_shortcut_is_registered(");
+    expect(rustSource).toContain("fn refresh_configured_global_shortcuts(");
+    expect(rustSource).toContain("shortcut_config::global_action(vk_code, modifiers)");
+    expect(rustSource).toContain("if !handled_by_registered_shortcut {");
+    expect(rustSource).toContain('"rdev_configured_shortcut_triggered :: {action}"');
+  });
+
+  it("registers extension global shortcuts without hardcoding OCR", () => {
+    const rustSource = readOtterLibRustSources();
+    const runtimeSource = readOtterLibRustSources();
+
+    expect(rustSource).toContain("fn set_extension_shortcuts(");
+    expect(rustSource).toContain("fn extension_shortcut_payload(");
+    expect(rustSource).toContain("extension_global_shortcut_is_registered(vk_code, modifiers)");
+    expect(runtimeSource).not.toContain('"commandId": "hook.core.ocr"');
+    expect(runtimeSource).not.toContain("trigger_ocr_event");
+    expect(runtimeSource).not.toContain("register_ctrl2_success");
+  });
+
+  it("debounces repeated Tauri Ctrl+1/Ctrl+3 pressed events instead of re-entering capture mode", () => {
+    const rustSource = readOtterLibRustSources();
+
+    expect(rustSource).toContain("tauri_ctrl_1_last_trigger");
+    expect(rustSource).toContain("tauri_ctrl_3_last_trigger");
+    expect(rustSource).toContain("tauri_capture_duplicate_ignored");
+    expect(rustSource).toContain("tauri_long_capture_duplicate_ignored");
+    expect(rustSource).toContain("Duration::from_millis(500)");
+  });
+
+  it("refuses to reconfigure the overlay when a native capture session is already active", () => {
+    const rustSource = readOtterLibRustSources();
+
+    expect(rustSource).toContain("fn try_begin_capture_input_runtime() -> bool");
+    expect(rustSource).toContain("CAPTURE_MOUSE_HOOK_ACTIVE.swap(true, Ordering::SeqCst)");
+    expect(rustSource).toContain("enter_capture_mode_ignored_active");
+    expect(rustSource).toContain("enter_long_capture_mode_ignored_active");
+  });
+
+  it("ignores duplicate frontend capture trigger events while a capture session is already active", () => {
+    const nativeActionSource = readSource("src/app/appNativeActionController.ts");
+    const captureStateSource = readSource("src/features/capture/services/captureState.ts");
+
+    expect(nativeActionSource).toContain("const beginCaptureSelection =");
+    expect(nativeActionSource).toContain("beginCaptureSelectionState(mode, isSelecting())");
+    expect(nativeActionSource).toContain("api.debugLogEvent(captureStart.duplicateDebugEvent)");
+    expect(captureStateSource).toContain('"trigger-capture-ignored-duplicate"');
+    expect(captureStateSource).toContain('"trigger-long-capture-ignored-duplicate"');
+  });
+});

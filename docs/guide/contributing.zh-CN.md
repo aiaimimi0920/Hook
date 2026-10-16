@@ -13,7 +13,7 @@
 | 提出功能建议 | 说明实际场景、目前怎么完成、哪里不方便，以及希望得到什么结果。涉及 Loom 能力时，注明所需的能力和连接条件。 |
 | 分享使用经验 | 在 Issue 中介绍一个可复现的截图、标注或节点处理示例，用脱敏图片说明操作和结果，并注明所需版本与能力。 |
 | 改进文案或文档 | 指出具体页面、原文、建议文字及理由；直接提 Issue，或修改对应文档后提交 PR。参见[翻译教程](./translating.zh-CN.md)与[文案与文档](#文案与文档)。 |
-| 贡献代码 | 先阅读[工程贡献规范](../../CONTRIBUTING.md)和[项目目录](../../TECHNICAL_ARCHITECTURE.md#2-repository-layout)，再进行范围明确的修改和相关验证。 |
+| 贡献代码 | 先阅读[工程贡献规范](../../CONTRIBUTING.md)和[项目目录](../architecture/overview.md#2-repository-layout)，再进行范围明确的修改和相关验证。 |
 
 ## 让问题更容易复现
 
@@ -26,9 +26,9 @@
 5. 最小示例、脱敏截图或必要的日志片段，并说明哪些步骤已经验证、哪些还无法验证。
 
 实时截图捕获的是程序或屏幕区域的像素，浏览器滚动或切换标签会改变画面。
-[实时截图范围](../LIVE_CAPTURE.md)和[投射说明](../QR_PROJECTION.md)可帮助区分功能边界与异常。
+[实时截图范围](../features/LIVE_CAPTURE.md)和[投射说明](../features/QR_PROJECTION.md)可帮助区分功能边界与异常。
 请不要仅凭接收计数、解码计数或一张截图宣称显示帧率或性能提升；相关证据边界见
-[LiveRelay 诊断](../LIVE_RELAY_DIAGNOSTICS.md)。
+[LiveRelay 诊断](../features/LIVE_RELAY_DIAGNOSTICS.md)。
 
 ## 文案与文档
 
@@ -38,7 +38,7 @@
 | 文档导航 | [文档中心](../README.md) |
 | 参与方式 | 本页与[英文参与指南](./contributing.md) |
 | 具体功能与快捷键 | [功能矩阵](../FEATURES.md)，以及文档中心列出的专项说明 |
-| 架构、开发和验证要求 | [技术架构](../../TECHNICAL_ARCHITECTURE.md)与[工程贡献规范](../../CONTRIBUTING.md) |
+| 架构、开发和验证要求 | [技术架构](../architecture/overview.md)与[工程贡献规范](../../CONTRIBUTING.md) |
 
 只修正错字时，修改对应语言即可；功能含义、限制或操作步骤发生变化时，请同步已有的中英文对应内容。
 界面措辞建议应附上控件位置或操作路径，不要假定 Otter 使用与其他项目相同的语言文件结构。

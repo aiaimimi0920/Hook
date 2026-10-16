@@ -104,7 +104,7 @@ async fn poll_remote_surface_once(
 // 与 Otter 校验 `loom.hook.v1` 的写法一致；唯一的产出方无条件带上这个字段。
 //
 // 这一段在 `remote-surface` 关闭时只被测试调用：留着编译是有意的，协议判定的用例要在两种
-// feature 组合下都跑，见 `docs/REMOTE_SURFACE_STAGED.md`。
+// feature 组合下都跑，见 `docs/features/REMOTE_SURFACE_STAGED.md`。
 #[cfg_attr(not(feature = "remote-surface"), allow(dead_code))]
 fn surface_stream_envelope(
     response: &serde_json::Value,

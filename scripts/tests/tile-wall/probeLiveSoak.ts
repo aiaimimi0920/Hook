@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import type { WallStateSnapshot } from '../../../src/services/wallTypes.ts';
+import type { WallStateSnapshot } from '../../../src/features/tile/services/wallTypes.ts';
 import { connectOutput } from './artProbe.ts';
 import { traceNativeInput } from './nativeInputTrace.ts';
 import { openProbe, readJson, sampleJson, until, writeJson } from './probeSession.ts';

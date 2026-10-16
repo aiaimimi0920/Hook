@@ -25,19 +25,19 @@ docs = load('check_changed_docs')
 class PathOracleTests(unittest.TestCase):
     def test_documentation_allowlist(self):
         for path in ['README.md', 'README.zh-CN.md', 'CONTRIBUTING.md', 'GOVERNANCE.md', 'SECURITY.md',
-                     'MIGRATION.md', 'THIRD_PARTY_NOTICES.md', 'UIACCESS_DISTRIBUTION.md',
+                     'docs/development/standalone-migration.md', 'THIRD_PARTY_NOTICES.md', 'docs/release/uiaccess-distribution.md',
                      'docs/FEATURES.md', 'docs/nested/guide.md',
                      'docs/assets/demo.gif', 'docs/assets/nested/hero.svg']:
             with self.subTest(path=path):
                 self.assertTrue(scope.is_documentation(path))
 
     def test_every_other_path_requires_full_ci(self):
-        for path in ['src/app.tsx', 'src/README.md', 'src-tauri/src/lib.rs',
+        for path in ['src/app/app.tsx', 'src/README.md', 'src-tauri/src/lib.rs',
                      'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'package.json',
                      'package-lock.json', 'version-state.json', 'vite.config.ts',
                      'scripts/build.ps1', 'scripts/ci_change_scope.py',
                      '.github/workflows/build-otter-exe.yml', 'security/policy.json',
-                     'docs/GITHUB_RELEASE_BODY.md', 'docs/assets/github-home-hero.svg',
+                     'docs/release/GITHUB_RELEASE_BODY.md', 'docs/assets/github-home-hero.svg',
                      'docs/assets/script.js',
                      'docs/settings.json', 'docs/template.html', 'public/icon.svg',
                      'new-file.txt', 'LICENSE', '../README.md', '/README.md',
@@ -249,6 +249,7 @@ class DocumentationTests(unittest.TestCase):
             (root / 'docs').mkdir()
             for source, targets in docs.SIBLING_CONTRACT_LINKS.items():
                 path = root / source
+                path.parent.mkdir(parents=True, exist_ok=True)
                 for target in targets:
                     path.write_text(f'# Contract\n[external]({target})\n')
                     self.assertEqual(docs.check_document(root, source), [])

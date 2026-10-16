@@ -1,0 +1,159 @@
+# Otter UIAccess Distribution Notes
+
+This document explains both:
+
+- why Otter has a future **installer / UIAccess** path; and
+- why the project is currently in a **portable-first** public release phase.
+
+## The short version
+
+- **Portable** is the current public release package and the current recommended
+  package for users.
+- **Installer** is the future signed package path that Otter is still preparing,
+  but it is not the current public release package yet.
+
+The difference is not cosmetic. It comes from how Windows enforces **UIAccess**
+ and foreground-window security rules.
+
+## Why the installer package exists
+
+Otter uses a transparent desktop overlay and needs to stay interactive even when
+special Windows foreground windows are active.
+
+One concrete example is **Task Manager**:
+
+- a normal portable Otter build can still work for most everyday capture and
+  sticker workflows;
+- but when Task Manager is the foreground window, Windows may stop a portable
+  build from receiving the same level of input/interaction that the installed
+  UIAccess path can keep.
+
+This is a Windows policy boundary, not just a frontend bug.
+
+## Why portable and installer are not equivalent
+
+For Windows to honor a UIAccess desktop application, the executable must be all
+of the following:
+
+1. built with a `uiAccess=true` manifest;
+2. **digitally signed**;
+3. installed into a **trusted location** such as `Program Files`.
+
+Because of that:
+
+- a **portable** package cannot promise the same behavior in every
+  foreground/elevation scenario;
+- an **installer** package is the correct path for users who want the best
+  compatibility in scenarios like Task Manager foreground interaction.
+
+## Current phase: portable-first public releases
+
+Otter is currently shipping only the portable public release because the project
+does not yet have real public release signing material wired into the GitHub
+release path.
+
+That means the current user-facing recommendation is:
+
+- use the portable package;
+- if a special Windows foreground/elevation scenario causes interaction limits,
+  try launching Otter as **administrator** as the current workaround.
+
+This is a transition strategy, not the final ideal distribution model.
+
+## Future phase: signed installer public releases
+
+Otter still intends to publish a signed installer/UIAccess package again once a
+real signing provider path is ready for public release use.
+
+At that point:
+
+- the signed installer can return as a public release artifact;
+- the installer path can again become the recommended option for the most
+  reliable Windows interaction scenarios.
+
+## User-facing guidance
+
+### Installer (future signed phase)
+
+Choose the installer package when:
+
+- you plan to use Otter as a long-running desktop tool;
+- you want the best chance of reliable interaction under special foreground
+  windows such as Task Manager;
+- you want the binary installed into `Program Files`, which is part of the
+  trusted-location requirement for UIAccess.
+
+This package path is being kept ready in-repo, but it is not the current public
+release package until signing is available.
+
+### Portable (current phase)
+
+Choose the portable package when:
+
+- you want the currently supported public release package;
+- you want a no-install trial or ordinary daily screenshot workflow quickly;
+- you accept that some Windows foreground/elevation combinations may still
+  limit interaction and may require administrator launch as a workaround.
+
+If you must stay on the portable package and hit one of those Windows
+restrictions, a fallback is to try launching Otter as **administrator**. That is
+the current phase workaround, not the preferred long-term distribution model.
+
+## Install and uninstall notes
+
+### Installer / UIAccess package
+
+- when a signed installer zip is present, install by extracting it and running
+  its generated `install-hook.ps1` wrapper from an elevated PowerShell session;
+- maintainers testing a separately signed executable may instead run
+  `scripts/install-otter-uiaccess.ps1 -SourceExe <path-to-signed-otter.exe>` from
+  an elevated PowerShell session;
+- the helper installs `otter.exe` into `Program Files\yamiyu\Otter`;
+- uninstall by closing Otter and removing the installed `Program Files\yamiyu\Otter`
+  directory and any shortcuts you created for it.
+
+### Portable package
+
+- install by extracting the zip anywhere you control;
+- uninstall by closing Otter and deleting the extracted portable folder.
+
+## Maintainer notes
+
+The repository keeps future dual distribution engineering in place, even though
+the current public phase is portable-first:
+
+- **portable zip** is the baseline public artifact;
+- **installer zip** is the signed UIAccess-oriented package;
+- the installer package stages:
+  - `otter.exe`
+  - `install-hook.ps1`
+  - `install-otter-uiaccess.ps1`
+
+## GitHub Actions requirements
+
+Portable releases can be generated without signing and are the only current
+user-facing executable packages. Tag workflows retain the unsigned UIAccess
+candidate and its provenance JSON in an Actions artifact for 30 days, not as
+public release attachments. That JSON is audit metadata, not an installer.
+
+Installer/UIAccess releases require a real code-signing certificate in GitHub
+Actions. Otter uses the hosted SignPath model instead of exporting a PFX or
+private key into the repository. The protected `signpath-production` GitHub
+Environment supplies:
+
+- secret: `SIGNPATH_API_TOKEN`
+- variable: `SIGNPATH_ORGANIZATION_ID`
+- variable: `SIGNPATH_PROJECT_SLUG`
+- variable: `SIGNPATH_SIGNING_POLICY_SLUG`
+
+The environment must require reviewer approval, and the SignPath signing policy
+must require manual approval for every request. Until SignPath provisions these
+values and approvals, the public release posture stays portable-first rather
+than pretending an unsigned installer path is publishable.
+
+The public tag workflow builds the unsigned UIAccess candidate once and
+retains a JSON manifest containing its tag, commit, workflow run ID, and
+SHA-256. The manual signing workflow requires that run ID and the reviewed
+SHA-256, downloads the exact retained candidate, and refuses signing if its
+bytes or manifest differ from the authenticated producer's provenance. An expired
+or missing candidate artifact is not permission to substitute a local rebuild.

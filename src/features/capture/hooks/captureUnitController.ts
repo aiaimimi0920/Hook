@@ -1,0 +1,112 @@
+import { convertFileSrc } from "@tauri-apps/api/core";
+
+import { api } from "../../../platform/tauri/api";
+import {
+    type CaptureRect,
+    createCaptureMeta,
+    type LongCaptureAxis,
+    type ManualLongCaptureFrame,
+} from "../services/captureState";
+import { createThumbnailDataUrl } from "../../workspace/services/historyModel";
+import { syncService } from "../../workspace/services/syncService";
+import { graphStore } from "../../workspace/state/graphStore";
+import {
+    type captureMode,
+    selectionActions,
+    uiActions,
+} from "../../workspace/state/uiStore";
+import type { Unit } from "../../workspace/types/unit";
+
+const resolveCaptureResponseSrc = (response: ManualLongCaptureFrame) => {
+    if (response.filePath) {
+        return convertFileSrc(response.filePath);
+    }
+    return response.fileUrl ?? response.base64;
+};
+
+/** Restores normal overlay hit testing after every capture exit path. */
+export const restorePostCaptureInteractivity = async () => {
+    try {
+        await api.setOverlayClickThrough(true);
+    } catch {
+        console.error("[Otter] capture interactivity restore failed (click-through)");
+    }
+    if (graphStore.units.length > 0) {
+        try {
+            await api.setMouseMonitorActive(true);
+        } catch {
+            console.error("[Otter] capture interactivity restore failed (mouse-monitor)");
+        }
+        try {
+            await syncService.updateBackendRects();
+        } catch {
+            console.error("[Otter] capture interactivity restore failed (backend-rects)");
+        }
+    }
+};
+
+/** Commits a captured frame as a selected sticker, then records history asynchronously. */
+export const addCaptureUnit = async (
+    response: ManualLongCaptureFrame,
+    rect: CaptureRect,
+    origin: { x: number; y: number },
+    mode: ReturnType<typeof captureMode>,
+    scrollAxis?: LongCaptureAxis,
+) => {
+    const dpr = window.devicePixelRatio || 1;
+    // Native crop bounds, not the requested selection, own the final pixel-aligned placement.
+    const actual = response.captureRect;
+    const cssW = actual?.w ?? response.width / dpr;
+    const cssH = actual?.h ?? response.height / dpr;
+
+    const newUnit: Unit = {
+        id: crypto.randomUUID(),
+        type: "sticker",
+        x: actual?.x ?? origin.x,
+        y: actual?.y ?? origin.y,
+        w: cssW,
+        h: cssH,
+        params: {},
+        inputs: [],
+        outputs: [],
+        data: {
+            src: resolveCaptureResponseSrc(response),
+            filePath: response.filePath ?? undefined,
+            opacityNormal: 1.0,
+            opacityMini: 0.9,
+            minified: false,
+            captureMeta: {
+                ...createCaptureMeta(mode, rect, scrollAxis),
+                dynamicRange: response.dynamicRange,
+                bitDepth: response.bitDepth,
+                colorSpace: response.colorSpace,
+                captureBackend: response.captureBackend,
+                downgradedFromHdr: response.downgradedFromHdr,
+            },
+        },
+    };
+
+    graphStore.actions.addUnit(newUnit);
+    selectionActions.set([newUnit.id]);
+    await api.focusOverlayWindow();
+    await syncService.updateBackendRects();
+    void syncService.performWorkflowSync();
+    await api.debugLogEvent("selection-capture-success", `cssW=${cssW} cssH=${cssH}`);
+
+    // Thumbnail generation is intentionally detached from the capture success path.
+    void (async () => {
+        try {
+            const thumb = await createThumbnailDataUrl(newUnit.data.src ?? "");
+            if (!thumb.thumbnail) return;
+            uiActions.recordScreenshotHistory({
+                id: newUnit.id,
+                thumbnail: thumb.thumbnail,
+                width: response.width,
+                height: response.height,
+                at: Date.now(),
+            });
+        } catch (error) {
+            console.error("Failed to record screenshot history", error);
+        }
+    })();
+};

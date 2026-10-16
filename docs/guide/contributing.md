@@ -14,7 +14,7 @@ follow the existing engineering setup and verification requirements.
 | Suggest a feature | Describe the use case, your current approach, the difficulty and the result you want. Note any required Loom capabilities and connection conditions. |
 | Share a useful example | Use an issue to explain a reproducible capture, annotation or node-processing example with sanitized images, steps, results and required versions or capabilities. |
 | Improve wording or documentation | Identify the page, original wording, proposed text and reason. Open an issue or propose a documentation PR; see the [translation guide](./translating.md) and [Wording and documentation](#wording-and-documentation). |
-| Contribute code | Read the [engineering contribution guide](../../CONTRIBUTING.md) and [repository layout](../../TECHNICAL_ARCHITECTURE.md#2-repository-layout), then make a focused change with relevant verification. |
+| Contribute code | Read the [engineering contribution guide](../../CONTRIBUTING.md) and [repository layout](../architecture/overview.md#2-repository-layout), then make a focused change with relevant verification. |
 
 ## Make a problem reproducible
 
@@ -30,10 +30,10 @@ A useful report can include:
    clear distinction between verified steps and anything you could not verify.
 
 Live capture follows program or screen-region pixels: browser scrolling and tab
-switches change the captured content. Check [live capture scope](../LIVE_CAPTURE.md)
-and [projection behavior](../QR_PROJECTION.md) to distinguish limits from defects.
+switches change the captured content. Check [live capture scope](../features/LIVE_CAPTURE.md)
+and [projection behavior](../features/QR_PROJECTION.md) to distinguish limits from defects.
 Do not infer display FPS or performance gains from receive/decode counters or a
-single screenshot; see the [LiveRelay diagnostics boundaries](../LIVE_RELAY_DIAGNOSTICS.md).
+single screenshot; see the [LiveRelay diagnostics boundaries](../features/LIVE_RELAY_DIAGNOSTICS.md).
 
 ## Wording and documentation
 
@@ -43,7 +43,7 @@ single screenshot; see the [LiveRelay diagnostics boundaries](../LIVE_RELAY_DIAG
 | Documentation navigation | [Documentation index](../README.md) |
 | Ways to participate | This page and the [Chinese contribution guide](./contributing.zh-CN.md) |
 | Features and shortcuts | [Feature matrix](../FEATURES.md) and the focused guides linked from the documentation index |
-| Architecture, development and verification | [Technical architecture](../../TECHNICAL_ARCHITECTURE.md) and [engineering contribution guide](../../CONTRIBUTING.md) |
+| Architecture, development and verification | [Technical architecture](../architecture/overview.md) and [engineering contribution guide](../../CONTRIBUTING.md) |
 
 A typo fix may affect one language. Changes to meaning, limitations or steps should
 update the existing corresponding English and Chinese content. For interface

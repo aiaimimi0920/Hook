@@ -6,9 +6,9 @@
 
 Native Otter automatically discovers and connects to authenticated local Loom by
 default. Set `HOOK_ENABLE_LOOM_HOOK=0` to disable integration. Browser preview stays local: it does
-not connect anonymously to Loom or execute real Arts. See [security boundaries](../SECURITY_BOUNDARIES.md#authenticated-native-local-bridge).
+not connect anonymously to Loom or execute real Arts. See [security boundaries](../security/SECURITY_BOUNDARIES.md#authenticated-native-local-bridge).
 
-The explicit [global Loom connection](../LOOM_CONNECTION.md) remembers its last
+The explicit [global Loom connection](../features/LOOM_CONNECTION.md) remembers its last
 successful target across Otter restarts. Manual disconnect cancels auto-reconnect
 without deleting history; restart still requires valid device authorization.
 
@@ -27,7 +27,7 @@ Otter combines a transparent desktop capture surface with a persistent sticker
 workspace. Captures can remain on the desktop, be edited and annotated, or be
 connected to local Art/Loom workflows without leaving the application.
 
-[QR projection](../QR_PROJECTION.md) is available from the Ctrl+E toolbar and
+[QR projection](../features/QR_PROJECTION.md) is available from the Ctrl+E toolbar and
 links a sticker or formal Art image to another Windows Otter. Choose a shared
 HTTPS Loom with device pairing and no official login, or the existing Loom
 account mode. Receiver layout stays independent. Shared Loom supports online-device
@@ -35,11 +35,14 @@ selection and continuous delivery with receiver confirmation or automatic displa
 Confirmation uses a compact bottom-right desktop prompt with accept, reject,
 and defer actions. The receive tab exposes a persistent device-wide policy: automatic
 approval, manual approval (default), or always reject. Policy changes leave existing
-received stickers linked. Server authorization and deny rules still apply.
+received stickers linked. Server authorization and deny rules still apply. A missing
+saved preference defaults to manual approval; unreadable or invalid saved consent
+fails closed to always reject until a valid policy is saved.
 Manually trusted offline Loom peers also support delivery. Official premium relay
-remains reserved. Native PC1/PC3 acceptance passed using pinned SSH forwarding.
+remains reserved. Historical isolated PC1/PC3 candidates passed checks using pinned
+SSH forwarding; that evidence does not certify the current binary or direct LAN/NAT paths.
 
-Self-hosted private-CA HTTPS Loom can use [origin-scoped process trust](../SECURITY_BOUNDARIES.md#origin-scoped-loom-https-trust)
+Self-hosted private-CA HTTPS Loom can use [origin-scoped process trust](../security/SECURITY_BOUNDARIES.md#origin-scoped-loom-https-trust)
 for HTTP and media WSS, without changing Windows roots or device-pairing rules.
 This configuration support is not direct-LAN two-machine acceptance evidence.
 
@@ -58,7 +61,7 @@ tab switching preserves its size. The source projection ID can be copied or unli
 and remains visible until remote unlink acknowledgement. Long target
 and font lists support wheel scrolling and draggable scrollbars in the overlay.
 The user dropdown reports the unavailable account service. This UI increment has
-focused and browser coverage. Isolated candidates have also passed PC1/PC3
+focused and browser coverage. Historical isolated candidates have also passed PC1/PC3
 shared/cross-Loom policy, editing, batch-binding and stop checks over pinned SSH
 forwarding; the batch check used two Loom identities on one physical receiver.
 Shared and trusted cross-Loom v1 links also support opt-in two-way annotation
@@ -75,14 +78,14 @@ On the receiver, open a Surface-capable Art Unit's parameter panel, refresh the
 LiveRelay list, select a session and explicitly join. This reuses the mounted
 Surface attachment and server authorization; it does not grant remote control.
 Closing the parameter panel keeps an established viewer open; closing it during
-joining cancels that pending result. See [Live capture](../LIVE_CAPTURE.md).
+joining cancels that pending result. See [Live capture](../features/LIVE_CAPTURE.md).
 If Loom deleted this device, choose **重新配对** to submit its existing public key again.
 Loom approval, refreshing and joining remain explicit; a revoked old viewer stays closed.
-The Windows [C1 H.264 path](../LIVE_RELAY_H264_POC.md) uses GPU capture textures,
+The Windows [C1 H.264 path](../features/LIVE_RELAY_H264_POC.md) uses GPU capture textures,
 hardware encoding and a native MF viewer decoder, with JPEG/raw compatibility.
 PC1/PC3 functional evidence is separate from performance: A3-P was waived by the
 user, and no throughput, CPU or physical-display improvement is claimed.
-The viewer also exposes [bounded receiver diagnostics](../LIVE_RELAY_DIAGNOSTICS.md)
+The viewer also exposes [bounded receiver diagnostics](../features/LIVE_RELAY_DIAGNOSTICS.md)
 for source/epoch/frame and decoded-submitted stages, without pixels or private errors.
 Actual executable/process SHA binding is external; these counters are not display FPS.
 
@@ -99,7 +102,7 @@ Actual executable/process SHA binding is external; these counters are not displa
 - browser windows use the same native `Ctrl+2` capture without an extension.
   Scrolling or switching tabs changes the captured pixels; preserving the original
   webpage content across those actions is outside the Live capture scope;
-- [runtime resource admission](../LIVE_RESOURCE_ADMISSION.md) replaces the fixed
+- [runtime resource admission](../features/LIVE_RESOURCE_ADMISSION.md) replaces the fixed
   four-source cap: source/crop size, RAM headroom, DXGI budget and sampled CPU/load
   growth determine whether another source can start, within a 16-source safety
   ceiling. Pressure slows existing capture and rejects new work without deleting Units;
@@ -110,9 +113,9 @@ Actual executable/process SHA binding is external; these counters are not displa
   readback/encode permit. Hidden/offscreen views without a relay publisher reduce capture to 1 FPS and pause
   JPEG production; visible unsupported effects use bounded-rate fallback rather
   than unrestricted CPU pipelines. Layout polling shares one clock and Unit
-  geometry sample. Same-window regions now [share one WGC source](../LIVE_SHARED_SOURCE_CAPTURE.md)
+  geometry sample. Same-window regions now [share one WGC source](../features/LIVE_SHARED_SOURCE_CAPTURE.md)
   while retaining independent crops, frame delivery, visibility and stop;
-- automatic [route B GPU presentation](../LIVE_GPU_PRESENTATION.md) copies
+- automatic [route B GPU presentation](../features/LIVE_GPU_PRESENTATION.md) copies
   WGC textures into native swapchains without JPEG on that display branch. The
   copy/save and native Shift-drag export can request lossless GPU snapshots. The
   ordinary JPEG branch pauses CPU readback/encoding while GPU presentation is
@@ -137,6 +140,9 @@ Actual executable/process SHA binding is external; these counters are not displa
 - HDR-aware Windows 11 capture with automatic SDR fallback;
 - long capture through `Ctrl+3`;
 - long capture shows a scaled preview of the current stitched result beside the capture region;
+- the preview's four arrow buttons move the sampling rectangle without scrolling the source;
+  two-dimensional capture retains coverage and finishes with the largest fully sampled rectangle,
+  rather than filling unsampled gaps;
 - file-backed capture payloads to avoid unnecessary large Base64 transfers;
 - native screen color picking.
 
@@ -157,30 +163,33 @@ the clipboard list supports wheel scrolling and a draggable scrollbar.
 - compact text/numbering properties share transparent color swatches, font selection, and 8–999 size/radius steppers for creation and selected annotations;
 - with the text tool active, click an existing text annotation to edit its content; click empty space to create another text annotation;
 - geometry-aware annotation selection instead of bounding-box-only hit testing;
-- compact pencil/paintbrush properties with independent size, opacity and smoothing; natural speed-sensitive, lightly softened brush strokes support undo/redo and rasterization ([freehand editing](../FREEHAND_EDITING.md));
-- editable multi-segment Bézier paths: double-click to insert anchors, drag endpoint `+` handles to extend, and right-click white anchors to delete them with undo/redo; see [curve editing](../BEZIER_EDITING.md);
+- compact pencil/paintbrush properties with independent size, opacity and smoothing; natural speed-sensitive, lightly softened brush strokes support undo/redo and rasterization ([freehand editing](../features/FREEHAND_EDITING.md));
+- editable multi-segment Bézier paths: double-click to insert anchors, drag endpoint `+` handles to extend, and right-click white anchors to delete them with undo/redo; see [curve editing](../features/BEZIER_EDITING.md);
 - recycle bin, reference library, groups, history, undo, and redo;
 - Unicode-safe naming for visible save, clipboard, and drag-export files;
 - fast minified/full-view switching through cached composite previews;
+- `Ctrl+Shift+4` cycles sticker chrome through all controls, border only and hidden;
 - native Shift-drag file export to Explorer.
 
 ### Workflow and local integrations
 
 - node canvas, links, grouped parameters, and shader previews;
 - Loom capability discovery and Art execution/delivery;
-- an opt-in [tile terminal](../TILE_TERMINAL.md) through `--tile`, presenting
+- an opt-in [tile terminal](../features/TILE_TERMINAL.md) through `--tile`, presenting
   Loom-managed images, Live content and declarative Art on a selected physical
   output, with endpoint-scoped input and host-owned Art confirmation/cancellation.
   Loom can freeze, black out and resume a saved wall, with per-output application
   reports and paused input. Identify one screen by its actual output name with a
   marker lasting at most 10 seconds; Escape dismisses it without exiting the output.
   This remains an internal development slice;
-  scheduling and multi-computer acceptance are pending;
+  software scene/media scheduling is implemented, while physical synchronization,
+  multi-computer acceptance and full long-duration tests remain pending;
 - installable Loom Capability Plugins can contribute commands, shortcuts, toolbar
-  menus, result attachments, overlays, and unit-scoped notices without a Otter
-  business branch; the official OCR package contributes its own `Ctrl+4`,
+  menus, result attachments, overlays, and unit-scoped notices through generic host
+  contracts; the official OCR package contributes its own `Ctrl+4`,
   `Alt+4`, cached full/layout copy, click-to-copy, and Shift+click multi-block
-  selection behavior only while installed and enabled;
+  selection behavior only while installed and enabled. The host still retains named
+  OCR text-context, cached-overlay and older-snapshot renderer compatibility paths;
 - OCR and translation keep independent cached results: `Ctrl+4` re-recognizes,
   `Ctrl+5` translates using existing OCR or recognizes first, and `Alt+4` / `Alt+5`
   toggle cached overlays or produce the missing result on first use. The overlays
@@ -189,7 +198,8 @@ the clipboard list supports wheel scrolling and a draggable scrollbar.
 - all sticker and Art notices stay bound to their owning unit, stack in its upper-right corner, and can be dismissed one at a time;
 - the official OCR package automatically performs bounded local QR/barcode
   decoding during `Ctrl+4`, then contributes generic result attachments, green hit markers, and
-  click-to-copy behavior; Otter core contains no QR/barcode decoder or product branch;
+  click-to-copy behavior; OCR code decoding belongs to the package, separately from
+  Otter's built-in projection-invitation QR import;
 - optional Talk voice capture and Tea ticket creation through local capability
   bridges;
 - single-instance enforcement, tray residency, runtime diagnostics, and an

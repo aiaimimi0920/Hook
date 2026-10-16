@@ -11,16 +11,16 @@ from urllib.parse import unquote, urlsplit
 # Existing sibling-repository contracts cannot be checked in an Otter-only checkout.
 # Restrict the exception to exact source/destination pairs; never read outside root.
 SIBLING_CONTRACT_LINKS = {
-    "docs/TILE_WALL_CLIENT.md": {
-        "../../Loom/docs/TILE_WALL.md",
-        "../../Loom/protocol/WALL_IDENTIFICATION_API.md",
+    "docs/features/TILE_WALL_CLIENT.md": {
+        "../../../Loom/docs/TILE_WALL.md",
+        "../../../Loom/protocol/WALL_IDENTIFICATION_API.md",
     },
-    "docs/TILE_TERMINAL.md": {
-        "../../Loom/docs/TILE_WALL.md",
-        "../../Loom/protocol/WALL_IDENTIFICATION_API.md",
-        "../../Loom/protocol/WALL_TIMING_MEDIA.md",
-        "../../Loom/protocol/WALL_SURFACE_API.md",
-        "../../Loom/protocol/WALL_PRESENTATION_API.md",
+    "docs/features/TILE_TERMINAL.md": {
+        "../../../Loom/docs/TILE_WALL.md",
+        "../../../Loom/protocol/WALL_IDENTIFICATION_API.md",
+        "../../../Loom/protocol/WALL_TIMING_MEDIA.md",
+        "../../../Loom/protocol/WALL_SURFACE_API.md",
+        "../../../Loom/protocol/WALL_PRESENTATION_API.md",
     },
 }
 

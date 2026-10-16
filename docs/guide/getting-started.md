@@ -15,9 +15,9 @@ Start with your first pinned image, then explore editing, nodes and projection. 
 
 1. Launch Otter, press **`Ctrl+1`**, and select the area to capture.
 2. Move the resulting pinned image to the desired desktop position for reference or further editing.
-3. Use **`Ctrl+2`** for live capture or **`Ctrl+3`** for long capture. Source compatibility and resource limits are explained in [live capture](../LIVE_CAPTURE.md).
+3. Use **`Ctrl+2`** for live capture or **`Ctrl+3`** for long capture. Source compatibility and resource limits are explained in [live capture](../features/LIVE_CAPTURE.md).
 
-UAC secure-desktop capture and overlays are unsupported. Live capture does not guarantee background input in every application or a fixed frame rate. See [security boundaries](../SECURITY_BOUNDARIES.md).
+UAC secure-desktop capture and overlays are unsupported. Live capture does not guarantee background input in every application or a fixed frame rate. See [security boundaries](../security/SECURITY_BOUNDARIES.md).
 
 ## 2. Edit and annotate
 
@@ -27,11 +27,11 @@ UAC secure-desktop capture and overlays are unsupported. Live capture does not g
 4. After leaving editing or selection mode, press **`Esc`** to delete the pinned image. An active edit draft, capture selection or dialog takes priority for cancellation or dismissal; when an annotation is selected, deletion may apply to that annotation.
 5. Press **`Ctrl+S`** to save the selected image, or hold **`Shift`** to drag it into File Explorer.
 
-Read more: [freehand editing](../FREEHAND_EDITING.md) · [Bézier editing](../BEZIER_EDITING.md) · [features and shortcuts](../FEATURES.md).
+Read more: [freehand editing](../features/FREEHAND_EDITING.md) · [Bézier editing](../features/BEZIER_EDITING.md) · [features and shortcuts](../FEATURES.md).
 
 ## 3. Use OCR, translation and Art nodes
 
-Start Loom, install and enable the required capability packages, and complete Otter's connection and authorization. See [global Loom connection](../LOOM_CONNECTION.md) for connection, approval and reconnection details.
+Start Loom, install and enable the required capability packages, and complete Otter's connection and authorization. See [global Loom connection](../features/LOOM_CONNECTION.md) for connection, approval and reconnection details.
 
 With an image selected:
 
@@ -54,7 +54,7 @@ A device here means an Otter receiver that supports the existing projection prot
 3. Open the target device or device-group list and select an available target. The receiver accepts or rejects according to its policy; success is shown after the sender receives confirmation that the image was displayed.
 4. Once associated, later edits on the sender continue to synchronize. Deselect the target to stop projection; closing the panel does not stop an existing association.
 
-QR-code and link invitations are also supported. Receive them through the tray's receive-projection entry or the image's import panel. See [image projection](../QR_PROJECTION.md) for invitation expiry, cross-Loom trust, receiving policies and two-way editing limits.
+QR-code and link invitations are also supported. Receive them through the tray's receive-projection entry or the image's import panel. See [image projection](../features/QR_PROJECTION.md) for invitation expiry, cross-Loom trust, receiving policies and two-way editing limits.
 
 ## Troubleshooting
 

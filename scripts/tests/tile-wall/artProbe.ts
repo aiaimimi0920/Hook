@@ -1,7 +1,7 @@
 import { loopbackHttpOrigin } from './probeOrigins.ts';
 import assert from 'node:assert/strict';
 import { chromium, type Page } from 'playwright';
-import type { SurfaceActionAck, SurfaceResultCommit, SurfaceSnapshot } from '../../../src/services/surfaceProtocol.ts';
+import type { SurfaceActionAck, SurfaceResultCommit, SurfaceSnapshot } from '../../../src/features/surfaces/services/surfaceProtocol.ts';
 import { until } from './probeSession.ts';
 
 export interface ArtSource { instanceId: string; attachmentId: string }

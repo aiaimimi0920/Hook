@@ -36,7 +36,8 @@ the signing provider and while the account retains the intended access.
 
 ## Release and signing approval
 
-- Public releases are produced from public `Vx.x.x` tags by GitHub Actions.
+- Public releases are produced from public `vx.y.z` tags by GitHub Actions;
+  historical `Vx.y.z` tags remain supported, not internal four-part tags.
 - Every SignPath signing request requires manual approval in SignPath.
 - The `signpath-production` GitHub Environment must also have required reviewers
   configured before its signing secret is added.
@@ -46,7 +47,7 @@ the signing provider and while the account retains the intended access.
   installer/UIAccess package name.
 
 The normative signing rules are in
-[`docs/CODE_SIGNING_POLICY.md`](docs/CODE_SIGNING_POLICY.md).
+[`docs/release/CODE_SIGNING_POLICY.md`](docs/release/CODE_SIGNING_POLICY.md).
 
 ## Security and privacy contact
 

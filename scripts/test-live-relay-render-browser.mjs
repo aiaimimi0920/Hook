@@ -14,9 +14,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const harnessId = path.join(root, "relay-render-harness.tsx").replaceAll("\\", "/");
 const harness = `
 import { render } from "solid-js/web";
-import { LiveRelayLayer } from "./src/components/LiveRelayLayer";
-import { liveRelayActions, liveRelayViews } from "./src/store/liveRelayStore";
-import { relayStatus } from "./__tests__/fixtures/liveRelay";
+import { LiveRelayLayer } from "./src/features/live/components/LiveRelayLayer";
+import { liveRelayActions, liveRelayViews } from "./src/features/live/state/liveRelayStore";
+import { relayStatus } from "./tests/fixtures/liveRelay";
 const urls = new Set();
 const originalRevoke = URL.revokeObjectURL.bind(URL);
 URL.revokeObjectURL = url => { urls.delete(url); originalRevoke(url); };
@@ -56,7 +56,7 @@ const server = await createServer({
         name: "relay-render-fixture",
         resolveId(id) {
             if (id === "/relay-render-harness.tsx") return harnessId;
-            if (id === "../services/syncService") return "\0relay-rect-sync";
+            if (id === "../../workspace/services/syncService") return "\0relay-rect-sync";
         },
         load(id) {
             if (id === harnessId) return harness;

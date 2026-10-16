@@ -12,6 +12,11 @@ test, security, and release documents. When mounted inside Neuro,
 `../docs/DEVELOPMENT_STANDARD.md` is the expanded common standard. This file is
 self-contained so a standalone Otter checkout inherits the same mandatory rules.
 
+Repository placement and contribution rules are maintained in
+`docs/development/CODE_ORGANIZATION.md`. Read that document before adding or moving
+files. Keep its ownership map and the architecture overview synchronized with
+structural changes; do not duplicate business implementations in shared modules.
+
 ## Mandatory incremental code-size standard
 
 Effective code lines exclude blank lines, comment-only lines, and comment-only
@@ -63,8 +68,8 @@ renames, extensions, or dumping grounds named `common`, `utils`, or `helpers`.
 7. For runtime or release work, run Otter's documented package/runtime gates;
    documentation-only governance changes do not require a fake release build.
 
-Release and dependency changes must also follow `docs/release-provenance.md` and
-`docs/DEPENDENCY_SECURITY.md`; a dirty candidate is evidence, not a publishable
+Release and dependency changes must also follow `docs/release/release-provenance.md` and
+`docs/security/DEPENDENCY_SECURITY.md`; a dirty candidate is evidence, not a publishable
 formal release.
 
 Any stricter repository-local checker or CI gate overrides this common floor.
@@ -80,4 +85,4 @@ Any stricter repository-local checker or CI gate overrides this common floor.
 - Cargo/npm/Tauri retain three-part SemVer; the fourth part is a Otter build
   identity in provenance, not a dependency version. Never publish an internal
   candidate or a four-part tag through the public release pipeline.
-- Follow `docs/VERSIONING.md` for commands, compatibility, and release gates.
+- Follow `docs/release/VERSIONING.md` for commands, compatibility, and release gates.

@@ -1,0 +1,100 @@
+# Otter SignPath Application Draft
+
+This file is a copy-ready English answer pack for a future SignPath Foundation
+application.
+
+Use it together with:
+
+- `docs/release/SIGNPATH_APPLICATION_CHECKLIST.md`
+- `docs/release/CODE_SIGNING_POLICY.md`
+- `docs/security/PRIVACY_POLICY.md`
+- `SECURITY.md`
+- `GOVERNANCE.md`
+- `THIRD_PARTY_NOTICES.md`
+- `docs/release/uiaccess-distribution.md`
+
+The answers below are intentionally written so they can be copied directly into
+application fields and then lightly adjusted if the form wording changes.
+
+## Project description
+
+> Otter is an open-source Windows desktop screenshot and sticker-editing tool
+> built with Tauri and SolidJS. It focuses on local capture, pinning,
+> annotation, and visual desktop workflow organization rather than cloud-first
+> image hosting.
+
+## Why Otter needs code signing
+
+> Otter also maintains a Windows UIAccess-oriented installer path. Some of
+> Otter's overlay interaction scenarios require a digitally signed executable
+> installed in a trusted location such as Program Files, so code signing is not
+> just cosmetic for this package lane.
+
+## How Otter releases are produced
+
+GitHub Actions is the public hosted build path for Otter releases.
+
+> Otter releases are built from the public GitHub repository using GitHub
+> Actions. New release versions use vx.y.z tags (historical Vx.y.z tags remain
+> supported), and the public
+> release assets are generated from that tagged source rather than from a
+> private manual rebuild.
+
+## Why portable and installer packages are different
+
+> Otter publishes a portable package for ordinary daily screenshot use and maintains
+> a separate installer/UIAccess-oriented path for future signed distribution.
+> Installer publication requires signing provisioning and approval. The repository
+> does not describe those two packages as equivalent, because the installer path
+> depends on signing and trusted-location requirements that the portable package
+> does not guarantee.
+
+## Install and uninstall explanation
+
+> The public repository documents install and uninstall behavior in
+> docs/release/uiaccess-distribution.md. The UIAccess-oriented installer path is designed for
+> installation into Program Files\yamiyu\Otter, while the portable package is
+> documented as an extract-and-run package that can be removed by deleting the
+> extracted folder after the app is closed.
+
+## Public policy documentation
+
+> The public repository includes a code signing policy, a privacy policy, and
+> public security, governance, third-party notice, and UIAccess distribution
+> documents. Those documents explain the release model, the distinction between
+> portable and installer output, and the current local-first privacy baseline.
+
+## Single-maintainer review explanation
+
+> Otter may currently operate in a single-maintainer period. In that situation,
+> the same repository administrator can act as committer, reviewer, and release
+> approver, but the public code signing policy still records those roles
+> separately and the release checklist still requires explicit review before a
+> signed release is approved.
+
+## Why SignPath is being requested
+
+> Otter is an active open-source Windows desktop application with public source
+> code, public releases, public issue tracking, and a documented release
+> process. A signing solution is being requested so the Windows installer path
+> can be distributed in a way that matches the platform's trust requirements for
+> the UIAccess-oriented package lane.
+
+## Signing workflow preparation
+
+> The repository contains a dedicated manual GitHub Actions workflow using the
+> official SignPath signing-request action. It accepts an existing public release
+> tag, authenticates the release workflow that built the UIAccess candidate, and
+> verifies the retained candidate's manifest and digest without rebuilding it.
+> It submits that GitHub artifact for signing, waits for manual approval, and publishes only the returned
+> signed installer package. SignPath account identifiers and the API token are
+> supplied through a protected GitHub Environment after project provisioning.
+
+## Maintainer submission reminder
+
+Before using this draft in a real submission, confirm the current facts in:
+
+- `docs/release/SIGNPATH_APPLICATION_CHECKLIST.md`
+- `docs/release/CODE_SIGNING_POLICY.md`
+- `docs/security/PRIVACY_POLICY.md`
+- `docs/release/uiaccess-distribution.md`

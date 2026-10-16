@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Page } from 'playwright';
-import type { WallLayout, WallStateSnapshot } from '../../../src/services/wallTypes.ts';
+import type { WallLayout, WallStateSnapshot } from '../../../src/features/tile/services/wallTypes.ts';
 import { openProbe, readJson, sampleJson, until, writeJson } from './probeSession.ts';
 import { verifyLiveDisplay } from './probeLiveDisplay.ts';
 import { verifyNativeWheel } from './probeNativeWheel.ts';

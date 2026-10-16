@@ -273,7 +273,7 @@ jobs:
           token: ${{ github.token }}
           tag_name: ${{ env.HOOK_TAG }}
           name: ${{ env.HOOK_TAG }}
-          body_path: docs/GITHUB_RELEASE_BODY.md
+          body_path: docs/release/GITHUB_RELEASE_BODY.md
           draft: true
           generate_release_notes: false
           files: |

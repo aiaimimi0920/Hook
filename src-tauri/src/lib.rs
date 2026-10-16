@@ -160,67 +160,67 @@ mod live_resources;
 #[doc(hidden)]
 pub mod live_video;
 
-include!("native/shared_memory.rs");
+include!("native/runtime/shared_memory.rs");
 
-include!("native/boot_diagnostics.rs");
+include!("native/runtime/boot_diagnostics.rs");
 
-include!("native/runtime_log_sanitize.rs");
+include!("native/runtime/runtime_log_sanitize.rs");
 
-include!("native/runtime_logging.rs");
+include!("native/runtime/runtime_logging.rs");
 
-include!("native/app_persistence_state.rs");
+include!("native/runtime/app_persistence_state.rs");
 
 static INSTALLED_FONT_FAMILIES: OnceLock<Vec<String>> = OnceLock::new();
 
-include!("native/image_limits.rs");
+include!("native/image_io/image_limits.rs");
 
-include!("native/clipboard_cache.rs");
+include!("native/image_io/clipboard_cache.rs");
 
-include!("native/remote_image_cache.rs");
-#[path = "native/remote_image_quota.rs"]
+include!("native/image_io/remote_image_cache.rs");
+#[path = "native/image_io/remote_image_quota.rs"]
 mod remote_image_quota;
 mod watchdog_recovery_auth;
 mod watchdog_recovery_feed;
 
-include!("native/image_dialog_clipboard.rs");
+include!("native/image_io/image_dialog_clipboard.rs");
 
-include!("native/capture_window_commands.rs");
+include!("native/capture/capture_window_commands.rs");
 
-include!("native/input_event_emit.rs");
+include!("native/input/input_event_emit.rs");
 
-include!("native/capture_mouse_queue.rs");
+include!("native/input/capture_mouse_queue.rs");
 
-include!("native/capture_mouse_receiver.rs");
+include!("native/input/capture_mouse_receiver.rs");
 
-include!("native/capture_mouse_debounce.rs");
+include!("native/input/capture_mouse_debounce.rs");
 
-include!("native/capture_mouse_coalescing.rs");
+include!("native/input/capture_mouse_coalescing.rs");
 
-include!("native/capture_input_state.rs");
+include!("native/input/capture_input_state.rs");
 
-include!("native/overlay_input_routing.rs");
+include!("native/overlay/overlay_input_routing.rs");
 
 #[cfg(target_os = "windows")]
-#[path = "native/overlay_webview_cursor.rs"]
+#[path = "native/overlay/overlay_webview_cursor.rs"]
 mod overlay_webview_cursor;
 
 #[cfg(target_os = "windows")]
-#[path = "native/webview_bootstrap_args.rs"]
+#[path = "native/overlay/webview_bootstrap_args.rs"]
 mod webview_bootstrap_args;
 
-include!("native/capture_mouse_hook_proc.rs");
+include!("native/input/capture_mouse_hook_proc.rs");
 
-include!("native/capture_mouse_worker.rs");
+include!("native/input/capture_mouse_worker.rs");
 
-include!("native/keyboard_policy.rs");
+include!("native/input/keyboard_policy.rs");
 
-include!("native/rdev_key_map.rs");
+include!("native/input/rdev_key_map.rs");
 
-include!("native/extension_shortcuts.rs");
+include!("native/input/extension_shortcuts.rs");
 
-include!("native/global_shortcuts.rs");
+include!("native/input/global_shortcuts.rs");
 
-include!("native/overlay_keyboard_routing.rs");
+include!("native/overlay/overlay_keyboard_routing.rs");
 
 include!("native/tests/overlay_forwardable_shortcut_tests.rs");
 include!("native/tests/overlay_semantic_shortcut_focus_tests.rs");
@@ -231,165 +231,165 @@ mod input_lifecycle_hardening_tests {
     include!("native/tests/input_lifecycle_queue.rs");
 }
 
-include!("native/overlay_keyboard_hook.rs");
+include!("native/overlay/overlay_keyboard_hook.rs");
 
-include!("native/overlay_keyboard_install.rs");
+include!("native/overlay/overlay_keyboard_install.rs");
 
-include!("native/cursor_interactivity.rs");
+include!("native/input/cursor_interactivity.rs");
 
-include!("native/cursor_override.rs");
+include!("native/input/cursor_override.rs");
 
-include!("native/input_cleanup.rs");
+include!("native/input/input_cleanup.rs");
 
-include!("native/sticker_save_commands.rs");
+include!("native/image_io/sticker_save_commands.rs");
 
-include!("native/session_assets.rs");
+include!("native/session/session_assets.rs");
 
-include!("native/drag_export_target.rs");
+include!("native/image_io/drag_export_target.rs");
 
-include!("native/drag_export_commands.rs");
+include!("native/image_io/drag_export_commands.rs");
 
-include!("native/native_file_drag.rs");
+include!("native/image_io/native_file_drag.rs");
 
-include!("native/clipboard_commands.rs");
+include!("native/image_io/clipboard_commands.rs");
 
-include!("native/clipboard_text.rs");
+include!("native/image_io/clipboard_text.rs");
 
-include!("native/external_url.rs");
+include!("native/runtime/external_url.rs");
 
-include!("native/overlay_state_commands.rs");
+include!("native/overlay/overlay_state_commands.rs");
 
-include!("native/image_path_commands.rs");
+include!("native/image_io/image_path_commands.rs");
 
-include!("native/session_models.rs");
+include!("native/session/session_models.rs");
 
-include!("native/session_persistence.rs");
+include!("native/session/session_persistence.rs");
 
-include!("native/session_ocr_migration.rs");
+include!("native/session/session_ocr_migration.rs");
 
-include!("native/precise_capture_commands.rs");
-include!("native/legacy_long_capture_commands.rs");
+include!("native/capture/precise_capture_commands.rs");
+include!("native/long_capture/legacy_long_capture_commands.rs");
 
-include!("native/session_io_worker.rs");
-include!("native/session_commands.rs");
+include!("native/session/session_io_worker.rs");
+include!("native/session/session_commands.rs");
 
-include!("native/history_settings.rs");
+include!("native/session/history_settings.rs");
 
-include!("native/installed_fonts.rs");
+include!("native/image_io/installed_fonts.rs");
 
-include!("native/overlay_window_styles.rs");
+include!("native/overlay/overlay_window_styles.rs");
 
-include!("native/overlay_input_shield_state.rs");
+include!("native/overlay/overlay_input_shield_state.rs");
 
-include!("native/overlay_input_shield_router.rs");
+include!("native/overlay/overlay_input_shield_router.rs");
 
-include!("native/overlay_input_shield_window.rs");
+include!("native/overlay/overlay_input_shield_window.rs");
 
-include!("native/overlay_input_shield_region.rs");
+include!("native/overlay/overlay_input_shield_region.rs");
 
-include!("native/overlay_occlusion.rs");
-include!("native/overlay_dialog_priority.rs");
-include!("native/overlay_visible_hit.rs");
+include!("native/overlay/overlay_occlusion.rs");
+include!("native/overlay/overlay_dialog_priority.rs");
+include!("native/overlay/overlay_visible_hit.rs");
 
-include!("native/overlay_topmost_maintenance.rs");
+include!("native/overlay/overlay_topmost_maintenance.rs");
 
-include!("native/overlay_window_setup.rs");
+include!("native/overlay/overlay_window_setup.rs");
 
-include!("native/capture_input_commands.rs");
+include!("native/input/capture_input_commands.rs");
 
-include!("native/long_capture_types.rs");
+include!("native/long_capture/long_capture_types.rs");
 
-include!("native/long_capture_fingerprints.rs");
-include!("native/long_capture_repaint.rs");
+include!("native/long_capture/long_capture_fingerprints.rs");
+include!("native/long_capture/long_capture_repaint.rs");
 
-include!("native/long_capture_guide.rs");
+include!("native/long_capture/long_capture_guide.rs");
 
-include!("native/long_capture_sampling.rs");
+include!("native/long_capture/long_capture_sampling.rs");
 
-include!("native/long_capture_worker.rs");
+include!("native/long_capture/long_capture_worker.rs");
 
-include!("native/long_capture_worker_wait.rs");
+include!("native/long_capture/long_capture_worker_wait.rs");
 
-include!("native/overlay_window_modes.rs");
+include!("native/overlay/overlay_window_modes.rs");
 
-include!("native/capture_mode_entry.rs");
+include!("native/capture/capture_mode_entry.rs");
 
-include!("native/long_capture_encoding.rs");
+include!("native/long_capture/long_capture_encoding.rs");
 
-include!("native/long_capture_session_commands.rs");
-include!("native/long_capture_preview.rs");
-include!("native/long_capture_move.rs");
+include!("native/long_capture/long_capture_session_commands.rs");
+include!("native/long_capture/long_capture_preview.rs");
+include!("native/long_capture/long_capture_move.rs");
 
-include!("native/live_source_recovery.rs");
+include!("native/live/source/live_source_recovery.rs");
 
-include!("native/live_capture_region.rs");
+include!("native/live/capture/live_capture_region.rs");
 
-include!("native/live_source_window.rs");
-include!("native/live_source_visibility.rs");
+include!("native/live/source/live_source_window.rs");
+include!("native/live/source/live_source_visibility.rs");
 
-include!("native/live_source_security.rs");
+include!("native/live/source/live_source_security.rs");
 
-include!("native/live_source_input_target.rs");
+include!("native/live/source/live_source_input_target.rs");
 
-include!("native/live_source_button.rs");
+include!("native/live/source/live_source_button.rs");
 
-include!("native/live_source_input.rs");
+include!("native/live/source/live_source_input.rs");
 
-include!("native/live_capture_types.rs");
+include!("native/live/capture/live_capture_types.rs");
 
-include!("native/live_capture_commands.rs");
-include!("native/live_input_dispatch.rs");
+include!("native/live/capture/live_capture_commands.rs");
+include!("native/live/source/live_input_dispatch.rs");
 
-include!("native/live_observation_types.rs");
+include!("native/live/observation/live_observation_types.rs");
 
-include!("native/live_extension_capabilities.rs");
+include!("native/live/capture/live_extension_capabilities.rs");
 
-include!("native/live_network_capabilities.rs");
+include!("native/live/capture/live_network_capabilities.rs");
 
-include!("native/live_trigger_types.rs");
+include!("native/live/capture/live_trigger_types.rs");
 
-include!("native/live_observation_uia.rs");
+include!("native/live/observation/live_observation_uia.rs");
 
-include!("native/live_observation_uia_sample.rs");
+include!("native/live/observation/live_observation_uia_sample.rs");
 
-include!("native/live_observation_state.rs");
+include!("native/live/observation/live_observation_state.rs");
 
-include!("native/live_relay_types.rs");
-include!("native/live_relay_source_timing.rs");
-include!("native/live_stage_timing.rs");
-include!("native/live_readback_timing.rs");
-include!("native/live_capture_timing.rs");
+include!("native/live/relay/live_relay_types.rs");
+include!("native/live/relay/live_relay_source_timing.rs");
+include!("native/live/capture/live_stage_timing.rs");
+include!("native/live/capture/live_readback_timing.rs");
+include!("native/live/capture/live_capture_timing.rs");
 
-include!("native/live_relay_protocol.rs");
-include!("native/live_relay_jpeg.rs");
-include!("native/live_relay_video_viewer.rs");
-include!("native/live_relay_video_source.rs");
+include!("native/live/relay/live_relay_protocol.rs");
+include!("native/live/relay/live_relay_jpeg.rs");
+include!("native/live/relay/live_relay_video_viewer.rs");
+include!("native/live/relay/live_relay_video_source.rs");
 
-include!("native/live_relay_http.rs");
+include!("native/live/relay/live_relay_http.rs");
 
-include!("native/live_relay_http_trigger.rs");
+include!("native/live/relay/live_relay_http_trigger.rs");
 
-include!("native/live_relay_observation.rs");
+include!("native/live/relay/live_relay_observation.rs");
 
-include!("native/live_relay_input.rs");
+include!("native/live/relay/live_relay_input.rs");
 
-include!("native/live_relay_input_source.rs");
+include!("native/live/relay/live_relay_input_source.rs");
 
-include!("native/live_relay_websocket.rs");
+include!("native/live/relay/live_relay_websocket.rs");
 
-include!("native/live_relay_connection.rs");
-include!("native/live_relay_device_revocation.rs");
+include!("native/live/relay/live_relay_connection.rs");
+include!("native/live/relay/live_relay_device_revocation.rs");
 
-include!("native/live_relay_source.rs");
+include!("native/live/relay/live_relay_source.rs");
 
-include!("native/live_relay_recovery.rs");
-include!("native/live_relay_renewal.rs");
+include!("native/live/relay/live_relay_recovery.rs");
+include!("native/live/relay/live_relay_renewal.rs");
 include!("native/tests/live_relay_renewal.rs");
 
-include!("native/live_relay_commands.rs");
-include!("native/live_relay_viewer.rs");
-include!("native/live_relay_viewer_renewal.rs");
-include!("native/live_relay_viewer_state.rs");
+include!("native/live/relay/live_relay_commands.rs");
+include!("native/live/relay/live_relay_viewer.rs");
+include!("native/live/relay/live_relay_viewer_renewal.rs");
+include!("native/live/relay/live_relay_viewer_state.rs");
 
 #[cfg(test)]
 mod live_relay_viewer_lifecycle_tests {
@@ -416,23 +416,23 @@ mod live_relay_acceptance_tests {
     include!("native/tests/wall_input_source_acceptance.rs");
 }
 
-include!("native/overlay_commands.rs");
+include!("native/overlay/overlay_commands.rs");
 
-include!("native/shortcut_trigger_policy.rs");
+include!("native/input/shortcut_trigger_policy.rs");
 
-include!("native/voice_commands.rs");
+include!("native/runtime/voice_commands.rs");
 
-include!("native/rdev_input_listener.rs");
+include!("native/input/rdev_input_listener.rs");
 
-include!("native/app_setup.rs");
-include!("native/tray_shortcuts.rs");
-#[path = "native/autostart.rs"]
+include!("native/runtime/app_setup.rs");
+include!("native/runtime/tray_shortcuts.rs");
+#[path = "native/runtime/autostart.rs"]
 mod autostart;
-include!("native/tray_autostart.rs");
+include!("native/runtime/tray_autostart.rs");
 
 #[cfg(test)]
 mod bridge_csp;
-include!("native/app_runtime.rs");
+include!("native/runtime/app_runtime.rs");
 
 #[cfg(test)]
 mod app_cli_tests {

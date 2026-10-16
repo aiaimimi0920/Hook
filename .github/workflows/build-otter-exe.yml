@@ -43,23 +43,23 @@ jobs:
         if: steps.scope.outputs.full == 'false'
         run: >-
           npx vitest run
-          __tests__/integration/OtterNamingContract.test.ts
-          __tests__/integration/OtterReadmeLocalizationContract.test.ts
-          __tests__/integration/OtterSigningDocsContract.test.ts
-          __tests__/integration/OtterDualDistributionContract.test.ts
-          __tests__/integration/OtterDeveloperEntrypointsContract.test.ts
-          __tests__/integration/OtterTestEntrypointContract.test.ts
-          __tests__/integration/OtterArchivedDocsSanitizationContract.test.ts
+          tests/integration/OtterNamingContract.test.ts
+          tests/integration/OtterReadmeLocalizationContract.test.ts
+          tests/integration/OtterSigningDocsContract.test.ts
+          tests/integration/OtterDualDistributionContract.test.ts
+          tests/integration/OtterDeveloperEntrypointsContract.test.ts
+          tests/integration/OtterTestEntrypointContract.test.ts
+          tests/integration/OtterArchivedDocsSanitizationContract.test.ts
           --pool threads --maxWorkers 1 --no-file-parallelism
       - name: Run the documentation case from the mixed public identity suite
         if: steps.scope.outputs.full == 'false'
         run: |
           python3 - <<'PYTHON'
           from pathlib import Path
-          source = Path('__tests__/integration/OtterPublicIdentityContract.test.ts').read_text(encoding='utf-8')
+          source = Path('tests/integration/OtterPublicIdentityContract.test.ts').read_text(encoding='utf-8')
           assert 'it("documents the current public bundle identity without obsolete app-data paths",' in source, 'Documentation case was renamed or removed; update the explicit selection'
           PYTHON
-          npx vitest run __tests__/integration/OtterPublicIdentityContract.test.ts --testNamePattern 'documents the current public bundle identity without obsolete app-data paths' --pool threads --maxWorkers 1 --no-file-parallelism
+          npx vitest run tests/integration/OtterPublicIdentityContract.test.ts --testNamePattern 'documents the current public bundle identity without obsolete app-data paths' --pool threads --maxWorkers 1 --no-file-parallelism
 
   frontend-serial:
     needs: change-scope

@@ -1,7 +1,7 @@
 import { hasTauriOrigin } from './probeOrigins.ts';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import type { WallStateSnapshot } from '../../../src/services/wallTypes.ts';
+import type { WallStateSnapshot } from '../../../src/features/tile/services/wallTypes.ts';
 import { connectOutput } from './artProbe.ts';
 import { until, writeJson, type ProbeRuntime } from './probeSession.ts';
 

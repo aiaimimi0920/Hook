@@ -1,9 +1,9 @@
 @import "tailwindcss";
-@import "./styles/theme-foundation.css";
-@import "./styles/terminal-primitives.css";
-@import "./styles/feature-surfaces.css";
-@import "./styles/unit-workspace.css";
-@import "./styles/settings-dialog.css";
-@import "./styles/parameter-controls.css";
+@import "./shared/styles/theme-foundation.css";
+@import "./shared/styles/terminal-primitives.css";
+@import "./shared/styles/feature-surfaces.css";
+@import "./features/workspace/styles/unit-workspace.css";
+@import "./features/settings/styles/settings-dialog.css";
+@import "./features/art/styles/parameter-controls.css";
 
 @source "./**/*.{tsx,ts}";

@@ -3,7 +3,7 @@
 ## Supported releases
 
 Security fixes are applied to the current `main` branch and to the latest
-public `Vx.x.x` release when a release is required.
+public `vx.y.z` release when a release is required; historical uppercase tags remain valid.
 
 ## Reporting a vulnerability
 
@@ -34,4 +34,4 @@ security-control bypass.
 ## Signing incidents
 
 Suspected signing-key, signing-account, or release-provenance incidents are
-handled under [`docs/CODE_SIGNING_POLICY.md`](docs/CODE_SIGNING_POLICY.md).
+handled under [`docs/release/CODE_SIGNING_POLICY.md`](docs/release/CODE_SIGNING_POLICY.md).

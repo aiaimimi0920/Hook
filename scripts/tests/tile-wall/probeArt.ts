@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Page } from 'playwright';
-import type { WallLayout, WallStateSnapshot } from '../../../src/services/wallTypes.ts';
+import type { WallLayout, WallStateSnapshot } from '../../../src/features/tile/services/wallTypes.ts';
 import { art, connectOutput, exitTile, screenshotPixels, sourceSnapshot, type ArtRecord, type ArtSource, type ArtSources } from './artProbe.ts';
 import { openProbe, readJson, until, writeJson } from './probeSession.ts';
 import { traceArtInput } from './artInputTrace.ts';

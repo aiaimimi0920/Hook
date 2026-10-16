@@ -2,8 +2,8 @@ import { hasTauriOrigin } from './probeOrigins.ts';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import type { Page } from 'playwright';
-import type { TileOutput } from '../../../src/services/tilePresenter.ts';
-import type { WallStateSnapshot } from '../../../src/services/wallTypes.ts';
+import type { TileOutput } from '../../../src/features/tile/services/tilePresenter.ts';
+import type { WallStateSnapshot } from '../../../src/features/tile/services/wallTypes.ts';
 import { art, connectOutput, sourceSnapshot, type ArtRecord, type ArtSource } from './artProbe.ts';
 import { openProbe, readJson, until, writeJson } from './probeSession.ts';
 

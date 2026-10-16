@@ -1,0 +1,273 @@
+import { api } from "../../platform/tauri/api";
+
+import { listen } from "@tauri-apps/api/event";
+import { logger } from "../../shared/diagnostics/logger";
+import { HandshakeRequest, HandshakeResponse, ArtDelivery } from "./protocol";
+import { normalizeArtCapabilities } from "../../features/art/services/artCapabilityNormalization";
+import type {
+    SurfaceActionAck,
+    SurfaceActionCancelRequest,
+    SurfaceActionProgress,
+    SurfaceConfirmationDecision,
+    SurfaceConfirmationRequest,
+    SurfaceEvent,
+    SurfaceExecutionFailure,
+    SurfaceLifecycleEvent,
+    SurfacePatch,
+    SurfacePreviewCommit,
+    SurfaceResultCommit,
+    SurfaceResourceLease,
+    SurfaceSnapshot,
+} from "../../features/surfaces/services/surfaceProtocol";
+import { otterSurfaceHostCapabilities } from "../../features/surfaces/services/surfaceHostCapabilities";
+
+export interface SurfaceSnapshotDelivery {
+    hookNodeId: string;
+    snapshot: SurfaceSnapshot;
+    generation: number;
+}
+
+export interface SurfaceResetDelivery {
+    cursor: number;
+}
+
+export interface SurfacePatchDelivery {
+    hookNodeId: string;
+    patch: SurfacePatch;
+    generation: number;
+}
+
+export interface SurfaceGenerationDelivery {
+    hookNodeId: string;
+    instanceId: string;
+    attachmentId: string;
+    generation: number;
+}
+
+export interface SurfaceDisposeDelivery {
+    hookNodeId: string;
+    instanceId: string;
+    attachmentId: string;
+}
+
+export interface SurfaceLifecycleDelivery {
+    hookNodeId: string;
+    event: SurfaceLifecycleEvent;
+}
+
+export interface SurfacePreviewDelivery {
+    hookNodeId: string;
+    commit: SurfacePreviewCommit;
+}
+
+export interface SurfaceResultDelivery {
+    hookNodeId: string;
+    commit: SurfaceResultCommit;
+}
+
+export interface SurfaceFailureDelivery {
+    hookNodeId?: string;
+    failure: SurfaceExecutionFailure;
+}
+
+export interface SurfaceResourceDelivery {
+    leaseId: string;
+    resourceId: string;
+    dataUrl: string;
+    expiresAtMs: number;
+}
+
+export class LoomOtterClient {
+    async connect(): Promise<HandshakeResponse> {
+        logger.debug("[LoomOtterClient] Connecting...");
+        const req: HandshakeRequest = {
+            protocolVersion: "loom.hook.v1",
+            supportedProtocolVersions: ["loom.hook.v1"],
+            clientId: "hook.frontend",
+            clientVersion: "0.1.7",
+            platform: "windows-x64",
+            transports: ["shared_memory", "cloudflare_relay"],
+            surface: otterSurfaceHostCapabilities(),
+        };
+
+        try {
+            const rawResponse = await api.handshake(req);
+            const capabilities = normalizeArtCapabilities(
+                rawResponse.capabilities?.artDefinitions ?? [],
+            );
+            const res: HandshakeResponse = {
+                ...rawResponse,
+                capabilities: {
+                    ...rawResponse.capabilities,
+                    artDefinitions: capabilities,
+                },
+            };
+
+            logger.debug("[LoomOtterClient] Handshake Success:", res);
+            return res;
+        } catch (e) {
+            console.error("[LoomOtterClient] Handshake Failed:", e);
+            throw e;
+        }
+    }
+
+    async dispatchAction(actionName: string, payload: unknown) {
+        // Construct the Enum Object matching backend #[serde(tag = "action", content = "payload")]
+        const actionEnum = {
+            action: actionName,
+            payload: payload
+        };
+        logger.debug(`[LoomOtterClient] Dispatching ${actionName}:`, actionEnum);
+        // Pass to the 'action' argument of the Rust command
+        await api.dispatchAction(actionEnum);
+
+    }
+
+    async syncWorkflow(workflowId: string, snapshot: unknown) {
+        const payload = {
+            workflow_id: workflowId,
+            snapshot: snapshot
+        };
+        logger.debug(`[LoomOtterClient] Syncing Workflow ${workflowId}`);
+        await this.dispatchAction("sync_workflow", payload);
+    }
+
+    async dispatchSurfaceEvent(event: SurfaceEvent) {
+        await this.dispatchAction("surface_event", { event });
+    }
+
+    async dispatchSurfaceLifecycle(event: SurfaceLifecycleEvent) {
+        await this.dispatchAction("surface_lifecycle", { event });
+    }
+
+    async decideSurfaceConfirmation(decision: SurfaceConfirmationDecision) {
+        await this.dispatchAction("surface_confirmation", { decision });
+    }
+
+    async cancelSurfaceAction(request: SurfaceActionCancelRequest) {
+        await this.dispatchAction("surface_cancel", { request });
+    }
+
+    async fetchSurfaceResource(lease: SurfaceResourceLease) {
+        await this.dispatchAction("surface_resource", { lease });
+    }
+
+    async attachSurface(artId: string, hookNodeId: string) {
+        await this.dispatchAction("surface_attach", {
+            art_id: artId,
+            hook_node_id: hookNodeId,
+            capabilities: otterSurfaceHostCapabilities(),
+        });
+    }
+
+    async remountSurface(instanceId: string, attachmentId: string, hookNodeId: string) {
+        await this.dispatchAction("surface_remount", {
+            instance_id: instanceId,
+            attachment_id: attachmentId,
+            hook_node_id: hookNodeId,
+        });
+    }
+
+    async listenForProgress(callback: (artId: string, progress: number, requestId?: string) => void) {
+        if (typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)) {
+            return () => undefined;
+        }
+        return await listen<{art_id: string, value: number, request_id?: string}>("art/progress", (event) => {
+            callback(event.payload.art_id, event.payload.value, event.payload.request_id);
+        });
+    }
+
+    async listenForDelivery(callback: (delivery: ArtDelivery) => void) {
+        if (typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)) {
+            const handler = (event: Event) => {
+                callback((event as CustomEvent<ArtDelivery>).detail);
+            };
+            window.addEventListener("otter-browser-art-ready", handler);
+            return () => window.removeEventListener("otter-browser-art-ready", handler);
+        }
+        return await listen<ArtDelivery>("art/ready", (event) => {
+            logger.debug("[LoomOtterClient] Delivery Received:", event.payload);
+            callback(event.payload);
+        });
+    }
+
+    async listenForSurfaceSnapshot(callback: (delivery: SurfaceSnapshotDelivery) => void) {
+        return await listen<SurfaceSnapshotDelivery>("surface/snapshot", (event) => {
+            callback(event.payload);
+        });
+    }
+
+    async listenForSurfaceReset(callback: (delivery: SurfaceResetDelivery) => void) {
+        return await listen<SurfaceResetDelivery>("surface/reset", (event) => {
+            callback(event.payload);
+        });
+    }
+
+    async listenForSurfacePatch(callback: (delivery: SurfacePatchDelivery) => void) {
+        return await listen<SurfacePatchDelivery>("surface/patch", (event) => {
+            callback(event.payload);
+        });
+    }
+
+    async listenForSurfaceGeneration(callback: (delivery: SurfaceGenerationDelivery) => void) {
+        return await listen<SurfaceGenerationDelivery>("surface/generation", (event) => {
+            callback(event.payload);
+        });
+    }
+
+    async listenForSurfaceActionAck(callback: (ack: SurfaceActionAck) => void) {
+        return await listen<SurfaceActionAck>("surface/action_ack", (event) => {
+            callback(event.payload);
+        });
+    }
+
+    async listenForSurfaceConfirmation(callback: (request: SurfaceConfirmationRequest) => void) {
+        return await listen<SurfaceConfirmationRequest>("surface/confirmation", (event) => {
+            callback(event.payload);
+        });
+    }
+
+    async listenForSurfaceProgress(callback: (progress: SurfaceActionProgress) => void) {
+        return await listen<SurfaceActionProgress>("surface/progress", (event) => {
+            callback(event.payload);
+        });
+    }
+
+    async listenForSurfacePreview(callback: (delivery: SurfacePreviewDelivery) => void) {
+        return await listen<SurfacePreviewDelivery>("surface/preview", (event) => {
+            callback(event.payload);
+        });
+    }
+
+    async listenForSurfaceResult(callback: (delivery: SurfaceResultDelivery) => void) {
+        return await listen<SurfaceResultDelivery>("surface/result", (event) => {
+            callback(event.payload);
+        });
+    }
+
+    async listenForSurfaceFailure(callback: (delivery: SurfaceFailureDelivery) => void) {
+        return await listen<SurfaceFailureDelivery>("surface/failure", (event) => {
+            callback(event.payload);
+        });
+    }
+
+    async listenForSurfaceLifecycle(callback: (delivery: SurfaceLifecycleDelivery) => void) {
+        return await listen<SurfaceLifecycleDelivery>("surface/lifecycle", (event) => {
+            callback(event.payload);
+        });
+    }
+
+    async listenForSurfaceDispose(callback: (delivery: SurfaceDisposeDelivery) => void) {
+        return await listen<SurfaceDisposeDelivery>("surface/dispose", (event) => {
+            callback(event.payload);
+        });
+    }
+
+    async listenForSurfaceResource(callback: (delivery: SurfaceResourceDelivery) => void) {
+        return await listen<SurfaceResourceDelivery>("surface/resource", (event) => {
+            callback(event.payload);
+        });
+    }
+}
+
+export const loomOtter = new LoomOtterClient();

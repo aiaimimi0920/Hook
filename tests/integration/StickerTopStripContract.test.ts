@@ -1,0 +1,304 @@
+import { describe, expect, it } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const topStripPath = resolve(process.cwd(), "src/features/stickers/components/StickerTopStrip.tsx");
+const propertyBarPath = resolve(process.cwd(), "src/features/stickers/components/StickerTopStripPropertyBar.tsx");
+const topStripExists = existsSync(topStripPath);
+const topStripSource = topStripExists ? readFileSync(topStripPath, "utf8") : "";
+const propertyBarExists = existsSync(propertyBarPath);
+const propertyBarSource = propertyBarExists ? readFileSync(propertyBarPath, "utf8") : "";
+const topStripCatalogPath = resolve(process.cwd(), "src/features/stickers/components/stickerTopStripCatalog.tsx");
+const topStripCatalogExists = existsSync(topStripCatalogPath);
+const topStripCatalogSource = topStripCatalogExists ? readFileSync(topStripCatalogPath, "utf8") : "";
+const createToolsSource = readFileSync(
+    resolve(process.cwd(), "src/features/stickers/components/StickerTopStripCreateTools.tsx"),
+    "utf8",
+);
+const editActionsSource = readFileSync(
+    resolve(process.cwd(), "src/features/stickers/components/StickerTopStripEditActions.tsx"),
+    "utf8",
+);
+const surfaceViewSource = readFileSync(
+    resolve(process.cwd(), "src/features/stickers/components/StickerTopStripSurfaceView.tsx"),
+    "utf8",
+);
+const extensionToolbarSource = readFileSync(
+    resolve(process.cwd(), "src/features/extensions/components/ExtensionToolbarItems.tsx"),
+    "utf8",
+);
+const topStripChromeSource = readFileSync(
+    resolve(process.cwd(), "src/features/stickers/components/stickerTopStripChrome.ts"),
+    "utf8",
+);
+const topStripInteractiveRectSource = readFileSync(
+    resolve(process.cwd(), "src/features/stickers/components/stickerTopStripInteractiveRect.ts"),
+    "utf8",
+);
+const topStripPresentationSource = `${createToolsSource}\n${editActionsSource}\n${extensionToolbarSource}\n${surfaceViewSource}\n${topStripChromeSource}`;
+const topStripRenderSource = `${topStripPresentationSource}\n${topStripCatalogSource}`;
+const propertyBarSectionsPath = resolve(process.cwd(), "src/features/stickers/components/stickerTopStripPropertyBarSections.tsx");
+const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
+const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(propertyBarSectionsPath, "utf8") : "";
+const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
+const propertyBarSectionSource = propertyBarSectionsExists ? propertyBarSectionsSource : propertyBarSource;
+const propertyBarCropSource = readFileSync(
+    resolve(process.cwd(), "src/features/stickers/components/stickerTopStripPropertyBarCropController.ts"),
+    "utf8",
+);
+const propertyBarSelectionSource = readFileSync(
+    resolve(process.cwd(), "src/features/stickers/components/stickerTopStripPropertyBarSelectionController.ts"),
+    "utf8",
+);
+const propertyDropdownSource = readFileSync(
+    resolve(process.cwd(), "src/features/stickers/components/stickerTopStripPropertyDropdownController.tsx"),
+    "utf8",
+);
+const propertyBarFieldsPath = resolve(process.cwd(), "src/features/stickers/components/stickerTopStripPropertyBarFields.tsx");
+const propertyBarFieldsExists = existsSync(propertyBarFieldsPath);
+const propertyBarFieldsSource = propertyBarFieldsExists ? readFileSync(propertyBarFieldsPath, "utf8") : "";
+const layoutSource = topStripExists
+    ? readFileSync(resolve(process.cwd(), "src/features/stickers/services/stickerTopStripLayout.ts"), "utf8")
+    : "";
+const topStripSyncSource = readFileSync(
+    resolve(process.cwd(), "src/features/stickers/services/stickerTopStripSync.ts"),
+    "utf8",
+);
+const unitViewSource = readFileSync(resolve(process.cwd(), "src/features/workspace/components/UnitView.tsx"), "utf8");
+const toolbarModelSource = readFileSync(resolve(process.cwd(), "src/features/stickers/components/stickerToolbarModel.ts"), "utf8");
+const legacyToolbarPath = resolve(process.cwd(), "src/components/StickerEditToolbar.tsx");
+const legacyToolbarExists = existsSync(legacyToolbarPath);
+
+const sourceBetween = (source: string, start: string, end: string) => {
+    const startIndex = source.indexOf(start);
+    expect(startIndex).toBeGreaterThanOrEqual(0);
+    const endIndex = source.indexOf(end, startIndex + start.length);
+    expect(endIndex).toBeGreaterThan(startIndex);
+    return source.slice(startIndex, endIndex);
+};
+
+describe("Otter sticker top strip contract", () => {
+    it("uses the dedicated top strip as the only sticker editing chrome", () => {
+        expect(topStripExists).toBe(true);
+        expect(propertyBarExists).toBe(true);
+        expect(topStripSource).toContain("export const StickerTopStrip");
+        expect(topStripSource).toContain("computeStickerTopStripLayout");
+        expect(layoutSource).toContain("STICKER_TOP_STRIP_SLOT_WIDTH = 28");
+        expect(layoutSource).toContain("STICKER_TOP_STRIP_SLOT_COUNT = 13");
+        expect(topStripSource).toContain("<StickerSettings");
+        expect(topStripSource).not.toContain("<ProjectionToolbar");
+        expect(topStripSource).not.toContain("<ProjectionPropertyBar");
+        expect(layoutSource).toContain("STICKER_TOP_STRIP_MIN_WIDTH = STICKER_TOP_STRIP_SLOT_WIDTH * STICKER_TOP_STRIP_SLOT_COUNT");
+        expect(layoutSource).toContain("STICKER_TOP_STRIP_HEIGHT = STICKER_TOP_STRIP_SLOT_WIDTH + STICKER_TOP_STRIP_SHELL_HEIGHT");
+        expect(layoutSource).toContain("STICKER_TOP_STRIP_PROPERTY_BAR_HEIGHT = 40");
+        expect(legacyToolbarExists).toBe(false);
+    });
+
+    it("mounts the shared top strip only when the selected unit edit mode is active", () => {
+        const topStripMountIndex = unitViewSource.indexOf("<StickerTopStrip");
+        const topStripGuardIndex = unitViewSource.lastIndexOf("<Show when={", topStripMountIndex);
+        const topStripMountBlock = unitViewSource.slice(topStripGuardIndex, topStripMountIndex + 240);
+
+        expect(unitViewSource).toContain("<StickerTopStrip");
+        expect(topStripMountBlock).toContain("props.isSelected && activeStickerEditTargetId() === props.unit.id");
+        expect(unitViewSource).toContain('supportsBitmapTools={props.unit.type === "sticker"}');
+        expect(unitViewSource).toContain("activeStickerEditTargetId() === props.unit.id");
+        expect(unitViewSource).not.toContain("<StickerEditToolbar");
+    });
+
+    it("registers the top strip as an interactive overlay rect so the new toolbar does not stay click-through outside the sticker body", () => {
+        expect(topStripSource).toContain("addOrUpdateRect");
+        expect(topStripSource).toContain("removeRect");
+        expect(topStripSource).toContain("syncTopStripBackendRects");
+        expect(topStripSyncSource).toContain("syncService.updateBackendRects");
+        expect(topStripInteractiveRectSource).toContain('root.querySelectorAll<HTMLElement>("button, input, select, [data-top-strip-menu=\'true\']")');
+        expect(topStripInteractiveRectSource).toContain('`sticker-top-strip-${unitId}`');
+        expect(topStripInteractiveRectSource).toContain('name: "STICKER_TOP_STRIP"');
+        expect(topStripSource).toContain("buildStickerTopStripInteractiveRect");
+        expect(topStripSource).toContain('pointer-events-none fixed z-[1210]');
+        expect(topStripSource).toContain('class="pointer-events-auto flex flex-wrap content-start items-stretch [&>*]:shrink-0"');
+        expect(topStripSource).toContain('onMouseDown={(event) => event.stopPropagation()}');
+        expect(createToolsSource).toContain("TRANSFORM_MODE_BUTTONS");
+        expect(topStripSource).toContain("uiActions.setStickerTransformMode");
+        expect(topStripSource).toContain("onTransformMode={applyTransformMode}");
+        expect(createToolsSource).toContain("props.onTransformMode(props.currentTransformMode)");
+        expect(topStripSource).toContain("setOpenMenu((current) => (current === menu ? null : menu))");
+        expect(createToolsSource).toContain('props.onToggleMenu("mode")');
+        expect(topStripPresentationSource).toContain('h-[50px] w-[50px]');
+        expect(topStripPresentationSource).toContain('onPointerDown={(event) => event.stopPropagation()}');
+        expect(topStripChromeSource).toContain('absolute bottom-0 right-0 z-10 flex h-6 w-6');
+        expect(topStripSource).toContain("window.addEventListener(\"pointerdown\"");
+        expect(topStripRenderSource).toContain("shape-rect");
+        expect(topStripRenderSource).toContain("shape-ellipse");
+        expect(topStripRenderSource).toContain("shape-triangle");
+        expect(topStripRenderSource).toContain("shape-polygon");
+        expect(topStripSource).toContain("uiActions.setStickerEditMode");
+        expect(topStripSource).toContain("onCreateTool={applyCreateTool}");
+        expect(createToolsSource).toContain("props.onCreateTool(props.currentShapeTool)");
+        expect(createToolsSource).toContain('props.onToggleMenu("shape")');
+        expect(createToolsSource).toContain('props.onCreateTool("line")');
+        expect(createToolsSource).toContain('props.onToggleMenu("line")');
+        expect(topStripRenderSource).toContain("矩形");
+        expect(topStripRenderSource).toContain("椭圆");
+        expect(topStripRenderSource).toContain("三角形");
+        expect(topStripRenderSource).toContain("多边形");
+        expect(topStripRenderSource).toContain("直线");
+        expect(createToolsSource).toContain('props.onCreateTool("brush")');
+        expect(createToolsSource).toContain('props.onToggleMenu("label")');
+        expect(createToolsSource).toContain("props.onCreateTool(props.currentLabelTool)");
+        expect(createToolsSource).toContain('props.onToggleMenu("effect")');
+        expect(createToolsSource).toContain("props.onCreateTool(props.currentEffectTool)");
+        expect(editActionsSource).toContain('props.onCanvasTool("content-eraser")');
+        expect(editActionsSource).toContain('props.onCanvasTool("crop")');
+        expect(editActionsSource).toContain("props.onHistoryAction(props.currentHistoryAction)");
+        expect(editActionsSource).toContain('props.onToggleMenu("history")');
+        expect(topStripSource).toContain("selectedStickerAnnotationIds");
+        expect(topStripSource).toContain("rasterizeStickerAnnotationsForUnit");
+        expect(editActionsSource).toContain("props.onRasterize(props.currentRasterizeScope)");
+        expect(editActionsSource).toContain('props.onToggleMenu("rasterize")');
+        expect(topStripSource).toContain("ExtensionToolbarItems");
+        expect(topStripSource).not.toContain("StickerTopStripOcrTools");
+        expect(extensionToolbarSource).toContain("visibleExtensionToolbarSlots");
+        expect(extensionToolbarSource).toContain('data-top-strip-menu="true"');
+        expect(createToolsSource).toContain("画笔");
+        expect(topStripRenderSource).toContain("文本");
+        expect(topStripRenderSource).toContain("序号");
+        expect(topStripRenderSource).toContain("马赛克");
+        expect(topStripRenderSource).toContain("模糊");
+        expect(editActionsSource).toContain("橡皮擦");
+        expect(editActionsSource).toContain("裁剪");
+        expect(topStripRenderSource).toContain("撤销");
+        expect(topStripRenderSource).toContain("重做");
+        expect(topStripRenderSource).toContain("栅格化");
+        expect(topStripRenderSource).toContain("栅格化全部");
+        expect(topStripSource).toContain("captureStickerEditSnapshot");
+        expect(topStripSource).toContain("undoStickerHistory");
+        expect(topStripSource).toContain("redoStickerHistory");
+        expect(topStripSource).toContain("stickerEditHistories[props.unitId]");
+        expect(editActionsSource).toContain("props.currentHistoryAction === item.mode");
+        expect(topStripSource).toContain("resolveStickerTopStripPropertyTool");
+        expect(topStripSource).toContain("resolveSelectedExistingNodePropertyTool");
+        expect(topStripSource).toContain("selectedExistingAnnotationType");
+        expect(topStripSource).toContain("selectedAnnotationIds().length");
+        expect(topStripSource).toContain("StickerTopStripPropertyBar");
+        expect(propertyBarSource).toContain("ColorPicker");
+        expect(propertyBarSource).not.toContain("overflow-x-auto");
+        expect(propertyBarSource).not.toContain('label="描边颜色"');
+        expect(propertyBarSource).not.toContain('label="填充颜色"');
+        expect(propertyBarSource).not.toContain('label="正图形"');
+        expect(propertyBarSource).not.toContain('label="步进"');
+        expect(propertyBarSource).not.toContain('label="线宽"');
+        expect(propertyBarSource).not.toContain('label="线型"');
+        expect(propertyBarRenderSource).toContain('title="描边颜色"');
+        expect(propertyBarRenderSource).toContain('title="填充颜色"');
+        expect(propertyBarRenderSource).toContain('title="正图形开关"');
+        expect(propertyBarRenderSource).toContain('title="步进"');
+        expect(propertyBarRenderSource).toContain('title="线宽"');
+        expect(propertyBarRenderSource).toContain('title="线型"');
+        expect(propertyBarFieldsSource).toContain('value={options.stickerToolSettings.shapeStrokeDashPattern}');
+        expect(propertyBarSource).toContain('{ key: "solid", label: "━", title: "实线" }');
+        expect(propertyBarSource).toContain('{ key: "dash-1", label: "╌", title: "虚线1" }');
+        expect(propertyBarSource).toContain('{ key: "dash-2", label: "┄", title: "虚线2" }');
+        expect(propertyBarFieldsSource).toContain("const MiniDropdownField");
+        expect(propertyBarSource).toContain("toggleDropdownMenu");
+        expect(propertyDropdownSource).toContain('data-top-strip-property-popup="true"');
+        expect(propertyDropdownSource).toContain("addOrUpdateRect");
+        expect(propertyDropdownSource).toContain("removeRect");
+        expect(propertyBarFieldsSource).toContain(
+            'shapeStrokeDashPattern: value as "solid" | "dash-1" | "dash-2"',
+        );
+        expect(propertyBarSource).not.toContain("<select");
+        expect(propertyBarSource).not.toContain("class={dashButtonClass}");
+        expect(propertyBarRenderSource).toContain("SquareConstraintGlyphIcon");
+        expect(propertyBarRenderSource).toContain("Icon={SquareConstraintGlyphIcon}");
+        expect(propertyBarRenderSource).toContain("HighlighterGlowIcon");
+        expect(propertyBarRenderSource).toContain('Icon={HighlighterGlowIcon}');
+        expect(propertyBarRenderSource).toMatch(
+            /title="线宽"[\s\S]*?settingKey="strokeWidth"[\s\S]*?currentValue=\{(?:options\.)?stickerToolSettings\.strokeWidth\}[\s\S]*?min=\{1\}[\s\S]*?max=\{96\}[\s\S]*?Icon=\{LineWidthIcon\}/,
+        );
+        expect(propertyBarRenderSource).toContain('settingKey="shapeCornerRadius"');
+        expect(propertyBarRenderSource).toContain('title="圆角半径"');
+        expect(propertyBarRenderSource).toContain("PolygonSidesIcon");
+        expect(propertyBarSource).toContain("event.stopPropagation();");
+        expect(propertyBarSource).toContain("api.focusOverlayWindow()");
+        expect(propertyBarSource).toContain("<Portal>");
+        expect(propertyBarRenderSource).toContain("shapeConstrainSquare");
+        expect(propertyBarRenderSource).toContain("shapeSnapStep");
+        expect(propertyBarFieldsSource).toContain("shapeStrokeDashPattern");
+        expect(propertyBarRenderSource).toContain('setting="contentEraserSize"');
+        expect(propertyBarRenderSource).toContain('title="擦除大小"');
+        expect(propertyBarRenderSource).toContain('title="只擦标记"');
+        expect(propertyBarRenderSource).toContain("contentEraserOnlyAnnotations");
+        expect(propertyBarRenderSource).toContain("AnnotationsOnlyFocusedIcon");
+        expect(propertyBarRenderSource).toContain('title="翻X"');
+        expect(propertyBarRenderSource).toContain('title="翻Y"');
+        expect(propertyBarRenderSource).toContain('title="重置裁剪"');
+        expect(propertyBarRenderSource).toContain('title="圆角半径"');
+        expect(propertyBarRenderSource).toContain('title="边框开关"');
+        expect(propertyBarRenderSource).toContain('title="透明度"');
+        expect(propertyBarRenderSource).toContain('title="大小"');
+        expect(propertyBarCropSource).toContain("scaleStickerFrame");
+        expect(propertyBarCropSource).toContain("toggleStickerBorder");
+        expect(propertyBarRenderSource).toContain("OpacityIcon");
+        expect(propertyBarRenderSource).toContain("CanvasSizeIcon");
+        expect(propertyBarSource).toContain("commitCropOpacityDraft");
+        expect(propertyBarSource).toContain("commitCropCanvasWidthDraft");
+        expect(propertyBarSource).toContain("commitCropCornerRadiusDraft");
+        expect(propertyBarSource).toContain('props.tool === "crop"');
+        expect(propertyBarRenderSource).toContain("const renderCropFields = () => (");
+        expect(propertyBarSource).toContain('<Show when={props.tool === "crop"}>{renderCropFields()}</Show>');
+        expect(propertyBarCropSource).toContain("flipStickerEditDataForFrame");
+        expect(propertyBarCropSource).toContain("flipRasterizedAnnotationLayer");
+        expect(propertyBarCropSource).toContain("buildStickerCropReset");
+        const cropFieldsSource = sourceBetween(
+            propertyBarSectionSource,
+            "const renderCropFields = () => (",
+            propertyBarSectionsExists ? "return {" : "return (",
+        );
+        expect(cropFieldsSource).toContain("MiniDeferredNumericField");
+        expect(cropFieldsSource).toContain('title="圆角半径"');
+        expect(cropFieldsSource).toContain("Icon={RadiusIcon}");
+        expect(cropFieldsSource).toMatch(/onCommit=\{(?:options\.)?commitCropCornerRadiusDraft\}/);
+        expect(cropFieldsSource).toContain('title="透明度"');
+        expect(cropFieldsSource).toMatch(/onCommit=\{(?:options\.)?commitCropOpacityDraft\}/);
+        expect(cropFieldsSource).toContain('title="大小"');
+        expect(cropFieldsSource).toMatch(/onCommit=\{(?:options\.)?commitCropCanvasWidthDraft\}/);
+        expect(propertyBarSource).toContain('props.tool === "selected-text"');
+        expect(propertyBarSource).toContain('props.tool === "selected-serial"');
+        expect(propertyBarSelectionSource).toContain("updateTextAnnotationFontFamilyById");
+        expect(propertyBarSelectionSource).toContain("selectedExistingTextAnnotation");
+        expect(propertyBarSelectionSource).toContain("selectedExistingTextFontFamily");
+        expect(propertyBarSelectionSource).toContain("selectedExistingSerialFontFamily");
+        expect(propertyBarSelectionSource).toContain("selectedExistingTextSize");
+        expect(propertyBarSelectionSource).toContain("selectedExistingSerialRadius");
+        expect(propertyBarSelectionSource).toContain("selectedExistingTextColor");
+        expect(propertyBarSelectionSource).toContain("selectedExistingSerialForegroundColor");
+        expect(propertyBarSelectionSource).toContain("selectedExistingSerialFillColor");
+        expect(propertyBarSelectionSource).toContain("updateSelectedTextAnnotationStyle");
+        expect(propertyBarSelectionSource).toContain("patchSelectedTextAnnotationFontSize");
+        expect(propertyBarSelectionSource).toContain("patchSelectedSerialAnnotationRadius");
+        expect(propertyBarSource).toContain('props.tool === "selected-text"');
+        expect(propertyBarRenderSource).toContain('title="节点文字颜色"');
+        expect(propertyBarRenderSource).toContain('title="节点字号"');
+        expect(propertyBarRenderSource).toContain('title="节点字体"');
+        expect(propertyBarSource).toContain('props.tool === "selected-serial"');
+        expect(propertyBarRenderSource).toContain('title="节点描边/数字颜色"');
+        expect(propertyBarRenderSource).toContain('title="节点填充颜色"');
+        expect(propertyBarRenderSource).toContain('title="节点半径"');
+        expect(toolbarModelSource).toContain("resolveStickerTopStripPropertyTool");
+        expect(toolbarModelSource).toContain("resolveSelectedExistingNodePropertyTool");
+        expect(toolbarModelSource).toContain('| "selected-text"');
+        expect(toolbarModelSource).toContain('| "selected-serial"');
+        expect(toolbarModelSource).toContain('| "crop"');
+        expect(toolbarModelSource).toContain("shape-rect");
+        expect(toolbarModelSource).toContain("line");
+        expect(toolbarModelSource).toContain("brush");
+        expect(toolbarModelSource).toContain("text");
+        expect(toolbarModelSource).toContain("serial");
+        expect(toolbarModelSource).toContain("mosaic");
+        expect(toolbarModelSource).toContain("blur");
+        expect(toolbarModelSource).toContain("content-eraser");
+        expect(topStripSource).toContain('pointer-events-none fixed z-[1210]');
+        expect(unitViewSource).toContain("unitId={props.unit.id}");
+    });
+});

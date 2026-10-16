@@ -41,7 +41,7 @@ mod tests {
 
     fn shared_fixture() -> SharedFixture {
         serde_json::from_str(include_str!(
-            "../../../__tests__/fixtures/file-naming-cases.json"
+            "../../../tests/fixtures/file-naming-cases.json"
         ))
         .expect("shared file naming fixture parses")
     }

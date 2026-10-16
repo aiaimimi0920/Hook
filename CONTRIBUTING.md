@@ -15,15 +15,19 @@ plans or archived conversations.
 
 ## 2. Ownership map
 
+目录与文件归属以 [代码组织与开发规范](docs/development/CODE_ORGANIZATION.md) 为准。
+第一次贡献请先阅读其中的功能地图、依赖规则和验证流程；不要恢复旧的全局
+`components`、`services`、`hooks` 分类目录。
+
 | Concern | Primary location |
 | --- | --- |
-| Persistent units, links, groups, library state | `src/store/graphStore.ts` |
-| Transient selection, tools, panels, drag/edit state | `src/store/uiStore.ts` |
-| Tauri command boundary | `src/services/api.ts` |
-| Desktop event orchestration | `src/app.tsx` |
-| Sticker/unit rendering | `src/components/UnitView.tsx` |
-| Annotation editing | `src/components/StickerAnnotationLayer.tsx` |
-| Capture frontend lifecycle | `src/hooks/useSelection.ts` |
+| Persistent units, links, groups, library state | `src/features/workspace/state/graphStore.ts` |
+| Transient selection, tools, panels, drag/edit state | `src/features/workspace/state/uiStore.ts` |
+| Tauri command boundary | `src/platform/tauri/api.ts` |
+| Desktop event orchestration | `src/app/app.tsx` |
+| Sticker/unit rendering | `src/features/workspace/components/UnitView.tsx` |
+| Annotation editing | `src/features/stickers/components/StickerAnnotationLayer.tsx` |
+| Capture frontend lifecycle | `src/features/capture/hooks/useSelection.ts` |
 | Native runtime, input, tray, commands | `src-tauri/src/lib.rs` |
 | Capture implementation | `src-tauri/src/capture.rs`, `screenshot.rs` |
 | Long-capture stitching | `src-tauri/src/long_capture.rs` |
@@ -32,7 +36,8 @@ plans or archived conversations.
 ## 3. Frontend rules
 
 - Use TypeScript and avoid `any`; narrow `unknown` at the boundary.
-- Put reusable decisions and transformations in `src/services/` or `src/hooks/`.
+- Put domain decisions, hooks, state and UI together under the owning `src/features/<feature>/`.
+- Use `src/shared/` only for domain-independent primitives; integrations and desktop adapters have explicit owners.
 - Keep `app.tsx` focused on orchestration and side effects.
 - Persistent edits go through `graphStore.actions`; do not write high-frequency
   pointer samples into persisted state.
@@ -62,7 +67,7 @@ plans or archived conversations.
 - Avoid reintroducing the old rounded lavender/glass style.
 - Keep overlays compact; screenshot content has priority over explanatory labels.
 - Interactive overlays must register their hit rectangles through
-  `src/services/uiRegistry.ts` when the native click-through layer needs to know
+  `src/platform/desktop/uiRegistry.ts` when the native click-through layer needs to know
   about them.
 
 ## 6. Tests and verification
@@ -128,16 +133,16 @@ unless release behavior or embedded assets changed.
   `src-tauri/Cargo.lock`, and `src-tauri/tauri.conf.json` versions aligned.
 - New public release tags use `vx.x.x`; existing uppercase tags remain accepted.
 - Internal iterations use `vx.x.x.n` via `npm run version:internal`; do not bump
-  public package versions for internal work. See `docs/VERSIONING.md`.
+  public package versions for internal work. See `docs/release/VERSIONING.md`.
 - The current user package is the portable Windows zip.
 - A signing-candidate manifest is provenance metadata, not a signed installer.
 - Never commit a PFX, private key, signing token, or private provider identifier.
 - Every signed installer request must use the hosted reviewed workflow and fail
   closed when approval or configuration is missing.
 - Run the exact-lock inventory and OSV gate described in
-  [`docs/DEPENDENCY_SECURITY.md`](docs/DEPENDENCY_SECURITY.md) before release.
+  [`docs/security/DEPENDENCY_SECURITY.md`](docs/security/DEPENDENCY_SECURITY.md) before release.
 - Formal release evidence and draft-first publication follow
-  [`docs/release-provenance.md`](docs/release-provenance.md).
+  [`docs/release/release-provenance.md`](docs/release/release-provenance.md).
 
 ## 8. Documentation discipline
 
@@ -147,7 +152,7 @@ unless release behavior or embedded assets changed.
   use issues, commits, and Git history for temporary reasoning.
 - Update `README.md`, `README.zh-CN.md`, and `docs/FEATURES.md` together when a
   user-facing shortcut or capability changes.
-- Update `TECHNICAL_ARCHITECTURE.md` when module ownership, persistence,
+- Update `docs/architecture/overview.md` when module ownership, persistence,
   runtime input, capture, or release boundaries change.
 - Machine-local paths and generated logs do not belong in tracked documentation.
 
@@ -165,4 +170,4 @@ unless release behavior or embedded assets changed.
 Development CI policy: valid vulnerability, license, lint, format, and size findings
 are advisory in independent reporting workflows. Tool/report/upload failures remain
 errors; typechecking, builds, and functional tests stay blocking. Release checks and
-`npm run verify:local` remain strict. See [dependency security policy](docs/DEPENDENCY_SECURITY.md).
+`npm run verify:local` remain strict. See [dependency security policy](docs/security/DEPENDENCY_SECURITY.md).

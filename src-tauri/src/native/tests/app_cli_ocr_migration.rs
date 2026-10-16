@@ -54,7 +54,7 @@ mod ocr_migration_tests {
 
     fn legacy_session_fixture() -> SessionData {
         deserialize_session_document(include_bytes!(
-            "../../../../__tests__/fixtures/session/legacy-ocr-barcode-session.json"
+            "../../../../tests/fixtures/session/legacy-ocr-barcode-session.json"
         ))
         .expect("persisted legacy session fixture")
     }

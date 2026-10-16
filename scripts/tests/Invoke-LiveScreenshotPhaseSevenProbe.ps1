@@ -114,7 +114,7 @@ $commands.otterStableHeartbeat = Invoke-LoggedCommand -Name "otter-stable-heartb
     -WorkingDirectory $repoRoot -FilePath $cargo `
     -Arguments @("test", "--manifest-path", "src-tauri\Cargo.toml", "stable_requires_two_identical_trusted_samples")
 $commands.otterProtocol = Invoke-LoggedCommand -Name "otter-protocol" -WorkingDirectory $repoRoot `
-    -FilePath $npm -Arguments @("test", "--", "__tests__\unit\liveRelay.test.ts")
+    -FilePath $npm -Arguments @("test", "--", "tests\unit\liveRelay.test.ts")
 $commands.otterTypecheck = Invoke-LoggedCommand -Name "otter-typecheck" -WorkingDirectory $repoRoot `
     -FilePath $npm -Arguments @("run", "typecheck")
 $commands.otterTestTypecheck = Invoke-LoggedCommand -Name "otter-test-typecheck" -WorkingDirectory $repoRoot `

@@ -1,0 +1,67 @@
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const readSource = (relativePath: string) =>
+  readFileSync(resolve(process.cwd(), relativePath), "utf8");
+
+describe("sticker edit propagation contract", () => {
+  it("stores sticker edit propagation state on units and applies graph-wide downstream patches", () => {
+    const unitTypesSource = readSource("src/features/workspace/types/unit.ts");
+    const graphStoreSource = readSource("src/features/workspace/state/graphStore.ts");
+    const syncServiceSource = readSource("src/features/workspace/services/syncService.ts");
+
+    expect(unitTypesSource).toContain("stickerEditPropagation?: StickerEditPropagationState");
+    expect(graphStoreSource).toContain("buildStickerEditPropagationPatches");
+    expect(graphStoreSource).toContain("markStickerEditPropagationLocally");
+    expect(graphStoreSource).toContain("updateStickerEditData");
+    expect(graphStoreSource).toContain("propagateStickerEditsFrom");
+    expect(graphStoreSource).toContain("propagateStickerEditsFrom(link.fromUnitId)");
+    expect(syncServiceSource).toContain("graphStore.actions.reconcileStickerEditPropagation()");
+  });
+
+  it("marks direct sticker annotation edits as local and propagates the committed edit downstream", () => {
+    const annotationLayerSource = readSource("src/features/stickers/components/StickerAnnotationLayer.tsx");
+    const persistenceSource = readSource("src/features/stickers/components/stickerAnnotationPersistenceController.ts");
+    const editingControllerSource = readSource("src/app/appStickerEditingController.ts");
+
+    expect(annotationLayerSource).toContain("createStickerAnnotationPersistence");
+    expect(persistenceSource).toContain("graphStore.actions.updateStickerEditData(options.unitId()");
+    expect(persistenceSource).toContain("graphStore.actions.propagateStickerEditsFrom(options.unitId())");
+    expect(persistenceSource).toContain("propagateStickerEditFromCurrentUnit");
+    expect(editingControllerSource).toContain("graphStore.actions.updateStickerEditData(plan.unitId");
+    expect(editingControllerSource).toContain("graphStore.actions.propagateStickerEditsFrom(plan.unitId)");
+  });
+
+  it("backfills existing sticker edits when a new downstream link is created", () => {
+    const appSource = readSource("src/app/app.tsx");
+    const linkCreatedStart = appSource.indexOf("onLinkCreated: (sourceId");
+    const linkCreatedBlock = appSource.slice(linkCreatedStart, appSource.indexOf("},", linkCreatedStart));
+
+    expect(linkCreatedStart).toBeGreaterThan(0);
+    expect(linkCreatedBlock).toContain("graphStore.actions.propagateStickerEditsFrom(sourceId)");
+    expect(linkCreatedBlock).toContain("propagateFromUnit(sourceId)");
+  });
+
+  it("renders and exports propagated image edits inside the current upstream content frame", () => {
+    const imageModelSource = readSource("src/features/workspace/components/unitImageModel.ts");
+    const imageContentSource = readSource("src/features/workspace/components/UnitStickerImageContent.tsx");
+    const exportSource = readSource("src/features/stickers/services/stickerCompositeRenderer.ts");
+
+    expect(imageModelSource).toContain("resolveStickerContentFrame(options.unit())");
+    expect(imageContentSource).toContain('class="sticker-image-content-frame"');
+    expect(imageContentSource).toContain('overflow: "hidden"');
+    expect(exportSource).toContain("const contentFrame = resolveStickerContentFrame(unit);");
+    expect(exportSource).toContain("contentFrame.x");
+    expect(exportSource).toContain("contentFrame.w");
+  });
+
+  it("exposes a sticker setting to stop accepting upstream edit propagation", () => {
+    const paramsSource = readSource("src/features/art/components/UnitNodeSettingsStrip.tsx");
+
+    expect(paramsSource).toContain("接受上级贴图编辑传导");
+    expect(paramsSource).toContain("stickerEditPropagation");
+    expect(paramsSource).toContain("acceptUpstream");
+    expect(paramsSource).toContain('props.unit.type === "sticker"');
+  });
+});

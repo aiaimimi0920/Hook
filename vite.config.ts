@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => ({
       "target/**",
       "src-tauri/target*/**",
     ],
-    setupFiles: ["./__tests__/setup/vitest.setup.ts"],
+    setupFiles: ["./tests/setup/vitest.setup.ts"],
   },
   server: {
     strictPort: true,

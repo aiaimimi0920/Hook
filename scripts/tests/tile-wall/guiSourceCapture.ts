@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { Page } from 'playwright';
-import type { LiveCaptureStatus } from '../../../src/services/liveCapture.ts';
+import type { LiveCaptureStatus } from '../../../src/features/live/services/liveCapture.ts';
 import { readJson, until } from './probeSession.ts';
 
 export async function sourceInvoke<T>(page: Page, command: string, args: Record<string, unknown> = {}): Promise<T> {
