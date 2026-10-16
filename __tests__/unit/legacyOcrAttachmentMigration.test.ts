@@ -76,12 +76,14 @@ describe("legacy OCR attachment migration", () => {
             rawText: "第一行",
             translatedText: "first line",
             translating: false,
+            backgroundColor: "#101010",
         });
         expect(block.boxPoints).toEqual(legacyResult().textBlocks[0].boxPoints);
         expect(block.characterSpans).toEqual(legacyResult().textBlocks[0].characterSpans);
         const scene = payload.surfaceScene as Record<string, unknown>;
         const children = scene.children as Record<string, unknown>[];
         expect(children[0]).toMatchObject({
+            style: { background: "#101010" },
             events: { click: "neuro.official/ocr.copy-block" },
             props: { eventPayload: { text: "第一行" } },
             children: [{ props: { text: "第一行", selectable: true } }],

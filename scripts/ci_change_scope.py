@@ -6,7 +6,9 @@ import re
 import subprocess
 
 ROOT_DOCS = {"README.md", "README.zh-CN.md", "CONTRIBUTING.md", "AGENTS.md",
-             "TECHNICAL_ARCHITECTURE.md", "CHANGELOG.md"}
+             "TECHNICAL_ARCHITECTURE.md", "CHANGELOG.md", "GOVERNANCE.md",
+             "SECURITY.md", "MIGRATION.md", "THIRD_PARTY_NOTICES.md",
+             "UIACCESS_DISTRIBUTION.md"}
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
 
 

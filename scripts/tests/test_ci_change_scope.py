@@ -24,7 +24,8 @@ docs = load('check_changed_docs')
 
 class PathOracleTests(unittest.TestCase):
     def test_documentation_allowlist(self):
-        for path in ['README.md', 'README.zh-CN.md', 'CONTRIBUTING.md',
+        for path in ['README.md', 'README.zh-CN.md', 'CONTRIBUTING.md', 'GOVERNANCE.md', 'SECURITY.md',
+                     'MIGRATION.md', 'THIRD_PARTY_NOTICES.md', 'UIACCESS_DISTRIBUTION.md',
                      'docs/FEATURES.md', 'docs/nested/guide.md',
                      'docs/assets/demo.gif', 'docs/assets/nested/hero.svg']:
             with self.subTest(path=path):
@@ -39,7 +40,7 @@ class PathOracleTests(unittest.TestCase):
                      'docs/GITHUB_RELEASE_BODY.md', 'docs/assets/github-home-hero.svg',
                      'docs/assets/script.js',
                      'docs/settings.json', 'docs/template.html', 'public/icon.svg',
-                     'new-file.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.md', '../README.md', '/README.md',
+                     'new-file.txt', 'LICENSE', '../README.md', '/README.md',
                      'docs/../src/code.md', 'docs\\README.md', '']:
             with self.subTest(path=path):
                 self.assertFalse(scope.is_documentation(path))

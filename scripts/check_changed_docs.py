@@ -1,6 +1,7 @@
 """Check changed documentation text and repository-relative link targets offline."""
 import json
 import os
+from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 import re
@@ -62,21 +63,95 @@ class HtmlDestinations(HTMLParser):
         self.links = []
 
     def handle_starttag(self, tag, attrs):
-        self.links.extend(value for name, value in attrs
-                          if name in {"href", "src"} and value is not None)
+        for name, value in attrs:
+            if value is None:
+                continue
+            if name in {"href", "src"}:
+                self.links.append(value)
+            elif name == "srcset":
+                self.links.extend(srcset_destinations(value))
 
     handle_startendtag = handle_starttag
 
 
+def srcset_destinations(value):
+    """Read URL tokens without splitting commas embedded in data URLs."""
+    while value:
+        value = value.lstrip(" \t\r\n\f,")
+        if not value:
+            return
+        match = re.match(r"\S+", value)
+        token = match.group()
+        yield token.rstrip(",")
+        value = value[match.end():]
+        if token.endswith(","):
+            continue
+        # Skip descriptors; parentheses may contain commas.
+        depth, index = 0, 0
+        while index < len(value):
+            char = value[index]
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth = max(0, depth - 1)
+            elif char == "," and depth == 0:
+                break
+            index += 1
+        value = value[index + 1:]
+
+
+def rendered_text(text):
+    """Exclude comments and code while preserving indented list paragraphs."""
+    text = re.sub(r"<!--[\s\S]*?(?:-->|$)", "", text)
+    lines, in_code, previous_blank = [], False, True
+    list_indents, fence = [], None
+    for line in text.splitlines(keepends=True):
+        expanded = line.expandtabs(4)
+        indent = len(expanded) - len(expanded.lstrip(" "))
+        blank = not expanded.strip()
+        marker = re.match(r"^( *)(?:[-+*]|\d+[.)]) +(?!$)", expanded)
+        if not blank:
+            while list_indents and indent < list_indents[-1]:
+                list_indents.pop()
+        if marker and not fence:
+            list_indents.append(marker.end())
+        container_indent = list_indents[-1] if list_indents else 0
+        content = expanded[container_indent:] if indent >= container_indent else expanded
+        if fence:
+            # CommonMark permits a longer closing run of the same character.
+            if re.fullmatch(r" {0,3}" + re.escape(fence[0]) +
+                            r"{" + str(fence[1]) + r",}[ \t]*(?:\n)?", content):
+                fence = None
+            lines.append("\n")
+            previous_blank = blank
+            continue
+        opening = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", content)
+        if opening and not (opening[1][0] == "`" and "`" in opening[2]):
+            fence = (opening[1][0], len(opening[1]))
+            lines.append("\n")
+            in_code = False
+        elif indent - container_indent >= 4 and (previous_blank or in_code):
+            in_code = True
+            lines.append("\n")
+        elif in_code and blank:
+            lines.append("\n")
+        else:
+            in_code = False
+            lines.append(line)
+        previous_blank = blank
+    return "".join(lines)
+
+
 def local_targets(text):
     # Exclude code fences and inline code, where illustrative paths are not links.
-    text = re.sub(r"(?ms)^\s*(```|~~~).*?^\s*\1[^\n]*$", "", text)
+    text = rendered_text(text)
     text = re.sub(r"(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)", "", text)
-    links = list(markdown_destinations(text))
+    links = [unescape(link) for link in markdown_destinations(text)]
     html = HtmlDestinations()
     html.feed(text)
     links += html.links
-    links += re.findall(r"(?m)^\s*\[(?!\^)[^\]]+\]:\s*(<[^>]+>|\S+)", text)
+    links += [unescape(link) for link in
+              re.findall(r"(?m)^ {0,3}\[(?!\^)[^\]]+\]:\s*(<[^>]+>|\S+)", text)]
     for link in links:
         parsed = urlsplit(link.strip("<>"))
         if not parsed.scheme and not parsed.netloc and parsed.path:
@@ -106,7 +181,10 @@ def check_document(root, relative, tracked=None):
     for target in local_targets(text):
         if target in SIBLING_CONTRACT_LINKS.get(relative, set()):
             continue
-        resolved = Path(os.path.abspath(root / target.lstrip("/") if target.startswith("/") else path.parent / target))
+        if target.startswith("/"):
+            errors.append(f"{relative}: domain-root link is not repository-relative: {target}")
+            continue
+        resolved = Path(os.path.abspath(path.parent / target))
         if not target_exists(root, resolved, tracked):
             errors.append(f"{relative}: missing or out-of-repository link: {target}")
     return errors
@@ -132,7 +210,7 @@ def main():
             for target in local_targets(path.read_text(encoding="utf-8")):
                 if target in SIBLING_CONTRACT_LINKS.get(relative, set()):
                     continue
-                resolved = Path(os.path.abspath(root / target.lstrip("/") if target.startswith("/") else path.parent / target))
+                resolved = Path(os.path.abspath(path.parent / target))
                 affected = any(p == resolved or resolved in p.parents for p in removed)
                 if affected and not target_exists(root, resolved, tracked):
                     errors.append(f"{relative}: link to removed document or directory: {target}")
