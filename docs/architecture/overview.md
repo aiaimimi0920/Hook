@@ -57,7 +57,7 @@ remain authoritative, and input ownership is acquired separately.
 No new transport, timer, media copy or persistent history is introduced. Package/process
 binding remains an external acceptance step, described in `../features/LIVE_RELAY_DIAGNOSTICS.md`.
 
-`native/live_relay_viewer_state.rs` owns viewer control bootstrap and terminal
+`native/live/relay/live_relay_viewer_state.rs` owns viewer control bootstrap and terminal
 confirmation. Bootstrap anchors to the exact attach revision's `viewer_joined`
 event; only pre-join history is skipped, and missing post-join events still fail
 closed. The same attach snapshot seeds the bounded observation map before either
@@ -279,13 +279,13 @@ must be made conservatively because event ordering is load-bearing.
   cached-frame validation, timeout fallback, and CPU crop ownership.
 - `screenshot/live_capture.rs` — product live-session delivery owner, fresh-frame
   callback slot, JPEG presentation encoding, resize recovery, and source identity;
-- `native/live_capture_types.rs` and `native/live_capture_commands.rs` — bounded
+- `native/live/capture/live_capture_types.rs` and `native/live/capture/live_capture_commands.rs` — bounded
   session/frame ownership and Tauri lifecycle/raw-binary IPC commands;
-- `native/live_source_window.rs`, `native/live_source_input.rs`, and
-  `native/live_source_recovery.rs` — reversible source-window state, ordered
+- `native/live/source/live_source_window.rs`, `native/live/source/live_source_input.rs`, and
+  `native/live/source/live_source_recovery.rs` — reversible source-window state, ordered
   same-user, no-upward-integrity window-message input, target identity checks, and a content-free
   atomic watchdog journal;
-- `native/live_source_security.rs` checks the active desktop, session, owned token
+- `native/live/source/live_source_security.rs` checks the active desktop, session, owned token
   user SID, and UIPI direction. `src/features/live/services/liveCaptureFeedback.ts` exposes bounded,
   fixed-text Unit notices and code-only diagnostics when input is unavailable;
 - `capture_coords.rs` — physical/global/logical coordinate normalization;
@@ -310,14 +310,14 @@ falls back to frontend sampling; finish, cancellation, and failed activation
 clear that scope through the existing input cleanup command.
 
 `long_capture/preview.rs` samples a bounded thumbnail directly from aggregate
-segments, without flattening the full image. `native/long_capture_preview.rs`
+segments, without flattening the full image. `native/long_capture/long_capture_preview.rs`
 encodes it in memory outside the session lock. `LongCapturePreview.tsx` polls
 serially at 500 ms with a merged-frame revision and discards stale responses on
 session changes. The click-through preview prefers the region's right side,
 then its left; an inset fallback requires successful native capture exclusion.
 Preview pixels are never persisted and finish still consumes the same aggregate.
 Recording fingerprints retain at most a 320 x 320 RGB validation thumbnail.
-If exact motion signatures fail on a changed frame, `native/long_capture_repaint.rs`
+If exact motion signatures fail on a changed frame, `native/long_capture/long_capture_repaint.rs`
 requires a Good pixel-overlap match before admission; scaled coordinates never
 drive the full-resolution stitch. Throttled reason-only diagnostics distinguish
 identical frames, near duplicates, verified repaint motion, and unmatched changes.
@@ -389,7 +389,7 @@ Retained textures restore a static source even without another WGC update.
 `liveCaptureHandoff.ts` coalesces transient PNG handoffs and waits for decode/paint
 before normal native disable. Capture timestamps order handoffs and in-flight JPEGs;
 PNG wins an equal-timestamp tie. These transitions do not commit streaming graph data.
-Set `HOOK_LIVE_GPU_PREVIEW=0` to force compatibility. The Windows backend does not
+Set `OTTER_LIVE_GPU_PREVIEW=0` to force compatibility. The Windows backend does not
 use DWM thumbnails. See `../features/LIVE_GPU_PRESENTATION.md` for composition and acceptance boundaries.
 When a live drag is fully contained by one enumerated program window, the frontend
 stores the rectangle relative to that window. Rust converts it once to a physical
@@ -410,7 +410,7 @@ child becomes invalid, input falls back to the nearest valid ancestor instead of
 disabling the whole session. `SendMessageTimeoutW` provides bounded delivery.
 This does not emulate hardware input, secure desktop, or native minimization.
 
-`native/live_source_button.rs` tracks a bounded push-button gesture for WinForms
+`native/live/source/live_source_button.rs` tracks a bounded push-button gesture for WinForms
 controls whose ordinary mouse-up Click is suppressed by occlusion. Only an
 explicit, un-dragged release at the same validated, enabled control may complete
 the standard parent `BN_CLICKED` notification. Cleanup never runs this action.
@@ -465,8 +465,9 @@ transform.
 
 - `loom_otter.rs` maps the local Art/workflow surface;
 - `loom_bridge_client.rs` owns the pinned TLS/exporter authentication for the
-  private `loom.local-bridge.v1` discovery descriptor. Its opt-in gate precedes
-  discovery and networking, including one-shot Art and shader operations;
+  private `loom.local-bridge.v1` discovery descriptor. Its enablement gate precedes
+  discovery and networking, including one-shot Art and shader operations. Native
+  integration defaults on; `OTTER_ENABLE_LOOM_OTTER=0` disables this local bridge;
 - `extension_bridge_native.rs` owns one leased, epoch-fenced extension socket
   for the main WebView. Its IPC permits only protocol negotiation, resource
   authorization and command invocation, with bounded input/output queues;

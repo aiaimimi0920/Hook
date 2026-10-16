@@ -57,7 +57,7 @@ of truth. Documents are grouped by purpose and this index is the navigation entr
 - [Live protocol](features/LIVE_SCREENSHOT_PROTOCOL.md) — source/viewer, ordering, binary media and security boundaries.
 - [Remote Surface](features/REMOTE_SURFACE_STAGED.md) — 当前启用与安全边界。
 - [Tile wall client](features/TILE_WALL_CLIENT.md) — 墙面客户端契约与跨仓库依赖。
-- [Asset library integration](features/ASSET_LIBRARY_INTEGRATION.md) — catalog, downloads, Loom-owned installation and Otter activation boundaries.
+- [Asset library integration](features/ASSET_LIBRARY_INTEGRATION.md) — proposed ownership boundary and archived API reference; not an available Otter store or current service contract.
 
 ## 发布与签名 / Releases and signing
 

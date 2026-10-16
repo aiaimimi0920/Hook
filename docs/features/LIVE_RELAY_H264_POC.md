@@ -16,16 +16,18 @@ delta AU。功能完成依据是独立 owner、真实网络和最终候选产品
 
 ## 独立硬件编码探针
 
-入口：`src-tauri/examples/live_h264_probe.rs`。
+入口：`src-tauri/examples/live_h264_probe.rs`。以下命令均从 Otter 根目录运行。
+原生环境变量优先使用 `OTTER_*`；旧 `HOOK_*` 仅在对应规范变量不存在时回退，
+见[环境变量兼容](../development/RENAMING.md#环境变量)。
 
 ```powershell
-cd src-tauri
-cargo test --locked --example live_h264_probe
-cargo build --locked --example live_h264_probe
-.\target\debug\examples\live_h264_probe.exe --output C:\absolute\unused-output
+cargo test --locked --manifest-path src-tauri/Cargo.toml --example live_h264_probe
+cargo build --locked --manifest-path src-tauri/Cargo.toml --example live_h264_probe
+.\src-tauri\target\debug\examples\live_h264_probe.exe --output C:\absolute\unused-output
 ```
 
 输出目录必须是未使用的绝对路径。输出只有合成视频及机器可读回执；不读写产品设置。
+若设置了 `CARGO_TARGET_DIR`，EXE 位于该目录的 `debug/examples/`，不要运行默认目录中的旧包。
 探针使用现有 Windows Media Foundation API，无新 crate、无嵌入第三方 codec 二进制。
 
 - 只枚举 NV12 → H.264 硬件 MFT，并检查硬件 activation 属性和异步接口。
@@ -95,8 +97,8 @@ NV12 对照。两种模式均使用同一独立解码验证器，验证器按报
 readback。它不是网络一源一收或 GPU 呈现验收。该测试默认 ignored，需要显式新目录：
 
 ```powershell
-$env:HOOK_C1_NATIVE_OUTPUT = 'C:\absolute\unused-wgc-output'
-cargo test --locked --lib native_wgc_continuous_h264_and_stop -- --ignored --nocapture --test-threads=1
+$env:OTTER_C1_NATIVE_OUTPUT = 'C:\absolute\unused-wgc-output'
+cargo test --locked --manifest-path src-tauri/Cargo.toml --lib native_wgc_continuous_h264_and_stop -- --ignored --nocapture --test-threads=1
 ```
 
 独立 owner 测试不申请产品 H.264 订阅；正常 worker 接线见下文。Loom 端须支持显式
@@ -135,9 +137,9 @@ BGRA 转换的红色/灰度边界单测也不是完整彩色原生验收。取�
 原生 decoder 测试要求先生成上述自有 WGC 码流，并使用新的独立输出目录：
 
 ```powershell
-$env:HOOK_C1_DECODER_INPUT = 'C:\absolute\owned-wgc-output'
-$env:HOOK_C1_DECODER_OUTPUT = 'C:\absolute\unused-decoder-output'
-cargo test --locked --lib native_decoder_reads_continuous_wgc_h264_and_restarts_at_idr -- --ignored --nocapture --test-threads=1
+$env:OTTER_C1_DECODER_INPUT = 'C:\absolute\owned-wgc-output'
+$env:OTTER_C1_DECODER_OUTPUT = 'C:\absolute\unused-decoder-output'
+cargo test --locked --manifest-path src-tauri/Cargo.toml --lib native_decoder_reads_continuous_wgc_h264_and_restarts_at_idr -- --ignored --nocapture --test-threads=1
 ```
 
 ### 产品 worker 接线
@@ -206,10 +208,11 @@ wire、零整数/小数偏移的 MF visible aperture。NV12 的 UV 起点按 sto
 
 ## Piik 参考与许可边界
 
-本轮联网读取 Piik 固定提交 `1b9f5bd2a27eb32d35e81e8f2c5d8d6e952bbd0a` 的
+早期独立探针设计参考了 Piik 固定提交 `1b9f5bd2a27eb32d35e81e8f2c5d8d6e952bbd0a` 的
 `native/capture/windows/h264_encoder.{h,cpp}`、`h264_decoder.h` 与根 `LICENSE`（MIT）。
 参考点是 hardware-only MFT、异步事件、关键帧请求、输出有界与 activation 清理。
 实现使用现有 Windows SDK Rust bindings 独立编写，未复制 Piik 实质源码或引入其
-WebRTC 依赖。GPU 增量也只覆盖独立合成输入，不等于 Piik 的完整捕获路线，不外推其性能结果。
+WebRTC 依赖。当时的 GPU 增量只覆盖独立合成输入；当前 WGC 订阅及产品 worker 接线
+见上文。这些实现不等于 Piik 的完整捕获路线，不外推其性能结果。
 Windows 系统 codec 的使用不等于 H.264 在所有发行地区的专利许可已经完成审查；正式
 分发政策需另行确认，本阶段不捆绑或发布新的 codec 库。

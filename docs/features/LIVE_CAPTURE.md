@@ -96,7 +96,8 @@ Otter and Loom own wire validation, framing and ordering. Frontend regressions
 exercise the current relay, extension contracts, capture feedback and notices;
 the phase 7/8 runners retain those current tests.
 
-Use the capture/input probes listed in the root README for native acceptance.
+Use the capture/input probe commands below and the
+[development guide](../guide/development.md) for native acceptance.
 Typechecks, deterministic tests and headless probes do not prove arbitrary-app
 input compatibility, desktop interaction or a guaranteed frame rate. Keep the
 documented same-user/integrity, platform and rendering limitations when reporting
@@ -128,10 +129,12 @@ checks a cropped Chromium video control through native Otter input, with a DOM
 playback/click oracle in visible, logically hidden and restored states, for both
 normal and maximized windows. It uses an isolated browser, not the user's profile.
 
-Closing a Live sticker (including Escape/delete) never requires a fresh GPU
-snapshot. The recycle bin retains the latest cached frame when one exists; a
-source that failed before its first frame can still be closed. Export/edit
-actions continue to require their normal snapshot boundary.
+Keyboard deletion of a Live sticker (Escape/delete in the delete context) does
+not require a fresh GPU snapshot. The recycle bin retains the latest cached frame
+when one exists; a source that failed before its first frame can still be deleted.
+Context-menu Close/reference and export/edit actions still use their snapshot
+boundary; failed readback can leave the Unit intact with a notice. Explicit stop
+has separate cleanup semantics, described in [GPU presentation](LIVE_GPU_PRESENTATION.md).
 
 Source foreground ownership alone does not reclaim a logically hidden window:
 browsers can activate themselves while handling forwarded input. Shared source

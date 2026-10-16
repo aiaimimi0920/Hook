@@ -5,7 +5,10 @@
 ## Why Otter
 
 Native Otter automatically discovers and connects to authenticated local Loom by
-default. Set `HOOK_ENABLE_LOOM_HOOK=0` to disable integration. Browser preview stays local: it does
+default. Set `OTTER_ENABLE_LOOM_OTTER=0` to disable integration; the legacy
+`HOOK_ENABLE_LOOM_HOOK` is read only when the canonical variable is absent.
+See [environment precedence](../development/RENAMING.md#环境变量).
+Browser preview stays local: it does
 not connect anonymously to Loom or execute real Arts. See [security boundaries](../security/SECURITY_BOUNDARIES.md#authenticated-native-local-bridge).
 
 The explicit [global Loom connection](../features/LOOM_CONNECTION.md) remembers its last
@@ -123,7 +126,7 @@ Actual executable/process SHA binding is external; these counters are not displa
   budgeted JPEG production independently of local visibility; negotiated H.264 owns
   a separate GPU input demand and releases its JPEG demand after GPU input is available.
   Unsupported composition uses fresh decoded fallback pixels; set
-  `HOOK_LIVE_GPU_PREVIEW=0` to force JPEG compatibility. This is not an FPS guarantee;
+  `OTTER_LIVE_GPU_PREVIEW=0` to force JPEG compatibility. This is not an FPS guarantee;
 - the local live view starts at the selected screen position and contains only
   the current pixels, a theme-green border, and theme-yellow move corners.
   Drag any yellow corner to move it; clicking a captured control operates the
@@ -206,6 +209,7 @@ the clipboard list supports wheel scrolling and a draggable scrollbar.
   independent emergency-exit watchdog. Emergency exit uses three `Esc+Delete`
   press/release cycles with less than 400 ms between chords; both keys must be
   released between cycles. Esc alone no longer exits the application.
+  `Ctrl+Alt+Shift+F12` remains the backup emergency-exit chord.
 
 See [`docs/FEATURES.md`](../FEATURES.md) for the current shortcut and manual
 regression matrix. The implementation remains the source of truth when a

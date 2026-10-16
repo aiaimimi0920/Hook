@@ -105,13 +105,20 @@ an input tag override. The protected signing runner checks out the authenticated
 commit and downloads the exact authenticated artifact ID; artifact-contained
 claims alone are never producer authentication.
 
-Publication is draft-first. Trusted repository code retrieves the draft by the
+Portable tag-release publication is draft-first. Trusted repository code retrieves the draft by the
 ID returned by its creating step, requires the exact asset set, compares every
 remote byte count, and compares every GitHub-provided SHA-256 digest with a
 streaming local digest. Only then is the draft published. Failure cleanup may
 delete only that matching unpublished draft; it never deletes or overwrites a
 published release. Fix a deterministic failure under a new version tag rather
 than moving a published tag.
+
+The separately reviewed `signpath-signing.yml` flow attaches the signed UIAccess
+installer to an existing published release. Its upload currently permits replacing
+the same-named installer asset (`overwrite_files: true`); the portable workflow's
+draft-only cleanup guarantee does not apply to that upload. Signing approval must
+therefore review the existing installer asset as well as the authenticated producer
+and tag. It is not authorization to rebuild changed product source under an old tag.
 
 Any change to shipped source, embedded resources, dependencies, packaging, or
 release tooling requires a new release ID and regenerated checksums, SBOMs, and

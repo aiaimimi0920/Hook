@@ -7,11 +7,11 @@ Art 输入、宿主确认/取消、冻结/黑场/恢复显示及物理屏幕识�
 
 发布入口、来源恢复、场景调度和媒体时钟已有实现及本机逻辑测试；真实 GUI 来源、
 双机局域网、物理同步和完整长测仍待联合验收。功能边界与全部 19 项开放验收条件见
-[瓷砖墙功能与验收指南](../../../Loom/docs/TILE_WALL.md)。版本以实际源码和发布产物元数据为准。
+[瓷砖墙功能与验收指南](https://github.com/aiaimimi0920/Loom/blob/main/docs/TILE_WALL.md)。版本以实际源码和发布产物元数据为准。
 
 ## 启动
 
-本文指向 `../../../Loom/` 的链接属于外部契约，只有并列 checkout Loom 时才能本地打开。
+本文的 Loom 链接直接指向独立仓库，不要求并列 checkout 才能浏览。
 Otter 单独构建不依赖该目录；联合验收应核对实际配套 Loom 版本，不能将链接存在当作验收通过。
 
 ```powershell
@@ -21,14 +21,17 @@ Otter 单独构建不依赖该目录；联合验收应核对实际配套 Loom �
 ```
 
 `--tile` 打开管理窗口，显示当前可绑定屏幕及配对结果。选择屏幕会启动独立输出进程。
-`--tile-outputs` 输出 JSON；GUI 子系统的文件输出可设置 `HOOK_CLI_OUTPUT`。
+`--tile-outputs` 输出 JSON；GUI 子系统的文件输出可设置 `OTTER_CLI_OUTPUT`。
 `--tile-output` 可用于固定输出的启动脚本；同一输出只允许一个终端进程。
 关闭管理窗口保留已经启动的输出进程；在输出窗口按 Escape 退出该进程。
 物理识别标识显示期间，Escape 只关闭标识，输出进程继续运行。
 
 管理窗口可为新输出选择原始 BGRA 或 PNG。PNG 默认最高 640 × 360 / 10 fps，由 Loom
 缩放编码；BGRA 保留原始尺寸，默认最高 30 fps。固定输出脚本可为该进程设置
-`HOOK_TILE_MEDIA_FORMAT=raw_bgra|png`；未知值拒绝启动。管理窗口只给其新子进程设置此值。
+`OTTER_TILE_MEDIA_FORMAT=raw_bgra|png`；未知值拒绝启动。原生变量保留旧 `HOOK_*`
+回退，但规范变量存在时优先，见[环境变量兼容](../development/RENAMING.md#环境变量)。
+管理窗口目前通过旧 `HOOK_TILE_MEDIA_FORMAT` 给新子进程传值；若父进程继承了规范变量，
+它会优先于管理窗口选择。使用菜单选择格式时应先确认没有这一环境覆盖。
 
 终端复用既有 `LOOM_MANIFEST_PATH` 等能力发现配置，不需要 Loom 管理界面显示在输出屏幕。
 跨设备连接保持现有 HTTPS 要求，不能为测试关闭设备认证或降级为远端明文 HTTP。
@@ -103,7 +106,7 @@ Loom 管理页可选择立即、5 秒或 10 秒的场景准备时间。整个新
 媒体按同一来源帧的 daemon 接收时间选择，缓冲 80 ms；迟于目标 250 ms 的候选被丢弃，
 较快渲染循环重复当前帧。队列满时保留最早期限和最新两帧；当前帧落后目标超过 1 秒或
 时钟估计失效时清除。时钟最多 8 个样本，RTT 上限 1 秒，15 秒到期。帧选择、PNG、场景
-回执与升级合同见 [时钟与媒体协议](../../../Loom/protocol/WALL_TIMING_MEDIA.md)。
+回执与升级合同见 [时钟与媒体协议](https://github.com/aiaimimi0920/Loom/blob/main/protocol/WALL_TIMING_MEDIA.md)。
 
 `wall_live_stats` 提供进程内有效媒体包字节、接收帧、IPC 读取和原生覆盖计数；输出页的
 `data-media-stats` 提供最多 4 个来源的选择时间、时钟误差估计、帧 ID、丢帧和重复选择计数。
@@ -152,7 +155,7 @@ Loom 地址和配对设备身份，先加入旧工作线程、撤销操作权，
 连续编辑也计入待完成执行，但不广告显式取消能力。每个临时视图最多保留 64 个回执；
 未完成动作不被淘汰，完成历史在容量边界回收，退出时清理该视图的剩余回执。
 这些回执不写入普通来源的持久化记录，普通附件的历史与正式结果继续保留。
-详细合同见 [Wall Surface API](../../../Loom/protocol/WALL_SURFACE_API.md)。
+详细合同见 [Wall Surface API](https://github.com/aiaimimi0920/Loom/blob/main/protocol/WALL_SURFACE_API.md)。
 
 ## Live 操作权
 
@@ -180,7 +183,7 @@ Loom 地址和配对设备身份，先加入旧工作线程、撤销操作权，
 Loom 屏幕墙管理页可对已保存墙面执行冻结显示、黑场和恢复显示。操作使用目录 CAS，
 管理页分别显示请求模式与各输出的实际应用回执；未保存的几何草稿及其原始版本保留。
 管理员也可使用 `PUT /v1/walls/presentation`，设备凭证不能切换墙面模式。完整请求、
-回执及升级边界见 [显示控制协议](../../../Loom/protocol/WALL_PRESENTATION_API.md)。
+回执及升级边界见 [显示控制协议](https://github.com/aiaimimi0920/Loom/blob/main/protocol/WALL_PRESENTATION_API.md)。
 
 冻结保留当前端点、呈现租约、布局版本和像素尺寸对应的完整画面，停止 Live 解码和
 Art 轮询，并保留已接收的 Art 快照及图片资源。黑场清除全部内容。两种模式都立即在
@@ -208,7 +211,7 @@ Loom 的“设备管理 → 屏幕墙”列出真实 Windows 输出名称、设�
 键盘。其他输出不受此标识影响，已接受的 Art 工作继续。关闭按钮或 Escape 只关闭标识，
 到期自动关闭并在正常呈现确认后恢复输入。布局/模式变化、丢屏、授权失效、断线和
 重启清除请求，迟到结果不能重开旧标识。完整合同及严格客户端升级边界见
-[物理识别协议](../../../Loom/protocol/WALL_IDENTIFICATION_API.md)。
+[物理识别协议](https://github.com/aiaimimi0920/Loom/blob/main/protocol/WALL_IDENTIFICATION_API.md)。
 
 ## 验证边界
 
@@ -222,4 +225,4 @@ Loom 的“设备管理 → 屏幕墙”列出真实 Windows 输出名称、设�
 600 秒长测仍待完成。长测不得绕过 `pointerleave`、generation 或失败输入取消。
 
 完整验收条件、历史长测失败边界及协议入口见
-[瓷砖墙功能与验收指南](../../../Loom/docs/TILE_WALL.md)。
+[瓷砖墙功能与验收指南](https://github.com/aiaimimi0920/Loom/blob/main/docs/TILE_WALL.md)。

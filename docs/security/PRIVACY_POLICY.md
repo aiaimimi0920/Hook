@@ -7,9 +7,16 @@ application and its public release repository.
 
 Otter is primarily a local desktop screenshot and sticker-editing tool.
 
-This program will not transfer any information to other networked systems
-unless specifically requested by the user or the person installing or
-operating it.
+Local capture does not require a cloud account. Native Otter does, however,
+discover and connect to authenticated local Loom by default. A previously
+authorized global Loom connection can also reconnect after restart. These
+connection defaults are separate from initiating OCR, translation or projection;
+the configured integration and active workflow determine what data is exchanged.
+
+Outside the default authenticated local bridge and explicitly configured or
+requested integrations described below, Otter
+will not transfer any information to other networked systems.
+This is not a promise of zero network activity when those integrations are active.
 
 For the ordinary capture, pinning, annotation, and local session workflow:
 
@@ -35,6 +42,14 @@ described by the app configuration and release scripts.
 ## Network behavior
 
 Otter's core screenshot/sticker workflow is local-first.
+
+The native local Loom bridge is enabled by default and uses authenticated local
+discovery. Set `OTTER_ENABLE_LOOM_OTTER=0` before starting Otter to disable that
+bridge. The old `HOOK_ENABLE_LOOM_HOOK` is a fallback only when the canonical
+variable is absent; see [environment precedence](../development/RENAMING.md#环境变量).
+Pure browser preview does not establish this native bridge. A saved global Loom
+connection has a separate [restart/reconnect lifecycle](../features/LOOM_CONNECTION.md);
+disconnect it explicitly to cancel its remembered restart intent.
 
 However, some optional features can talk to user-selected or locally configured
 services, for example:
@@ -84,10 +99,12 @@ Because Otter is local-first, the main user controls are local machine controls:
 - delete local screenshots or exported files;
 - remove local app-data/runtime files;
 - avoid enabling optional integrations you do not want to use;
+- disable the default local Loom bridge before launch when it is not wanted,
+  and explicitly disconnect saved global Loom connections rather than only closing their dialog;
 - uninstall the app and remove local runtime directories if you no longer want
   Otter on the machine.
 
-For package-specific install/uninstall notes, see `docs/release/uiaccess-distribution.md`.
+For package-specific install/uninstall notes, see [UIAccess distribution](../release/uiaccess-distribution.md).
 
 ## Policy updates
 

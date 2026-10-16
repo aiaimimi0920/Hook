@@ -135,14 +135,25 @@ for the bounded authorization transition. Native acceptance exits through the
 normal Tauri run loop and requires exactly one process-exit cleanup record before
 checking watchdog, CDP, and restart recovery.
 
-Build a portable executable directly:
+Build a portable executable directly. At the start of a new internal development
+iteration, run `npm run version:internal` once and commit `version-state.json`
+with that iteration. Do not bump again for a rebuild of the same iteration or
+for documentation-only maintenance. Keep public package versions unchanged;
+see [versioning](../release/VERSIONING.md).
+
+Resolve the current four-part build identity and use a new output directory:
 
 ```powershell
+. .\scripts\version-identity.ps1
+$identity = Get-OtterVersionIdentity -RepoRoot (Get-Location).Path
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File .\scripts\build-local-otter-exe.ps1 `
-  -OutputDir ..\release\Otter\local-build `
-  -Force
+  -OutputDir "..\release\Otter\$($identity.buildVersion)"
 ```
+
+Do not overwrite an already handed-off candidate. For a repeat build, use a new
+candidate subdirectory and retain its provenance and checksum. This build command
+does not itself run every release or native acceptance gate described above.
 
 Development rules and module ownership are documented in
 [`CONTRIBUTING.md`](../../CONTRIBUTING.md). The current runtime structure is documented

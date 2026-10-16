@@ -214,9 +214,11 @@ Ctrl+E waits for the snapshot before opening the editor and refreshing native hi
 rectangles. Selection changes and newer edit requests invalidate delayed entry.
 Connected Art creation uses the same gate for shortcut and canvas-menu routes;
 the source is committed before linking or scheduling propagation. Ordinary Units
-retain synchronous creation/edit behavior. Keyboard deletion and context-menu
-reference/close freeze prepared pixels before removing the Unit. Failed readback
-leaves the Unit intact and reports a bounded, Unit-scoped notice.
+retain synchronous creation/edit behavior. Context-menu reference/close freezes
+prepared pixels before removing the Unit; failed readback leaves it intact and
+reports a bounded, Unit-scoped notice. Keyboard deletion instead retains the
+latest cached frame when available and removes the Unit without waiting for fresh
+GPU readback, including when capture failed before its first frame.
 
 Explicit stop coalesces concurrent requests, stops polling/new input, drains
 queued input, and retains the native session until the snapshot is committed.

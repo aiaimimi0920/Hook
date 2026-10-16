@@ -1,5 +1,13 @@
 # Otter Features and Manual Regression Matrix
 
+[Documentation](README.md) · [Getting started](guide/getting-started.md) · [中文教程](guide/getting-started.zh-CN.md)
+
+This is a reference for current controls and manual regression scenarios, not a
+record that every scenario passed on the current build. For a first session, use
+the getting-started guide above. Jump to [global shortcuts](#1-native-global-shortcuts),
+[frontend shortcuts](#2-frontend-shortcuts), [pointer controls](#3-pointer-and-wheel-controls),
+or [sticker editing](#5-sticker-editing-regression-matrix).
+
 ## System dialog priority
 
 On the ordinary Windows desktop, standard dialogs (`#32770`), modal-frame windows
@@ -99,7 +107,9 @@ The pencil dropdown enables an independent natural paintbrush. Check compact col
 Use the line-tool dropdown to create a Bézier path. Double-click a curve to insert an anchor without changing its shape; drag either endpoint's `+` handle to extend. Right-click a white anchor and choose “删除节点” to merge adjacent segments or trim the first/last segment. Deletion may change the local curve shape; at least one segment remains. Yellow tangent handles cannot be deleted separately. Check insertion, both-end extension/deletion, disabled deletion on the final segment, menu dismissal, undo/redo, and rasterization. See [curve editing](features/BEZIER_EDITING.md).
 
 Local Loom Art/extension integration is native-only and enabled by default;
-`HOOK_ENABLE_LOOM_HOOK=0` disables it. In browser preview, verify that local UI/session work
+`OTTER_ENABLE_LOOM_OTTER=0` disables it. The legacy `HOOK_ENABLE_LOOM_HOOK=0`
+applies only when the canonical variable is absent; see [environment precedence](development/RENAMING.md#环境变量).
+In browser preview, verify that local UI/session work
 still functions, no Loom request/push WebSocket is opened, and Art execution
 finishes with a local unsupported error rather than uploading images or inventing
 a result. A native paired-version runtime is required for real integration.
@@ -259,7 +269,7 @@ permission-checked external URL broker.
 | `Shift` + drag | Native file drag-out to Explorer or the desktop. | Confirm the exported PNG uses the shared visible filename rules. |
 | `Ctrl` + wheel | Resize the hovered sticker around its intended anchor. | Check image, annotations, links, and crop geometry together. |
 | `Alt` + wheel | Adjust sticker opacity. | Verify it works before and after entering edit mode. |
-| Double-click sticker | Toggle minified/full view. | Test stickers with many annotations; the transition should use the cached composite rather than rebuild the scene synchronously. |
+| Double-click sticker | Toggle minified/full view. | Test stickers with many annotations; live image and annotation layers must remain mounted and visible, without switching to a baked bitmap. |
 
 ## 4. Capture and image regression matrix
 
@@ -269,7 +279,7 @@ updates the crop to the newly displayed pixels. Browser document binding and
 extension installation are no longer part of this feature.
 
 Route B native GPU presentation is automatic for eligible Windows Live images,
-with `HOOK_LIVE_GPU_PREVIEW=0` forcing JPEG compatibility. See [GPU presentation](features/LIVE_GPU_PRESENTATION.md). Its additional
+with `OTTER_LIVE_GPU_PREVIEW=0` forcing JPEG compatibility. See [GPU presentation](features/LIVE_GPU_PRESENTATION.md). Its additional
 gate must prove native pixels plus the existing Unit/editor/input behavior;
 ordinary browser screenshots and submission counters alone do not prove native
 compositor visibility or monitor FPS. Copy/save/native Shift-drag can request a
@@ -367,6 +377,9 @@ and an animated-source CPU sample; submission counts are not monitor FPS.
   coordinates once on release.
 - Minify/restore keeps live content mounted and visible, clips the full-size
   content frame, and ignores baked-preview arrivals rather than replacing live layers.
+- Finish a content-eraser stroke with existing blur annotations: retain the decoded
+  blur until its replacement is ready, without a blank or gray flash. Increasing
+  blur strength or changing geometry must not retain a weaker or misaligned frame.
 - Save, clipboard image export, and drag-out use the same Unicode-safe visible
   naming templates. Internal caches and content-addressed assets do not.
 

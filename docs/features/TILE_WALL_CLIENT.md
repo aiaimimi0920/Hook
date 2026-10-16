@@ -4,10 +4,10 @@ Status: geometry, validated control transport, independent terminal entry and
 empty-wall test-pattern, immutable images, Live media and endpoint-scoped Live
 input and declarative Art views/actions are implemented. See [TILE_TERMINAL.md](./TILE_TERMINAL.md) for launch
 commands and limits. Final multi-terminal acceptance remains in
-Loom's [wall guide](../../../Loom/docs/TILE_WALL.md); this is an internal
+Loom's [wall guide](https://github.com/aiaimimi0920/Loom/blob/main/docs/TILE_WALL.md); this is an internal
 development slice, not the completed interactive-wall product.
 
-Links under `../../../Loom/` require a sibling Loom checkout; they are external
+Loom links point to the independent GitHub repository; these are external
 contracts, not files shipped by standalone Otter. Verify the paired Loom version
 before joint acceptance; Otter's local documentation checks do not validate them.
 
@@ -135,18 +135,18 @@ the catalog before reconciling registration; it does not blindly retry writes.
 Native transport tests use real loopback HTTP sockets to check authentication
 headers, identity injection, fixed routes, size claims/chunked overflow, truncated
 responses, rejection and redaction. They do not claim completed multi-display
-presentation. Static image iteration `v0.2.30.2` is built and verified in
-`Neuro/release/Otter/v0.2.30.2-image`; the initial directory without `-image`
-is retained as a failed CSP candidate. See Loom's stage 2 acceptance report for
-the static-image evidence; current Live/input evidence is in Loom's stage 4
-acceptance report. Real-process Art acceptance is exercised by
-`scripts/tests/Invoke-TileWallArtProbe.ps1`; stage 5 records its executed scope.
+presentation. Historical static-image iteration `v0.2.30.2` included a failed
+CSP candidate and a later image candidate; recover those package references and
+Loom stage 2/4/5 acceptance records from Git history, not a presumed local release
+directory. They do not certify the current executable. Real-process Art acceptance
+is exercised by `scripts/tests/Invoke-TileWallArtProbe.ps1`; bind each new run to
+its actual Otter/Loom artifacts and record its executed scope.
 Final multi-terminal acceptance remains open.
 
 Physical identification uses optional strict endpoint metadata and a separate
 lease-owned request/report. The native `identify_report` operation targets only
 `/v1/walls/endpoints/identify/report`; the administrator command is not exposed to
 the terminal. Rendering, input shielding, timeout, dismissal and upgrade rules
-are specified in [WALL_IDENTIFICATION_API.md](../../../Loom/protocol/WALL_IDENTIFICATION_API.md).
+are specified in [WALL_IDENTIFICATION_API.md](https://github.com/aiaimimi0920/Loom/blob/main/protocol/WALL_IDENTIFICATION_API.md).
 The presentation probe also exercises actual manager identification before its
 display-control and recovery phases; executed scope is recorded by stage.

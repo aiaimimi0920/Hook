@@ -36,8 +36,9 @@ license.
   licenses declared by their package manifests and lockfile entries.
 - SolidJS and frontend dependencies are used under the licenses declared by
   their package manifests and `package-lock.json` entries.
-- Rust registry dependencies are used under the SPDX expressions recorded by
-  Cargo metadata and `src-tauri/Cargo.lock`.
+- `src-tauri/Cargo.lock` pins the resolved Rust dependency versions. Their SPDX
+  expressions or license-file declarations come from the corresponding package
+  manifests exposed by Cargo metadata, not from the lockfile itself.
 
 The Windows operating system, Windows SDK interfaces, and Microsoft Edge
 WebView2 runtime are system/platform components. The portable release archive

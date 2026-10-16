@@ -87,14 +87,20 @@ Loom 控制面按精确公钥批准；旧验收结果不认证新二进制。完
 
 ## 本地打包
 
-直接构建便携 exe：
+新内部开发迭代开始时执行一次 `npm run version:internal`，并随该迭代提交
+`version-state.json`；同一迭代重编译或纯文档维护不再次递增，不修改公开包版本。
+详见[版本规范](../release/VERSIONING.md)。以下读取当前四段构建身份，输出到新目录：
 
 ```powershell
+. .\scripts\version-identity.ps1
+$identity = Get-OtterVersionIdentity -RepoRoot (Get-Location).Path
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File .\scripts\build-local-otter-exe.ps1 `
-  -OutputDir ..\release\Otter\local-build `
-  -Force
+  -OutputDir "..\release\Otter\$($identity.buildVersion)"
 ```
+
+不要覆盖已经交付手测的候选；同迭代重编译使用新的候选子目录，保留各自的来源记录和
+校验和。此构建命令不会自动执行上文全部发布检查和原生验收。
 
 开发规则见 [`CONTRIBUTING.md`](../../CONTRIBUTING.md)，当前运行时结构见
 [`docs/architecture/overview.md`](../architecture/overview.md)。

@@ -6,7 +6,8 @@
 
 ## 开关与记录边界
 
-- 仅 viewer worker 启动时 `HOOK_NATIVE_ACCEPTANCE` 已启用才记录。
+- 仅 viewer worker 启动时 `OTTER_NATIVE_ACCEPTANCE` 已启用才记录；旧
+  `HOOK_NATIVE_ACCEPTANCE` 仅作回退，见[环境变量优先级](../development/RENAMING.md#环境变量)。
 - 每个 viewer worker 生命周期最多尝试写入 32 条；重连不会重置预算。
 - 事件名为 `live_relay_viewer_disconnect`，记录 stop、显式 reconnect、Ping/Pong
   发送失败、读取失败、帧/消息校验失败或对端 Close。

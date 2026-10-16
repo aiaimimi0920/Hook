@@ -126,7 +126,9 @@ not proof of peer identity.
 
 The native Art/shader/coordination callers and extension host use the private
 `loom.json` `hookBridge` descriptor with protocol `loom.local-bridge.v1`.
-Native desktop integration defaults on; `HOOK_ENABLE_LOOM_HOOK=0` explicitly disables it.
+Native desktop integration defaults on; `OTTER_ENABLE_LOOM_OTTER=0` explicitly disables it.
+The legacy `HOOK_ENABLE_LOOM_HOOK=0` applies only when the canonical variable is
+absent; see [environment precedence](../development/RENAMING.md#环境变量).
 Startup capability refresh and extension registrations obey the same gate as
 direct native connection attempts. Local capture and standalone session restore
 do not need to connect to Loom.

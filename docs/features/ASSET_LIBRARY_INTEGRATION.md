@@ -1,30 +1,31 @@
-# AssetLibrary integration contract
+# AssetLibrary integration boundary and historical contract
 
-This document defines how Otter is expected to browse AssetLibrary and request
-installation of Art and Capability packages. It is an integration contract for
-the next implementation task, not a claim that Otter already contains an
-AssetLibrary client or store UI.
+This document preserves Otter's proposed catalog/install ownership boundary and
+the historical API design used to discuss Art and Capability installation. Otter
+does not currently contain an AssetLibrary client or store UI. It is not a
+ready-to-implement contract for the current AssetLibrary service.
 
-The authoritative service contract is AssetLibrary OpenAPI `0.2.0` with response
-schema version `1.0`. Before implementation, pin the reviewed AssetLibrary commit
-or release tag in Otter's integration tests; do not silently follow a changing
-`main` branch.
+The API details below refer to the historical AssetLibrary OpenAPI `0.2.0` with
+response schema `1.0`. Its source documents now live under AssetLibrary's `old/`
+directory. Reconcile routes, authentication, download and installation behavior
+with the service owners before implementation, then pin the reviewed commit or
+release in integration tests. Do not treat archived schemas as current endpoints.
 
-Authoritative references:
+References (the first three are archived, not current service authority):
 
-- [AssetLibrary OpenAPI](https://github.com/aiaimimi0920/AssetLibrary/blob/main/contracts/openapi/openapi.yaml)
-- [download and Edge contract](https://github.com/aiaimimi0920/AssetLibrary/blob/main/docs/DOWNLOAD_SEARCH_EDGE.md)
-- [Loom client and installation contract](https://github.com/aiaimimi0920/AssetLibrary/blob/main/docs/LOOM_CLIENT_AND_PUBLISHER_CLI.md)
-- [Loom-side integration guide](https://github.com/aiaimimi0920/Loom/blob/main/docs/features/ASSET_LIBRARY_INTEGRATION.md)
+- [Archived AssetLibrary OpenAPI](https://github.com/aiaimimi0920/AssetLibrary/blob/main/old/contracts/openapi/openapi.yaml)
+- [Archived download and Edge contract](https://github.com/aiaimimi0920/AssetLibrary/blob/main/old/docs/DOWNLOAD_SEARCH_EDGE.md)
+- [Archived Loom client and installation contract](https://github.com/aiaimimi0920/AssetLibrary/blob/main/old/docs/LOOM_CLIENT_AND_PUBLISHER_CLI.md)
+- [Loom-side integration guide](https://github.com/aiaimimi0920/Loom/blob/main/docs/ASSET_LIBRARY_INTEGRATION.md)
 
 ## Current status
 
 | Area | Current state |
 | --- | --- |
-| AssetLibrary public API | Implemented in the independent AssetLibrary repository. |
-| AssetLibrary reusable installer | Implemented in AssetLibrary as `crates/loom-client`. |
+| AssetLibrary public API | External ownership; the API details below describe an archived implementation, not current deployment status. |
+| AssetLibrary reusable installer | The historical design used `crates/loom-client`; current installer availability must be verified in the owning repository. |
 | Otter store page/client | Not implemented. |
-| Loom-to-AssetLibrary production adapter | Not implemented. |
+| Loom-to-AssetLibrary production adapter | External ownership; availability and contract must be verified against the selected Loom version. |
 | Otter-owned Art execution | Intentionally not applicable; Loom owns execution. |
 | App Update through AssetLibrary | Disabled and outside this integration. |
 
@@ -270,15 +271,17 @@ API health, readiness and catalog browsing do not prove full package download.
 Verify the actual Edge and Account Service dependencies in their owning repositories;
 this document does not certify a currently running deployment or account integration.
 
-For a full local download/install protocol test, run the AssetLibrary composite
-gate from that repository:
+The historical implementation used the following composite gate. This is a
+historical command, not a current checkout instruction: locate the matching
+archived revision and inspect its dependencies and side effects before using it.
+For new integration work, obtain the current gate from the service owner.
 
 ```powershell
 Set-Location <asset-library-repo-root>
 .\scripts\Test-P7Runtime.ps1 -StartDependencies
 ```
 
-The gate owns its process-local test identity and Edge lifecycle. Do not copy its
+That historical gate owns its process-local test identity and Edge lifecycle. Do not copy its
 test bearer into Otter configuration, source, fixtures, screenshots, or logs. A
 passing AssetLibrary P7 gate does not prove the future Otter/Loom adapter; that
 adapter still needs its own cross-repository runtime test.

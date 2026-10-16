@@ -111,8 +111,9 @@ runs in this lane. The stable check still reports success/failure. Missing histo
 empty diffs, executable/symlink paths, mixed code changes and classifier failures
 never grant a documentation-only success. CI classifier and aggregate regression
 tests run in both lanes. External URLs and heading anchors are not network-checked.
-The exact existing sibling Loom contract links in `TILE_WALL_CLIENT.md` and
-`TILE_TERMINAL.md` are external references and are not locally validated. All
+Loom contract links in `TILE_WALL_CLIENT.md` and `TILE_TERMINAL.md` point to the
+independent GitHub repository and need separate network/version verification.
+The checker retains narrow exceptions for historical sibling-checkout links;
 other out-of-repository paths fail. Security and advisory workflows retain their
 independent scans and reports.
 
