@@ -50,9 +50,19 @@ describe("Otter build workflow CI contract", () => {
         );
         expect(primaryJob).toContain("name: otter-build-candidate");
         expect(primaryJob).not.toContain("name: otter-portable-windows-x64");
-        expect(frontendJob).not.toContain("needs:");
-        expect(primaryJob).not.toContain("needs:");
-        expect(aggregateJob).toContain("needs: [frontend-serial, build-windows-candidate, parallel-race]");
+        for (const fullJob of [frontendJob, primaryJob, job("parallel-race")]) {
+            expect(fullJob).toContain("needs: change-scope");
+            expect(fullJob).toContain("if: needs.change-scope.outputs.full == 'true'");
+            expect(fullJob).not.toMatch(/needs:.*(?:frontend-serial|build-windows-candidate|parallel-race)/);
+        }
+        expect(aggregateJob).toContain("needs: [change-scope, frontend-serial, build-windows-candidate, parallel-race]");
+        expect(aggregateJob).toContain('test "$SCOPE" = success');
+        expect(aggregateJob).toContain('test "$FULL" = true');
+        expect(aggregateJob).toContain('if [ "$FULL" = false ]; then');
+        for (const result of ["FRONTEND", "BUILD", "PARALLEL"]) {
+            expect(aggregateJob).toContain(`test "$${result}" = skipped`);
+        }
+        expect(aggregateJob.match(/if: needs.change-scope.outputs.full == 'true'/g)).toHaveLength(2);
         expect(aggregateJob).toContain("if: ${{ always() }}");
         for (const result of ["FRONTEND", "BUILD", "PARALLEL"]) {
             expect(aggregateJob).toContain(`test "$${result}" = success`);

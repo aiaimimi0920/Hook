@@ -1,6 +1,10 @@
 """Protect the product check identity and all parallelized packaging gates."""
 from pathlib import Path
+from unittest.mock import patch
 import re
+import os
+import subprocess
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -14,10 +18,24 @@ def job(name):
     return match[1]
 
 
+def aggregate_bash(platform=os.name):
+    # Windows PATH may select the WSL launcher; hosted Windows provides Git Bash.
+    if platform == "nt":
+        return str(Path(os.environ["ProgramFiles"]) / "Git" / "bin" / "bash.exe")
+    return "bash"
+
+
 class BuildGateTests(unittest.TestCase):
+    def test_windows_shell_never_resolves_the_wsl_launcher(self):
+        with patch.dict(os.environ, ProgramFiles="C:/Program Files"):
+            self.assertEqual(aggregate_bash("nt"),
+                             str(Path("C:/Program Files") / "Git" / "bin" / "bash.exe"))
+        self.assertEqual(aggregate_bash("posix"), "bash")
+
     def test_independent_work_has_no_serial_dependency(self):
         for name in ("frontend-serial", "build-windows-candidate", "parallel-race"):
-            self.assertNotIn("needs:", job(name))
+            self.assertIn("needs: change-scope", job(name))
+            self.assertIn("if: needs.change-scope.outputs.full == 'true'", job(name))
         serial = job("frontend-serial")
         for command in ("npm test", "npm run test:effective-lines",
                         "npm run typecheck", "npm run typecheck:test"):
@@ -26,7 +44,7 @@ class BuildGateTests(unittest.TestCase):
 
     def test_stable_check_fails_closed_before_promotion(self):
         aggregate = job("build-windows-exe")
-        self.assertIn("needs: [frontend-serial, build-windows-candidate, parallel-race]", aggregate)
+        self.assertIn("needs: [change-scope, frontend-serial, build-windows-candidate, parallel-race]", aggregate)
         self.assertIn("if: ${{ always() }}", aggregate)
         for variable, dependency in (("FRONTEND", "frontend-serial"),
                                      ("BUILD", "build-windows-candidate"),
@@ -36,12 +54,58 @@ class BuildGateTests(unittest.TestCase):
         self.assertLess(aggregate.index('test "$PARALLEL"'), aggregate.index("Download same-run"))
         self.assertIn("name: otter-build-candidate", aggregate)
         self.assertIn("name: otter-portable-windows-x64", aggregate)
-        self.assertEqual(aggregate.count("if:"), 1)
+        self.assertEqual(aggregate.count("if:"), 3)
+        self.assertEqual(aggregate.count("if: needs.change-scope.outputs.full == 'true'"), 2)
+        self.assertIn('test "$SCOPE" = success', aggregate)
+        self.assertIn('test "$FULL" = true', aggregate)
         self.assertIn("shell: bash", aggregate)
         for override in ("run-id:", "repository:", "github-token:"):
             self.assertNotIn(override, aggregate)
         self.assertNotIn("otter-portable-windows-x64", job("build-windows-candidate"))
         self.assertNotIn("continue-on-error", WORKFLOW)
+
+    def test_docs_lane_keeps_existing_contracts_without_product_commands(self):
+        docs = job("change-scope")
+        for contract in ("Naming", "ReadmeLocalization", "SigningDocs", "DualDistribution",
+                         "PublicIdentity", "DeveloperEntrypoints", "TestEntrypoint",
+                         "ArchivedDocsSanitization"):
+            self.assertIn("Otter" + contract + "Contract.test.ts", docs)
+        self.assertIn("npm ci --no-audit --no-fund", docs)
+        self.assertIn("npx vitest run", docs)
+        self.assertEqual(docs.count("if: steps.scope.outputs.full == 'false'"), 5)
+        case = "documents the current public bundle identity without obsolete app-data paths"
+        self.assertIn("--testNamePattern '" + case + "'", docs)
+        self.assertIn("assert 'it(\"" + case + "\",' in source", docs)
+        for command in ("npm test", "cargo test", "npm run build", "build-local-otter-exe"):
+            self.assertNotIn(command, docs)
+        self.assertNotIn("paths-ignore:", WORKFLOW)
+
+    def test_aggregate_truth_table(self):
+        # Execute the actual workflow shell, including fail-fast Actions behavior.
+        aggregate = job("build-windows-exe")
+        script = aggregate.split("        run: |\n", 1)[1].split("      - name:", 1)[0]
+        script = "\n".join(line[10:] for line in script.splitlines())
+        cases = [
+            ("success", "false", "skipped", "skipped", "skipped", True),
+            ("success", "true", "success", "success", "success", True),
+            ("failure", "false", "skipped", "skipped", "skipped", False),
+            ("cancelled", "false", "skipped", "skipped", "skipped", False),
+            ("success", "", "skipped", "skipped", "skipped", False),
+            ("success", "false", "success", "skipped", "skipped", False),
+        ]
+        for index in range(3):
+            for outcome in ("failure", "cancelled", "skipped", ""):
+                results = ["success"] * 3
+                results[index] = outcome
+                cases.append(("success", "true", *results, False))
+        with tempfile.TemporaryDirectory() as directory:
+            for scope, full, frontend, build, parallel, success in cases:
+                env = dict(os.environ, SCOPE=scope, FULL=full, FRONTEND=frontend,
+                           BUILD=build, PARALLEL=parallel,
+                           GITHUB_STEP_SUMMARY=(Path(directory) / "summary").as_posix())
+                result = subprocess.run([aggregate_bash(), "-e", "-c", script], env=env)
+                self.assertEqual(result.returncode == 0, success,
+                                 (scope, full, frontend, build, parallel))
 
     def test_cache_never_skips_browser_or_rust_gates(self):
         parallel = job("parallel-race")

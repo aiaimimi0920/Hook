@@ -88,8 +88,28 @@ budgets must not compete with other test workers. CI immediately runs that exact
 file through `test:performance` with one worker and unchanged thresholds. The
 serial `npm test` packaging gate still includes every test. It runs in
 `frontend-serial` alongside the native build and `parallel-race` jobs.
-The stable `build-windows-exe` check fails unless all three succeed and only
-then promotes the same-run candidate to `otter-portable-windows-x64`.
+For code, dependencies, workflows, build configuration, unknown paths and manual
+runs, the stable `build-windows-exe` check fails unless all three succeed and
+only then promotes the same-run candidate to `otter-portable-windows-x64`.
+
+README, known root documentation, `docs/**/*.md` (except the release body), and
+images in `docs/assets/` (except `github-home-hero.svg`, covered by the full
+public-identity contract) use a lightweight documentation lane on PR/main events.
+It checks the full Git diff, including deleted and renamed paths, then validates
+changed text, whitespace and repository-relative link targets, then installs
+locked npm dependencies to run the seven existing documentation/naming contract suites
+and the documentation case from the mixed public-identity suite. Its unrelated
+product source checks remain in the full product lane; an explicit guard rejects
+a renamed/missing documentation case instead of silently running zero tests. No
+full application/native test suite, desktop compilation or EXE artifact promotion
+runs in this lane. The stable check still reports success/failure. Missing history,
+empty diffs, executable/symlink paths, mixed code changes and classifier failures
+never grant a documentation-only success. CI classifier and aggregate regression
+tests run in both lanes. External URLs and heading anchors are not network-checked.
+The exact existing sibling Loom contract links in `TILE_WALL_CLIENT.md` and
+`TILE_TERMINAL.md` are external references and are not locally validated. All
+other out-of-repository paths fail. Security and advisory workflows retain their
+independent scans and reports.
 
 `npm run lint` remains strict (`--max-warnings 0`) for local/release verification.
 Development CI publishes valid findings through the independent advisory workflow. `npm run test:surface-browser` drives a real Chromium through
