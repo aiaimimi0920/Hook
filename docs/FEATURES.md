@@ -225,6 +225,13 @@ translation is visible selects OCR and hides translation; a second `Alt+4` hides
 OCR too. Visibility changes preserve attachment revisions, digests, text, and
 geometry. Re-recognizing the image invalidates the older translation.
 
+With the updated Loom OCR capability, each OCR block uses the dominant nearby
+background color from its source region after estimated text-color exclusion.
+Similar sampled colors are grouped; translation inherits the region colors rather
+than a shared contrasting fill. Text contrast remains independently protected.
+Legacy migration preserves available per-block background evidence. Cached results
+are not silently rewritten: rerun `Ctrl+4`, then `Ctrl+5`, to refresh old colors.
+
 The focused `ocrTranslationVisibility.test.tsx` regression drives command and
 shortcut dispatch into the real attachment store and rendered overlay, including
 first use, repeated toggles, persistence, and an in-flight translation.
