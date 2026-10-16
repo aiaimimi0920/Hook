@@ -21,7 +21,7 @@ Otter 是一款免费开源的截图工具，让截图、标注、整理与分�
 <summary>桌面工作区 · 展开 / 收起动画</summary>
 
 <p align="center">
-  <img src="./docs/assets/otter-workflow-demo.gif" width="860" alt="Otter 完整工作流演示：截图、翻译、节点处理、双向投射、标注编辑与拖放保存。">
+  <img src="./docs/assets/otter-workflow-demo-v2.gif" width="860" alt="Otter 完整工作流演示：截图、翻译、节点处理、双向投射、标注编辑与拖放保存。">
 </p>
 
 </details>
