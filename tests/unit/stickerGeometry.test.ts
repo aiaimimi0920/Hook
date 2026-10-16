@@ -275,7 +275,7 @@ describe("stickerGeometry", () => {
             x: 10,
             y: 20,
             w: 118,
-            h: 30,
+            h: 34,
         });
     });
 
@@ -298,9 +298,10 @@ describe("stickerGeometry", () => {
 
             expect(getAnnotationGroupBounds(annotations)).toEqual({
                 x: 80,
-                y: 30,
+                // The fixed text frame includes 4px above and below the glyph box.
+                y: 26,
                 w: 48,
-                h: 20,
+                h: 28,
             });
             expect(errorSpy).not.toHaveBeenCalled();
         } finally {

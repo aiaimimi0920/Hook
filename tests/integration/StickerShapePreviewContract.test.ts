@@ -66,7 +66,7 @@ describe("Otter sticker shape preview contract", () => {
         expect(annotationModelSource).toContain('showArrowHead?: boolean;');
         expect(pointerDownSource).toContain('showArrowHead:');
         expect(pointerDownSource).toContain('activeTool === "arrow" ||');
-        expect(pointerDownSource).toContain('(activeTool === "line" && stickerToolSettings.lineArrowEnabled)');
+        expect(pointerDownSource).toContain('((activeTool === "line" || activeTool === "bezier") && stickerToolSettings.lineArrowEnabled)');
         expect(pointerCommitSource).toContain('line.mode === "line" && line.showArrowHead');
         expect(pointerCommitSource).toContain("color: getLineStrokeColor(line.mode),");
         expect(pointerCommitSource).toContain('constrainLinearToolEndpoint(prev.points[0], point, {');
@@ -75,7 +75,7 @@ describe("Otter sticker shape preview contract", () => {
         expect(renderGeometrySource).toContain("export const resolveArrowHead = (");
         expect(renderGeometrySource).toContain("export const renderArrowShaftPath = (");
         expect(renderGeometrySource).toContain("? getArrowShaftPoints(points, {");
-        expect(annotationItemSource).toContain("const path = renderArrowShaftPath(");
+        expect(annotationItemSource).toContain("const path = curve ? curve.path : renderArrowShaftPath(");
         expect(annotationItemSource).toContain('line.type === "arrow"');
         expect(draftOverlaySource).toContain("!!draft.showArrowHead,");
         expect(annotationLayerSource).not.toContain("const path = renderLinePath(line.points);");

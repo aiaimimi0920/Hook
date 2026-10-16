@@ -25,9 +25,43 @@ beforeEach(() => {
     dispose = render(() => <ColorPicker value="#ff3344" onChange={change} onClose={close}
         palette={["transparent", "#123456"]} onAddToPalette={add} onRemoveFromPalette={remove} onPickFromScreen={pick} />, host);
 });
-afterEach(() => { dispose(); host.remove(); });
+afterEach(() => { dispose(); host.remove(); vi.unstubAllGlobals(); });
 
 describe("compact color picker interactions", () => {
+    it("copies HEX on primary click and RGB on context click without applying or closing", () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        vi.stubGlobal("navigator", { clipboard: { writeText } });
+        const preview = button("复制当前颜色 HEX");
+        preview.click();
+        expect(writeText).toHaveBeenLastCalledWith("#ff3344");
+        const context = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+        preview.dispatchEvent(context);
+        expect(context.defaultPrevented).toBe(true);
+        expect(writeText).toHaveBeenLastCalledWith("rgb(255, 51, 68)");
+        expect(writeText).toHaveBeenCalledTimes(2);
+        expect(change).not.toHaveBeenCalled();
+        expect(close).not.toHaveBeenCalled();
+    });
+    it("copies the current alpha in HEX and RGBA instead of the initial color", () => {
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        vi.stubGlobal("navigator", { clipboard: { writeText } });
+        input("不透明度百分比", "50");
+        const preview = button("复制当前颜色 HEX");
+        preview.click();
+        expect(writeText).toHaveBeenLastCalledWith("#ff334480");
+        preview.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+        expect(writeText).toHaveBeenLastCalledWith("rgba(255, 51, 68, 0.5)");
+    });
+    it("tolerates unavailable clipboard and rejected write permission", async () => {
+        vi.stubGlobal("navigator", {});
+        expect(() => button("复制当前颜色 HEX").click()).not.toThrow();
+        const writeText = vi.fn().mockRejectedValue(new Error("Clipboard permission denied"));
+        vi.stubGlobal("navigator", { clipboard: { writeText } });
+        button("复制当前颜色 HEX").click();
+        await Promise.resolve();
+        expect(writeText).toHaveBeenCalledOnce();
+        expect(close).not.toHaveBeenCalled();
+    });
     it("places the add button before every palette color", () => {
         expect(host.querySelector('.otter-color-picker-palette')!.firstElementChild).toBe(button("添加到调色板"));
     });

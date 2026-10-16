@@ -44,7 +44,8 @@ describe("Otter long capture contract", () => {
 
         expect(rustSource).toContain("fn trigger_long_capture_mode");
         expect(rustSource).toContain('"trigger-long-capture-finish"');
-        expect(rustSource).toContain('MenuItem::with_id(app, "long_capture", "长截图 (Ctrl+3)"');
+        expect(rustSource).toMatch(/MenuItem::with_id\(\s*app,\s*"long_capture",\s*tray_shortcut_label\("长截图", "long_capture"\)/);
+        expect(readFileSync(resolve(process.cwd(), "src-tauri/src/shortcut_config.rs"), "utf8")).toContain('("long_capture", "Ctrl+3")');
         expect(rustSource).toContain("Code::Digit3");
         expect(rustSource).toContain("analyze_long_capture_pair");
         expect(rustSource).toContain("stitch_long_capture_frames");

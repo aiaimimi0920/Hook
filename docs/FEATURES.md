@@ -365,8 +365,8 @@ and an animated-source CPU sample; submission counts are not monitor FPS.
   blank space inside a freehand annotation's bounding box must not select it.
 - Annotation movement previews with an imperative transform and commits actual
   coordinates once on release.
-- Minify/restore keeps the live content mounted and uses the current baked
-  composite when available.
+- Minify/restore keeps live content mounted and visible, clips the full-size
+  content frame, and ignores baked-preview arrivals rather than replacing live layers.
 - Save, clipboard image export, and drag-out use the same Unicode-safe visible
   naming templates. Internal caches and content-addressed assets do not.
 

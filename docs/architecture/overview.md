@@ -552,10 +552,11 @@ transform layer. During ordinary dragging:
 ### 6.2 Minified stickers
 
 Window geometry and `minified` metadata are published in one graph-store write.
-When a current baked composite exists, the minified view displays one bitmap.
-The live image and annotation nodes remain mounted but `display:none`, so restore
-does not reconstruct a large SVG tree. Cache writes are reactive, token-checked,
-and invalidated when a unit/workspace is removed or replaced.
+Live image and annotation layers remain mounted and visible during minify and
+restore; the minified view does not switch to a baked bitmap, including when a
+late preview arrives. Minification clips the window rather than shrinking the
+content coordinate system: saved full-size geometry and crop offsets keep image
+layers, flips, contain margins, and annotations aligned.
 
 ### 6.3 Annotation interaction
 

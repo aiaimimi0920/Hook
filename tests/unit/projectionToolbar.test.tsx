@@ -31,7 +31,10 @@ it("mounts projection under settings instead of the main toolbar without mutatin
     expect(button("投射贴图")).toBeNull();
     button("贴图设置").click();
     expect(document.querySelector('[aria-label="投射设置"]')).not.toBeNull();
-    expect(document.querySelector('.sticker-settings-stack')?.children).toHaveLength(2);
+    const settings = document.querySelector('.sticker-settings-stack')!;
+    expect(settings.children).toHaveLength(3);
+    expect(settings.querySelector('[aria-label="Loom 全局连接"]')).not.toBeNull();
+    expect(settings.querySelector('[aria-label="投射设置"]')).not.toBeNull();
     expect(projectionDialog()).toBeUndefined();
     expect(stickerToolSettings.activeCanvasTool).toBe("crop");
     button("投射").click();

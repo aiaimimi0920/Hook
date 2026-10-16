@@ -89,7 +89,7 @@ describe("Otter sticker rasterize contract", () => {
         expect(bitmapLayersSource).toContain("applyContentEraseToBaseLayer");
         expect(bitmapLayersSource).toContain("applyRasterizedContentErase");
         expect(bitmapLayersSource).toContain('globalCompositeOperation = "destination-out"');
-        expect(annotationModelSource).toContain('mode: "line" | "polyline" | "arrow" | "brush" | "highlighter" | "content-eraser" | "mosaic" | "blur"');
+        expect(annotationModelSource).toMatch(/mode:\s*[^;]*"content-eraser"[^;]*;/);
         expect(annotationEraseSource).toContain("createLiveStickerEraseSession");
         expect(annotationEraseSource).toContain("applyContentEraseToBaseLayer");
         expect(annotationEraseSource).toContain("applyRasterizedContentErase");

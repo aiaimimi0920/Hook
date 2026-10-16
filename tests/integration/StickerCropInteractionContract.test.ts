@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const unitViewSource = readFileSync(resolve(process.cwd(), "src/features/workspace/components/UnitView.tsx"), "utf8");
@@ -13,15 +13,10 @@ const topStripEditActionsSource = readFileSync(
     resolve(process.cwd(), "src/features/stickers/components/StickerTopStripEditActions.tsx"),
     "utf8",
 );
-const propertyBarSource = readFileSync(resolve(process.cwd(), "src/features/stickers/components/StickerTopStripPropertyBar.tsx"), "utf8");
 const propertyBarCropSource = readFileSync(
     resolve(process.cwd(), "src/features/stickers/components/stickerTopStripPropertyBarCropController.ts"),
     "utf8",
 );
-const propertyBarSectionsPath = resolve(process.cwd(), "src/features/stickers/components/stickerTopStripPropertyBarSections.tsx");
-const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
-const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(propertyBarSectionsPath, "utf8") : "";
-const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
 const toolbarModelSource = readFileSync(resolve(process.cwd(), "src/features/stickers/components/stickerToolbarModel.ts"), "utf8");
 
 const sourceBetween = (source: string, start: string, end: string) => {
@@ -33,9 +28,7 @@ const sourceBetween = (source: string, start: string, end: string) => {
 };
 
 describe("Otter sticker crop interaction contract", () => {
-    const cropCommitStart = pointerCommitSource.indexOf('if (shape.mode === "crop")');
-    const cropCommitEnd = pointerCommitSource.indexOf('if (line.mode === "mosaic" || line.mode === "blur")');
-    const cropCommitSource = pointerCommitSource.slice(cropCommitStart, cropCommitEnd);
+    const cropCommitSource = sourceBetween(pointerCommitSource, 'if (shape.mode === "crop")', "const rawCornerRadius =");
 
     it("keeps the floating toolbar visible while crop mode is active so crop controls do not disappear", () => {
         expect(unitViewSource).toContain("<StickerTopStrip");
@@ -61,15 +54,17 @@ describe("Otter sticker crop interaction contract", () => {
         expect(annotationLayerSource).toContain('cropClipped() ? "hidden" : "visible"');
     });
 
-    it("still routes the crop secondary tool to crop controls instead of hiding the whole toolbar", () => {
+    it("keeps crop available while whole-sticker controls live in the independent settings panel", () => {
         expect(topStripEditActionsSource).toContain('aria-label="裁剪工具"');
         expect(topStripSource).toContain('stickerToolSettings.domain === "sticker" && stickerToolSettings.activeCanvasTool === "crop"');
         expect(topStripSource).toContain("onCanvasTool={applyTopStripTool}");
         expect(topStripEditActionsSource).toContain('onClick={() => props.onCanvasTool("crop")}');
-        expect(toolbarModelSource).toContain('if (activeCanvasTool === "crop") return "crop";');
-        expect(propertyBarSource).toContain('props.tool === "crop"');
-        expect(propertyBarSource).not.toContain("清理改动");
-        expect(propertyBarRenderSource).toContain('title="重置裁剪"');
+        expect(toolbarModelSource).toContain('return activeCanvasTool === "content-eraser" ? "content-eraser" : null;');
+        expect(topStripSource).toContain("<StickerSettings");
+        const settings = readFileSync(resolve(process.cwd(), "src/features/stickers/components/StickerSettingsFields.tsx"), "utf8");
+        expect(settings).toContain('aria-label="水平镜像"');
+        expect(settings).toContain('aria-label="垂直镜像"');
+        expect(settings).not.toContain("重置裁剪");
     });
 
     it("renders the crop drag preview as a square-cornered 4px solid outline with no fill", () => {

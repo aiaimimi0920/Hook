@@ -12,7 +12,7 @@ const readAppCss = () => [
     "src/features/art/styles/parameter-controls.css",
 ].map(readSource).join("\n");
 
-describe("hook terminal theme contract", () => {
+describe("Otter terminal theme contract", () => {
     it("defines canonical Neuro colors once and maps Otter semantics through aliases", () => {
         const css = readAppCss();
 
@@ -51,7 +51,11 @@ describe("hook terminal theme contract", () => {
         expect(addNodeMenu).toContain("otter-terminal-shell");
         expect(historyPanel).toContain("otter-terminal-shell");
         expect(groupBar).toContain("otter-terminal-shell");
-        expect(colorPicker).toContain("otter-terminal-shell");
+        expect(colorPicker).toContain("otter-color-picker-panel");
+        expect(colorPicker).toContain('../styles/color-picker.css');
+        const pickerCss = readSource("src/features/workspace/styles/color-picker.css");
+        expect(pickerCss).toContain("background: var(--neuro-surface)");
+        expect(pickerCss).toContain("border: 1px solid var(--theme-border)");
     });
 
     it("removes rounded shell styling and glow-heavy blue-purple accents from tab and shift+1 surfaces", () => {
@@ -97,7 +101,8 @@ describe("hook terminal theme contract", () => {
         expect(paramControl).toContain("unit-property-anchor");
         expect(numberControl).toContain("otter-param-slider__fill");
         expect(numberControl).not.toMatch(/violet|167,\s*139,\s*250|139,\s*92,\s*246/i);
-        expect(links).toContain('stroke="var(--theme-info-text)"');
+        expect(links).toContain("<CanvasGraphLink");
+        expect(readSource("src/features/workspace/components/CanvasGraphLink.tsx")).toContain('stroke="var(--theme-signal)"');
         expect(links).toContain('stroke="var(--theme-signal)"');
     });
 
@@ -126,7 +131,7 @@ describe("hook terminal theme contract", () => {
         expect(unitOverlays).toContain("otter-enhancement-notice");
         expect(unitOverlays).not.toContain("bg-slate-950/90");
         expect(paramsPanel).toContain("otter-param-group-header");
-        expect(colorPicker).toContain("otter-color-picker__footer");
+        expect(colorPicker).toContain("otter-color-picker-actions");
         expect(colorPicker).not.toContain("bg-slate-900");
         expect(addNodeMenu).toContain("otter-terminal-input");
         expect(addNodeMenu).not.toContain("bg-black/25");

@@ -48,7 +48,8 @@ describe("sticker edit propagation contract", () => {
     const imageContentSource = readSource("src/features/workspace/components/UnitStickerImageContent.tsx");
     const exportSource = readSource("src/features/stickers/services/stickerCompositeRenderer.ts");
 
-    expect(imageModelSource).toContain("resolveStickerContentFrame(options.unit())");
+    expect(imageModelSource).toContain("resolveStickerContentFrame(unit)");
+    expect(imageModelSource).toContain("resolveStickerContentFrame({ ...unit, w: full.w, h: full.h })");
     expect(imageContentSource).toContain('class="sticker-image-content-frame"');
     expect(imageContentSource).toContain('overflow: "hidden"');
     expect(exportSource).toContain("const contentFrame = resolveStickerContentFrame(unit);");

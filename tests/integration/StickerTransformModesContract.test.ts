@@ -108,8 +108,8 @@ describe("Otter sticker transform modes contract", () => {
     });
 
     it("keeps highlighter as a brush property instead of a parallel create-tool button", () => {
-        expect(topStripCreateToolsSource).toContain('aria-label="画笔工具"');
-        expect(topStripCreateToolsSource).toContain('onClick={() => props.onCreateTool("brush")}');
+        expect(topStripCreateToolsSource).toContain('aria-label={props.currentBrushTool === "paintbrush" ? "画笔工具" : "铅笔工具"}');
+        expect(topStripCreateToolsSource).toContain('onClick={() => props.onCreateTool(props.currentBrushTool ?? "brush")}');
         expect(topStripCreateToolsSource).not.toContain('props.onCreateTool("highlighter")');
         expect(propertyBarRenderSource).toContain("brushHighlighterEnabled");
     });
@@ -128,7 +128,7 @@ describe("Otter sticker transform modes contract", () => {
         expect(topStripEditActionsSource).toContain('onClick={() => props.onCanvasTool("content-eraser")}');
         expect(topStripEditActionsSource).toContain('onClick={() => props.onCanvasTool("crop")}');
         expect(topStripEditActionsSource).toContain(
-            "onClick={() => props.onHistoryAction(props.currentHistoryAction)}",
+            "onClick={() => props.onHistoryAction(item.mode)}",
         );
         expect(topStripEditActionsSource).toContain(
             "onClick={() => props.onRasterize(props.currentRasterizeScope)}",

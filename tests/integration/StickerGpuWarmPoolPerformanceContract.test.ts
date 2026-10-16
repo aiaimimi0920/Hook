@@ -30,13 +30,14 @@ describe("sticker GPU warm pool performance contract", () => {
   it("marks every dragged unit warm before collecting compositor followers", () => {
     const source = readSource("src/features/workspace/hooks/useDraggable.ts");
     const beginIndex = source.indexOf("beginStickerGpuWarmDrag(unitId);");
-    const prepareIndex = source.indexOf("prepareDragVisualFastPath();", beginIndex);
-    const clearIndex = source.indexOf("clearDragVisualFastPath();", prepareIndex);
+    const clearIndex = source.indexOf("clearDragVisualFastPath();", beginIndex);
     const endIndex = source.indexOf("finishGpuWarmDrag();", clearIndex);
 
     expect(beginIndex).toBeGreaterThanOrEqual(0);
-    expect(prepareIndex).toBeGreaterThan(beginIndex);
-    expect(clearIndex).toBeGreaterThan(prepareIndex);
+    expect(source).toContain("if (!dragFollowersCollected) {\n            prepareDragVisualFastPath();");
+    expect(source).toContain("if (!hasCrossedDragThreshold(snapshot)) return;");
+    expect(source).toContain("applyDragVisualFastPath(positions);");
+    expect(clearIndex).toBeGreaterThan(beginIndex);
     expect(endIndex).toBeGreaterThan(clearIndex);
     expect(source).toContain("dragStartedPrewarmed = isStickerGpuWarm(id)");
     expect(source).toContain("prewarmed=${dragStartedPrewarmed ? 1 : 0}");

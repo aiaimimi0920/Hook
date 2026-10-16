@@ -33,6 +33,8 @@ describe("Otter memory baseline contract", () => {
     it("keeps file-backed images as paths across restore and only normalizes them at display time", () => {
         expect(rustSource).not.toContain('sticker.src = format!("data:image/png;base64,{}", b64);');
         expect(appSource).not.toContain("previewSrc = await api.readImageFromPath(filePath);");
-        expect(unitParamsPanelSource).toContain("normalizeImageSourceForDisplay");
+        expect(unitParamsPanelSource).toContain("<UnitParamsCandidateResults");
+        const candidates = readFileSync(resolve(process.cwd(), "src/features/art/components/UnitParamsCandidateResults.tsx"), "utf8");
+        expect(candidates).toContain("normalizeImageSourceForDisplay");
     });
 });

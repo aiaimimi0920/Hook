@@ -53,6 +53,7 @@ it.each(["mosaic", "blur"] as const)("keeps an opaque %s stroke while its pixels
     const path = () => document.querySelector("path")!;
     expect(path().getAttribute("stroke")).toBe("#808a96");
     expect(path().closest("g")?.getAttribute("opacity")).toBe("1");
-    images[0].fail(); await flush();
+    // Blur now starts its raster request alongside the guarded image decoder.
+    images.find((image) => typeof image.fail === "function")!.fail(); await flush();
     expect(path().getAttribute("stroke")).toBe("#808a96");
 });

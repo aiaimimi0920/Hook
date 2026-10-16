@@ -20,7 +20,7 @@ describe("sticker brush freehand contract", () => {
     const draftLineMoveBlock = sourceBetween(
       pointerCommitSource,
       "if (options.draftLine()) {",
-      "const onPointerUp = async () =>",
+      "const onPointerUp = async (event?: PointerEvent) =>",
     );
     const createLineDraftBlock = sourceBetween(
       pointerDownSource,
@@ -37,7 +37,8 @@ describe("sticker brush freehand contract", () => {
   it("does not expose the shape snap-step profile setting on brush or highlighter tools", () => {
     const toolSettingsSource = readSource("src/features/settings/services/toolSettings.ts");
 
-    expect(toolSettingsSource).toContain('brush: ["strokeWidth", "shapeStrokeDashPattern", "brushHighlighterEnabled"]');
+    expect(toolSettingsSource).toContain('brush: ["strokeWidth", "shapeStrokeDashPattern", "brushHighlighterEnabled", "brushOpacity", "brushSmoothing"]');
+    expect(toolSettingsSource).toContain('paintbrush: ["strokeWidth", "brushOpacity", "brushSmoothing"]');
     expect(toolSettingsSource).toContain('highlighter: ["strokeWidth", "shapeStrokeDashPattern", "brushHighlighterEnabled"]');
     expect(toolSettingsSource).not.toContain('brush: ["strokeWidth", "shapeSnapStep"');
     expect(toolSettingsSource).not.toContain('highlighter: ["strokeWidth", "shapeSnapStep"');

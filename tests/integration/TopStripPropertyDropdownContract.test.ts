@@ -42,14 +42,16 @@ describe("top strip property dropdown contract", () => {
     expect(dropdownSource).toContain("onPointerMove={(event) => event.stopPropagation()}");
   });
 
-  it("registers the top strip history and rasterize popup menus as their own interactive rect so their options can be selected outside the toolbar row", () => {
+  it("registers top strip popup menus as their own interactive rect outside the toolbar row", () => {
     const topStripSource = readSource("src/features/stickers/components/StickerTopStrip.tsx");
     const editActionsSource = readSource("src/features/stickers/components/StickerTopStripEditActions.tsx");
     const chromeSource = readSource("src/features/stickers/components/stickerTopStripChrome.ts");
 
-    expect(topStripSource).toContain('name: "STICKER_TOP_STRIP_MENU"');
-    expect(topStripSource).toContain("const syncOpenToolbarMenuRect = (");
-    expect(topStripSource).toContain('querySelector<HTMLElement>("[data-top-strip-menu=\'true\']")');
+    const menuPositionSource = readSource("src/features/stickers/components/stickerTopStripMenuPosition.ts");
+    expect(menuPositionSource).toContain('name: "STICKER_TOP_STRIP_MENU"');
+    expect(menuPositionSource).toContain("export const syncOpenToolbarMenuRect = (");
+    expect(menuPositionSource).toContain("querySelector<HTMLElement>");
+    expect(topStripSource).toContain("syncOpenToolbarMenuRect(menu, menuRectId, stripElement)");
     expect(topStripSource).toContain("const scheduleOpenToolbarMenuRectSync = (");
     expect(topStripSource).toContain("removeRect(openMenuRectId());");
     expect(chromeSource).toContain("otter-toolbar-menu pointer-events-auto");
@@ -57,25 +59,20 @@ describe("top strip property dropdown contract", () => {
     expect(editActionsSource).toContain("onPointerMove={(event) => event.stopPropagation()}");
   });
 
-  it("lets history and rasterize dropdown options select the preferred action even when that action is not currently executable", () => {
+  it("keeps history as independent actions and rasterize preference selectable even when execution is unavailable", () => {
     const topStripSource = readSource("src/features/stickers/components/StickerTopStrip.tsx");
     const editActionsSource = readSource("src/features/stickers/components/StickerTopStripEditActions.tsx");
-    const historyMenuBlock = sourceBetween(
-      editActionsSource,
-      '<Show when={props.openMenu === "history"}>',
-      '<Show when={props.supportsBitmapTools}>',
-    );
+    expect(editActionsSource).toContain('disabled={item.mode === "undo" ? !props.canUndo : !props.canRedo}');
+    expect(editActionsSource).toContain("props.onHistoryAction(item.mode)");
+    expect(editActionsSource).not.toContain('props.openMenu === "history"');
     const rasterizeMenuBlock = sourceBetween(
       editActionsSource,
       '<Show when={props.openMenu === "rasterize"}>',
-      "        </>",
+      "</For>",
     );
 
-    expect(historyMenuBlock).not.toContain("disabled={!enabled}");
-    expect(rasterizeMenuBlock).not.toContain("disabled={!enabled}");
-    expect(historyMenuBlock).toContain("props.onSelectHistoryAction(item.mode)");
+    expect(rasterizeMenuBlock).not.toContain("disabled={");
     expect(rasterizeMenuBlock).toContain("props.onSelectRasterizeScope(item.mode)");
-    expect(topStripSource).toContain("setCurrentHistoryAction(mode);");
     expect(topStripSource).toContain("setCurrentRasterizeScope(scope);");
   });
 });

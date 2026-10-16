@@ -36,8 +36,11 @@ describe("Otter public identity contract", () => {
             "src/features/art/components/UnitParamsCandidateResults.tsx",
         ]) {
             expect(read(path)).not.toMatch(/hook-panel-(?:caption|port)/);
-            expect(read(path)).toMatch(/otter-panel-(?:caption|port)/);
         }
+        expect(read("src/shared/styles/feature-surfaces.css")).toMatch(/otter-panel-(?:caption|port)/);
+        expect(read("src/features/art/components/UnitParamsCandidateResults.tsx")).toContain("otter-panel-caption");
+        expect(read("src/features/art/components/UnitPorts.tsx")).toContain("unit-property-node-port");
+        expect(read("src/features/art/components/UnitParamsPortRows.tsx")).toContain("UnitPropertyCapsule");
         for (const path of [
             "src/features/workspace/services/syncService.ts", "src/app/app.tsx",
             "src/platform/desktop/overlaySyntheticTypes.ts", "src/platform/desktop/editableFocus.ts",

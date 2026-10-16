@@ -38,6 +38,12 @@ const stickerEditingDefaultsSource = readFileSync(resolve(process.cwd(), "src/fe
 const stickerStyleValuesSource = readFileSync(resolve(process.cwd(), "src/features/stickers/services/stickerStyleValues.ts"), "utf8");
 const exportSource = readFileSync(resolve(process.cwd(), "src/features/stickers/services/stickerAnnotationDrawing.ts"), "utf8");
 const typeSource = readFileSync(resolve(process.cwd(), "src/features/stickers/types/stickerEditing.ts"), "utf8");
+const readComponent = (name: string) => readFileSync(resolve(process.cwd(), "src/features/stickers/components", name), "utf8");
+const lineFieldsSource = readComponent("LinePropertyFields.tsx");
+const brushFieldsSource = readComponent("BrushPropertyFields.tsx");
+const effectFieldsSource = readComponent("EffectPropertyFields.tsx");
+const textSerialFieldsSource = readComponent("TextSerialPropertyFields.tsx");
+const drawingFieldsSource = readComponent("RectanglePropertyFields.tsx");
 
 const sourceBetween = (source: string, start: string, end: string) => {
     const startIndex = source.indexOf(start);
@@ -119,64 +125,47 @@ describe("Otter sticker style controls contract", () => {
     });
 
     it("uses the unified modal color picker for the line tool with its own independent color and exposes arrow as a line option", () => {
-        expect(propertyBarRenderSource).toContain("const renderLineFields = () => (");
-        expect(propertyBarSource).toContain("<Show when={isLineTool()}>{renderLineFields()}</Show>");
-        const lineSource = sourceBetween(
-            propertyBarSectionSource,
-            "const renderLineFields = () => (",
-            "const renderBrushFields = () => (",
-        );
+        expect(propertyBarSource).toContain("<LinePropertyFields");
+        expect(propertyBarSource).toContain("openColorPicker={openColorPicker}");
+        const lineSource = lineFieldsSource;
 
         expect(lineSource).toContain('title="描边颜色"');
-        expect(lineSource).toContain("shapeStrokeColorSlot()");
-        expect(lineSource).toContain("Icon={StrokeColorIcon}");
+        expect(lineSource).toContain('slot="lineStrokeColor"');
+        expect(lineSource).toContain("openColorPicker={props.openColorPicker}");
         expect(lineSource).toContain('title="线型"');
         expect(lineSource).toContain("lineArrowEnabled");
-        expect(lineSource).toContain('title="角吸附"');
+        expect(lineSource).toContain('title="角度吸附"');
+        expect(lineSource).toContain("<Show when={!props.bezier && !props.selected}>");
         expect(lineSource).not.toContain("renderColorControls(false)");
     });
 
     it("uses the unified modal color picker for paint tools and makes highlighter a brush option", () => {
-        expect(propertyBarRenderSource).toContain("const renderBrushFields = () => (");
-        expect(propertyBarSource).toContain("<Show when={isBrushTool()}>{renderBrushFields()}</Show>");
-        expect(propertyBarRenderSource).toContain("const renderEffectFields = () => (");
-        const brushSource = sourceBetween(
-            propertyBarSectionSource,
-            "const renderBrushFields = () => (",
-            "const renderTextFields = () => (",
-        );
-        expect(brushSource).toContain('title="画笔颜色"');
+        expect(propertyBarSource).toContain("<BrushPropertyFields");
+        expect(propertyBarSectionsSource).toContain('<EffectPropertyFields blur={options.tool() === "blur"} />');
+        const brushSource = brushFieldsSource;
+        expect(brushSource).toContain('title="笔触颜色"');
         expect(brushSource).toContain('slot="brushColor"');
-        expect(brushSource).toContain("Icon={StrokeColorIcon}");
+        expect(brushSource).toContain("openColorPicker={props.openColorPicker}");
+        expect(brushSource).toContain("<Show when={!props.paintbrush}>");
         expect(brushSource).toContain('title="荧光开关"');
         expect(brushSource).toContain("brushHighlighterEnabled");
         expect(brushSource).not.toContain("renderColorControls(false)");
 
-        const mosaicSource = sourceBetween(
-            propertyBarSectionSource,
-            "const renderEffectFields = () => (",
-            "const renderEraserFields = () => (",
-        );
-        // Mosaic is now image pixelation (each block samples the underlying image),
-        // so there are no fixed color-block pickers — just a brush size + the unit
-        // square width control. No rectangle border controls.
+        const mosaicSource = effectFieldsSource;
+        // Effect controls expose brush size and strength, not rectangle colors.
         expect(mosaicSource).not.toContain('"色块A"');
         expect(mosaicSource).not.toContain('"色块B"');
-        expect(mosaicSource).toContain('settingKey="effectBrushSize"');
-        expect(mosaicSource).toContain('settingKey="mosaicSize"');
+        expect(mosaicSource).toContain('setting="effectBrushSize"');
+        expect(mosaicSource).toContain('setting="mosaicSize"');
         expect(mosaicSource).not.toContain("renderColorControls(false)");
     });
 
     it("gives blur a brush-size control without rectangle border or generic active color controls", () => {
         expect(propertyBarSource).toContain("<Show when={isEffectTool()}>{renderEffectFields()}</Show>");
-        const blurSource = sourceBetween(
-            propertyBarSectionSource,
-            "const renderEffectFields = () => (",
-            "const renderEraserFields = () => (",
-        );
+        const blurSource = effectFieldsSource;
 
-        expect(blurSource).toContain('settingKey="effectBrushSize"');
-        expect(blurSource).toContain('settingKey="blurStrength"');
+        expect(blurSource).toContain('setting="effectBrushSize"');
+        expect(blurSource).toContain('setting="blurStrength"');
         expect(blurSource).not.toContain("renderColorControls(false)");
     });
 
@@ -198,11 +187,14 @@ describe("Otter sticker style controls contract", () => {
             "const renderSelectedSerialFields = () => (",
         );
 
-        expect(serialSource).toContain('title="描边颜色"');
-        expect(serialSource).toContain('slot="serialForegroundColor"');
-        expect(serialSource).toContain('title="填充颜色"');
-        expect(serialSource).toContain('slot="serialFillColor"');
-        expect(serialSource).toContain('settingKey="serialRadius"');
+        expect(serialSource).toContain('<TextSerialPropertyFields serial');
+        expect(serialSource).toContain('options.openColorPicker("serialForegroundColor", button)');
+        expect(serialSource).toContain('options.openColorPicker("serialFillColor", button)');
+        expect(serialSource).toContain('size={options.stickerToolSettings.serialRadius}');
+        expect(serialSource).toContain('options.patchStickerToolSettings({ serialRadius })');
+        expect(textSerialFieldsSource).toContain('title={props.serial ? "描边/数字颜色" : "文字颜色"}');
+        expect(textSerialFieldsSource).toContain('title="填充颜色"');
+        expect(textSerialFieldsSource).toContain('value={props.size}');
         expect(serialSource).not.toContain("renderTextControls()");
 
         expect(annotationPointerDownSource).toContain("buildSerialAnnotationMetrics(");
@@ -230,10 +222,16 @@ describe("Otter sticker style controls contract", () => {
         expect(propertyBarRenderSource).toContain("MiniDeferredNumericField");
         expect(fieldsSource).toContain('if (event.key !== "Enter") return;');
 
-        expect(propertyBarRenderSource).toContain('settingKey="serialRadius"');
-        expect(propertyBarRenderSource).toContain('settingKey="contentEraserSize"');
-        expect(propertyBarRenderSource).toContain('settingKey="mosaicSize"');
-        expect(propertyBarRenderSource).toContain('settingKey="blurStrength"');
+        expect(propertyBarRenderSource).toContain('size={options.stickerToolSettings.serialRadius}');
+        expect(propertyBarRenderSource).toContain('setting="contentEraserSize"');
+        expect(effectFieldsSource).toContain('setting="mosaicSize"');
+        expect(effectFieldsSource).toContain('setting="blurStrength"');
+        const inputHandler = sourceBetween(drawingFieldsSource, "onInput={(event) => {", "onKeyDown={(event) => {");
+        expect(inputHandler).toContain("setDraft(next)");
+        expect(inputHandler).not.toContain("patchStickerToolSettings");
+        expect(inputHandler).not.toContain("update(");
+        expect(inputHandler).toContain("onBlur={commit}");
+        expect(drawingFieldsSource).toContain('if (event.key === "Enter") { commit();');
         expect(propertyBarCropSource).toContain(
             'const [cropCornerRadiusDraft, setCropCornerRadiusDraft] = createSignal<string | null>(null);',
         );

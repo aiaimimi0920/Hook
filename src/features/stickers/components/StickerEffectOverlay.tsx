@@ -1,8 +1,8 @@
-import { Match, Show, Switch, createEffect, createMemo, createSignal, createUniqueId, onCleanup, type Component } from "solid-js";
+import { Match, Show, Switch, createMemo, createUniqueId, type Component } from "solid-js";
 
 import { BLUR_EFFECT_OVERLAY_FILL, buildMosaicTextureDataUrl } from "../services/stickerEffects";
 import type { StickerPoint } from "../types/stickerEditing";
-import { acquireStickerBlurTexture } from "../services/stickerBlurTexture";
+import { createStickerBlurPresentation } from "./stickerBlurPresentation";
 import { createDecodedImageSource } from "../../../shared/images/decodedImageSource";
 
 type StickerEffectOverlayParams = {
@@ -83,25 +83,12 @@ const BlurPatternDefs: Component<{
     patternId: string;
     blurRadius: number;
     imageSrc: string;
+    raster: boolean;
     imageW: number;
     imageH: number;
-}> = (props) => {
-    const [texture, setTexture] = createSignal<string | null>(null);
-    const decodedTexture = createDecodedImageSource(texture);
-    const source = createMemo(() => props.imageSrc);
-    const width = createMemo(() => props.imageW);
-    const height = createMemo(() => props.imageH);
-    const radius = createMemo(() => props.blurRadius);
-    createEffect(() => {
-        const lease = acquireStickerBlurTexture(source(), width(), height(), radius());
-        setTexture(lease.url);
-        let active = true;
-        void lease.ready.then((url) => { if (active) setTexture(url); });
-        onCleanup(() => { active = false; lease.release(); });
-    });
-    return (
+}> = (props) => (
     <defs>
-        <Show when={!decodedTexture()}><filter id={props.filterId} x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+        <Show when={!props.raster}><filter id={props.filterId} x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
             <feGaussianBlur stdDeviation={props.blurRadius} />
         </filter></Show>
         <pattern
@@ -113,18 +100,17 @@ const BlurPatternDefs: Component<{
             height={props.imageH}
         >
             <image
-                href={decodedTexture() || props.imageSrc}
+                href={props.imageSrc}
                 x={0}
                 y={0}
                 width={props.imageW}
                 height={props.imageH}
-                preserveAspectRatio={decodedTexture() ? "none" : "xMidYMid meet"}
-                filter={decodedTexture() ? undefined : `url(#${props.filterId})`}
+                preserveAspectRatio={props.raster ? "none" : "xMidYMid meet"}
+                filter={props.raster ? undefined : `url(#${props.filterId})`}
             />
         </pattern>
     </defs>
-    );
-};
+);
 
 // Shared brush-stroke renderer. `pathData` is an accessor so the live draft can
 // update only the <path d> attribute every pointer move. Defs stay mounted and
@@ -156,8 +142,11 @@ const EffectStrokeBrush: Component<{
         isMosaic() ? buildMosaicTextureDataUrl(props.imageW, props.imageH, Math.max(2, Math.round(props.strength || 12))) : null,
     );
     const decodedMosaic = createDecodedImageSource(mosaicTextureSrc);
-    const decodedBase = createDecodedImageSource(() => isMosaic() ? undefined : props.imageSrc);
     const blurRadius = createMemo(() => Math.max(0.1, props.strength || 8));
+    const blurFrame = createStickerBlurPresentation(() => ({
+        source: isMosaic() ? undefined : props.imageSrc,
+        width: props.imageW, height: props.imageH, radius: blurRadius(),
+    }));
 
     return (
         <Switch>
@@ -200,7 +189,7 @@ const EffectStrokeBrush: Component<{
             <Match when={true}>
                 <g opacity={opacity()}>
                     <Show
-                        when={decodedBase()}
+                        when={!!blurFrame()}
                         fallback={
                             <path
                                 d={props.pathData()}
@@ -212,13 +201,13 @@ const EffectStrokeBrush: Component<{
                             />
                         }
                     >
-                        {(src) => (
                             <>
                                 <BlurPatternDefs
                                     filterId={blurFilterId()}
                                     patternId={blurPatternId()}
                                     blurRadius={blurRadius()}
-                                    imageSrc={src()}
+                                    imageSrc={blurFrame()!.src}
+                                    raster={blurFrame()!.raster}
                                     imageW={props.imageW}
                                     imageH={props.imageH}
                                 />
@@ -231,7 +220,6 @@ const EffectStrokeBrush: Component<{
                                     fill="none"
                                 />
                             </>
-                        )}
                     </Show>
                 </g>
             </Match>

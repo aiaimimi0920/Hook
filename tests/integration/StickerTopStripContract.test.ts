@@ -41,7 +41,6 @@ const propertyBarSectionsPath = resolve(process.cwd(), "src/features/stickers/co
 const propertyBarSectionsExists = existsSync(propertyBarSectionsPath);
 const propertyBarSectionsSource = propertyBarSectionsExists ? readFileSync(propertyBarSectionsPath, "utf8") : "";
 const propertyBarRenderSource = `${propertyBarSource}\n${propertyBarSectionsSource}`;
-const propertyBarSectionSource = propertyBarSectionsExists ? propertyBarSectionsSource : propertyBarSource;
 const propertyBarCropSource = readFileSync(
     resolve(process.cwd(), "src/features/stickers/components/stickerTopStripPropertyBarCropController.ts"),
     "utf8",
@@ -68,14 +67,6 @@ const unitViewSource = readFileSync(resolve(process.cwd(), "src/features/workspa
 const toolbarModelSource = readFileSync(resolve(process.cwd(), "src/features/stickers/components/stickerToolbarModel.ts"), "utf8");
 const legacyToolbarPath = resolve(process.cwd(), "src/components/StickerEditToolbar.tsx");
 const legacyToolbarExists = existsSync(legacyToolbarPath);
-
-const sourceBetween = (source: string, start: string, end: string) => {
-    const startIndex = source.indexOf(start);
-    expect(startIndex).toBeGreaterThanOrEqual(0);
-    const endIndex = source.indexOf(end, startIndex + start.length);
-    expect(endIndex).toBeGreaterThan(startIndex);
-    return source.slice(startIndex, endIndex);
-};
 
 describe("Otter sticker top strip contract", () => {
     it("uses the dedicated top strip as the only sticker editing chrome", () => {
@@ -116,7 +107,7 @@ describe("Otter sticker top strip contract", () => {
         expect(topStripInteractiveRectSource).toContain('name: "STICKER_TOP_STRIP"');
         expect(topStripSource).toContain("buildStickerTopStripInteractiveRect");
         expect(topStripSource).toContain('pointer-events-none fixed z-[1210]');
-        expect(topStripSource).toContain('class="pointer-events-auto flex flex-wrap content-start items-stretch [&>*]:shrink-0"');
+        expect(topStripSource).toContain('class="otter-edit-strip pointer-events-auto flex flex-wrap content-start items-stretch [&>*]:shrink-0"');
         expect(topStripSource).toContain('onMouseDown={(event) => event.stopPropagation()}');
         expect(createToolsSource).toContain("TRANSFORM_MODE_BUTTONS");
         expect(topStripSource).toContain("uiActions.setStickerTransformMode");
@@ -124,9 +115,9 @@ describe("Otter sticker top strip contract", () => {
         expect(createToolsSource).toContain("props.onTransformMode(props.currentTransformMode)");
         expect(topStripSource).toContain("setOpenMenu((current) => (current === menu ? null : menu))");
         expect(createToolsSource).toContain('props.onToggleMenu("mode")');
-        expect(topStripPresentationSource).toContain('h-[50px] w-[50px]');
+        expect(topStripPresentationSource).toContain('h-7 w-7');
         expect(topStripPresentationSource).toContain('onPointerDown={(event) => event.stopPropagation()}');
-        expect(topStripChromeSource).toContain('absolute bottom-0 right-0 z-10 flex h-6 w-6');
+        expect(topStripChromeSource).toContain('absolute bottom-0 right-0 z-10 flex h-3 w-3');
         expect(topStripSource).toContain("window.addEventListener(\"pointerdown\"");
         expect(topStripRenderSource).toContain("shape-rect");
         expect(topStripRenderSource).toContain("shape-ellipse");
@@ -136,7 +127,7 @@ describe("Otter sticker top strip contract", () => {
         expect(topStripSource).toContain("onCreateTool={applyCreateTool}");
         expect(createToolsSource).toContain("props.onCreateTool(props.currentShapeTool)");
         expect(createToolsSource).toContain('props.onToggleMenu("shape")');
-        expect(createToolsSource).toContain('props.onCreateTool("line")');
+        expect(createToolsSource).toContain('props.onCreateTool(currentLineOption().mode)');
         expect(createToolsSource).toContain('props.onToggleMenu("line")');
         expect(topStripRenderSource).toContain("矩形");
         expect(topStripRenderSource).toContain("椭圆");
@@ -150,15 +141,15 @@ describe("Otter sticker top strip contract", () => {
         expect(createToolsSource).toContain("props.onCreateTool(props.currentEffectTool)");
         expect(editActionsSource).toContain('props.onCanvasTool("content-eraser")');
         expect(editActionsSource).toContain('props.onCanvasTool("crop")');
-        expect(editActionsSource).toContain("props.onHistoryAction(props.currentHistoryAction)");
-        expect(editActionsSource).toContain('props.onToggleMenu("history")');
+        expect(editActionsSource).toContain("props.onHistoryAction(item.mode)");
+        expect(editActionsSource).toContain("<For each={historyActionOptions}>");
         expect(topStripSource).toContain("selectedStickerAnnotationIds");
         expect(topStripSource).toContain("rasterizeStickerAnnotationsForUnit");
         expect(editActionsSource).toContain("props.onRasterize(props.currentRasterizeScope)");
         expect(editActionsSource).toContain('props.onToggleMenu("rasterize")');
         expect(topStripSource).toContain("ExtensionToolbarItems");
         expect(topStripSource).not.toContain("StickerTopStripOcrTools");
-        expect(extensionToolbarSource).toContain("visibleExtensionToolbarSlots");
+        expect(extensionToolbarSource).toContain("visibleStickerExtensionToolbarSlots");
         expect(extensionToolbarSource).toContain('data-top-strip-menu="true"');
         expect(createToolsSource).toContain("画笔");
         expect(topStripRenderSource).toContain("文本");
@@ -175,7 +166,7 @@ describe("Otter sticker top strip contract", () => {
         expect(topStripSource).toContain("undoStickerHistory");
         expect(topStripSource).toContain("redoStickerHistory");
         expect(topStripSource).toContain("stickerEditHistories[props.unitId]");
-        expect(editActionsSource).toContain("props.currentHistoryAction === item.mode");
+        expect(editActionsSource).toContain('disabled={item.mode === "undo" ? !props.canUndo : !props.canRedo}');
         expect(topStripSource).toContain("resolveStickerTopStripPropertyTool");
         expect(topStripSource).toContain("resolveSelectedExistingNodePropertyTool");
         expect(topStripSource).toContain("selectedExistingAnnotationType");
@@ -195,7 +186,7 @@ describe("Otter sticker top strip contract", () => {
         expect(propertyBarRenderSource).toContain('title="步进"');
         expect(propertyBarRenderSource).toContain('title="线宽"');
         expect(propertyBarRenderSource).toContain('title="线型"');
-        expect(propertyBarFieldsSource).toContain('value={options.stickerToolSettings.shapeStrokeDashPattern}');
+        expect(propertyBarFieldsSource).toContain('value={fieldProps.value ?? options.stickerToolSettings.shapeStrokeDashPattern}');
         expect(propertyBarSource).toContain('{ key: "solid", label: "━", title: "实线" }');
         expect(propertyBarSource).toContain('{ key: "dash-1", label: "╌", title: "虚线1" }');
         expect(propertyBarSource).toContain('{ key: "dash-2", label: "┄", title: "虚线2" }');
@@ -213,9 +204,9 @@ describe("Otter sticker top strip contract", () => {
         expect(propertyBarRenderSource).toContain("Icon={SquareConstraintGlyphIcon}");
         expect(propertyBarRenderSource).toContain("HighlighterGlowIcon");
         expect(propertyBarRenderSource).toContain('Icon={HighlighterGlowIcon}');
-        expect(propertyBarRenderSource).toMatch(
-            /title="线宽"[\s\S]*?settingKey="strokeWidth"[\s\S]*?currentValue=\{(?:options\.)?stickerToolSettings\.strokeWidth\}[\s\S]*?min=\{1\}[\s\S]*?max=\{96\}[\s\S]*?Icon=\{LineWidthIcon\}/,
-        );
+        const lineFields = readFileSync(resolve(process.cwd(), "src/features/stickers/components/LinePropertyFields.tsx"), "utf8");
+        expect(propertyBarSource).toContain("<LinePropertyFields");
+        expect(lineFields).toContain('<DrawingNumberField setting="strokeWidth" title="线宽" max={999}');
         expect(propertyBarRenderSource).toContain('settingKey="shapeCornerRadius"');
         expect(propertyBarRenderSource).toContain('title="圆角半径"');
         expect(propertyBarRenderSource).toContain("PolygonSidesIcon");
@@ -230,39 +221,23 @@ describe("Otter sticker top strip contract", () => {
         expect(propertyBarRenderSource).toContain('title="只擦标记"');
         expect(propertyBarRenderSource).toContain("contentEraserOnlyAnnotations");
         expect(propertyBarRenderSource).toContain("AnnotationsOnlyFocusedIcon");
-        expect(propertyBarRenderSource).toContain('title="翻X"');
-        expect(propertyBarRenderSource).toContain('title="翻Y"');
-        expect(propertyBarRenderSource).toContain('title="重置裁剪"');
-        expect(propertyBarRenderSource).toContain('title="圆角半径"');
-        expect(propertyBarRenderSource).toContain('title="边框开关"');
-        expect(propertyBarRenderSource).toContain('title="透明度"');
-        expect(propertyBarRenderSource).toContain('title="大小"');
+        const settingsFieldsSource = readFileSync(resolve(process.cwd(), "src/features/stickers/components/StickerSettingsFields.tsx"), "utf8");
+        expect(topStripSource).toContain("<StickerSettings");
+        expect(settingsFieldsSource).toContain('aria-label="水平镜像"');
+        expect(settingsFieldsSource).toContain('aria-label="垂直镜像"');
+        expect(settingsFieldsSource).toContain('aria-label="外边框"');
+        expect(settingsFieldsSource).not.toContain("重置裁剪");
         expect(propertyBarCropSource).toContain("scaleStickerFrame");
         expect(propertyBarCropSource).toContain("toggleStickerBorder");
-        expect(propertyBarRenderSource).toContain("OpacityIcon");
-        expect(propertyBarRenderSource).toContain("CanvasSizeIcon");
-        expect(propertyBarSource).toContain("commitCropOpacityDraft");
-        expect(propertyBarSource).toContain("commitCropCanvasWidthDraft");
-        expect(propertyBarSource).toContain("commitCropCornerRadiusDraft");
-        expect(propertyBarSource).toContain('props.tool === "crop"');
-        expect(propertyBarRenderSource).toContain("const renderCropFields = () => (");
-        expect(propertyBarSource).toContain('<Show when={props.tool === "crop"}>{renderCropFields()}</Show>');
+        expect(settingsFieldsSource).toContain("OpacityIcon");
+        expect(settingsFieldsSource).toContain("commit={c().commitCropOpacityDraft}");
+        expect(settingsFieldsSource).toContain("commit={c().commitCropCanvasWidthDraft}");
+        expect(settingsFieldsSource).toContain("commit={c().commitCropCornerRadiusDraft}");
         expect(propertyBarCropSource).toContain("flipStickerEditDataForFrame");
         expect(propertyBarCropSource).toContain("flipRasterizedAnnotationLayer");
-        expect(propertyBarCropSource).toContain("buildStickerCropReset");
-        const cropFieldsSource = sourceBetween(
-            propertyBarSectionSource,
-            "const renderCropFields = () => (",
-            propertyBarSectionsExists ? "return {" : "return (",
-        );
-        expect(cropFieldsSource).toContain("MiniDeferredNumericField");
-        expect(cropFieldsSource).toContain('title="圆角半径"');
-        expect(cropFieldsSource).toContain("Icon={RadiusIcon}");
-        expect(cropFieldsSource).toMatch(/onCommit=\{(?:options\.)?commitCropCornerRadiusDraft\}/);
-        expect(cropFieldsSource).toContain('title="透明度"');
-        expect(cropFieldsSource).toMatch(/onCommit=\{(?:options\.)?commitCropOpacityDraft\}/);
-        expect(cropFieldsSource).toContain('title="大小"');
-        expect(cropFieldsSource).toMatch(/onCommit=\{(?:options\.)?commitCropCanvasWidthDraft\}/);
+        expect(settingsFieldsSource).toContain('label="圆角"');
+        expect(settingsFieldsSource).toContain('label="不透明度"');
+        expect(settingsFieldsSource).toContain('label="宽度"');
         expect(propertyBarSource).toContain('props.tool === "selected-text"');
         expect(propertyBarSource).toContain('props.tool === "selected-serial"');
         expect(propertyBarSelectionSource).toContain("updateTextAnnotationFontFamilyById");
@@ -278,13 +253,13 @@ describe("Otter sticker top strip contract", () => {
         expect(propertyBarSelectionSource).toContain("patchSelectedTextAnnotationFontSize");
         expect(propertyBarSelectionSource).toContain("patchSelectedSerialAnnotationRadius");
         expect(propertyBarSource).toContain('props.tool === "selected-text"');
-        expect(propertyBarRenderSource).toContain('title="节点文字颜色"');
-        expect(propertyBarRenderSource).toContain('title="节点字号"');
-        expect(propertyBarRenderSource).toContain('title="节点字体"');
+        expect(propertyBarRenderSource).toContain('<TextSerialPropertyFields color={options.selectedExistingTextColor()}');
+        expect(propertyBarRenderSource).toContain('size={options.selectedExistingTextSize()} font={options.selectedExistingTextFontFamily()}');
+        expect(propertyBarRenderSource).toContain('options.commitSelectedTextSizeDraft();');
         expect(propertyBarSource).toContain('props.tool === "selected-serial"');
-        expect(propertyBarRenderSource).toContain('title="节点描边/数字颜色"');
-        expect(propertyBarRenderSource).toContain('title="节点填充颜色"');
-        expect(propertyBarRenderSource).toContain('title="节点半径"');
+        expect(propertyBarRenderSource).toContain('<TextSerialPropertyFields serial color={options.selectedExistingSerialForegroundColor()}');
+        expect(propertyBarRenderSource).toContain('fill={options.selectedExistingSerialFillColor()}');
+        expect(propertyBarRenderSource).toContain('options.commitSelectedSerialRadiusDraft();');
         expect(toolbarModelSource).toContain("resolveStickerTopStripPropertyTool");
         expect(toolbarModelSource).toContain("resolveSelectedExistingNodePropertyTool");
         expect(toolbarModelSource).toContain('| "selected-text"');

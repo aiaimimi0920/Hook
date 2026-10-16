@@ -96,13 +96,12 @@ describe("Otter sticker double-click contract", () => {
         expect(propertyBarSource).toContain("api.focusOverlayWindow()");
     });
 
-    it("publishes minified geometry atomically and hides the retained editable SVG stack behind one cached bitmap", () => {
+    it("publishes minified geometry atomically while retaining live image and annotation layers", () => {
         expect(graphStoreSource).toContain("setUnits(match, (previous) => ({");
-        expect(unitImageModelSource).toContain("const minifiedBakedPreviewSrc = createMemo(() => {");
-        expect(unitImageModelSource).toContain("bakedSyncPreviewCacheRevision();");
-        expect(unitImageModelSource).toContain("resolveCachedBakedSyncPreview(unit, displaySrcOverride ?? null)");
-        expect(unitImageContentSource).toContain('data-sticker-minified-baked-preview="true"');
-        expect(unitImageContentSource).toContain('display: props.minifiedBakedPreviewSrc ? "none" : "block"');
+        expect(unitImageModelSource).toContain("resolveStickerContentFrame({ ...unit, w: full.w, h: full.h })");
+        expect(unitImageModelSource).not.toContain("resolveCachedBakedSyncPreview");
+        expect(unitImageContentSource).not.toContain('data-sticker-minified-baked-preview');
+        expect(unitImageContentSource).toContain('class="sticker-image-content-frame"');
         expect(unitImageModelSource).toContain('unit.type !== "sticker"');
         expect(unitVisualOverlaysSource).toContain("<StickerAnnotationLayer");
     });

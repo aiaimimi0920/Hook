@@ -180,7 +180,7 @@ describe("useDraggable compositor fast path", () => {
     expect(follower.style.transform).toBe("");
   });
 
-  it("moves the Shift+1 Add Art Node shell while its inner opening animation remains active", async () => {
+  it("moves the Shift+1 Add Art Node shell without transforming its inner controls", async () => {
     graphStore.setUnits([unit()]);
     const host = document.createElement("div");
     document.body.append(host);
@@ -203,13 +203,15 @@ describe("useDraggable compositor fast path", () => {
 
     expect(menu).toBeInstanceOf(HTMLDivElement);
     expect(menu?.classList.contains("animate-in")).toBe(false);
-    expect(menu?.querySelector(":scope > .animate-in")).toBeInstanceOf(HTMLDivElement);
+    const innerShell = menu?.querySelector<HTMLDivElement>(":scope > .otter-add-art-shell");
+    expect(innerShell).toBeInstanceOf(HTMLDivElement);
 
     const draggable = createDraggable();
     draggable.startDrag(new MouseEvent("mousedown", { clientX: 110, clientY: 220 }), "sticker-fast-path");
     draggable.handleDragMove(new MouseEvent("mousemove", { clientX: 130, clientY: 250 }));
 
     expect(menu?.style.transform).toBe("translate3d(20px, 30px, 0)");
+    expect(innerShell?.style.transform).toBe("");
 
     await draggable.handleDragEnd();
     await Promise.resolve();
